@@ -155,7 +155,7 @@ score(slot) = distanceToSeam(slot.center) − areaWeight × slot.area
 | 层 | 窄屏默认 | 展开 |
 |---|---|---|
 | 首页 | 书脊宽度的窄缝（竖排「書庫」+ 竖排 tab + 搜索） | 点搜索后展开为完整宽度 |
-| 歌单 / 专辑 / 歌手 | 书脊：返回、竖排标题、计数（过滤中显示「匹配/总数」）、播放、展开 | 点标题或 ⌕ 展开为完整信息条，输入框获得焦点；里面有「收为书脊」 |
+| 歌单 / 专辑 / 歌手 | 书脊：返回、竖排标题、计数（过滤中显示「匹配/总数」）、播放、展开 | 点标题或 ⌕ 展开为完整信息条，输入框获得焦点；里面有「收起」（回到书脊） |
 | 搜索 | 从首页展开的输入框里长出来，默认保持展开（输入过程中不缩回） | — |
 
 - 展开时如果缝离屏幕边缘太近，相机先挪一下，保证整条缝放得下。
@@ -169,14 +169,16 @@ score(slot) = distanceToSeam(slot.center) − areaWeight × slot.area
 | 等级 | 宽度 | 入口 |
 |---|---|---|
 | `full` 完整信息条 | 300px（首页 120px） | 书脊上点标题或 ⌕；悬浮按钮恢复 |
-| `spine` 书脊 | 64px | 完整信息条面包屑行右侧的「书脊」 |
-| `hidden` 完全收起 | 0，墙合拢 | 完整信息条和面板的「收起」，书脊和首页窄缝顶部的 ⇥ |
+| `spine` 书脊 | 64px | 完整信息条面包屑行右侧的「收起」 |
+| `hidden` 折叠 | 0，墙合拢 | 完整信息条和面板的「折叠」，书脊和首页窄缝顶部的折叠图标（lucide `FoldHorizontal`） |
+
+- **界面文案（已定）**：「收起」= 收成书脊，「折叠」= 折到屏幕侧边、只剩悬浮按钮。早先的「书脊 / 收起」两个按钮名让人分不清哪个收得更彻底，已改。书脊上原来的 ⇥ 图标像「跳到末尾」，换成两侧箭头向中线合拢的 `FoldHorizontal`。搜索态里原有的「收起」按钮（关闭搜索）改名「关闭搜索」，避免撞名。
 
 - 默认等级：宽屏 `full`，窄屏 `spine`。跨过 900px 阈值时，非 `hidden` 的等级回到该宽度下的默认值。
 - `hidden` 时，屏幕侧边（缝原来所在的那一侧）出现竖排的悬浮按钮，显示当前层标题，复用自动出屏收起的边缘标签。
 - 点悬浮按钮：手动收起的情况，恢复到收起前的等级；自动出屏收起的情况，在当前视口裂开新缝（§5）。
 - 恢复或变宽时：锚点还在屏内就沿用它的块边界，相机只做放下整条缝所需的最小让位；锚点不在屏内，就在当前视口里取最近的块边界。
-- 搜索态（首页展开的搜索框、搜索层）需要输入框，所以没有书脊这一级，只能完全收起。从完整态收窄时，首页的搜索框会顺带关掉。
+- 搜索态（首页展开的搜索框、搜索层）需要输入框，所以没有书脊这一级，只能折叠。从完整态收窄时，首页的搜索框会顺带关掉。
 - 完全收起时进入新层，不会为一条看不见的缝去平移相机。
 
 - **切换时的翻转不能重排**：缝里内容的排版宽度跟着「当前渲染的是哪一级的内容」，而不是目标宽度。翻转前半段显示的仍是旧内容，保持旧宽度排版，只被变窄（或变宽）的缝裁切；翻到 90° 换内容时，才切到新宽度。原型里曾经直接用目标宽度，完整信息条在收成书脊的途中被挤进 64px 重新排版，出现大片竖排换行。
@@ -189,7 +191,7 @@ grid suite 有两个列表型面板需要保留：歌单页右侧展开的歌曲
 
 - 入口：完整信息条的「列表」；首页「本地」tab 窄缝里的 ▤（目录）。
 - 打开时往导航栈推一层，面包屑多一级（「… › 列表」「… › 目录」）。返回（‹ 按钮、Esc、浏览器后退）先关面板，再退层。正式实现时要同时写一条 history 记录（`useAppNavigation`），和 `beforeBack` 只执行一次的约定保持一致。
-- 收起链仍是三级。面板里只有「收起」（完全收起）；恢复时面板仍处于打开状态。打开面板会把等级拉回 `full`。
+- 收起链仍是三级。面板里只有「折叠」；恢复时面板仍处于打开状态。打开面板会把等级拉回 `full`。
 - 只有支持面板的层才有入口（`panelKind`）：歌单 / 专辑 / 文件夹 / 歌手页 → 歌曲列表；首页「本地」→ 目录树。
 
 **歌曲列表**（歌单 / 专辑 / 文件夹 / 歌手页）
@@ -310,6 +312,65 @@ bravais 和 Lattice 共用一套视觉语言，样式直接继承 `src/component
 
 原型 ⚙ 里可以切换主题（午夜墨染 / 日光素白 / 接近图 2 的示例自定义）、信息条材质、海报染色。
 
+## 7.6 键盘与 command palette（已定）
+
+原则：**完全沿用 folia 已有约定，不新增全局快捷键。**
+
+### 约束（来自现有约定）
+
+- 可打印字符归 palette：在注册了过滤的页面上，打字会直接打开过滤框（`useCommandPalette` 的分发逻辑）。suite 只用方向键、Enter（含修饰键）、Delete、Insert、Esc、Tab、功能键（`docs/library-suites.md` 第 4 步）。
+- 已被全局占用：Space 播放/暂停，Ctrl/Cmd+←/→ 切歌，Ctrl/Cmd+K 打开 palette，Ctrl/Cmd+B 进出 Lattice，Ctrl/Cmd+P 队列，Ctrl/Cmd+F 过滤，`:` 执行模式，未注册过滤的页面上 `s` 打开 palette。
+- 页面不在前台（`isInteractive` 为假）时不接管键盘、不向 palette 注册。焦点在文本输入框（`isTextEntryTarget`），或存在阻塞窗口（`data-folia-keyboard-window`）时让出键盘。
+
+### 墙上的键盘焦点
+
+沿用 Lattice 的焦点模型（`useWallKeyboardFocus`）：键盘焦点用 Lattice 的聚焦环表示，和「聚焦卡」（6×6 放大）是两个独立状态，对应 Lattice 的 `is-focused` 与 `is-expanded`。
+
+| 键 | 行为 | 出处 |
+|---|---|---|
+| ←↑→↓ | 空间移动，复用 `wallNavigation.findAdjacentInstance`（用聚焦后的实际矩形）；有限墙跳过空画框；第一次按时落在离缝最近的位置；相机只做最小平移（同 `revealRect`），尽量让缝留在屏内 | Lattice |
+| Enter | 歌曲：没放大时展开成聚焦卡，已放大时立即播放（按「播放后进入的视图」跳转）；歌单 / 专辑 / 歌手 / 文件夹：进入 | Lattice |
+| Shift+Enter | 歌曲加入队列 | TUI |
+| Alt+Enter / Alt+Shift+Enter | 打开该歌曲的专辑 / 歌手 | TUI |
+| Home / End | 第 1 项 / 最后一项（有限墙）；无限墙上 Home 回到起点磁贴 | TUI |
+| PgUp / PgDn | 纵向平移一屏 | TUI |
+| Tab / Shift+Tab | 在墙和缝之间切换焦点；进入缝后按 DOM 顺序在缝内控件间移动，移出最后一个控件后回到墙 | TUI 歌手页分栏 |
+| F6 / Shift+F6 | 首页切换 tab（歌单 / 专辑 / 歌手 / 本地） | TUI 切换来源 |
+
+- 不接管 Space（Lattice 用它展开海报，资料库里留给全局播放/暂停）。
+- 进入一层时，焦点落在起点磁贴；返回时回到当初被点的那张。焦点记录在 core 浏览会话的 `focusedEntryKey`，按条目 key 而不是位置，与 TUI 的 `useLibraryTuiFocus` 一致。
+- 修饰键组合里，只有上表列出的会被处理；其余带 Ctrl/Alt/Meta 的按键一律放行（Lattice 同规则）。
+- **Esc 逐级处理**（每按一次只处理一级）：收起聚焦卡 → 清除键盘焦点 → 关闭面板（列表 / 目录树）→ 返回上一层。过滤框里的 Esc 由 palette 自己处理（先清空，再关闭）。重复按键（repeat）忽略。
+- **批量模式（目录树）**照搬 TUI 目录页（`useLibraryTuiDirectoryKeys`）：Insert 切换选中并下移、Ctrl+A 全选、Ctrl+Enter / Ctrl+Shift+Enter 播放 / 加入队列所选、Delete 移除所选（需确认）。唯一不同：批量模式下 **Enter 也是切换选中**，与鼠标点击一致（批量模式点卡片绝不进入文件夹，§5）；TUI 里 Enter 是打开。
+
+### Command palette 接入
+
+- **过滤 = palette 的内联过滤框**：缝里不再自己实现输入框，用 `useGridCommandFilter({ port: 会话 query, anchorRef: 缝里的输入位, reopenIfFiltered: true })` 注册，palette 把 `filter-view` 的输入框渲染进缝里。`--play` / `--add` 等参数、Esc 清空关闭、输入法组词处理都直接复用。
+  - 缝处于书脊或完全收起时打开过滤，缝临时展开为完整信息条；清空并关闭过滤后缩回原等级。
+  - 在过滤框里按 ↓，把键盘焦点交给墙上 rank 0（过滤内容保留）。需要给 `filterViewSurface` 加一个 `onKeyDown`。
+- **首页保持现状（已定）**：首页不注册过滤，`s` 打开 palette；进入全局搜索用缝里的 ⌕（或 `/`）。首页「打字即搜索」等 search surface 落地后再议。
+- **各页面注册**：
+
+  | 页面 | 注册 | palette 里多出的命令 |
+  |---|---|---|
+  | 歌单 / 专辑 / 文件夹 | `useGridSurfaceRegistration` + `buildCoreSurfaceParams` | 排序、重新同步等 core 命令 |
+  | 歌手页 | `useLibraryArtistSurfaceRegistration` | `artist-*` |
+  | 首页「本地」批量模式 | 目录过滤 + `useLibraryDirectorySurfaceRegistration` | `directory-*` |
+  | 首页 | `useLibraryHomeTabsRegistration` | 切换 tab（palette 上下文尚未接入 `useLibraryHomeSurfaceStore`，需 core 补上） |
+
+- **suite 外观动作（已定，走 core 新接口，见 §8.3 第 4 条）**：bravais 独有的外观操作只出现在 palette 里，不占全局键：
+  - 展开信息条 / 收起信息条（书脊）/ 折叠信息条 / 在这里裂开缝
+  - 打开列表 / 打开目录（面板）
+  - 定位正在播放：执行键沿用 Lattice 的 `c`。两者的作用范围不会同时成立，执行键前缀不冲突。
+- 原型里的模拟 palette（Ctrl+K、首页 `s`、`:` 执行模式）把 suite 外观动作和页面资料命令混排展示，标出来源；外观动作里「打开列表 / 目录」执行键 `l`、「定位正在播放」执行键 `c`。
+- 新命令的 i18n、关键词（英文 / 中文 / 拼音）与执行键的无前缀冲突检查，按 `skills/settings-feature-integration` 的约定处理。
+
+### 原型实测与实现注意
+
+- 跑通：方向键（Lattice 算法、聚焦后实际矩形、有限墙跳空画框）、Enter 进入后焦点落在起点磁贴、Enter 展开 → 再 Enter 立即播放、墙上打字打开过滤并退化为有限墙、过滤框 ↓ 落在 rank 0、Tab / Shift+Tab 进出缝、Esc 逐级（收聚焦卡 → 清键盘焦点 → 返回）且返回后焦点回到当初被点的那张、F6 切 tab、批量 Insert / Ctrl+A / Ctrl+Enter、Ctrl+K 与 `:c`。
+- 坑：过滤框里的 ↓ 把焦点交给墙后必须 `stopPropagation`，否则同一次按键会冒泡到墙的方向键处理，焦点多走一格。正式实现放在 `filterViewSurface.onKeyDown` 里返回「已处理」即可。
+- 键盘焦点按 slot key 记录只适合原型；正式实现按条目 key 记录在会话的 `focusedEntryKey`，因为无限墙同一条目有多份、翻牌后 slot 内容会变。
+
 ## 8. 架构落点（实现阶段）
 
 ### 8.1 单一常驻墙
@@ -356,6 +417,11 @@ type BravaisLayer = {
      - 在线搜索分页：搜索层是有限墙，相机拖近结果尽头（最后一个有内容的 slot 进入视口加 overscan）时调用 `loadMore`。新结果按 rank 接着往外填，有限墙的边界和相机范围随之扩大。已占用的 slot 不动，严格 rank 天然保证追加时只有新 slot 翻牌。
 2. **account surface**：library-v2 A 步正在加。bravais 的登录和账户切换也应该在墙上完成（例如用「二维码磁贴」翻出来）。没实现之前回退到 grid。
 3. ~~队列层接入 suite~~：不接入。Lattice 保持独立 app 视图，只和 bravais 共享 wall 引擎（§8.2）。
+4. **suite 外观动作注册接口（已定）**：palette 现有的作用范围（`grid-surface` / `directory-surface` / `artist-surface` 等）只覆盖 core 的资料动作，suite 自己的外观操作（缝的等级、面板、裂开、定位正在播放）没有位置。在 core 约定里加一个通用接口，其他 suite 也能用：
+   - 契约：`LibrarySuiteChromeAction = { id, labelKey, keywords, executeShortcut?, isAvailable(): boolean, run(): void }`；`useLibrarySuiteChromeRegistration({ isInteractive, getActions })`，与其他 surface 注册同一套 latest-ref + 按 `isInteractive` 注册 / 注销的模式。
+   - palette 侧：新增作用范围 `suite-chrome`，进入 `useCommandPaletteContext` 的 `scope`；命令由一个工厂按注册的动作动态生成（id 加 suite 前缀，如 `bravais-seam-spine`），执行键在同时可用的命令之间保持无前缀冲突。
+   - 动作只描述「做什么」，不碰 DOM；挂哪个 suite 由当前激活的 suite 决定，切换 suite 时随组件卸载自动注销。
+5. **集合导航栈去环（已定，在 library-v2 上修，见主仓库 `plan/library-v2-account-plan.md` 插入步骤 N1）**：进入已经在栈里的集合时退回到那一层（浏览器历史同步 `history.go(-k)`），栈里永远没有重复集合，面包屑始终表达位置。bravais 的面包屑以后可点击跳层，复用 N1 顺手提供的 `popCollectionTo(depth)`；面包屑过长时折叠中间层。原型里专辑页点同一张专辑会重复压栈，是原型自身的 bug（主应用已去重栈顶），原型不再单独修。
 
 ### 8.4 性能约束
 
@@ -378,6 +444,7 @@ type BravaisLayer = {
 - 缝内容底部为播放条让出安全区（§5）。
 - 歌单/歌手页双模式：普通打开无限拼贴，过滤、多选等怕重复的操作中退化为以缝为中心的有限拼贴；进出时整面翻牌，不弱化（§4）。
 - 点击歌曲 = 就地聚焦（复用 Lattice 块内让位，6×6），卡上有歌手 / 专辑链接和「立即播放」「加入队列」；立即播放沿用 folia 的播放后进入视图设置。不做卡片背面（§7）。
+- 键盘：沿用 Lattice / TUI 约定，不新增全局键；Tab 在墙与缝之间切换，F6 切首页 tab；过滤用 palette 内联框渲染进缝里；首页保持不注册过滤；suite 外观动作走 core 新增的通用注册接口（§7.6、§8.3）。
 - 视觉风格完全继承 Lattice（主题变量、海报、染色、聚焦卡、按钮、缩放档位），缝默认用 Lattice 主题材质（§7.5）。
 - push 时被点磁贴作为起点磁贴：原地成为 rank 0，排序从它向外展开，缝不动（§7）。
 
