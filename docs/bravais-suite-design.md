@@ -303,6 +303,7 @@ bravais 和 Lattice 共用一套视觉语言，样式直接继承 `src/component
   - 徽标 11px / 800 / .12em，标题 `clamp(22px, 2vw, 36px)`、行高 .96、字距 −.045em，副标题 13px / 650 / .78。
   - 悬停：`saturate(1.08) brightness(1.05)`，四边各外扩一个 GAP（scaleX / scaleY）。
   - 正在播放 = `is-current`：强调色 2px 内描边 + 内发光，徽标借强调色。
+  - 键盘聚焦 = `.lattice-poster.is-focused`：发丝线 + 4px 主色环 + 发丝线 + 抬升投影（日光模式发丝线换浅色），顶部 10% 白色渐变高光，不染色。正在播放的卡不叠第二道环，只把强调色内发光加强（`inset 0 0 26px -6px`，62%）。环画在海报外侧，所以带 `contain: paint` 的元素必须是画环的那个元素本身（Lattice 的做法）；原型因为环画在内层，聚焦时要解除外框的 paint containment，否则环会被裁掉。
   - 列表联动、批量选中 = Lattice 键盘聚焦环（发丝线 + 4px 主色环 + 发丝线）。
   - 空画框只画一道主色 7% 的发丝线。
 - **聚焦卡 = `is-expanded`**：`0 42px 110px` 深投影，左 + 底双向压暗，标题 `clamp(48px, 6vw, 82px)`。「立即播放」「加入队列」走 LatticeChrome 的按钮：无卡片底，静止时无描边，悬停出现 12px 圆角框，主按钮常驻 16% 底色。
