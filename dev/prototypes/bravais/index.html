@@ -138,6 +138,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
     background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-size: 18px; font-weight: 900; }
 .tile-inner { transition: filter .3s, opacity .3s; }
 #stage.batch-mode .tile:not(.is-wall):not(.is-selected) .tile-inner { filter: grayscale(1); opacity: .35; }
+.is-focused .tile-inner { box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+.f-links { margin-top: .6em; font-size: 22px; font-weight: 700; opacity: .9; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+.f-links i { font-style: normal; opacity: .5; }
+.f-links [data-fact] { cursor: pointer; text-decoration: underline; text-decoration-color: rgba(255,255,255,.35); text-underline-offset: 5px; }
+.f-links [data-fact]:hover { text-decoration-color: #fff; }
+.f-btns { display: flex; gap: 14px; margin-top: 22px; }
+.f-btns button { border: 0; border-radius: 999px; padding: 16px 30px; font-size: 22px; font-weight: 800; background: #fff; color: #111; }
+.f-btns button.ghost { background: rgba(255,255,255,.16); color: #fff; box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); }
+.f-btns button:hover { filter: brightness(1.08); }
+#fakeplayer { inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: radial-gradient(80% 70% at 50% 40%, #3a2f5c, #0d0c14); }
+#fakeplayer.open { display: flex; }
+.fp-label { font-size: 12px; letter-spacing: .2em; opacity: .5; }
+.fp-title { font-family: "Noto Serif JP", serif; font-size: 34px; font-weight: 700; }
+#fpClose { margin-top: 18px; border: 1px solid rgba(255,255,255,.25); background: none; border-radius: 999px; padding: 8px 18px; }
 #hud { left: 16px; bottom: 14px; font-size: 11px; color: rgba(255,255,255,.45); font-variant-numeric: tabular-nums; pointer-events: none; }
 #now { right: 76px; bottom: 20px; display: none; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 999px;
     background: rgba(20,20,22,.78); backdrop-filter: blur(10px); font-size: 12px; max-width: 360px; }
@@ -166,6 +181,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div id="seam"><div class="seam-inner" id="seamInner"></div></div>
 </div>
 <div class="ui" id="fakebar"><div class="fb-row"><span class="fb-btn">▶</span><span class="fb-title">雨上がりのロケット — 夜野ミナト</span></div><div class="fb-progress"><span></span></div></div>
+<div class="ui" id="fakeplayer"><div class="fp-label">可视化播放页（模拟）</div><div class="fp-title" id="fpTitle"></div><button id="fpClose">‹ 返回资料库</button></div>
 <button class="ui" id="seam-tab" title="在这里裂开"></button>
 <button class="ui" id="floating-back" title="返回 (Esc)">‹</button>
 <div class="ui" id="hud"></div>
@@ -290,6 +306,9 @@ const TEMPLATES = [
     [[0,0,6,4],[6,0,6,3],[6,3,4,3],[10,3,2,2],[0,4,4,2],[4,4,2,2],[10,5,2,3],[0,6,2,2],[2,6,2,2],[4,6,2,2],[6,6,2,2],[8,6,2,2]],
     [[0,0,2,2],[2,0,2,2],[4,0,4,3],[8,0,2,4],[10,0,2,4],[0,2,2,3],[2,2,2,2],[4,3,4,3],[2,4,2,2],[8,4,4,4],[0,5,2,3],[2,6,6,2]],
 ];
+// Lattice 的块内让位表（src/components/app/lattice/blockReflows.ts 生成数据的紧凑拷贝）：
+// REFLOWS[模板][被展开的槽位][槽位] = [x, y, cols, rows]，展开的那张占 6×6，其余 11 张换成更小的尺寸恰好铺满整块
+const REFLOWS = [[[[0,0,6,6],[6,0,4,4],[10,0,2,2],[2,6,2,2],[10,2,2,4],[0,6,2,2],[4,6,2,2],[6,4,2,2],[6,6,2,2],[8,6,2,2],[8,4,2,2],[10,6,2,2]],[[0,0,3,2],[3,0,6,6],[9,0,3,2],[0,2,3,2],[9,2,3,2],[0,4,3,2],[3,6,3,2],[6,6,2,2],[0,6,3,2],[8,6,2,2],[10,6,2,2],[9,4,3,2]],[[0,0,3,2],[3,0,3,4],[6,0,6,6],[0,2,3,2],[10,6,2,2],[0,4,2,4],[4,4,2,2],[6,6,2,2],[4,6,2,2],[8,6,2,2],[2,6,2,2],[2,4,2,2]],[[2,0,2,2],[4,0,6,2],[8,2,2,2],[0,2,6,6],[10,0,2,6],[0,0,2,2],[6,2,2,2],[6,4,2,2],[6,6,2,2],[8,6,2,2],[8,4,2,2],[10,6,2,2]],[[0,0,3,2],[3,0,4,2],[10,0,2,2],[0,2,2,3],[6,2,6,6],[0,5,2,3],[2,4,2,2],[4,4,2,2],[4,6,2,2],[2,6,2,2],[7,0,3,2],[2,2,4,2]],[[0,0,3,2],[5,0,4,2],[9,0,3,2],[3,0,2,2],[8,2,4,2],[0,2,6,6],[6,2,2,2],[6,4,2,2],[6,6,2,2],[8,4,2,4],[10,6,2,2],[10,4,2,2]],[[0,0,4,2],[4,0,3,2],[9,0,3,2],[0,2,2,3],[10,2,2,2],[0,5,2,3],[4,2,6,6],[10,4,2,2],[2,6,2,2],[10,6,2,2],[7,0,2,2],[2,2,2,4]],[[0,0,4,2],[4,0,4,2],[8,0,2,2],[0,2,2,3],[10,0,2,2],[0,5,2,3],[4,4,2,2],[6,2,6,6],[4,6,2,2],[2,6,2,2],[2,4,2,2],[2,2,4,2]],[[0,0,4,2],[4,0,3,2],[9,0,3,2],[0,2,2,3],[10,2,2,2],[0,5,2,3],[2,2,2,4],[10,4,2,2],[4,2,6,6],[2,6,2,2],[10,6,2,2],[7,0,2,2]],[[0,0,4,2],[4,0,4,2],[8,0,2,2],[0,2,2,3],[10,0,2,2],[0,5,2,3],[2,4,2,2],[4,4,2,2],[4,6,2,2],[6,2,6,6],[2,6,2,2],[2,2,4,2]],[[0,0,4,2],[4,0,4,2],[8,0,2,2],[0,2,2,3],[10,0,2,2],[0,5,2,3],[2,4,2,2],[4,4,2,2],[4,6,2,2],[2,6,2,2],[6,2,6,6],[2,2,4,2]],[[0,0,4,2],[4,0,4,2],[8,0,2,2],[0,2,2,3],[10,0,2,2],[0,5,2,3],[2,4,2,2],[4,4,2,2],[4,6,2,2],[2,6,2,2],[2,2,4,2],[6,2,6,6]]],[[[0,0,6,6],[6,0,2,2],[6,2,2,2],[8,0,4,4],[2,6,2,2],[6,4,2,4],[8,4,2,2],[10,4,2,2],[0,6,2,2],[4,6,2,2],[8,6,2,2],[10,6,2,2]],[[0,0,2,3],[2,0,6,6],[8,2,4,2],[8,0,4,2],[0,3,2,2],[6,6,2,2],[8,4,2,4],[10,4,2,2],[0,5,2,3],[2,6,2,2],[4,6,2,2],[10,6,2,2]],[[0,0,2,3],[2,0,2,3],[4,0,6,6],[10,0,2,4],[0,3,4,2],[6,6,2,2],[8,6,2,2],[10,4,2,2],[0,5,2,3],[2,5,2,3],[4,6,2,2],[10,6,2,2]],[[0,0,2,3],[2,0,2,3],[4,0,2,4],[6,0,6,6],[0,3,4,2],[6,6,2,2],[8,6,2,2],[10,6,2,2],[0,5,2,3],[2,5,2,3],[4,6,2,2],[4,4,2,2]],[[0,0,2,2],[2,0,2,2],[4,0,4,2],[8,0,4,4],[0,2,6,6],[6,4,2,2],[8,4,2,2],[10,4,2,2],[6,6,2,2],[6,2,2,2],[8,6,2,2],[10,6,2,2]],[[0,0,2,4],[2,0,2,3],[4,0,4,2],[8,0,2,2],[2,3,2,2],[6,2,6,6],[4,4,2,2],[10,0,2,2],[0,4,2,4],[2,5,2,3],[4,6,2,2],[4,2,2,2]],[[0,0,2,4],[2,0,2,3],[4,0,4,2],[8,0,2,2],[2,3,2,2],[4,4,2,2],[6,2,6,6],[10,0,2,2],[0,4,2,4],[2,5,2,3],[4,6,2,2],[4,2,2,2]],[[0,0,2,4],[2,0,2,3],[4,0,4,2],[8,0,2,2],[2,3,2,2],[4,4,2,2],[4,6,2,2],[6,2,6,6],[0,4,2,4],[2,5,2,3],[4,2,2,2],[10,0,2,2]],[[0,0,2,2],[4,0,2,2],[6,0,2,3],[8,0,4,4],[2,0,2,2],[6,6,2,2],[8,4,2,2],[10,4,2,2],[0,2,6,6],[6,3,2,3],[8,6,2,2],[10,6,2,2]],[[0,0,2,2],[2,0,2,2],[4,0,4,2],[8,0,4,4],[0,2,2,2],[8,4,2,2],[8,6,2,2],[10,4,2,2],[0,6,2,2],[2,2,6,6],[0,4,2,2],[10,6,2,2]],[[0,0,2,3],[2,0,2,4],[4,0,4,2],[8,0,4,2],[0,3,2,3],[2,4,2,2],[10,4,2,2],[10,2,2,2],[0,6,2,2],[2,6,2,2],[4,2,6,6],[10,6,2,2]],[[0,0,2,4],[2,0,2,3],[4,0,4,2],[8,0,2,2],[2,3,2,2],[4,4,2,2],[4,6,2,2],[10,0,2,2],[0,4,2,4],[2,5,2,3],[4,2,2,2],[6,2,6,6]]],[[[0,0,6,6],[6,0,6,2],[8,2,2,4],[10,2,2,3],[0,6,2,2],[6,4,2,2],[10,5,2,3],[2,6,2,2],[4,6,2,2],[6,6,2,2],[8,6,2,2],[6,2,2,2]],[[0,0,4,4],[6,0,6,6],[6,6,2,2],[8,6,2,2],[0,4,2,2],[4,4,2,2],[10,6,2,2],[0,6,2,2],[2,6,2,2],[4,6,2,2],[2,4,2,2],[4,0,2,4]],[[0,0,4,4],[8,0,2,2],[6,2,6,6],[6,0,2,2],[0,4,2,2],[4,4,2,2],[10,0,2,2],[0,6,2,2],[2,6,2,2],[4,6,2,2],[2,4,2,2],[4,0,2,4]],[[0,0,4,4],[8,0,2,2],[4,4,2,2],[6,2,6,6],[0,4,2,2],[4,2,2,2],[10,0,2,2],[0,6,2,2],[2,6,2,2],[4,6,2,2],[2,4,2,2],[4,0,4,2]],[[2,0,4,2],[6,0,6,2],[6,4,2,2],[10,4,2,2],[0,2,6,6],[6,2,2,2],[10,6,2,2],[0,0,2,2],[6,6,2,2],[8,6,2,2],[8,4,2,2],[8,2,4,2]],[[0,0,4,4],[8,0,2,2],[10,4,2,2],[10,2,2,2],[0,4,2,2],[4,2,6,6],[10,6,2,2],[0,6,2,2],[2,6,2,2],[2,4,2,2],[4,0,4,2],[10,0,2,2]],[[0,0,4,4],[8,0,2,2],[4,4,2,2],[10,0,2,2],[0,4,2,2],[4,2,2,2],[6,2,6,6],[0,6,2,2],[2,6,2,2],[4,6,2,2],[2,4,2,2],[4,0,4,2]],[[0,0,4,2],[6,0,6,2],[6,4,2,2],[10,2,2,3],[4,0,2,2],[6,2,2,2],[10,5,2,3],[0,2,6,6],[6,6,2,2],[8,6,2,2],[8,4,2,2],[8,2,2,2]],[[0,0,6,2],[6,0,6,2],[8,4,2,2],[10,2,2,2],[0,4,2,2],[0,2,2,2],[10,6,2,2],[0,6,2,2],[2,2,6,6],[8,6,2,2],[8,2,2,2],[10,4,2,2]],[[0,0,4,4],[8,0,2,2],[10,4,2,2],[10,2,2,2],[0,4,2,2],[2,4,2,2],[10,6,2,2],[0,6,2,2],[2,6,2,2],[4,2,6,6],[4,0,4,2],[10,0,2,2]],[[0,0,4,4],[8,0,2,2],[4,4,2,2],[6,0,2,2],[0,4,2,2],[2,4,2,2],[10,0,2,2],[0,6,2,2],[2,6,2,2],[4,6,2,2],[6,2,6,6],[4,0,2,4]],[[0,0,4,4],[8,0,2,2],[4,4,2,2],[4,0,4,2],[0,4,2,2],[4,2,2,2],[10,0,2,2],[0,6,2,2],[2,6,2,2],[4,6,2,2],[2,4,2,2],[6,2,6,6]]],[[[0,0,6,6],[6,2,2,2],[6,0,2,2],[8,0,2,6],[10,0,2,2],[0,6,2,2],[6,6,2,2],[6,4,2,2],[8,6,2,2],[10,2,2,6],[2,6,2,2],[4,6,2,2]],[[0,0,2,2],[2,0,6,6],[8,0,2,3],[8,3,2,3],[10,0,2,4],[0,2,2,2],[6,6,2,2],[4,6,2,2],[8,6,2,2],[10,4,2,4],[0,4,2,4],[2,6,2,2]],[[0,0,2,2],[2,0,2,3],[4,0,6,6],[10,0,2,2],[10,2,2,3],[0,2,2,2],[2,3,2,2],[4,6,6,2],[0,4,2,2],[10,5,2,3],[0,6,2,2],[2,5,2,3]],[[0,0,2,2],[2,0,2,2],[4,0,2,4],[6,0,6,6],[7,6,2,2],[0,2,2,4],[2,2,2,2],[4,4,2,2],[2,4,2,4],[9,6,3,2],[0,6,2,2],[4,6,3,2]],[[0,0,2,2],[2,0,2,2],[4,0,2,4],[7,6,2,2],[6,0,6,6],[0,2,2,4],[2,2,2,2],[4,4,2,2],[2,4,2,4],[9,6,3,2],[0,6,2,2],[4,6,3,2]],[[3,0,2,2],[6,2,2,2],[5,0,2,2],[8,2,2,3],[9,0,3,2],[0,2,6,6],[7,0,2,2],[6,4,2,2],[8,5,2,3],[10,2,2,6],[0,0,3,2],[6,6,2,2]],[[0,0,2,2],[2,0,2,2],[4,0,6,2],[8,2,2,2],[10,0,2,3],[0,2,2,3],[2,2,6,6],[8,4,2,2],[10,3,2,2],[10,5,2,3],[0,5,2,3],[8,6,2,2]],[[0,0,2,3],[2,0,2,2],[4,0,3,2],[7,0,3,2],[10,0,2,6],[0,3,2,2],[2,2,2,2],[4,2,6,6],[2,4,2,2],[10,6,2,2],[0,5,2,3],[2,6,2,2]],[[0,0,2,2],[2,0,2,2],[4,0,6,2],[8,2,2,2],[10,0,2,3],[0,2,2,3],[10,3,2,2],[8,4,2,2],[2,2,6,6],[10,5,2,3],[0,5,2,3],[8,6,2,2]],[[0,0,2,2],[2,0,3,2],[5,0,3,2],[8,0,2,2],[10,0,2,2],[0,2,2,3],[2,2,2,2],[4,2,2,6],[2,4,2,2],[6,2,6,6],[0,5,2,3],[2,6,2,2]],[[2,0,3,2],[6,2,2,2],[5,0,3,2],[8,0,4,3],[10,3,2,2],[0,0,2,2],[8,3,2,3],[6,4,2,2],[8,6,2,2],[10,5,2,3],[0,2,6,6],[6,6,2,2]],[[0,0,2,2],[2,0,4,2],[6,0,2,2],[8,0,2,4],[10,0,2,3],[0,2,2,2],[0,4,2,2],[8,4,2,2],[10,3,2,3],[8,6,4,2],[0,6,2,2],[2,2,6,6]]]];
 const mod = (a, n) => ((a % n) + n) % n;
 const hash2 = (a, b) => { let h = Math.imul(a, 374761393) + Math.imul(b, 668265263) | 0; h = Math.imul(h ^ h >>> 13, 1274126177); return (h ^ h >>> 16) >>> 0; };
 const blockCache = new Map();
@@ -318,7 +337,7 @@ function wrapIndex(slot, n) {
 
 /* ───────────── 状态 ───────────── */
 
-const opts = { seamCut: 'split', pushMode: 'B', stability: 'strict', seamPos: .5, showRank: false, coupling: 'follow', fallback: 'squeeze', seamPick: 'block', listMode: 'dual', playerBar: true };
+const opts = { seamCut: 'split', pushMode: 'B', stability: 'strict', seamPos: .5, showRank: false, coupling: 'follow', fallback: 'squeeze', seamPick: 'block', listMode: 'dual', playerBar: true, entryView: 'lattice' };
 // listMode：歌单/歌手页 dual = 普通打开无限拼贴，过滤时退化为以当前缝为中心的有限拼贴；finite = 始终有限
 // seamPick：block = 裂缝只开在 12×8 块之间的天然缝隙上，放不下时相机让位；nearest = 视口内就近找线，找不到再挤压/切开（fallback）
 // fallback：找不到不切断磁贴的裂缝线时怎么处理被切到的磁贴 —— squeeze = 挤压（靠缝一侧的边被推回到缝边），cut = 切开（撕成两半）
@@ -483,7 +502,7 @@ function contentFor(slot, layer = cur()) {
 /* ───────────── 磁贴渲染 ───────────── */
 
 const KIND_LABEL = { playlist: '歌单', album: '专辑', artist: '歌手', folder: '文件夹', track: '' };
-function tileHTML(item, slot, layer) {
+function tileHTML(item, slot, layer, focused = false) {
     if (!item) {
         const rank = layer && layer.rankOfSlot ? layer.rankOfSlot.get(slot.key) : undefined;
         return opts.showRank && rank !== undefined && rank < 400 ? `<span class="wall-rank">${rank + 1}</span>` : '';
@@ -502,11 +521,18 @@ function tileHTML(item, slot, layer) {
         item.kind === 'album' ? `${item.artist} · ${item.tracks.length} 首` : item.kind === 'folder' ? `${item.tracks.length} 首 · ${item.virtual ? '所有本地文件' : item.artist}` : item.artist;
     return `<div class="cover"><span class="glyph" style="font-size:${Math.min(slot.w, slot.h) * .9}px">${item.title[0]}</span></div>
         <div class="shade"></div><div class="badge">${badge}</div>
-        <div class="copy"><div class="t" style="font-size:${fs}px">${item.title}</div><div class="a" style="font-size:${Math.max(15, fs * .4)}px">${sub}</div></div>`;
+        <div class="copy"><div class="t" style="font-size:${fs}px">${item.title}</div>${focused ? focusHTML(item) : `<div class="a" style="font-size:${Math.max(15, fs * .4)}px">${sub}</div>`}</div>`;
+}
+// 聚焦卡底部：可点击的歌手 / 专辑链接 + 时长，以及「立即播放」「加入队列」两个按钮（对齐 GridView 聚焦卡的按钮排）
+function focusHTML(item) {
+    const queued = state.queue.some(t => t.key === item.key);
+    return `<div class="f-links"><span data-fact="artist">${item.artist}</span><i>·</i><span data-fact="album">${item.album}</span><i>·</i>${fmtDur(item.dur)}</div>
+        <div class="f-btns"><button data-fact="play">▶ 立即播放</button><button data-fact="enqueue" class="ghost">${queued ? '✓ 已在队列' : '＋ 加入队列'}</button></div>`;
 }
 function setContent(rec, item) {
     const layer = cur();
-    const html = tileHTML(item, rec.slot, layer);
+    const r = tileRect(rec.slot);
+    const html = tileHTML(item, { ...rec.slot, w: r.w, h: r.h }, layer, !!focus && focus.key === rec.slot.key);
     for (const [el, inner] of [[rec.elL, rec.innerL], [rec.elR, rec.innerR]]) {
         inner.innerHTML = html;
         inner.className = 'tile-inner' + (item ? ' kind-' + item.kind : '');
@@ -521,7 +547,20 @@ function setContent(rec, item) {
 }
 const squeezing = (layer = cur()) => !!(layer && layer.cutThrough && layer.anchor && opts.fallback === 'squeeze');
 // 磁贴的实际矩形：挤压模式下跨缝的磁贴按中心归属保留在一侧，靠缝的那条边退到缝边（至少保留一半宽度）
+// 聚焦（放大）状态：{ key: 槽位 key, bx, by, s }。同一时间全局只有一张；块外的磁贴不受影响
+let focus = null;
+function focusRect(slot) {
+    if (!focus || slot.bx !== focus.bx || slot.by !== focus.by) return null;
+    let [x, y, c, r] = REFLOWS[mod(slot.bx + 2 * slot.by, TEMPLATES.length)][focus.s][slot.s];
+    const o = hash2(slot.bx, slot.by) % 4;
+    if (o & 1) x = BCOLS - x - c;
+    if (o & 2) y = BROWS - y - r;
+    const wx = slot.bx * BW + x * P, wy = slot.by * BH + y * P, w = c * P - GAP, h = r * P - GAP;
+    return { x: wx, y: wy, w, h, cx: wx + w / 2, cy: wy + h / 2 };
+}
 function tileRect(slot, layer = cur()) {
+    const fr = focusRect(slot);
+    if (fr) return fr;
     if (!squeezing(layer)) return slot;
     const X = layer.anchor.x;
     if (!(slot.x < X && slot.x + slot.w > X)) return slot;
@@ -531,15 +570,52 @@ function tileRect(slot, layer = cur()) {
 }
 // 把矩形变化写到两份 DOM 上；animate 时用接近 Lattice 展开弹簧的过渡
 function applyRect(rec, animate) {
-    const r = tileRect(rec.slot), key = r.x + ',' + r.w;
-    if (rec.rectKey === key) return;
+    const r = tileRect(rec.slot), key = [r.x, r.y, r.w, r.h].join(',');
+    if (rec.rectKey === key) return false;
     const first = rec.rectKey === undefined;
     rec.rectKey = key;
+    const ease = 'cubic-bezier(.2,.9,.25,1.08)';
+    const isFocused = !!focus && focus.key === rec.slot.key;
     for (const el of [rec.elL, rec.elR]) {
-        el.style.transition = animate && !first ? 'left .5s cubic-bezier(.2,.9,.25,1.08), width .5s cubic-bezier(.2,.9,.25,1.08)' : 'none';
+        el.style.transition = animate && !first ? ['left', 'top', 'width', 'height'].map(p => `${p} .5s ${ease}`).join(', ') : 'none';
         el.style.left = r.x + 'px';
+        el.style.top = r.y + 'px';
         el.style.width = r.w + 'px';
+        el.style.height = r.h + 'px';
+        el.style.zIndex = isFocused ? 20 : '';
+        el.classList.toggle('is-focused', isFocused);
     }
+    return true;
+}
+// 切换聚焦：新旧两个块里的磁贴重新取矩形（带过渡）并按新尺寸重排内容；随后让相机最小平移，保证聚焦卡完整可见
+function setFocus(slot) {
+    const blocks = new Set();
+    if (focus) blocks.add(focus.bx + ',' + focus.by);
+    focus = slot ? { key: slot.key, bx: slot.bx, by: slot.by, s: slot.s } : null;
+    if (focus) blocks.add(focus.bx + ',' + focus.by);
+    for (const rec of tiles.values()) {
+        if (!blocks.has(rec.slot.bx + ',' + rec.slot.by)) continue;
+        applyRect(rec, true);
+        setContent(rec, rec.item);
+    }
+    if (focus) revealRect(focusRect(slot));
+}
+const clearFocus = () => { if (focus) setFocus(null); };
+// 相机最小平移让一个矩形完整可见，同时尽量让缝留在屏内（避免信息条被挤出屏自动收起）
+function revealRect(rect) {
+    const layer = cur(), s = state.scale, line = seamLineX(), pad = 24;
+    const a = layer.anchor || { x: state.cam.x };
+    const [offL, offR] = halfOffsets(), off = rect.cx < a.x ? offL : offR;
+    const w = seamGeom().w, need = w / 2 + SEAM_EDGE;
+    const fitLo = rect.x + rect.w - (state.vw - pad - line - off) / s, fitHi = rect.x - (pad - line - off) / s;
+    const seamLo = a.x - (state.vw - need - line) / s, seamHi = a.x + (line - need) / s;
+    const lo = w > 1 ? Math.max(fitLo, seamLo) : fitLo, hi = w > 1 ? Math.min(fitHi, seamHi) : fitHi;
+    const camX = lo <= hi ? clampToRange(state.cam.x, lo, hi) : clampToRange(state.cam.x, Math.min(fitLo, fitHi), Math.max(fitLo, fitHi));
+    const top = (opts.playerBar ? PLAYER_BAR_SAFE_PX : pad);
+    const yLo = rect.y + rect.h - (state.vh / 2 - top) / s, yHi = rect.y - (pad - state.vh / 2) / s;
+    const camY = yLo <= yHi ? clampToRange(state.cam.y, yLo, yHi) : rect.cy;
+    if (Math.abs(camX - state.cam.x) > .5 || Math.abs(camY - state.cam.y) > .5) return tweenCam({ x: camX, y: camY }, 420);
+    return Promise.resolve();
 }
 function createTile(slot) {
     const make = world => {
@@ -771,6 +847,7 @@ function flipTile(rec, item, delay, dir) {
 }
 // 从 origin（世界坐标）向外按距离错开翻牌；只翻屏幕内且内容变化的磁贴
 function flipWall(origin) {
+    clearFocus();
     let maxDelay = 0;
     for (const rec of tiles.values()) {
         const item = contentFor(rec.slot);
@@ -786,6 +863,7 @@ function flipWall(origin) {
 }
 // 整墙出场 → 换内容 → 入场（沿用 Lattice 的 lift wave：从视口左上角扩散）
 function swapWall() {
+    clearFocus();
     const s = state.scale;
     const ox = state.cam.x - seamLineX() / s, oy = state.cam.y - state.vh / 2 / s;
     for (const rec of tiles.values()) {
@@ -920,13 +998,38 @@ async function switchTab(tab) {
     renderSeam();
     tweenSeam(layer.seamTarget, 300);
 }
-function onTileClick(rec) {
+function onTileClick(rec, fact) {
     const item = rec.item;
-    if (!item || busy) return;
+    if (busy) return;
+    if (fact && focus && focus.key === rec.slot.key) { onFocusAction(fact, rec); return; }
+    if (!item) { clearFocus(); return; }
+    if (item.kind === 'track') {
+        if (!focus || focus.key !== rec.slot.key) setFocus(rec.slot);
+        return;
+    }
     if (item.kind === 'folder' && isBatchMode()) { toggleSelection([item.key], !state.selected.has(item.key)); return; }
     if (item.kind === 'playlist' || item.kind === 'album' || item.kind === 'folder') push(collectionLayer(item), rec.slot);
     else if (item.kind === 'artist') push(artistLayer(item), rec.slot);
     else if (item.kind === 'track') play(item);
+}
+// 聚焦卡上的操作。「立即播放」沿用 folia 的「播放后进入的视图」设置（usePlaybackEntryViewStore：player | lattice）
+function onFocusAction(fact, rec) {
+    const item = rec.item;
+    if (fact === 'play') {
+        play(item);
+        if (opts.entryView === 'lattice') openQueue();
+        else { $('fakeplayer').classList.add('open'); $('fpTitle').textContent = `${item.title} — ${item.artist}`; }
+    } else if (fact === 'enqueue') {
+        if (!state.queue.some(t => t.key === item.key)) state.queue = [...state.queue, item];
+        setContent(rec, item);
+        updateChrome();
+    } else if (fact === 'artist') {
+        const artist = allArtists.find(a => a.key === item.artistKey) || allArtists.find(a => a.title === item.artist);
+        if (artist) push(artistLayer(artist), rec.slot);
+    } else if (fact === 'album') {
+        const album = allAlbums.find(a => a.tracks.some(t => t.key === item.key || t.title === item.title)) || allAlbums.find(a => a.title === item.album);
+        if (album) push(collectionLayer(album), rec.slot);
+    }
 }
 function play(track) {
     const layer = cur();
@@ -1305,6 +1408,8 @@ function locateItem(key) {
     const camX = lo <= hi ? clampToRange(state.cam.x, lo, hi) : clampToRange(state.cam.x, tileLo, tileHi);
     const halfH = state.vh / 2 / s - slot.h / 2 - 30;
     const camY = Math.abs(slot.cy - state.cam.y) > halfH ? slot.cy : state.cam.y;
+    const it = contentFor(slot);
+    if (it && it.kind === 'track') { setFocus(slot); return; }
     tweenCam({ x: camX, y: camY }, 420).then(() => {
         const rec = tiles.get(slot.key);
         if (rec) [rec.innerL, rec.innerR].forEach(el => el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' }));
@@ -1408,7 +1513,8 @@ stage.addEventListener('pointerdown', e => {
     tweens.delete('cam');
     inertia = false;
     const tileEl = e.target.closest('.tile');
-    drag = { lx: e.clientX, ly: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false, key: tileEl && tileEl.dataset.key };
+    const factEl = e.target.closest('[data-fact]');
+    drag = { lx: e.clientX, ly: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false, key: tileEl && tileEl.dataset.key, fact: factEl && factEl.dataset.fact };
     vel = { x: 0, y: 0 };
     stage.setPointerCapture(e.pointerId);
 });
@@ -1424,7 +1530,7 @@ stage.addEventListener('pointermove', e => {
 stage.addEventListener('pointerup', () => {
     if (!drag) return;
     stage.classList.remove('dragging');
-    if (!drag.moved) { const rec = drag.key && tiles.get(drag.key); if (rec) onTileClick(rec); }
+    if (!drag.moved) { const rec = drag.key && tiles.get(drag.key); if (rec) onTileClick(rec, drag.fact); else clearFocus(); }
     else if (performance.now() - drag.t < 80) inertia = true;
     else settleCamera();
     drag = null;
@@ -1518,6 +1624,7 @@ $('floating-back').onclick = async () => {
     busy = false;
 };
 $('nowQueue').onclick = openQueue;
+$('fpClose').onclick = () => $('fakeplayer').classList.remove('open');
 // 缝收起后不拉回原锚点：在当前视口里裂开一道新缝（内容不重排，只在下次过滤时围绕新缝排）
 async function reopenSeamHere() {
     const layer = cur();
@@ -1556,6 +1663,7 @@ const OPTS = [
     ['缝与墙耦合', 'coupling', [['follow', '随墙移动（边缘收起）'], ['hybrid', '混合'], ['axis', '沿缝滑动'], ['fixed', '固定']]],
     ['缝位置', 'seamPos', [[.5, '中央'], [.36, '偏左']]],
     ['裂缝选线', 'seamPick', [['block', '块边界（相机让位）'], ['nearest', '就近（挤压/切开兜底）']]],
+    ['立即播放后进入（folia 设置）', 'entryView', [['lattice', 'Lattice'], ['player', '可视化播放页']]],
     ['播放条', 'playerBar', [[true, '模拟显示（留安全区）'], [false, '隐藏']]],
     ['歌单/歌手页', 'listMode', [['dual', '双模式（过滤时有限）'], ['finite', '始终有限']]],
     ['找不到位置时（仅就近）', 'fallback', [['squeeze', '挤压磁贴'], ['cut', '切开磁贴']]],
@@ -1612,6 +1720,8 @@ $('opts-btn').onclick = () => $('opts').classList.toggle('open');
 
 addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+        if ($('fakeplayer').classList.contains('open')) { $('fakeplayer').classList.remove('open'); return; }
+        if (focus) { clearFocus(); return; }
         if (document.activeElement === seamInput && seamInput.value) { seamInput.value = ''; onQuery(); return; }
         if (cur().kind === 'queue') { $('floating-back').click(); return; }
         if (cur().kind === 'home' && cur().searchOpen) { closeSearch(); return; }
