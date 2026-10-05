@@ -1,0 +1,1232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bravais 原型</title>
+<!-- Bravais suite 交互原型：翻牌墙 + 墙面裂缝信息条；假数据、单文件、不依赖构建。设计见 docs/bravais-suite-design.md -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --wall: #1c1c1f;
+    --wall-frame: rgba(255, 255, 255, 0.045);
+    --paper: #eeede8;
+    --ink: #1a1a1a;
+    --ink-soft: #6b6b68;
+    --accent: #f4e04d;
+    --accent-ink: #2b2600;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--wall); color: #fff;
+    font-family: "Noto Sans JP", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+#stage { position: fixed; inset: 0; touch-action: none; user-select: none; cursor: grab; }
+#stage.dragging { cursor: grabbing; }
+.half { position: absolute; top: 0; bottom: 0; overflow: hidden; }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+
+.tile { position: absolute; contain: layout paint; }
+.tile-inner { position: absolute; inset: 0; border-radius: 3px; overflow: hidden; transform-origin: 50% 50%;
+    background: hsl(var(--h) 30% 24%); box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+.cover { position: absolute; inset: 0;
+    background:
+        radial-gradient(120% 90% at 78% 12%, hsl(calc(var(--h) + 30) 70% 72% / .55), transparent 60%),
+        linear-gradient(160deg, hsl(var(--h) 52% 50%), hsl(calc(var(--h) + 40) 45% 18%)); }
+.glyph { position: absolute; right: -.06em; bottom: -.18em; font-family: "Noto Serif JP", serif; font-weight: 900;
+    line-height: 1; color: rgba(255,255,255,.16); pointer-events: none; }
+.kind-artist .cover::after { content: ""; position: absolute; left: 50%; top: 40%; width: 46%; aspect-ratio: 1;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, hsl(var(--h) 40% 80%), hsl(var(--h) 35% 32%)); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.shade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.62), transparent 58%); }
+.badge { position: absolute; left: 18px; top: 16px; padding: 4px 9px; border-radius: 3px; font-size: 17px; font-weight: 800;
+    letter-spacing: .12em; font-variant-numeric: tabular-nums; background: rgba(0,0,0,.6); color: rgba(255,255,255,.85); }
+.copy { position: absolute; left: 20px; right: 20px; bottom: 18px; }
+.copy .t { font-weight: 900; line-height: .98; letter-spacing: -.04em; text-wrap: balance;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.copy .a { margin-top: .35em; opacity: .78; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile:not(.is-wall):hover .tile-inner { filter: brightness(1.12); }
+.is-playing .tile-inner { box-shadow: inset 0 0 0 4px var(--accent), 0 10px 28px rgba(0,0,0,.35); }
+.is-playing .badge { background: var(--accent); color: var(--accent-ink); }
+.is-wall .tile-inner { background: transparent; box-shadow: inset 0 0 0 2px var(--wall-frame); }
+.is-wall .wall-rank { position: absolute; left: 14px; top: 10px; font-size: 22px; font-weight: 700; color: rgba(255,255,255,.14);
+    font-variant-numeric: tabular-nums; }
+
+/* 裂缝 */
+#seam { position: absolute; top: 0; bottom: 0; overflow: hidden; background: var(--paper); color: var(--ink);
+    box-shadow: 0 0 22px rgba(0,0,0,.5), 0 0 4px rgba(0,0,0,.35); z-index: 5; cursor: default; }
+#seam.closed { visibility: hidden; }
+.seam-inner { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column;
+    padding: 22px 22px 20px; gap: 14px; transform-origin: 50% 50%; }
+.crumbs { font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 28px; }
+.crumbs .back { border: 1px solid rgba(0,0,0,.18); background: none; border-radius: 999px; width: 28px; height: 28px; display: grid; place-items: center;
+    font-size: 16px; margin-right: 4px; }
+.vtitle-wrap { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; overflow: hidden; }
+.vtitle { writing-mode: vertical-rl; font-family: "Noto Serif JP", serif; font-weight: 700; line-height: 1.25; letter-spacing: .06em;
+    max-height: 100%; }
+.quote { font-family: "Noto Serif JP", serif; font-size: 28px; line-height: .6; color: var(--ink); }
+.rule { height: 1px; background: rgba(0,0,0,.14); flex: none; }
+.meta { font-size: 12px; line-height: 1.6; color: var(--ink-soft); }
+.meta strong { color: var(--ink); font-weight: 700; }
+.bio { font-size: 12px; line-height: 1.7; color: #3d3d3a; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions button { border: 1px solid rgba(0,0,0,.16); background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; }
+.actions button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.input-slot input { width: 100%; border: 0; border-bottom: 1.5px solid var(--ink); background: transparent; padding: 8px 2px; font: inherit;
+    font-size: 14px; color: var(--ink); outline: none; }
+.input-slot input::placeholder { color: #9a9993; }
+/* 窄缝（首页） */
+.seam-inner.narrow { align-items: center; padding: 22px 10px; gap: 18px; }
+.narrow .vtitle { font-size: 40px; }
+.vtabs { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.vtabs button { writing-mode: vertical-rl; border: 0; background: none; padding: 10px 4px; font-size: 14px; font-weight: 700; letter-spacing: .2em;
+    color: var(--ink-soft); border-radius: 4px; }
+.vtabs button.on { color: var(--ink); background: rgba(0,0,0,.07); }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(0,0,0,.18); background: none; display: grid; place-items: center; font-size: 16px; }
+
+/* 浮层 UI */
+.ui { position: fixed; z-index: 20; }
+#floating-back { left: 20px; top: 20px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(0,0,0,.45);
+    backdrop-filter: blur(8px); font-size: 20px; display: none; }
+#seam-tab { top: 50%; transform: translateY(-50%); writing-mode: vertical-rl; border: 0; padding: 14px 8px; background: var(--paper);
+    color: var(--ink); font-family: "Noto Serif JP", serif; font-weight: 700; font-size: 13px; letter-spacing: .12em; display: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45); max-height: 60vh; overflow: hidden; }
+#seam-tab.left { left: 0; border-radius: 0 6px 6px 0; }
+#seam-tab.right { right: 0; border-radius: 6px 0 0 6px; }
+.seam-inner.spine { align-items: center; padding: 16px 8px; gap: 12px; }
+.spine .spine-title { cursor: pointer; letter-spacing: .1em; }
+.spine-count { writing-mode: vertical-rl; font-size: 11px; color: var(--ink-soft); letter-spacing: .1em; font-variant-numeric: tabular-nums; }
+.icon-btn.sm { width: 36px; height: 36px; font-size: 14px; flex: none; }
+#hud { left: 16px; bottom: 14px; font-size: 11px; color: rgba(255,255,255,.45); font-variant-numeric: tabular-nums; pointer-events: none; }
+#now { right: 76px; bottom: 20px; display: none; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 999px;
+    background: rgba(20,20,22,.78); backdrop-filter: blur(10px); font-size: 12px; max-width: 360px; }
+#now .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+#now .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#now button { border: 0; border-radius: 999px; background: rgba(255,255,255,.12); padding: 6px 12px; font-size: 12px; font-weight: 700; flex: none; }
+#opts-btn { right: 20px; bottom: 20px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(20,20,22,.78);
+    backdrop-filter: blur(10px); font-size: 18px; }
+#opts { right: 20px; bottom: 74px; width: 300px; padding: 14px 16px; border-radius: 12px; background: rgba(20,20,22,.92);
+    backdrop-filter: blur(14px); font-size: 12px; display: none; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+#opts.open { display: block; }
+#opts h4 { margin: 12px 0 6px; font-size: 11px; letter-spacing: .1em; color: rgba(255,255,255,.5); font-weight: 700; }
+#opts h4:first-child { margin-top: 0; }
+.seg { display: flex; gap: 4px; flex-wrap: wrap; }
+.seg button { border: 1px solid rgba(255,255,255,.14); background: none; border-radius: 6px; padding: 5px 9px; font-size: 12px; }
+.seg button.on { background: #fff; color: #111; border-color: #fff; }
+.vignette { position: fixed; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0,0,0,.45)); }
+</style>
+</head>
+<body>
+<div id="stage">
+    <div class="half" id="halfL"><div class="world" id="worldL"></div></div>
+    <div class="half" id="halfR"><div class="world" id="worldR"></div></div>
+    <div class="vignette"></div>
+    <div id="seam"><div class="seam-inner" id="seamInner"></div></div>
+</div>
+<button class="ui" id="seam-tab" title="在这里裂开"></button>
+<button class="ui" id="floating-back" title="返回 (Esc)">‹</button>
+<div class="ui" id="hud"></div>
+<div class="ui" id="now"><span class="dot"></span><span class="txt" id="nowTxt"></span><button id="nowQueue">队列</button></div>
+<button class="ui" id="opts-btn" title="原型选项">⚙</button>
+<div class="ui" id="opts"></div>
+
+<script>
+'use strict';
+
+/* ───────────── 假数据 ───────────── */
+
+// 带种子的伪随机，保证每次打开数据一致
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rnd = mulberry32(20261005);
+const pick = arr => arr[Math.floor(rnd() * arr.length)];
+const WA = ['光', '夜明け', '青い', '硝子', '月下', '雨上がり', '白昼', '星屑', '花', '透明', '残響', '海辺', '微熱', '秒針', '銀河', '向日葵', '蜃気楼', '午前零時', '一世', '童話'];
+const WB = ['の劇場', 'のワルツ', '少女', 'フィルム', 'ロケット', 'アンサー', 'の行方', 'ノスタルジア', 'シグナル', 'パレード', 'の庭', 'ランデブー', 'ステラ', 'メモリー', 'トワイライト', '風靡'];
+const EN = ['Henceforth', 'Digital Girl', 'Parallel', 'Afterglow', 'Monochrome', 'Satellite', 'Lumen', 'Overture', 'Static', 'Polaris', 'Grokmas', 'Stallone'];
+const songTitle = () => rnd() < .72 ? pick(WA) + pick(WB) : pick(EN) + (rnd() < .3 ? ' (Cover)' : '');
+const ARTISTS = [
+    ['花鳥', 'Kachō'], ['夜野ミナト', 'Yoruno Minato'], ['結城あおい', 'Yūki Aoi'], ['青海', 'Seikai'], ['霧島レイ', 'Kirishima Rei'],
+    ['Skyline', 'Skyline'], ['白昼夢', 'Hakuchūmu'], ['柊', 'Hiiragi'], ['透明少女', 'Tōmei Shōjo'], ['朝凪', 'Asanagi'],
+    ['月下美人', 'Gekka Bijin'], ['Nova', 'Nova'],
+];
+let trackSeq = 0;
+const allTracks = [], allAlbums = [], allArtists = [];
+ARTISTS.forEach(([name, roman], ai) => {
+    const artist = { key: 'r:' + ai, kind: 'artist', title: name, roman, hue: Math.floor(rnd() * 360), albums: [], tracks: [],
+        bio: `${name}（${roman}）是一位以${pick(['合成器', '钢琴', '吉他', '弦乐'])}与${pick(['城市夜景', '童话意象', '季节感', '电子噪音'])}为核心的创作者。出道以来发表 ${2 + Math.floor(rnd() * 3)} 张专辑，作品常出现在${pick(['动画', '游戏', '广播剧'])}的片尾。` };
+    allArtists.push(artist);
+    const albumCount = 2 + Math.floor(rnd() * 2);
+    for (let b = 0; b < albumCount; b++) {
+        const album = { key: `a:${ai}:${b}`, kind: 'album', title: rnd() < .5 ? pick(WA) + pick(WB) : pick(EN), artist: name, artistKey: artist.key,
+            hue: (artist.hue + b * 37) % 360, tracks: [] };
+        const n = 4 + Math.floor(rnd() * 9);
+        for (let i = 0; i < n; i++) {
+            const t = { key: 't:' + (trackSeq++), kind: 'track', title: songTitle(), artist: name, artistKey: artist.key, album: album.title,
+                hue: (album.hue + i * 9) % 360, dur: 150 + Math.floor(rnd() * 150) };
+            album.tracks.push(t); artist.tracks.push(t); allTracks.push(t);
+        }
+        artist.albums.push(album); allAlbums.push(album);
+    }
+});
+// 刻意放 3 首「灯台」，用来测试「结果很少」
+['灯台守', '灯台と少女', '灯台の夜'].forEach((title, i) => {
+    const artist = allArtists[i * 4];
+    const t = { key: 't:' + (trackSeq++), kind: 'track', title, artist: artist.title, artistKey: artist.key, album: artist.albums[0].title,
+        hue: 40 + i * 20, dur: 200 };
+    artist.albums[0].tracks.push(t); artist.tracks.push(t); allTracks.push(t);
+});
+const PLAYLISTS = ['深夜の作業用', '通勤 BGM', '雨の日', 'Vocaloid 精选', '2026 年度', '冬の歌', '抒情', '跑步', 'Lo-fi', '随便听听', 'Henceforth 收藏', '私藏'];
+const allPlaylists = PLAYLISTS.map((title, i) => {
+    const n = i === 10 ? 6 : 18 + Math.floor(rnd() * 28);
+    const pool = allTracks.slice().sort(() => rnd() - .5);
+    const tracks = pool.slice(0, n);
+    return { key: 'p:' + i, kind: 'playlist', title, artist: pick(['我', 'folia', '每日推荐', '朋友']), hue: tracks[0].hue, tracks };
+});
+const fmtDur = s => { const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+    return h ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${m}:${String(ss).padStart(2, '0')}`; };
+const totalDur = tracks => fmtDur(tracks.reduce((a, t) => a + t.dur, 0));
+const matches = (item, q) => {
+    const hay = `${item.title} ${item.artist || ''} ${item.album || ''} ${item.roman || ''}`.toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every(term => hay.includes(term));
+};
+
+/* ───────────── 墙的几何（沿用 Lattice 的块模板思路，简化版） ───────────── */
+
+const CELL = 128, GAP = 8, P = CELL + GAP, BCOLS = 12, BROWS = 8, BW = BCOLS * P, BH = BROWS * P;
+const TEMPLATES = [
+    [[0,0,3,2],[3,0,6,4],[9,0,3,2],[0,2,3,2],[9,2,3,4],[0,4,4,4],[4,4,2,2],[6,4,3,2],[4,6,2,2],[6,6,2,2],[8,6,2,2],[10,6,2,2]],
+    [[0,0,2,3],[2,0,2,3],[4,0,2,3],[6,0,6,4],[0,3,6,2],[6,4,2,4],[8,4,2,4],[10,4,2,2],[0,5,2,3],[2,5,2,3],[4,5,2,3],[10,6,2,2]],
+    [[0,0,6,4],[6,0,6,3],[6,3,4,3],[10,3,2,2],[0,4,4,2],[4,4,2,2],[10,5,2,3],[0,6,2,2],[2,6,2,2],[4,6,2,2],[6,6,2,2],[8,6,2,2]],
+    [[0,0,2,2],[2,0,2,2],[4,0,4,3],[8,0,2,4],[10,0,2,4],[0,2,2,3],[2,2,2,2],[4,3,4,3],[2,4,2,2],[8,4,4,4],[0,5,2,3],[2,6,6,2]],
+];
+const mod = (a, n) => ((a % n) + n) % n;
+const hash2 = (a, b) => { let h = Math.imul(a, 374761393) + Math.imul(b, 668265263) | 0; h = Math.imul(h ^ h >>> 13, 1274126177); return (h ^ h >>> 16) >>> 0; };
+const blockCache = new Map();
+// 一个 12×8 块的 12 个 slot（世界坐标）；模板按 (bx+2by) 轮换，再按哈希镜像，避免相邻块重复
+function getBlock(bx, by) {
+    const k = bx + ',' + by;
+    let slots = blockCache.get(k);
+    if (slots) return slots;
+    const o = hash2(bx, by) % 4;
+    slots = TEMPLATES[mod(bx + 2 * by, TEMPLATES.length)].map(([x, y, c, r], s) => {
+        if (o & 1) x = BCOLS - x - c;
+        if (o & 2) y = BROWS - y - r;
+        const wx = bx * BW + x * P, wy = by * BH + y * P, w = c * P - GAP, h = r * P - GAP;
+        return { key: `${bx},${by},${s}`, bx, by, s, x: wx, y: wy, w, h, cx: wx + w / 2, cy: wy + h / 2, area: c * r };
+    });
+    blockCache.set(k, slots);
+    return slots;
+}
+// 无限层：队列铺满一个周期后二维重复（同 Lattice 的 cellSlot % n）
+function wrapIndex(slot, n) {
+    const blocks = Math.ceil(n / BCOLS);
+    const px = Math.max(1, Math.round(Math.sqrt(blocks * 2.2)));
+    const py = Math.max(1, Math.ceil(blocks / px));
+    return mod((mod(slot.by, py) * px + mod(slot.bx, px)) * 12 + slot.s, n);
+}
+
+/* ───────────── 状态 ───────────── */
+
+const opts = { seamCut: 'split', pushMode: 'B', stability: 'strict', seamPos: .5, showRank: false, coupling: 'follow', fallback: 'squeeze', seamPick: 'block' };
+// seamPick：block = 裂缝只开在 12×8 块之间的天然缝隙上，放不下时相机让位；nearest = 视口内就近找线，找不到再挤压/切开（fallback）
+// fallback：找不到不切断磁贴的裂缝线时怎么处理被切到的磁贴 —— squeeze = 挤压（靠缝一侧的边被推回到缝边），cut = 切开（撕成两半）
+// 缝与墙的耦合：fixed = 缝钉在屏幕上；follow = 缝属于墙、横移时跟着走并在屏幕边缘停靠；
+// axis = 缝张开时只能沿缝（纵向）滑动；hybrid = 有限层 axis、无限层 follow
+const couplingFor = layer => opts.coupling === 'hybrid' ? (layer && layer.mode === 'finite' ? 'axis' : 'follow') : opts.coupling;
+const state = {
+    vw: innerWidth, vh: innerHeight, scale: .62,
+    cam: { x: BW - GAP / 2, y: BH * 0.5 },
+    seamW: 0,
+    stack: [],
+    queue: [], nowKey: null,
+};
+const tiles = new Map(); // slotKey -> rec
+const cur = () => state.stack[state.stack.length - 1];
+let dirty = true;
+const $ = id => document.getElementById(id);
+const worldL = $('worldL'), worldR = $('worldR'), halfL = $('halfL'), halfR = $('halfR');
+const seamEl = $('seam'), seamInner = $('seamInner'), seamTab = $('seam-tab');
+const seamInput = document.createElement('input');
+seamInput.type = 'text';
+seamInput.spellcheck = false;
+
+const SEAM_WIDE = 300, SEAM_NARROW = 120, SPINE_W = 64, NARROW_VW = 900;
+const isNarrow = () => state.vw < NARROW_VW;
+// 层的缝开口宽度：窄屏下默认收成书脊，展开（spineOpen）或首页搜索时才用完整宽度
+function withSeam(layer, full) {
+    layer.seamFull = full;
+    Object.defineProperty(layer, 'seamTarget', {
+        get() {
+            if (!this.seamFull) return 0;
+            const expanded = this.spineOpen || (this.kind === 'home' && this.searchOpen);
+            return isNarrow() && !expanded ? SPINE_W : this.seamFull;
+        },
+        set(v) { this.seamFull = v; },
+        enumerable: true,
+    });
+    return layer;
+}
+
+/* ───────────── 层 ───────────── */
+
+let homeTab = 'playlist';
+function homeLayer(tab) {
+    const items = tab === 'playlist' ? allPlaylists : tab === 'album' ? allAlbums : allArtists;
+    return withSeam({ kind: 'home', mode: 'infinite', items, tab, searchOpen: false, crumb: '書庫' }, SEAM_NARROW);
+}
+function collectionLayer(item) {
+    return withSeam({ kind: 'collection', mode: 'finite', source: item, items: item.tracks, query: '', crumb: item.title }, SEAM_WIDE);
+}
+function artistLayer(artist) {
+    return withSeam({ kind: 'artist', mode: 'finite', source: artist, items: [...artist.albums, ...artist.tracks], query: '', crumb: artist.title }, SEAM_WIDE);
+}
+function searchItems(q) {
+    if (!q) return [];
+    return [...allArtists.filter(a => matches(a, q)), ...allPlaylists.filter(p => matches(p, q)), ...allAlbums.filter(a => matches(a, q)),
+        ...allTracks.filter(t => matches(t, q))];
+}
+function searchLayer(q) {
+    return withSeam({ kind: 'search', mode: 'finite', items: searchItems(q), query: q, crumb: '搜索', spineOpen: true }, SEAM_WIDE);
+}
+function queueLayer() {
+    return withSeam({ kind: 'queue', mode: 'infinite', items: state.queue, crumb: '队列' }, 0);
+}
+const layerItems = layer => layer.mode === 'finite' && layer.kind !== 'search' && layer.query
+    ? layer.items.filter(it => matches(it, layer.query)) : layer.items;
+
+// 被缝遮挡的世界带宽（只有遮挡模式下才会吃掉 slot）
+const hiddenHalfBand = (w, layer) => useSplit(layer) ? 0 : (w / 2) / state.scale + GAP;
+
+// 有限层的 slot 优先级：离缝（锚点竖线）越近、面积越大越优先；跨缝的 slot 不参与
+// axis 模式下内容被限制在一屏宽度内，只向纵向延展（相机不横移）
+// 有起点磁贴（push 时被点的那张）时：它固定为 rank 0，其余按离它的距离向外展开；否则以缝为中心
+function computeOrder(anchor, need, seamW, layer) {
+    const band = hiddenHalfBand(seamW, layer);
+    const from = (layer && layer.rankFrom) || anchor;
+    const abx = Math.floor(from.x / BW), aby = Math.floor(from.y / BH);
+    const axis = couplingFor(layer) === 'axis';
+    const s = state.scale, line = seamLineX(), split = opts.seamCut === 'split';
+    const xMin = anchor.x - (split ? line - seamW / 2 : line) / s + GAP;
+    const xMax = anchor.x + (split ? state.vw - line - seamW / 2 : state.vw - line) / s - GAP;
+    for (let r = 2; ; r++) {
+        const slots = [];
+        const rx = axis ? Math.ceil(state.vw / s / BW) + 1 : r, ry = axis ? r * 2 : r;
+        for (let bx = abx - rx; bx <= abx + rx; bx++) for (let by = aby - ry + 1; by <= aby + ry - 1; by++) {
+            for (const slot of getBlock(bx, by)) {
+                const crosses = !squeezing(layer) && slot.x < anchor.x + band && slot.x + slot.w > anchor.x - band;
+                const outside = axis && (slot.cx < xMin || slot.cx > xMax);
+                if (!crosses && !outside) slots.push(slot);
+            }
+        }
+        if (slots.length >= need * 1.6 || r >= 12) {
+            const score = s => Math.abs(s.cx - from.x) + Math.abs(s.cy - from.y) * .9 - Math.sqrt(s.area) * P * .35;
+            const order = slots.map(s => [score(s), s]).sort((a, b) => a[0] - b[0]).map(e => e[1]);
+            if (layer && layer.startKey) {
+                const i = order.findIndex(sl => sl.key === layer.startKey);
+                if (i > 0) order.unshift(...order.splice(i, 1));
+            }
+            return order;
+        }
+    }
+}
+// 把（过滤后的）条目按 rank 分进 slot；粘滞模式下仍匹配的条目尽量留在原位置
+function assignFinite(layer) {
+    const items = layerItems(layer);
+    const N = Math.min(items.length, layer.order.length);
+    const positions = new Array(N).fill(null);
+    if (opts.stability === 'sticky' && layer.positions) {
+        const prev = new Map(layer.positions.map((it, i) => [it && it.key, i]));
+        const rest = [];
+        for (const it of items.slice(0, N)) {
+            const p = prev.get(it.key);
+            if (p !== undefined && p < N && !positions[p]) positions[p] = it; else rest.push(it);
+        }
+        let j = 0;
+        for (let i = 0; i < N; i++) if (!positions[i]) positions[i] = rest[j++];
+    } else {
+        for (let i = 0; i < N; i++) positions[i] = items[i];
+    }
+    layer.positions = positions;
+    layer.assign = new Map();
+    layer.rankOfSlot = new Map();
+    layer.order.forEach((slot, i) => {
+        layer.rankOfSlot.set(slot.key, i);
+        if (i < N) layer.assign.set(slot.key, positions[i]);
+    });
+    const used = layer.order.slice(0, N);
+    layer.bbox = used.length ? {
+        x0: Math.min(...used.map(s => s.x)), x1: Math.max(...used.map(s => s.x + s.w)),
+        y0: Math.min(...used.map(s => s.y)), y1: Math.max(...used.map(s => s.y + s.h)),
+    } : null;
+    layer.count = items.length;
+}
+function prepareFinite(layer, anchor, startSlot) {
+    layer.anchor = anchor;
+    layer.startKey = startSlot ? startSlot.key : null;
+    layer.rankFrom = startSlot ? { x: startSlot.cx, y: startSlot.cy } : null;
+    layer.order = computeOrder(anchor, layer.items.length, layer.seamTarget, layer);
+    layer.positions = null;
+    assignFinite(layer);
+}
+function contentFor(slot, layer = cur()) {
+    if (!layer) return null;
+    if (layer.mode === 'infinite') return layer.items.length ? layer.items[wrapIndex(slot, layer.items.length)] : null;
+    return layer.assign.get(slot.key) || null;
+}
+
+/* ───────────── 磁贴渲染 ───────────── */
+
+const KIND_LABEL = { playlist: '歌单', album: '专辑', artist: '歌手', track: '' };
+function tileHTML(item, slot, layer) {
+    if (!item) {
+        const rank = layer && layer.rankOfSlot ? layer.rankOfSlot.get(slot.key) : undefined;
+        return opts.showRank && rank !== undefined && rank < 400 ? `<span class="wall-rank">${rank + 1}</span>` : '';
+    }
+    const fs = Math.max(22, Math.min(68, slot.w * .095));
+    let badge;
+    if (layer.mode === 'finite') {
+        const idx = layer.kind === 'search' ? layer.positions.indexOf(item) : layer.items.indexOf(item);
+        badge = (item.kind !== 'track' ? KIND_LABEL[item.kind] + ' · ' : '') + String(idx + 1).padStart(2, '0');
+    } else {
+        badge = layer.kind === 'queue' ? String(layer.items.indexOf(item) + 1).padStart(2, '0') : KIND_LABEL[item.kind];
+    }
+    if (item.key === state.nowKey) badge = '正在播放 · ' + badge;
+    const sub = item.kind === 'artist' ? item.roman : item.kind === 'playlist' ? `${item.tracks.length} 首 · ${item.artist}` :
+        item.kind === 'album' ? `${item.artist} · ${item.tracks.length} 首` : item.artist;
+    return `<div class="cover"><span class="glyph" style="font-size:${Math.min(slot.w, slot.h) * .9}px">${item.title[0]}</span></div>
+        <div class="shade"></div><div class="badge">${badge}</div>
+        <div class="copy"><div class="t" style="font-size:${fs}px">${item.title}</div><div class="a" style="font-size:${Math.max(15, fs * .4)}px">${sub}</div></div>`;
+}
+function setContent(rec, item) {
+    const layer = cur();
+    const html = tileHTML(item, rec.slot, layer);
+    for (const [el, inner] of [[rec.elL, rec.innerL], [rec.elR, rec.innerR]]) {
+        inner.innerHTML = html;
+        inner.className = 'tile-inner' + (item ? ' kind-' + item.kind : '');
+        inner.style.setProperty('--h', item ? item.hue : 0);
+        el.classList.toggle('is-wall', !item);
+        el.classList.toggle('is-playing', !!item && item.key === state.nowKey);
+    }
+    rec.item = item;
+    rec.shownKey = item ? item.key : 'wall';
+}
+const squeezing = (layer = cur()) => !!(layer && layer.cutThrough && layer.anchor && opts.fallback === 'squeeze');
+// 磁贴的实际矩形：挤压模式下跨缝的磁贴按中心归属保留在一侧，靠缝的那条边退到缝边（至少保留一半宽度）
+function tileRect(slot, layer = cur()) {
+    if (!squeezing(layer)) return slot;
+    const X = layer.anchor.x;
+    if (!(slot.x < X && slot.x + slot.w > X)) return slot;
+    if (slot.cx < X) return { x: slot.x, y: slot.y, w: X - GAP / 2 - slot.x, h: slot.h };
+    const nx = X + GAP / 2;
+    return { x: nx, y: slot.y, w: slot.x + slot.w - nx, h: slot.h };
+}
+// 把矩形变化写到两份 DOM 上；animate 时用接近 Lattice 展开弹簧的过渡
+function applyRect(rec, animate) {
+    const r = tileRect(rec.slot), key = r.x + ',' + r.w;
+    if (rec.rectKey === key) return;
+    const first = rec.rectKey === undefined;
+    rec.rectKey = key;
+    for (const el of [rec.elL, rec.elR]) {
+        el.style.transition = animate && !first ? 'left .5s cubic-bezier(.2,.9,.25,1.08), width .5s cubic-bezier(.2,.9,.25,1.08)' : 'none';
+        el.style.left = r.x + 'px';
+        el.style.width = r.w + 'px';
+    }
+}
+function createTile(slot) {
+    const make = world => {
+        const el = document.createElement('div');
+        el.className = 'tile';
+        el.dataset.key = slot.key;
+        el.style.cssText = `left:${slot.x}px;top:${slot.y}px;width:${slot.w}px;height:${slot.h}px`;
+        const inner = document.createElement('div');
+        inner.className = 'tile-inner';
+        el.appendChild(inner);
+        world.appendChild(el);
+        return [el, inner];
+    };
+    const [elL, innerL] = make(worldL), [elR, innerR] = make(worldR);
+    const rec = { slot, elL, elR, innerL, innerR, anims: [], token: 0 };
+    tiles.set(slot.key, rec);
+    applyRect(rec, false);
+    setContent(rec, contentFor(slot));
+    return rec;
+}
+function removeTile(rec) {
+    rec.anims.forEach(a => a.cancel());
+    rec.elL.remove(); rec.elR.remove();
+    tiles.delete(rec.slot.key);
+}
+
+/* ───────────── 相机与裁剪 ───────────── */
+
+const seamLineX = () => state.vw * opts.seamPos;
+const useSplit = (layer = cur()) => opts.seamCut === 'split' || !!(layer && layer.cutThrough);
+// 断开模式下两半各让出 w/2，再多让半个 GAP：裂缝停在块间隙中线上，这样纸条两侧到磁贴的距离正好等于磁贴间距
+function halfOffsets() {
+    const w = seamGeom().w;
+    if (!useSplit()) return [0, 0];
+    const pad = (GAP / 2) * state.scale * Math.min(1, w / 16);
+    return [-w / 2 - pad, w / 2 + pad];
+}
+function cameraRange(layer = cur()) {
+    if (!layer || layer.mode !== 'finite') return null;
+    const s = state.scale, a = layer.anchor, line = seamLineX(), w = layer.seamTarget;
+    const WL = (line - w / 2) / s, WR = (state.vw - line - w / 2) / s, H = state.vh / 2 / s, pad = 60;
+    const b = layer.bbox || { x0: a.x, x1: a.x, y0: a.y, y1: a.y };
+    let xlo = b.x0 + WL - pad, xhi = b.x1 - WR + pad, ylo = b.y0 + H - pad, yhi = b.y1 - H + pad;
+    if (xlo > xhi || couplingFor(layer) === 'axis') xlo = xhi = a.x;
+    if (ylo > yhi) ylo = yhi = a.y;
+    const half = (state.vw / 2 - w / 2 - SEAM_EDGE) / s;
+    return { xlo: Math.min(xlo, a.x - half), xhi: Math.max(xhi, a.x + half), ylo: Math.min(ylo, a.y), yhi: Math.max(yhi, a.y) };
+}
+const clampToRange = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// 缝的屏幕几何：follow 模式下缝锚定在层锚点（世界坐标）上随墙移动；
+// 靠近屏幕边缘时外缘贴住边距逐渐被挤窄，出屏即完全收起（w = 0）
+const SEAM_EDGE = 14;
+function seamGeom(layer = cur()) {
+    const line = seamLineX();
+    if (!layer || !layer.anchor || couplingFor(layer) !== 'follow') return { x: line, w: state.seamW };
+    const x = line + (layer.anchor.x - state.cam.x) * state.scale;
+    const space = Math.min(x, state.vw - x) - SEAM_EDGE;
+    return { x, w: Math.max(0, Math.min(state.seamW, space * 2)) };
+}
+const seamScreenX = layer => seamGeom(layer).x;
+const seamCollapsed = (layer = cur()) => !!layer && layer.seamTarget > 0 && state.seamW > 1 && seamGeom(layer).w < 2;
+// 离视口中心最近的块边界（块之间的缝隙没有磁贴跨过，新缝裂在这里不会切断磁贴）
+const nearestBoundaryX = () => Math.round((state.cam.x + GAP / 2) / BW) * BW - GAP / 2;
+// 在当前视口里找一条裂缝线：候选是块边界和屏内磁贴的边缘，只接受放得下整条缝且不切断磁贴的线，取离缝基准线最近的；
+// 一条都没有时直接在基准线处从磁贴中切开（cut = true，强制按「断开」处理）
+// 一条裂缝线的代价：被切到的有内容磁贴「空出来的面积」之和（挤压时保留较大的一侧，空出较小的一侧；切开时较小的一侧成为碎片），
+// 保留部分不足一格的再加重罚；屏外 overscan 里的磁贴按较低权重计入（上下拖动时会露出来）；空画框不计
+function seamLineCost(X) {
+    let cost = 0;
+    for (const rec of tiles.values()) {
+        const sl = rec.slot;
+        if (!(sl.x < X && sl.x + sl.w > X) || !contentFor(sl)) continue;
+        const lost = Math.min(X - sl.x, sl.x + sl.w - X), kept = sl.w - lost;
+        cost += (isOnScreen(sl) ? 1 : .35) * (lost * sl.h + (kept < CELL ? 4 * CELL * sl.h : 0));
+    }
+    return cost;
+}
+// 在当前视口里找一条裂缝线。候选是块边界和磁贴的左右边缘（代价函数分段线性，极小值只会落在这些断点上），且必须放得下整条缝。
+// 先找不切断任何磁贴的线，取离基准线最近的；没有（或 forceCut）时取「空出面积 + 离基准线距离」最小的线，cut = true
+function findSeamLineX(target, { forceCut = false } = {}) {
+    const s = state.scale, line = seamLineX(), need = target / 2 + SEAM_EDGE;
+    const all = [...tiles.values()].map(r => r.slot), vis = all.filter(isOnScreen);
+    const cands = new Set([nearestBoundaryX(), state.cam.x]);
+    all.forEach(sl => { cands.add(sl.x - GAP / 2); cands.add(sl.x + sl.w + GAP / 2); });
+    const fits = x => { const sx = line + (x - state.cam.x) * s; return sx >= need && sx <= state.vw - need; };
+    const crossesAny = x => vis.some(sl => sl.x < x && sl.x + sl.w > x);
+    if (!forceCut) {
+        let clean = null;
+        for (const x of cands) {
+            if (!fits(x) || crossesAny(x)) continue;
+            const d = Math.abs(x - state.cam.x);
+            if (!clean || d < clean.d) clean = { x, d };
+        }
+        if (clean) return { x: clean.x, cut: false };
+    }
+    let best = null;
+    for (const x of cands) {
+        if (!fits(x) || (forceCut && !crossesAny(x))) continue;
+        const score = seamLineCost(x) + Math.abs(x - state.cam.x) * BH * .12;
+        if (!best || score < best.score) best = { x, score };
+    }
+    return { x: best ? best.x : state.cam.x, cut: true };
+}
+// 新层的锚点：缝可见时继承它的世界位置，收起时在当前视口里另找一条
+// 块边界方案：候选是相机两侧的几条块边界（或指定的 preferX）；某条边界放不下整条缝时，算出让它刚好放下所需的最小相机平移，
+// 取「平移量 + 离缝基准线距离」最小的那条。返回裂缝的世界 x 和目标相机 x
+function blockSeamPlan(target, preferX) {
+    const s = state.scale, line = seamLineX(), need = target / 2 + SEAM_EDGE;
+    const base = Math.round((state.cam.x + GAP / 2) / BW);
+    const cands = preferX !== undefined ? [preferX] : [-1, 0, 1].map(k => (base + k) * BW - GAP / 2);
+    let best = null;
+    for (const B of cands) {
+        const sx = line + (B - state.cam.x) * s;
+        const fitSx = Math.max(need, Math.min(state.vw - need, sx));
+        const camX = B - (fitSx - line) / s;
+        const score = Math.abs(camX - state.cam.x) * s + Math.abs(fitSx - line) * .15;
+        if (!best || score < best.score) best = { x: B, camX, score };
+    }
+    return { x: best.x, camX: best.camX, cut: false };
+}
+// 新层/新缝的锚点。block：缝可见时沿用它所在的边界（只在放不下新宽度时让位），收起时取最近的边界；
+// nearest：缝可见时继承它的世界位置，收起时在当前视口里另找一条
+function pickAnchor(target) {
+    if (opts.seamPick === 'block') return blockSeamPlan(target, seamCollapsed() ? undefined : seamWorldX());
+    return seamCollapsed() ? findSeamLineX(target) : { x: seamWorldX(), cut: !!(cur() && cur().cutThrough) };
+}
+// 把缝当前所在的屏幕位置换算回世界 x（新层锚点从这里继承，避免缝跳位）
+const seamWorldX = () => state.cam.x + (seamScreenX() - seamLineX()) / state.scale;
+function applyTransforms() {
+    const s = state.scale, line = seamLineX(), split = seamScreenX(), [offL, offR] = halfOffsets();
+    halfL.style.left = '0px'; halfL.style.width = split + 'px';
+    halfR.style.left = split + 'px'; halfR.style.width = (state.vw - split) + 'px';
+    const ty = state.vh / 2 - state.cam.y * s;
+    worldL.style.transform = `translate3d(${line + offL - state.cam.x * s}px,${ty}px,0) scale(${s})`;
+    worldR.style.transform = `translate3d(${line - split + offR - state.cam.x * s}px,${ty}px,0) scale(${s})`;
+    const sw = seamGeom().w;
+    seamEl.style.left = (split - sw / 2) + 'px';
+    seamEl.style.width = sw + 'px';
+    seamEl.classList.toggle('closed', sw < 1);
+    const target = cur() ? Math.max(cur().seamTarget, 1) : 1;
+    seamInner.style.width = target + 'px';
+    seamInner.style.opacity = Math.max(0, Math.min(1, (sw / target - .35) / .65));
+    // 收起后在缝离开的那一侧边缘留一个标签，点击在当前视口里裂开新缝
+    const collapsed = seamCollapsed();
+    seamTab.style.display = collapsed ? 'block' : 'none';
+    if (collapsed) {
+        const left = split < line;
+        seamTab.classList.toggle('left', left);
+        seamTab.classList.toggle('right', !left);
+        const label = cur().kind === 'home' ? '書庫' : cur().crumb;
+        if (seamTab.dataset.label !== label) { seamTab.dataset.label = label; seamTab.textContent = label; }
+    }
+}
+function visibleRect() {
+    const s = state.scale, line = seamLineX(), margin = 260;
+    return {
+        x0: state.cam.x - (line + state.seamW) / s - margin, x1: state.cam.x + (state.vw - line + state.seamW) / s + margin,
+        y0: state.cam.y - state.vh / 2 / s - margin, y1: state.cam.y + state.vh / 2 / s + margin,
+    };
+}
+function cull() {
+    const r = visibleRect(), seen = new Set();
+    for (let bx = Math.floor(r.x0 / BW); bx <= Math.floor(r.x1 / BW); bx++) for (let by = Math.floor(r.y0 / BH); by <= Math.floor(r.y1 / BH); by++) {
+        for (const slot of getBlock(bx, by)) {
+            if (slot.x > r.x1 || slot.x + slot.w < r.x0 || slot.y > r.y1 || slot.y + slot.h < r.y0) continue;
+            seen.add(slot.key);
+            if (!tiles.has(slot.key)) createTile(slot);
+            else applyRect(tiles.get(slot.key), true);
+        }
+    }
+    for (const rec of [...tiles.values()]) if (!seen.has(rec.slot.key)) removeTile(rec);
+}
+function isOnScreen(slot) {
+    const s = state.scale;
+    const x0 = state.cam.x - (seamLineX() + state.seamW) / s, x1 = state.cam.x + (state.vw - seamLineX() + state.seamW) / s;
+    const y0 = state.cam.y - state.vh / 2 / s, y1 = state.cam.y + state.vh / 2 / s;
+    return !(slot.x > x1 || slot.x + slot.w < x0 || slot.y > y1 || slot.y + slot.h < y0);
+}
+
+/* ───────────── tween ───────────── */
+
+const tweens = new Map();
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+// 具名 tween：同名新 tween 会顶掉旧的
+function tween(name, from, to, dur, apply, ease = easeInOut) {
+    return new Promise(resolve => {
+        const prev = tweens.get(name);
+        if (prev) prev.resolve();
+        if (dur <= 0) { apply(to); dirty = true; resolve(); return; }
+        tweens.set(name, { from, to, dur, start: performance.now(), apply, ease, resolve });
+    });
+}
+const tweenSeam = (to, dur) => tween('seam', state.seamW, to, dur, v => { state.seamW = v; });
+const tweenCam = (to, dur) => tween('cam', { ...state.cam }, to, dur, v => { state.cam.x = v.x; state.cam.y = v.y; }, easeOut);
+function stepTweens(now) {
+    for (const [name, t] of [...tweens]) {
+        const k = Math.min(1, (now - t.start) / t.dur), e = t.ease(k);
+        t.apply(typeof t.from === 'number' ? t.from + (t.to - t.from) * e : { x: t.from.x + (t.to.x - t.from.x) * e, y: t.from.y + (t.to.y - t.from.y) * e });
+        dirty = true;
+        if (k >= 1) { tweens.delete(name); t.resolve(); }
+    }
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ───────────── 翻牌与整墙转场 ───────────── */
+
+const PERSP = 'perspective(1400px) ';
+// 单张磁贴：先转到 90°，在侧面换内容，再转回来
+function flipTile(rec, item, delay, dir) {
+    const tok = ++rec.token;
+    rec.anims.forEach(a => a.cancel());
+    rec.shownKey = item ? item.key : 'wall';
+    const inners = [rec.innerL, rec.innerR];
+    rec.anims = inners.map(el => el.animate([{ transform: PERSP + 'rotateY(0deg)' }, { transform: PERSP + `rotateY(${90 * dir}deg)` }],
+        { duration: 170, delay, easing: 'cubic-bezier(.55,0,.9,.45)', fill: 'forwards' }));
+    rec.anims[0].onfinish = () => {
+        if (rec.token !== tok) return;
+        rec.anims.forEach(a => a.cancel());
+        setContent(rec, item);
+        rec.anims = inners.map(el => el.animate([{ transform: PERSP + `rotateY(${-90 * dir}deg)` }, { transform: PERSP + 'rotateY(0deg)' }],
+            { duration: 240, easing: 'cubic-bezier(.2,.7,.25,1)' }));
+    };
+}
+// 从 origin（世界坐标）向外按距离错开翻牌；只翻屏幕内且内容变化的磁贴
+function flipWall(origin) {
+    let maxDelay = 0;
+    for (const rec of tiles.values()) {
+        const item = contentFor(rec.slot);
+        const key = item ? item.key : 'wall';
+        if (key === rec.shownKey) { refreshTile(rec); continue; }
+        if (!isOnScreen(rec.slot)) { rec.anims.forEach(a => a.cancel()); rec.token++; setContent(rec, item); continue; }
+        const d = Math.hypot(rec.slot.cx - origin.x, rec.slot.cy - origin.y) / P;
+        const delay = Math.min(420, d * 18);
+        maxDelay = Math.max(maxDelay, delay);
+        flipTile(rec, item, delay, rec.slot.cx < origin.x ? -1 : 1);
+    }
+    return maxDelay + 410;
+}
+// 整墙出场 → 换内容 → 入场（沿用 Lattice 的 lift wave：从视口左上角扩散）
+function swapWall() {
+    const s = state.scale;
+    const ox = state.cam.x - seamLineX() / s, oy = state.cam.y - state.vh / 2 / s;
+    for (const rec of tiles.values()) {
+        const item = contentFor(rec.slot);
+        const tok = ++rec.token;
+        rec.anims.forEach(a => a.cancel());
+        rec.shownKey = item ? item.key : 'wall';
+        if (!isOnScreen(rec.slot)) { setContent(rec, item); continue; }
+        const d = Math.hypot(rec.slot.x - ox, rec.slot.y - oy) / P;
+        const delay = Math.min(340, d * 30);
+        const inners = [rec.innerL, rec.innerR];
+        rec.anims = inners.map(el => el.animate([{ transform: 'translateY(0) scale(1)', opacity: 1 }, { transform: 'translateY(-90px) scale(.88)', opacity: 0 }],
+            { duration: 260, delay, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }));
+        rec.anims[0].onfinish = () => {
+            if (rec.token !== tok) return;
+            rec.anims.forEach(a => a.cancel());
+            setContent(rec, item);
+            rec.anims = inners.map(el => el.animate([{ transform: 'translateY(-90px) scale(.88)', opacity: 0 }, { transform: 'translateY(0) scale(1)', opacity: 1 }],
+                { duration: 520, delay: 60, easing: 'cubic-bezier(.2,.9,.25,1.12)', fill: 'backwards' }));
+        };
+    }
+}
+function refreshTile(rec) {
+    const playing = !!rec.item && rec.item.key === state.nowKey;
+    if (rec.elL.classList.contains('is-playing') !== playing || opts.showRank) setContent(rec, rec.item);
+}
+// 缝内容翻转（push 模式 B：缝保持张开，只翻里面的内容）
+function flipSeamContent(render) {
+    const a = seamInner.animate([{ transform: 'translateX(-50%) ' + PERSP + 'rotateY(0deg)' }, { transform: 'translateX(-50%) ' + PERSP + 'rotateY(90deg)' }],
+        { duration: 160, easing: 'ease-in', fill: 'forwards' });
+    a.onfinish = () => {
+        render();
+        a.cancel();
+        seamInner.animate([{ transform: 'translateX(-50%) ' + PERSP + 'rotateY(-90deg)' }, { transform: 'translateX(-50%) ' + PERSP + 'rotateY(0deg)' }],
+            { duration: 240, easing: 'cubic-bezier(.2,.7,.25,1)' });
+    };
+}
+
+/* ───────────── 导航 ───────────── */
+
+let busy = false;
+const seamPoint = () => ({ x: seamWorldX(), y: state.cam.y });
+const orderSig = () => `${opts.seamCut}|${opts.coupling}|${opts.seamPos}`;
+
+async function push(layer, originSlot) {
+    const parent = cur();
+    parent.savedCam = { ...state.cam };
+    if (layer.mode === 'finite') {
+        // 锚点继承缝当前所在的世界位置；axis 模式下相机横向对齐到锚点
+        const pick = pickAnchor(layer.seamTarget);
+        layer.cutThrough = pick.cut;
+        prepareFinite(layer, { x: pick.x, y: state.cam.y }, originSlot);
+        if (couplingFor(layer) === 'axis') tweenCam({ x: layer.anchor.x, y: state.cam.y }, 380);
+        else if (pick.camX !== undefined && Math.abs(pick.camX - state.cam.x) > .5) tweenCam({ x: pick.camX, y: state.cam.y }, 420);
+    }
+    const origin = originSlot ? { x: originSlot.cx, y: originSlot.cy } : seamPoint();
+    await enterLayer(() => state.stack.push(layer), origin, layer.kind === 'search' && parent.kind === 'home' ? 'inplace' : opts.pushMode);
+}
+async function back() {
+    if (state.stack.length <= 1 || busy) return;
+    const leaving = cur(), parent = state.stack[state.stack.length - 2];
+    if (parent.mode === 'finite') {
+        // 选项可能已切换（遮挡/断开），父层按当时的锚点重算 slot 顺序
+        if (parent.orderCut !== orderSig()) { parent.order = computeOrder(parent.anchor, parent.items.length, parent.seamTarget, parent); parent.positions = null; }
+        assignFinite(parent);
+        tweenCam(parent.savedCam || parent.anchor, 380);
+    } else if (parent.savedCam) tweenCam(parent.savedCam, 380);
+    const style = leaving.kind === 'search' && parent.kind === 'home' ? 'inplace' : opts.pushMode;
+    await enterLayer(() => state.stack.pop(), seamPoint(), style);
+}
+// 换层的统一编排：A = 缝合拢→翻牌→缝裂开；B = 缝保持张开，缝里内容翻转；inplace = 只更新缝里的文字
+async function enterLayer(mutate, origin, style) {
+    busy = true;
+    const before = cur();
+    if (style === 'A' && state.seamW > 1) await tweenSeam(0, 200);
+    mutate();
+    const layer = cur();
+    layer.orderCut = orderSig();
+    const wallMs = flipWall(origin);
+    if (style === 'B' && before.seamTarget > 0 && layer.seamTarget > 0) flipSeamContent(renderSeam); else renderSeam();
+    if (style === 'A') { await sleep(Math.min(260, wallMs * .45)); }
+    await tweenSeam(layer.seamTarget, 360);
+    settleCamera();
+    updateChrome();
+    busy = false;
+}
+async function switchTab(tab) {
+    if (busy || tab === homeTab) return;
+    homeTab = tab;
+    const layer = cur();
+    layer.items = homeLayer(tab).items;
+    layer.tab = tab;
+    swapWall();
+    renderSeam();
+}
+function onTileClick(rec) {
+    const item = rec.item;
+    if (!item || busy) return;
+    if (item.kind === 'playlist' || item.kind === 'album') push(collectionLayer(item), rec.slot);
+    else if (item.kind === 'artist') push(artistLayer(item), rec.slot);
+    else if (item.kind === 'track') play(item);
+}
+function play(track) {
+    const layer = cur();
+    if (layer.kind !== 'queue') state.queue = layerItems(layer).filter(it => it.kind === 'track');
+    state.nowKey = track.key;
+    for (const rec of tiles.values()) refreshTile(rec);
+    updateChrome();
+}
+async function openQueue() {
+    if (busy || !state.queue.length || cur().kind === 'queue') return;
+    cur().savedCam = { ...state.cam };
+    busy = true;
+    tweenSeam(0, 260);
+    state.stack.push(queueLayer());
+    flipWall(seamPoint());
+    renderSeam();
+    updateChrome();
+    await sleep(300);
+    busy = false;
+}
+
+/* ───────────── 过滤 / 搜索（翻牌重排） ───────────── */
+
+let inputTimer = 0;
+// 输入法组词期间不触发查询（组词中的重渲染会打断 IME），组词结束后再补一次
+let composing = false;
+const scheduleQuery = () => { clearTimeout(inputTimer); inputTimer = setTimeout(onQuery, 90); };
+seamInput.addEventListener('compositionstart', () => { composing = true; clearTimeout(inputTimer); });
+seamInput.addEventListener('compositionend', () => { composing = false; scheduleQuery(); });
+seamInput.addEventListener('input', e => {
+    if (composing || e.isComposing) return;
+    scheduleQuery();
+});
+async function onQuery() {
+    const q = seamInput.value.trim();
+    const layer = cur();
+    // 缝在别处重新裂开过：围绕新缝重排
+    if (layer.mode === 'finite' && layer.orderStale) {
+        layer.order = computeOrder(layer.anchor, layer.items.length, layer.seamTarget, layer);
+        layer.positions = null;
+        layer.orderStale = false;
+    }
+    if (layer.kind === 'home') {
+        if (q) await push(searchLayer(q));
+        return;
+    }
+    if (layer.kind === 'search') {
+        if (!q) { await back(); return; }
+        layer.query = q;
+        layer.items = searchItems(q);
+        if (layer.items.length > layer.order.length) layer.order = computeOrder(layer.anchor, layer.items.length, layer.seamTarget, layer);
+    } else if (layer.mode === 'finite') {
+        layer.query = q;
+    } else return;
+    assignFinite(layer);
+    flipWall(layer.anchor);
+    if (layer.seamTarget === SPINE_W) renderSeam(); else renderSeamMeta();
+    settleCamera();
+    updateChrome();
+}
+
+/* ───────────── 裂缝内容 ───────────── */
+
+// 重渲染缝之前记下的输入框焦点与选区；非空时说明用户正在输入，不能改写输入框的值
+let seamInputFocus = null;
+function attachInput(placeholder, value) {
+    const slot = seamInner.querySelector('.input-slot');
+    if (!slot) return;
+    seamInput.placeholder = placeholder;
+    if (!seamInputFocus && value !== undefined && seamInput.value.trim() !== value) seamInput.value = value;
+    slot.appendChild(seamInput);
+}
+const vtitleSize = (text, base) => Math.max(26, Math.min(base, (state.vh * .4) / Math.max(1, [...text].length)));
+function crumbsHTML() {
+    const names = state.stack.map(l => l.crumb);
+    return `<button class="back" data-act="back" title="返回 (Esc)">‹</button>${names.map(n => `<span>${n}</span>`).join('<span>›</span>')}`;
+}
+// 缝内容整体重渲染。innerHTML 会把输入框移出 DOM 并让它失焦，所以必须在清空之前记下焦点和选区，渲染完再还原
+function renderSeam() {
+    seamInputFocus = document.activeElement === seamInput ? [seamInput.selectionStart, seamInput.selectionEnd] : null;
+    renderSeamContent();
+    if (seamInputFocus && seamInput.isConnected) {
+        seamInput.focus({ preventScroll: true });
+        seamInput.setSelectionRange(...seamInputFocus);
+    }
+    seamInputFocus = null;
+}
+function renderSeamContent() {
+    const layer = cur();
+    seamInner.classList.remove('narrow', 'spine');
+    if (layer.kind === 'home' && !layer.searchOpen) {
+        seamInner.classList.add('narrow');
+        seamInner.innerHTML = `<div class="vtitle">書庫</div>
+            <div class="vtabs">${[['playlist', '歌单'], ['album', '专辑'], ['artist', '歌手']].map(([k, l]) =>
+                `<button data-tab="${k}" class="${layer.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+            <div style="flex:1"></div>
+            <button class="icon-btn" data-act="search" title="搜索 (/)">⌕</button>
+            ${state.queue.length ? '<button class="icon-btn" data-act="queue" title="队列">≡</button>' : ''}`;
+        return;
+    }
+    if (layer.kind === 'queue') { seamInner.innerHTML = ''; return; }
+    if (layer.seamTarget === SPINE_W) { renderSpine(layer); return; }
+    let title, sub = '', bio = '', actions = '', placeholder = '过滤…', value = layer.query;
+    if (layer.kind === 'home' || layer.kind === 'search') {
+        title = layer.kind === 'search' ? layer.query : '搜索';
+        sub = layer.kind === 'search' ? '' : '输入关键词，墙会就地翻成结果。';
+        placeholder = '搜索歌曲、歌手、歌单…';
+        value = layer.kind === 'search' ? layer.query : seamInput.value.trim();
+        actions = `<button data-act="close-search">收起</button>`;
+    } else if (layer.kind === 'collection') {
+        const src = layer.source;
+        title = src.title;
+        sub = src.kind === 'album' ? `${src.artist} · Album` : `Playlist · by ${src.artist}`;
+        actions = `<button class="primary" data-act="play-all">▶ 播放全部</button><button data-act="shuffle">随机</button><button data-act="queue">队列</button>`;
+    } else if (layer.kind === 'artist') {
+        const a = layer.source;
+        title = a.title;
+        sub = a.roman;
+        bio = a.bio;
+        actions = `<button class="primary" data-act="play-all">▶ 热门</button><button data-act="shuffle">随机</button><button data-act="queue">队列</button>`;
+    }
+    seamInner.innerHTML = `<div class="crumbs">${crumbsHTML()}</div>
+        <div class="quote">”</div>
+        <div class="vtitle-wrap"><div class="vtitle" style="font-size:${vtitleSize(title, 52)}px">${title}</div></div>
+        <div class="quote" style="text-align:left">“</div>
+        <div class="rule"></div>
+        <div class="meta" id="seamMeta"></div>
+        ${bio ? `<div class="bio">${bio}</div>` : ''}
+        ${sub ? `<div class="meta">${sub}</div>` : ''}
+        <div class="actions">${actions}${isNarrow() && layer.kind !== 'search' ? '<button data-act="to-spine">收为书脊</button>' : ''}</div>
+        <div class="input-slot"></div>`;
+    attachInput(placeholder, value);
+    renderSeamMeta();
+}
+// 书脊形态：返回、竖排标题、计数、播放、展开；过滤中时计数显示为 匹配/总数
+function renderSpine(layer) {
+    seamInner.classList.add('spine');
+    const title = layer.kind === 'search' ? layer.query : layer.source.title;
+    const tracks = layerItems(layer).filter(it => it.kind === 'track');
+    const count = layer.query ? `${layer.count}/${layer.items.length}` : `${tracks.length}首`;
+    seamInner.innerHTML = `<button class="icon-btn sm" data-act="back" title="返回 (Esc)">‹</button>
+        <div class="vtitle spine-title" data-act="expand" title="展开" style="font-size:${Math.max(18, Math.min(30, (state.vh * .42) / Math.max(1, [...title].length)))}px">${title}</div>
+        <div class="spine-count">${count}</div>
+        <div style="flex:1"></div>
+        <button class="icon-btn sm" data-act="play-all" title="播放全部">▶</button>
+        <button class="icon-btn sm" data-act="expand" title="展开 / 过滤">⌕</button>`;
+}
+// 书脊 ↔ 完整信息条；展开时如果缝离边缘太近，相机让一让，保证整条缝放得下
+async function setSpineOpen(open) {
+    const layer = cur();
+    if (!isNarrow() || layer.kind === 'home' || layer.kind === 'queue' || !!layer.spineOpen === open) return;
+    layer.spineOpen = open;
+    if (open) {
+        const g = seamGeom(), need = layer.seamTarget / 2 + SEAM_EDGE;
+        const sx = Math.max(need, Math.min(state.vw - need, g.x));
+        if (Math.abs(sx - g.x) > 1) tweenCam({ x: layer.anchor.x - (sx - seamLineX()) / state.scale, y: state.cam.y }, 340);
+    }
+    flipSeamContent(renderSeam);
+    await tweenSeam(layer.seamTarget, 340);
+    if (open) seamInput.focus();
+}
+function renderSeamMeta() {
+    const el = $('seamMeta');
+    if (!el) return;
+    const layer = cur();
+    if (layer.kind === 'home') { el.innerHTML = ''; return; }
+    if (layer.kind === 'search') {
+        const groups = {};
+        layer.items.forEach(it => { groups[it.kind] = (groups[it.kind] || 0) + 1; });
+        el.innerHTML = layer.items.length
+            ? `<strong>${layer.items.length}</strong> 条结果 · ${Object.entries(groups).map(([k, n]) => `${KIND_LABEL[k] || '歌曲'} ${n}`).join(' · ')}`
+            : '<strong>没有结果</strong> · 墙上只剩留白';
+        const vt = seamInner.querySelector('.vtitle');
+        if (vt) { vt.textContent = layer.query; vt.style.fontSize = vtitleSize(layer.query, 52) + 'px'; }
+        return;
+    }
+    const all = layer.items, shown = layer.count;
+    const tracks = layerItems(layer).filter(it => it.kind === 'track');
+    el.innerHTML = layer.query
+        ? `<strong>${shown}</strong> / ${all.length} 项匹配「${layer.query}」`
+        : `<strong>${tracks.length}</strong> 首 · ${totalDur(tracks)}${layer.kind === 'artist' ? ` · ${layer.source.albums.length} 张专辑` : ''}`;
+}
+seamInner.addEventListener('click', e => {
+    const tab = e.target.closest('[data-tab]');
+    if (tab) { switchTab(tab.dataset.tab); return; }
+    const act = e.target.closest('[data-act]');
+    if (!act) return;
+    const a = act.dataset.act, layer = cur();
+    if (a === 'back') back();
+    else if (a === 'expand') setSpineOpen(true);
+    else if (a === 'to-spine') setSpineOpen(false);
+    else if (a === 'search') openSearch();
+    else if (a === 'close-search') closeSearch();
+    else if (a === 'queue') openQueue();
+    else if (a === 'play-all' || a === 'shuffle') {
+        const tracks = layerItems(layer).filter(it => it.kind === 'track');
+        if (tracks.length) play(a === 'shuffle' ? tracks[Math.floor(Math.random() * tracks.length)] : tracks[0]);
+    }
+});
+async function openSearch() {
+    const layer = cur();
+    if (layer.kind !== 'home' || busy) return;
+    layer.searchOpen = true;
+    layer.seamTarget = SEAM_WIDE;
+    seamInput.value = '';
+    flipSeamContent(renderSeam);
+    await tweenSeam(layer.seamTarget, 340);
+    seamInput.focus();
+}
+async function closeSearch() {
+    if (cur().kind === 'search') { seamInput.value = ''; await back(); }
+    const layer = cur();
+    if (layer.kind !== 'home') return;
+    layer.searchOpen = false;
+    layer.seamTarget = SEAM_NARROW;
+    seamInput.blur();
+    flipSeamContent(renderSeam);
+    await tweenSeam(layer.seamTarget, 300);
+}
+
+/* ───────────── 指针拖拽（有限层带边界回弹） ───────────── */
+
+const stage = $('stage');
+let drag = null, vel = { x: 0, y: 0 }, inertia = false;
+stage.addEventListener('pointerdown', e => {
+    if (e.target.closest('#seam')) return;
+    tweens.delete('cam');
+    inertia = false;
+    const tileEl = e.target.closest('.tile');
+    drag = { lx: e.clientX, ly: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false, key: tileEl && tileEl.dataset.key };
+    vel = { x: 0, y: 0 };
+    stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.lx, dy = e.clientY - drag.ly, now = performance.now(), dt = Math.max(1, now - drag.t);
+    if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 5) { drag.moved = true; stage.classList.add('dragging'); }
+    if (!drag.moved) return;
+    panBy(-dx / state.scale, -dy / state.scale);
+    vel = { x: .8 * (-dx / state.scale / dt) + .2 * vel.x, y: .8 * (-dy / state.scale / dt) + .2 * vel.y };
+    drag.lx = e.clientX; drag.ly = e.clientY; drag.t = now;
+});
+stage.addEventListener('pointerup', () => {
+    if (!drag) return;
+    stage.classList.remove('dragging');
+    if (!drag.moved) { const rec = drag.key && tiles.get(drag.key); if (rec) onTileClick(rec); }
+    else if (performance.now() - drag.t < 80) inertia = true;
+    else settleCamera();
+    drag = null;
+});
+function panBy(dx, dy) {
+    if (couplingFor(cur()) === 'axis' && state.seamW > 1) dx = 0;
+    const r = cameraRange();
+    const step = (v, d, lo, hi) => { const n = v + d; return r && (n < lo || n > hi) ? v + d * .35 : n; };
+    state.cam.x = step(state.cam.x, dx, r && r.xlo, r && r.xhi);
+    state.cam.y = step(state.cam.y, dy, r && r.ylo, r && r.yhi);
+    dirty = true;
+}
+function settleCamera() {
+    const r = cameraRange();
+    if (!r) return;
+    const to = { x: clampToRange(state.cam.x, r.xlo, r.xhi), y: clampToRange(state.cam.y, r.ylo, r.yhi) };
+    if (Math.abs(to.x - state.cam.x) > .5 || Math.abs(to.y - state.cam.y) > .5) tweenCam(to, 420);
+}
+stage.addEventListener('wheel', e => {
+    if (e.target.closest('#seam')) return;
+    e.preventDefault();
+    panBy(e.deltaX / state.scale * .9, e.deltaY / state.scale * .9);
+    clearTimeout(stage._wt);
+    stage._wt = setTimeout(settleCamera, 140);
+}, { passive: false });
+
+/* ───────────── 帧循环 ───────────── */
+
+let lastT = performance.now();
+function frame(now) {
+    const dt = Math.min(40, now - lastT);
+    lastT = now;
+    stepTweens(now);
+    if (inertia) {
+        const r = cameraRange();
+        const outside = r && (state.cam.x < r.xlo || state.cam.x > r.xhi || state.cam.y < r.ylo || state.cam.y > r.yhi);
+        if (couplingFor(cur()) === 'axis' && state.seamW > 1) vel.x = 0;
+        state.cam.x += vel.x * dt; state.cam.y += vel.y * dt;
+        const decay = outside ? .7 : .935;
+        vel.x *= decay; vel.y *= decay;
+        dirty = true;
+        if (Math.hypot(vel.x, vel.y) < .02) { inertia = false; settleCamera(); }
+    }
+    if (dirty) {
+        dirty = false;
+        applyTransforms();
+        cull();
+        updateHud();
+    }
+    requestAnimationFrame(frame);
+}
+
+/* ───────────── 浮层 UI ───────────── */
+
+function updateHud() {
+    const l = cur();
+    if (!l) return;
+    const mode = l.mode === 'finite' ? `有限 · ${l.count} 项 / ${l.order.length} slot 候选` : `无限 · ${l.items.length} 项（重复铺满）`;
+    $('hud').textContent = `${state.stack.map(x => x.crumb).join(' › ')}  ·  ${mode}  ·  DOM 磁贴 ${tiles.size}×2  ·  缝 ${Math.round(seamGeom().w)}px${cur().seamTarget === SPINE_W ? '（书脊）' : ''}${cur().cutThrough ? (opts.fallback === 'squeeze' ? '（挤压磁贴）' : '（切开磁贴）') : ''}${seamCollapsed() ? '（已收起）' : ''}`;
+}
+function updateChrome() {
+    $('floating-back').style.display = cur().kind === 'queue' ? 'block' : 'none';
+    const now = state.nowKey && allTracks.find(t => t.key === state.nowKey);
+    $('now').style.display = now ? 'flex' : 'none';
+    if (now) $('nowTxt').textContent = `${now.title} — ${now.artist}`;
+    if (cur().kind === 'home' && !cur().searchOpen) renderSeam();
+}
+$('floating-back').onclick = async () => {
+    if (cur().kind !== 'queue' || busy) return;
+    busy = true;
+    state.stack.pop();
+    const parent = cur();
+    if (parent.savedCam) tweenCam(parent.savedCam, 380);
+    flipWall(seamPoint());
+    renderSeam();
+    await tweenSeam(parent.seamTarget, 360);
+    settleCamera();
+    updateChrome();
+    busy = false;
+};
+$('nowQueue').onclick = openQueue;
+// 缝收起后不拉回原锚点：在当前视口里裂开一道新缝（内容不重排，只在下次过滤时围绕新缝排）
+async function reopenSeamHere() {
+    const layer = cur();
+    if (busy || !seamCollapsed(layer)) return;
+    const pick = opts.seamPick === 'block' ? blockSeamPlan(layer.seamTarget) : findSeamLineX(layer.seamTarget);
+    layer.anchor = { x: pick.x, y: state.cam.y };
+    layer.cutThrough = pick.cut;
+    if (layer.mode === 'finite') layer.orderStale = true;
+    state.seamW = 0;
+    dirty = true;
+    // 相机让位和裂开同时进行：边界滑到放得下的位置，缝在它上面张开
+    if (pick.camX !== undefined && Math.abs(pick.camX - state.cam.x) > .5) tweenCam({ x: pick.camX, y: state.cam.y }, 420);
+    await tweenSeam(layer.seamTarget, 420);
+}
+seamTab.onclick = reopenSeamHere;
+// 对比用：假装视口里没有干净的线，按兜底代价函数选一条必然切到磁贴的线重新裂开
+async function forceCutHere() {
+    const layer = cur();
+    if (busy || !layer.seamTarget) return;
+    // 和真实兜底走同一个代价函数，只是排除不切断磁贴的线
+    const X = findSeamLineX(layer.seamTarget, { forceCut: true }).x;
+    state.seamW = 0;
+    dirty = true;
+    await sleep(60);
+    layer.anchor = { x: X, y: state.cam.y };
+    layer.cutThrough = true;
+    if (layer.mode === 'finite') layer.orderStale = true;
+    tweenCam({ x: X, y: state.cam.y }, 300);
+    await tweenSeam(layer.seamTarget, 420);
+}
+
+const OPTS = [
+    ['跨缝处理', 'seamCut', [['split', '断开（墙两半滑开）'], ['occlude', '遮挡（缝盖住墙）']]],
+    ['push 时缝', 'pushMode', [['A', 'A 合拢再裂开'], ['B', 'B 保持张开']]],
+    ['过滤稳定性', 'stability', [['strict', '严格 rank'], ['sticky', '粘滞']]],
+    ['缝与墙耦合', 'coupling', [['follow', '随墙移动（边缘收起）'], ['hybrid', '混合'], ['axis', '沿缝滑动'], ['fixed', '固定']]],
+    ['缝位置', 'seamPos', [[.5, '中央'], [.36, '偏左']]],
+    ['裂缝选线', 'seamPick', [['block', '块边界（相机让位）'], ['nearest', '就近（挤压/切开兜底）']]],
+    ['找不到位置时（仅就近）', 'fallback', [['squeeze', '挤压磁贴'], ['cut', '切开磁贴']]],
+    ['调试', 'showRank', [[false, '隐藏 slot 序号'], [true, '显示 slot 序号']]],
+];
+function renderOpts() {
+    $('opts').innerHTML = OPTS.map(([label, key, choices]) => `<h4>${label}</h4><div class="seg">${choices.map(([v, l]) =>
+        `<button data-k="${key}" data-v="${v}" class="${opts[key] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`).join('') +
+        `<h4>场景快捷</h4><div class="seg">
+            <button data-scene="few">搜索「灯台」(3 条)</button><button data-scene="none">搜索「zzz」(0 条)</button>
+            <button data-scene="big">打开最大歌单</button><button data-scene="small">6 首歌单</button><button data-scene="home">回首页</button></div>
+        <h4>对比</h4><div class="seg"><button data-act2="force-cut">强制无位置裂缝（当前视口）</button></div>`;
+}
+$('opts').addEventListener('click', async e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.k) {
+        const choice = OPTS.find(o => o[1] === b.dataset.k)[2].find(c => String(c[0]) === b.dataset.v);
+        opts[b.dataset.k] = choice[0];
+        renderOpts();
+        const layer = cur();
+        if ((b.dataset.k === 'seamCut' || b.dataset.k === 'seamPos' || b.dataset.k === 'coupling') && layer.mode === 'finite') {
+            layer.order = computeOrder(layer.anchor, layer.items.length, layer.seamTarget, layer);
+            layer.orderCut = orderSig();
+            layer.positions = null;
+            assignFinite(layer);
+            flipWall(layer.anchor);
+            settleCamera();
+        } else if (b.dataset.k === 'stability' && layer.mode === 'finite') {
+            assignFinite(layer); flipWall(layer.anchor);
+        } else if (b.dataset.k === 'fallback' && layer.mode === 'finite' && layer.cutThrough) {
+            layer.orderStale = true;
+        } else if (b.dataset.k === 'showRank') {
+            for (const rec of tiles.values()) setContent(rec, rec.item);
+        }
+        dirty = true;
+        return;
+    }
+    if (b.dataset.act2 === 'force-cut') { forceCutHere(); return; }
+    const scene = b.dataset.scene;
+    if (!scene || busy) return;
+    while (state.stack.length > 1) { await back(); if (busy) await sleep(50); }
+    if (scene === 'home') { if (cur().searchOpen) await closeSearch(); return; }
+    if (scene === 'few' || scene === 'none') {
+        if (!cur().searchOpen) await openSearch();
+        seamInput.value = scene === 'few' ? '灯台' : 'zzz';
+        await onQuery();
+    } else {
+        const list = allPlaylists.slice().sort((a, b) => b.tracks.length - a.tracks.length);
+        await push(collectionLayer(scene === 'big' ? list[0] : list[list.length - 1]));
+    }
+});
+$('opts-btn').onclick = () => $('opts').classList.toggle('open');
+
+addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        if (document.activeElement === seamInput && seamInput.value) { seamInput.value = ''; onQuery(); return; }
+        if (cur().kind === 'queue') { $('floating-back').click(); return; }
+        if (cur().kind === 'home' && cur().searchOpen) { closeSearch(); return; }
+        back();
+    } else if (e.key === '/' && document.activeElement !== seamInput) {
+        e.preventDefault();
+        if (cur().kind === 'home' && !cur().searchOpen) openSearch(); else seamInput.focus();
+    }
+});
+addEventListener('resize', () => {
+    const wasNarrow = isNarrow();
+    state.vw = innerWidth; state.vh = innerHeight;
+    if (wasNarrow !== isNarrow() && cur()) { renderSeam(); tweenSeam(cur().seamTarget, 300); }
+    state.scale = state.vw < 700 ? .42 : state.vw < 1200 ? .52 : .62;
+    dirty = true;
+});
+
+/* ───────────── 启动 ───────────── */
+
+state.scale = state.vw < 700 ? .42 : state.vw < 1200 ? .52 : .62;
+state.stack.push(homeLayer(homeTab));
+cur().anchor = { x: state.cam.x, y: state.cam.y };
+renderSeam();
+renderOpts();
+updateChrome();
+requestAnimationFrame(t => {
+    lastT = t;
+    applyTransforms();
+    cull();
+    swapWall();
+    tweenSeam(cur().seamTarget, 520);
+    requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>
