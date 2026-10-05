@@ -288,6 +288,28 @@ type BravaisTileKind =
 - 错开延迟 = 距离 × 18ms/格，上限 420ms。
 - 只翻视口内（加 overscan）的 slot，视口外的直接换内容。
 
+## 7.5 视觉风格：对齐 Lattice（已定）
+
+bravais 和 Lattice 共用一套视觉语言，样式直接继承 `src/components/app/lattice/Lattice.css` / `LatticeChrome.css` / `LatticeFocusButton.css`，不另起调色板。
+
+- **主题**：只用 folia 的主题变量（`buildAppStyle` 写入的 `--bg-color` / `--text-primary` / `--text-secondary` / `--text-accent`）。派生量与 `.lattice-root` 相同（`--lattice-poster-background`、`--lattice-shade-rgb` 等），日光模式（`is-daylight`）切换整套派生量。
+- **墙面**：`--bg-color` 底，左上 accent 16%、右下 secondary 20% 两团光晕；soft-light 颗粒噪点（暗色 .13 / 日光 .07）；浅暗角（78% → 52%，日光 16%）。
+- **海报（磁贴）**：
+  - 直角（Lattice 的「除控件外一律方角」规则）。
+  - 底部压暗渐变与 `.lattice-poster-shade` 相同。
+  - 主题染色层（`.lattice-poster-tint`，跟随 Lattice 的染色设置）压住背景卡；悬停、聚焦、正在播放、列表联动、选中的卡不染色。
+  - 徽标 11px / 800 / .12em，标题 `clamp(22px, 2vw, 36px)`、行高 .96、字距 −.045em，副标题 13px / 650 / .78。
+  - 悬停：`saturate(1.08) brightness(1.05)`，四边各外扩一个 GAP（scaleX / scaleY）。
+  - 正在播放 = `is-current`：强调色 2px 内描边 + 内发光，徽标借强调色。
+  - 列表联动、批量选中 = Lattice 键盘聚焦环（发丝线 + 4px 主色环 + 发丝线）。
+  - 空画框只画一道主色 7% 的发丝线。
+- **聚焦卡 = `is-expanded`**：`0 42px 110px` 深投影，左 + 底双向压暗，标题 `clamp(48px, 6vw, 82px)`。「立即播放」「加入队列」走 LatticeChrome 的按钮：无卡片底，静止时无描边，悬停出现 12px 圆角框，主按钮常驻 16% 底色。
+- **缝**：默认 Lattice 主题材质，底色 `color-mix(bg 90%, primary)`，文字为主色，标题改为 Inter / Noto Sans 800（不再用衬线）；按钮、tab、排序控件同样走 LatticeChrome 的悬停框；输入框聚焦时下划线用强调色。图 1 的纸张材质保留为原型对照项。
+- **浮层控件**：返回 = `.lattice-back`（40px 圆、白 8%、模糊）；工具面板 = `.lattice-tools-panel`（24px 圆角、黑 40%、模糊 24px）。
+- **相机缩放**：与 `PosterWall.getScale` 相同（<640: .52，<1100: .64，否则 .76）。
+
+原型 ⚙ 里可以切换主题（午夜墨染 / 日光素白 / 接近图 2 的示例自定义）、信息条材质、海报染色。
+
 ## 8. 架构落点（实现阶段）
 
 ### 8.1 单一常驻墙
@@ -356,6 +378,7 @@ type BravaisLayer = {
 - 缝内容底部为播放条让出安全区（§5）。
 - 歌单/歌手页双模式：普通打开无限拼贴，过滤、多选等怕重复的操作中退化为以缝为中心的有限拼贴；进出时整面翻牌，不弱化（§4）。
 - 点击歌曲 = 就地聚焦（复用 Lattice 块内让位，6×6），卡上有歌手 / 专辑链接和「立即播放」「加入队列」；立即播放沿用 folia 的播放后进入视图设置。不做卡片背面（§7）。
+- 视觉风格完全继承 Lattice（主题变量、海报、染色、聚焦卡、按钮、缩放档位），缝默认用 Lattice 主题材质（§7.5）。
 - push 时被点磁贴作为起点磁贴：原地成为 rank 0，排序从它向外展开，缝不动（§7）。
 
 待定：

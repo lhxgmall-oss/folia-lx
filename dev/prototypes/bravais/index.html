@@ -6,7 +6,7 @@
 <title>Bravais 原型</title>
 <!-- Bravais suite 交互原型：翻牌墙 + 墙面裂缝信息条；假数据、单文件、不依赖构建。设计见 docs/bravais-suite-design.md -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;650;700;800&family=Noto+Serif+JP:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
     --wall: #1c1c1f;
@@ -171,6 +171,137 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .seg button.on { background: #fff; color: #111; border-color: #fff; }
 .vignette { position: fixed; inset: 0; pointer-events: none; z-index: 4;
     background: radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0,0,0,.45)); }
+/* ═════════ 对齐 folia Lattice 设计风格（以下规则覆盖上面的原型样式） ═════════
+   主题变量与 buildAppStyle 一致：--bg-color / --text-primary / --text-secondary / --text-accent；
+   派生量与 Lattice.css 的 .lattice-root 一致。 */
+:root {
+    --bg-color: #09090b; --text-primary: #f4f4f5; --text-secondary: #71717a; --text-accent: #f4f4f5;
+    --lattice-poster-ink: var(--text-primary);
+    --lattice-shade-rgb: 0 0 0;
+    --lattice-poster-background: color-mix(in srgb, var(--bg-color) 88%, var(--lattice-poster-ink));
+    --lattice-expanded-shadow: rgb(0 0 0 / 74%);
+    --lattice-chrome-shadow: rgb(0 0 0 / 55%);
+    --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 45%);
+    --lattice-poster-tint-effective-opacity: .5;
+    --accent: var(--text-accent);
+    --accent-ink: var(--bg-color);
+}
+:root.is-daylight {
+    --lattice-shade-rgb: 255 255 255;
+    --lattice-poster-background: color-mix(in srgb, var(--bg-color) 94%, var(--lattice-poster-ink));
+    --lattice-expanded-shadow: rgb(0 0 0 / 25%);
+    --lattice-chrome-shadow: rgb(255 255 255 / 55%);
+    --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 25%);
+    --lattice-poster-tint-effective-opacity: .36;
+}
+html, body { font-family: Inter, "Noto Sans JP", system-ui, sans-serif; color: var(--text-primary);
+    background:
+        radial-gradient(circle at 14% 12%, color-mix(in srgb, var(--text-accent) 16%, transparent), transparent 29%),
+        radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--text-secondary) 20%, transparent), transparent 32%),
+        var(--bg-color); }
+/* 颗粒 + 浅暗角（Lattice: ::after 噪点 soft-light .13；has-vignette 78% → 52%） */
+.vignette { z-index: 4; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 78%, rgba(0,0,0,.52) 100%); }
+:root.is-daylight .vignette { background: radial-gradient(ellipse at center, rgba(0,0,0,0) 78%, rgba(0,0,0,.16) 100%); }
+.vignette::after { content: ''; position: absolute; inset: 0; opacity: .13; mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E"); }
+:root.is-daylight .vignette::after { opacity: .07; }
+
+/* 海报：直角、主题底色、底部压暗、主题染色压住背景卡 */
+.tile { transition: z-index 0s; }
+.tile:not(.is-wall):hover { z-index: 3; }
+.tile-inner { border-radius: 0; color: var(--lattice-poster-ink); background: var(--lattice-poster-background);
+    box-shadow: var(--lattice-poster-elevation, 0 12px 32px transparent); transition: box-shadow .6s ease, filter .6s ease, opacity .3s, transform .2s ease; }
+.tile:not(.is-wall):hover .tile-inner { filter: saturate(1.08) brightness(1.05); transform: scale(var(--hsx, 1), var(--hsy, 1)); }
+.cover { filter: saturate(.92); }
+.kind-artist .cover::after { border-radius: 0; }
+.shade { background: linear-gradient(180deg, rgb(var(--lattice-shade-rgb) / 5%) 34%, rgb(var(--lattice-shade-rgb) / 24%) 56%, rgb(var(--lattice-shade-rgb) / 92%) 100%); }
+.tint { position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: var(--lattice-poster-tint-effective-opacity); transition: opacity .26s ease;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--bg-color) 78%, var(--text-accent)), color-mix(in srgb, var(--bg-color) 84%, var(--text-secondary))); }
+:root.no-tint .tint,
+.tile:hover .tint, .is-playing .tint, .is-focused .tint, .is-linked .tint, .is-selected .tint { opacity: 0; }
+.badge { left: 14px; top: 14px; padding: 5px 8px; border-radius: 0; font-size: 11px; font-weight: 800; letter-spacing: .12em; z-index: 4;
+    color: var(--lattice-poster-ink); background: rgb(var(--lattice-shade-rgb) / 62%); }
+.badge:empty { display: none; }
+.copy { left: 17px; right: 17px; bottom: 17px; display: flex; flex-direction: column; gap: 5px; z-index: 4; }
+.copy .t { margin-block: -.14em; padding-block: .14em; font-size: clamp(22px, 2vw, 36px); line-height: .96; letter-spacing: -.045em; font-weight: 800; }
+.copy .a { margin-top: 0; font-size: 13px; font-weight: 650; opacity: .78; }
+.glyph { color: color-mix(in srgb, var(--lattice-poster-ink) 14%, transparent); }
+/* 正在播放：强调色内描边 + 内发光（.lattice-poster.is-current::before），徽标只借颜色 */
+.is-playing .tile-inner { box-shadow: var(--lattice-poster-elevation, 0 12px 32px transparent); }
+.is-playing .tile-inner::before { content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none; border: 2px solid var(--text-accent);
+    box-shadow: inset 0 0 0 1px rgb(var(--lattice-shade-rgb) / 52%), inset 0 0 15px -7px color-mix(in srgb, var(--text-accent) 46%, transparent); }
+.is-playing .badge { color: var(--text-accent); background: rgb(var(--lattice-shade-rgb) / 78%); }
+/* 列表悬停联动 = Lattice 的键盘聚焦环（发丝线 + 4px 环 + 发丝线） */
+.is-linked .tile-inner, .is-selected .tile-inner { box-shadow: 0 0 0 1px rgb(0 0 0 / 62%), 0 0 0 4px var(--text-primary), 0 0 0 5px rgb(0 0 0 / 38%), var(--lattice-focus-lift); }
+:root.is-daylight .is-linked .tile-inner, :root.is-daylight .is-selected .tile-inner { box-shadow: 0 0 0 1px rgb(255 255 255 / 78%), 0 0 0 4px var(--text-primary), 0 0 0 5px rgb(255 255 255 / 45%), var(--lattice-focus-lift); }
+.is-selected .tile-inner::after { content: "✓"; right: 14px; top: 14px; width: auto; height: auto; padding: 5px 9px; border-radius: 0; font-size: 13px;
+    background: var(--text-accent); color: var(--bg-color); }
+/* 空画框：墙面上的一道发丝线 */
+.is-wall .tile-inner { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 7%, transparent); }
+.is-wall .wall-rank { color: color-mix(in srgb, var(--text-primary) 18%, transparent); }
+/* 聚焦卡 = Lattice 的 .is-expanded：深投影、左 + 底双向压暗、大标题 */
+.is-focused .tile-inner { --lattice-poster-elevation: 0 42px 110px var(--lattice-expanded-shadow); filter: none; box-shadow: var(--lattice-poster-elevation); }
+.tile.is-focused:hover .tile-inner { transform: none; }
+.is-focused .shade { background:
+    linear-gradient(0deg, rgb(var(--lattice-shade-rgb) / 86%) 0%, rgb(var(--lattice-shade-rgb) / 62%) 14%, rgb(var(--lattice-shade-rgb) / 26%) 30%, rgb(var(--lattice-shade-rgb) / 0%) 46%),
+    linear-gradient(90deg, rgb(var(--lattice-shade-rgb) / 88%), rgb(var(--lattice-shade-rgb) / 50%) 52%, rgb(var(--lattice-shade-rgb) / 8%)); }
+.is-focused .copy { left: 32px; right: 32px; bottom: 28px; }
+.is-focused .copy .t { max-width: 76%; font-size: clamp(48px, 6vw, 82px); line-height: .95; }
+.f-links { margin-top: 7px; font-size: 17px; font-weight: 650; opacity: .85; }
+.f-links [data-fact] { text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
+.f-links [data-fact]:hover { text-decoration-color: currentColor; }
+/* 聚焦卡按钮 = LatticeChrome：无卡片底，静止时无描边，悬停才出现 12px 圆角框 */
+.f-btns { gap: 8px; margin-top: 26px; filter: drop-shadow(0 1px 3px var(--lattice-chrome-shadow)); }
+.f-btns button, .f-btns button.ghost { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid transparent; font-size: 15px; font-weight: 700;
+    background: transparent; color: inherit; box-shadow: none; }
+.f-btns button:first-child { background: color-mix(in srgb, currentColor 16%, transparent); }
+.f-btns button.ghost { opacity: .65; }
+.f-btns button:hover { opacity: 1; filter: none; border-color: color-mix(in srgb, currentColor 26%, transparent); background: color-mix(in srgb, currentColor 16%, transparent); }
+
+/* 缝：Lattice 材质（主题底色、直角、按钮走 LatticeChrome 的悬停框）。纸张材质保留为对照（.skin-paper） */
+#seam.skin-lattice { --paper: color-mix(in srgb, var(--bg-color) 90%, var(--text-primary)); --ink: var(--text-primary);
+    --ink-soft: color-mix(in srgb, var(--text-primary) 55%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-primary) 6%, transparent), 0 24px 64px rgb(0 0 0 / 42%); }
+#seam.skin-lattice .vtitle { font-family: Inter, "Noto Sans JP", sans-serif; font-weight: 800; letter-spacing: .04em; }
+#seam.skin-lattice .pnl-title { font-family: Inter, "Noto Sans JP", sans-serif; font-weight: 800; letter-spacing: -.03em; }
+#seam.skin-lattice .quote { opacity: .35; }
+#seam.skin-lattice .rule, #seam.skin-lattice .pnl-foot { background: none; border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); height: 0; }
+#seam.skin-lattice .pnl-foot { height: auto; }
+#seam.skin-lattice .bio { color: color-mix(in srgb, var(--text-primary) 72%, transparent); }
+#seam.skin-lattice .actions button, #seam.skin-lattice .lvl, #seam.skin-lattice .pnl-sort, #seam.skin-lattice .pnl-dir,
+#seam.skin-lattice .icon-btn, #seam.skin-lattice .vtabs button { border: 1px solid transparent; border-radius: 12px; background: transparent; color: inherit; }
+#seam.skin-lattice .actions button { min-height: 36px; opacity: .8; }
+#seam.skin-lattice .actions button.primary { opacity: 1; background: color-mix(in srgb, currentColor 16%, transparent); color: inherit; }
+#seam.skin-lattice .actions button:hover, #seam.skin-lattice .lvl:hover, #seam.skin-lattice .icon-btn:hover, #seam.skin-lattice .pnl-dir:hover,
+#seam.skin-lattice .vtabs button:hover { opacity: 1; border-color: color-mix(in srgb, currentColor 26%, transparent); background: color-mix(in srgb, currentColor 16%, transparent); }
+#seam.skin-lattice .vtabs button { color: var(--ink-soft); }
+#seam.skin-lattice .vtabs button.on { color: var(--text-primary); background: color-mix(in srgb, currentColor 14%, transparent); }
+#seam.skin-lattice .crumbs .back { width: 32px; height: 32px; border: 0; border-radius: 999px; background: rgb(255 255 255 / 8%); color: inherit; }
+:root.is-daylight #seam.skin-lattice .crumbs .back { background: rgb(0 0 0 / 5%); }
+#seam.skin-lattice .input-slot input { border-bottom: 1px solid color-mix(in srgb, currentColor 40%, transparent); color: inherit; }
+#seam.skin-lattice .input-slot input:focus { border-bottom-color: var(--text-accent); }
+#seam.skin-lattice .input-slot input::placeholder { color: var(--ink-soft); }
+#seam.skin-lattice .row:hover, #seam.skin-lattice .row.hot, #seam.skin-lattice .trow:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+#seam.skin-lattice .row, #seam.skin-lattice .trow { border-radius: 10px; }
+#seam.skin-lattice .row.playing .r-t { color: var(--text-accent); }
+#seam.skin-lattice .t-box { border-color: color-mix(in srgb, currentColor 45%, transparent); border-radius: 4px; }
+#seam.skin-lattice .t-box.all, #seam.skin-lattice .t-box.partial { background: var(--text-accent); border-color: var(--text-accent); color: var(--bg-color); }
+#seam.skin-lattice .pnl-sort option { background: var(--bg-color); }
+#seam-tab.skin-lattice { background: color-mix(in srgb, var(--bg-color) 90%, var(--text-primary)); color: var(--text-primary);
+    font-family: Inter, "Noto Sans JP", sans-serif; font-weight: 800; box-shadow: 0 24px 64px rgb(0 0 0 / 42%); }
+
+/* 浮层控件：返回 = .lattice-back；选项 = .lattice-tools 面板 */
+#floating-back { width: 40px; height: 40px; top: 20px; left: 24px; background: rgb(255 255 255 / 8%); box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
+    backdrop-filter: blur(8px); color: inherit; transition: transform .2s ease; }
+#floating-back:hover { transform: scale(1.05); }
+#opts-btn { right: 24px; bottom: 24px; background: rgb(0 0 0 / 40%); border: 1px solid rgb(255 255 255 / 8%); backdrop-filter: blur(24px); color: var(--text-primary); }
+#opts { right: 24px; bottom: 80px; border-radius: 24px; padding: 14px; background: rgb(0 0 0 / 40%); border: 1px solid rgb(255 255 255 / 8%);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 42%); backdrop-filter: blur(24px); color: var(--text-primary); max-height: calc(100vh - 120px); overflow: auto; }
+:root.is-daylight #opts, :root.is-daylight #opts-btn { background: rgb(255 255 255 / 62%); border-color: rgb(0 0 0 / 7%); box-shadow: 0 24px 64px rgb(42 35 27 / 18%); }
+#opts h4 { color: color-mix(in srgb, currentColor 50%, transparent); }
+.seg button { border-radius: 10px; border-color: color-mix(in srgb, currentColor 14%, transparent); color: inherit; }
+.seg button.on { background: var(--text-primary); color: var(--bg-color); border-color: var(--text-primary); }
+#now { background: rgb(0 0 0 / 40%); border: 1px solid rgb(255 255 255 / 8%); backdrop-filter: blur(24px); color: var(--text-primary); }
+#hud { color: color-mix(in srgb, var(--text-primary) 40%, transparent); }
 </style>
 </head>
 <body>
@@ -337,7 +468,22 @@ function wrapIndex(slot, n) {
 
 /* ───────────── 状态 ───────────── */
 
-const opts = { seamCut: 'split', pushMode: 'B', stability: 'strict', seamPos: .5, showRank: false, coupling: 'follow', fallback: 'squeeze', seamPick: 'block', listMode: 'dual', playerBar: true, entryView: 'lattice' };
+const opts = { seamCut: 'split', pushMode: 'B', stability: 'strict', seamPos: .5, showRank: false, coupling: 'follow', fallback: 'squeeze', seamPick: 'block', listMode: 'dual', playerBar: true, entryView: 'lattice', theme: 'midnight', seamSkin: 'lattice', posterTint: true };
+// 主题预设：folia 的两套默认主题（services/baseThemes.ts），外加一套接近图 2 截图的自定义主题
+const THEMES = {
+    midnight: { bg: '#09090b', primary: '#f4f4f5', accent: '#f4f4f5', secondary: '#71717a', daylight: false },
+    daylight: { bg: '#f5f5f4', primary: '#1c1917', accent: '#ea580c', secondary: '#44403c', daylight: true },
+    sample: { bg: '#0e0b16', primary: '#f5f0ff', accent: '#ffd84d', secondary: '#6a48ff', daylight: false },
+};
+function applyTheme() {
+    const t = THEMES[opts.theme], root = document.documentElement.style;
+    root.setProperty('--bg-color', t.bg); root.setProperty('--text-primary', t.primary);
+    root.setProperty('--text-accent', t.accent); root.setProperty('--text-secondary', t.secondary);
+    document.documentElement.classList.toggle('is-daylight', t.daylight);
+    document.documentElement.classList.toggle('no-tint', !opts.posterTint);
+    document.getElementById('seam').className = 'skin-' + opts.seamSkin;
+    document.getElementById('seam-tab').classList.toggle('skin-lattice', opts.seamSkin === 'lattice');
+}
 // listMode：歌单/歌手页 dual = 普通打开无限拼贴，过滤时退化为以当前缝为中心的有限拼贴；finite = 始终有限
 // seamPick：block = 裂缝只开在 12×8 块之间的天然缝隙上，放不下时相机让位；nearest = 视口内就近找线，找不到再挤压/切开（fallback）
 // fallback：找不到不切断磁贴的裂缝线时怎么处理被切到的磁贴 —— squeeze = 挤压（靠缝一侧的边被推回到缝边），cut = 切开（撕成两半）
@@ -369,6 +515,8 @@ const panelWidth = () => Math.min(420, state.vw - 2 * 14 - 24);
 const panelKind = layer => !layer ? null
     : (layer.kind === 'collection' || layer.kind === 'artist') ? 'tracks'
     : (layer.kind === 'home' && layer.tab === 'local' && !layer.searchOpen) ? 'tree' : null;
+// 与 src/components/app/lattice/PosterWall.tsx 的 getScale 一致
+const getLatticeScale = w => w < 640 ? .52 : w < 1100 ? .64 : .76;
 const SEAM_WIDE = 300, SEAM_NARROW = 120, SPINE_W = 64, NARROW_VW = 900;
 const isNarrow = () => state.vw < NARROW_VW;
 // 层的缝开口宽度由全局等级 state.seamLevel 决定：full = 完整信息条，spine = 书脊，hidden = 完全收起（只剩侧边悬浮按钮）。
@@ -507,7 +655,6 @@ function tileHTML(item, slot, layer, focused = false) {
         const rank = layer && layer.rankOfSlot ? layer.rankOfSlot.get(slot.key) : undefined;
         return opts.showRank && rank !== undefined && rank < 400 ? `<span class="wall-rank">${rank + 1}</span>` : '';
     }
-    const fs = Math.max(22, Math.min(68, slot.w * .095));
     let badge;
     if (layer.mode === 'finite') {
         const idx = layer.kind === 'search' ? layer.positions.indexOf(item) : layer.items.indexOf(item);
@@ -520,8 +667,8 @@ function tileHTML(item, slot, layer, focused = false) {
     const sub = item.kind === 'artist' ? item.roman : item.kind === 'playlist' ? `${item.tracks.length} 首 · ${item.artist}` :
         item.kind === 'album' ? `${item.artist} · ${item.tracks.length} 首` : item.kind === 'folder' ? `${item.tracks.length} 首 · ${item.virtual ? '所有本地文件' : item.artist}` : item.artist;
     return `<div class="cover"><span class="glyph" style="font-size:${Math.min(slot.w, slot.h) * .9}px">${item.title[0]}</span></div>
-        <div class="shade"></div><div class="badge">${badge}</div>
-        <div class="copy"><div class="t" style="font-size:${fs}px">${item.title}</div>${focused ? focusHTML(item) : `<div class="a" style="font-size:${Math.max(15, fs * .4)}px">${sub}</div>`}</div>`;
+        <div class="shade"></div><div class="tint"></div><div class="badge">${badge}</div>
+        <div class="copy"><div class="t">${item.title}</div>${focused ? focusHTML(item) : `<div class="a">${sub}</div>`}</div>`;
 }
 // 聚焦卡底部：可点击的歌手 / 专辑链接 + 时长，以及「立即播放」「加入队列」两个按钮（对齐 GridView 聚焦卡的按钮排）
 function focusHTML(item) {
@@ -583,6 +730,8 @@ function applyRect(rec, animate) {
         el.style.width = r.w + 'px';
         el.style.height = r.h + 'px';
         el.style.zIndex = isFocused ? 20 : '';
+        el.style.setProperty('--hsx', ((r.w + 2 * GAP) / r.w).toFixed(4));
+        el.style.setProperty('--hsy', ((r.h + 2 * GAP) / r.h).toFixed(4));
         el.classList.toggle('is-focused', isFocused);
     }
     return true;
@@ -1663,6 +1812,9 @@ const OPTS = [
     ['缝与墙耦合', 'coupling', [['follow', '随墙移动（边缘收起）'], ['hybrid', '混合'], ['axis', '沿缝滑动'], ['fixed', '固定']]],
     ['缝位置', 'seamPos', [[.5, '中央'], [.36, '偏左']]],
     ['裂缝选线', 'seamPick', [['block', '块边界（相机让位）'], ['nearest', '就近（挤压/切开兜底）']]],
+    ['主题', 'theme', [['midnight', '午夜墨染'], ['daylight', '日光素白'], ['sample', '示例自定义']]],
+    ['信息条材质', 'seamSkin', [['lattice', 'Lattice 主题'], ['paper', '纸张（图 1）']]],
+    ['海报染色（Lattice 设置）', 'posterTint', [[true, '开'], [false, '关']]],
     ['立即播放后进入（folia 设置）', 'entryView', [['lattice', 'Lattice'], ['player', '可视化播放页']]],
     ['播放条', 'playerBar', [[true, '模拟显示（留安全区）'], [false, '隐藏']]],
     ['歌单/歌手页', 'listMode', [['dual', '双模式（过滤时有限）'], ['finite', '始终有限']]],
@@ -1696,6 +1848,8 @@ $('opts').addEventListener('click', async e => {
             assignFinite(layer); flipWall(layer.anchor);
         } else if (b.dataset.k === 'fallback' && layer.mode === 'finite' && layer.cutThrough) {
             layer.orderStale = true;
+        } else if (b.dataset.k === 'theme' || b.dataset.k === 'seamSkin' || b.dataset.k === 'posterTint') {
+            applyTheme();
         } else if (b.dataset.k === 'showRank') {
             for (const rec of tiles.values()) setContent(rec, rec.item);
         }
@@ -1740,13 +1894,14 @@ addEventListener('resize', () => {
         renderSeam();
         tweenSeam(cur().seamTarget, 300);
     }
-    state.scale = state.vw < 700 ? .42 : state.vw < 1200 ? .52 : .62;
+    state.scale = getLatticeScale(state.vw);
     dirty = true;
 });
 
 /* ───────────── 启动 ───────────── */
 
-state.scale = state.vw < 700 ? .42 : state.vw < 1200 ? .52 : .62;
+state.scale = getLatticeScale(state.vw);
+applyTheme();
 state.seamLevel = state.seamRestore = isNarrow() ? 'spine' : 'full';
 state.stack.push(homeLayer(homeTab));
 cur().anchor = { x: state.cam.x, y: state.cam.y };
