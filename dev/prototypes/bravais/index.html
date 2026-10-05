@@ -97,7 +97,47 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .seam-inner.spine { align-items: center; padding: 16px 8px; gap: 12px; }
 .spine .spine-title { cursor: pointer; letter-spacing: .1em; }
 .spine-count { writing-mode: vertical-rl; font-size: 11px; color: var(--ink-soft); letter-spacing: .1em; font-variant-numeric: tabular-nums; }
+.crumbs .lvl { border: 1px solid rgba(0,0,0,.16); background: none; border-radius: 999px; padding: 3px 9px; font-size: 11px; color: var(--ink-soft); }
 .icon-btn.sm { width: 36px; height: 36px; font-size: 14px; flex: none; }
+#fakebar { left: 50%; bottom: 32px; transform: translateX(-50%); width: min(512px, calc(100vw - 120px)); height: 64px; border-radius: 22px;
+    background: rgba(24,24,27,.86); backdrop-filter: blur(16px); box-shadow: 0 16px 40px rgba(0,0,0,.45); padding: 10px 16px; z-index: 25;
+    display: flex; flex-direction: column; justify-content: center; gap: 8px; pointer-events: none; }
+#fakebar.off { display: none; }
+.fb-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.fb-btn { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,.12); display: grid; place-items: center; font-size: 11px; }
+.fb-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .85; }
+.fb-progress { height: 3px; border-radius: 2px; background: rgba(255,255,255,.15); }
+.fb-progress span { display: block; width: 38%; height: 100%; border-radius: 2px; background: #fff; }
+.seam-inner.panel { gap: 10px; }
+.pnl-title { font-family: "Noto Serif JP", serif; font-weight: 700; font-size: 26px; line-height: 1.2; }
+.pnl-tools { display: flex; gap: 8px; align-items: center; }
+.pnl-tools .input-slot { flex: 1; }
+.pnl-sort { border: 1px solid rgba(0,0,0,.18); background: transparent; border-radius: 6px; padding: 5px 6px; font: inherit; font-size: 12px; color: var(--ink); }
+.pnl-dir { border: 1px solid rgba(0,0,0,.18); background: none; border-radius: 6px; width: 30px; height: 30px; color: var(--ink); }
+.pnl-list { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0 -8px; padding: 0 4px; }
+.row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+.row:hover, .row.hot { background: rgba(0,0,0,.06); }
+.row.playing .r-t { color: #8a6d00; }
+.r-idx { width: 22px; font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.r-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.r-t { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r-a { font-size: 11px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r-d { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.pnl-empty { padding: 20px 8px; font-size: 12px; color: var(--ink-soft); }
+.trow { display: flex; align-items: center; gap: 6px; padding-top: 5px; padding-bottom: 5px; padding-right: 8px; border-radius: 8px; font-size: 13px; }
+.trow:hover { background: rgba(0,0,0,.05); }
+.t-caret { width: 16px; text-align: center; color: var(--ink-soft); cursor: pointer; }
+.t-box { width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid rgba(0,0,0,.35); display: grid; place-items: center; font-size: 11px; font-weight: 900; cursor: pointer; flex: none; }
+.t-box.all, .t-box.partial { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.t-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.t-count { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.pnl-foot { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(0,0,0,.12); padding-top: 10px; }
+.is-linked .tile-inner { box-shadow: inset 0 0 0 4px #fff, 0 0 0 2px rgba(255,255,255,.5), 0 10px 28px rgba(0,0,0,.35); }
+.is-selected .tile-inner { box-shadow: inset 0 0 0 4px var(--accent), 0 10px 28px rgba(0,0,0,.35); }
+.is-selected .tile-inner::after { content: "✓"; position: absolute; right: 14px; top: 12px; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-size: 18px; font-weight: 900; }
+.tile-inner { transition: filter .3s, opacity .3s; }
+#stage.batch-mode .tile:not(.is-wall):not(.is-selected) .tile-inner { filter: grayscale(1); opacity: .35; }
 #hud { left: 16px; bottom: 14px; font-size: 11px; color: rgba(255,255,255,.45); font-variant-numeric: tabular-nums; pointer-events: none; }
 #now { right: 76px; bottom: 20px; display: none; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 999px;
     background: rgba(20,20,22,.78); backdrop-filter: blur(10px); font-size: 12px; max-width: 360px; }
@@ -125,6 +165,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div class="vignette"></div>
     <div id="seam"><div class="seam-inner" id="seamInner"></div></div>
 </div>
+<div class="ui" id="fakebar"><div class="fb-row"><span class="fb-btn">▶</span><span class="fb-title">雨上がりのロケット — 夜野ミナト</span></div><div class="fb-progress"><span></span></div></div>
 <button class="ui" id="seam-tab" title="在这里裂开"></button>
 <button class="ui" id="floating-back" title="返回 (Esc)">‹</button>
 <div class="ui" id="hud"></div>
@@ -177,6 +218,54 @@ ARTISTS.forEach(([name, roman], ai) => {
         hue: 40 + i * 20, dur: 200 };
     artist.albums[0].tracks.push(t); artist.tracks.push(t); allTracks.push(t);
 });
+// 本地曲库：前 72 首挂到两个根目录下，按 根/歌手/专辑 三层组织，供「本地」tab 和目录树使用
+const LOCAL_ROOTS = ['D:/Music', 'E:/Anime OST'];
+const localTracks = allTracks.slice(0, 72).map((t, i) => ({ ...t, key: 'l' + t.key, local: true,
+    path: `${LOCAL_ROOTS[i % 2]}/${t.artist}/${t.album}` }));
+// 由路径建目录树：节点 {id, name, path, children, trackKeys(含子树)}
+function buildFolderTree(tracks) {
+    const roots = [];
+    const byPath = new Map();
+    for (const t of tracks) {
+        const parts = t.path.split('/');
+        const rootName = parts.slice(0, 2).join('/');
+        let path = rootName, parent = null;
+        const chain = [rootName, ...parts.slice(2)];
+        chain.forEach((name, depth) => {
+            if (depth > 0) path += '/' + name;
+            let node = byPath.get(path);
+            if (!node) {
+                node = { id: path, name, path, depth, children: [], trackKeys: [] };
+                byPath.set(path, node);
+                (parent ? parent.children : roots).push(node);
+            }
+            node.trackKeys.push(t.key);
+            parent = node;
+        });
+    }
+    return roots;
+}
+const localTree = buildFolderTree(localTracks);
+// 叶子目录（专辑级）作为墙上的文件夹卡片；目录树节点记录其子树下的文件夹卡片 key（勾选单位是文件夹，和 GridMap 一致）
+const localFolders = [];
+(function collectFolders(nodes) {
+    for (const node of nodes) {
+        if (!node.children.length) {
+            const tracks = localTracks.filter(t => t.path === node.path);
+            localFolders.push({ key: 'f:' + node.path, kind: 'folder', title: node.name, artist: node.path.split('/').slice(-2, -1)[0],
+                album: node.path, path: node.path, hue: tracks[0].hue, tracks });
+        }
+        collectFolders(node.children);
+    }
+})(localTree);
+(function attachFolderKeys(nodes) {
+    for (const node of nodes) {
+        attachFolderKeys(node.children);
+        node.folderKeys = localFolders.filter(f => f.path === node.path || f.path.startsWith(node.path + '/')).map(f => f.key);
+    }
+})(localTree);
+localFolders.unshift({ key: 'f:__all__', kind: 'folder', virtual: true, title: '全部歌曲', artist: '本地', album: '', path: null,
+    hue: localTracks[0].hue, tracks: localTracks });
 const PLAYLISTS = ['深夜の作業用', '通勤 BGM', '雨の日', 'Vocaloid 精选', '2026 年度', '冬の歌', '抒情', '跑步', 'Lo-fi', '随便听听', 'Henceforth 收藏', '私藏'];
 const allPlaylists = PLAYLISTS.map((title, i) => {
     const n = i === 10 ? 6 : 18 + Math.floor(rnd() * 28);
@@ -229,7 +318,8 @@ function wrapIndex(slot, n) {
 
 /* ───────────── 状态 ───────────── */
 
-const opts = { seamCut: 'split', pushMode: 'B', stability: 'strict', seamPos: .5, showRank: false, coupling: 'follow', fallback: 'squeeze', seamPick: 'block' };
+const opts = { seamCut: 'split', pushMode: 'B', stability: 'strict', seamPos: .5, showRank: false, coupling: 'follow', fallback: 'squeeze', seamPick: 'block', listMode: 'dual', playerBar: true };
+// listMode：歌单/歌手页 dual = 普通打开无限拼贴，过滤时退化为以当前缝为中心的有限拼贴；finite = 始终有限
 // seamPick：block = 裂缝只开在 12×8 块之间的天然缝隙上，放不下时相机让位；nearest = 视口内就近找线，找不到再挤压/切开（fallback）
 // fallback：找不到不切断磁贴的裂缝线时怎么处理被切到的磁贴 —— squeeze = 挤压（靠缝一侧的边被推回到缝边），cut = 切开（撕成两半）
 // 缝与墙的耦合：fixed = 缝钉在屏幕上；follow = 缝属于墙、横移时跟着走并在屏幕边缘停靠；
@@ -240,7 +330,8 @@ const state = {
     cam: { x: BW - GAP / 2, y: BH * 0.5 },
     seamW: 0,
     stack: [],
-    queue: [], nowKey: null,
+    queue: [], nowKey: null, selected: new Set(),
+    seamLevel: 'full', seamRestore: 'full',
 };
 const tiles = new Map(); // slotKey -> rec
 const cur = () => state.stack[state.stack.length - 1];
@@ -252,16 +343,26 @@ const seamInput = document.createElement('input');
 seamInput.type = 'text';
 seamInput.spellcheck = false;
 
+// 播放条安全区：和播放页字幕同一套几何 —— 基线 32 + 胶囊之上的净空 80（PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX）+ 8 间隙
+const PLAYER_BAR_SAFE_PX = 32 + 80 + 8;
+// 第四级「面板」：缝继续加宽，承载 grid 的两个列表型面板 —— 歌单/歌手页的歌曲列表（含排序）、本地文件夹总览的目录树
+const panelWidth = () => Math.min(420, state.vw - 2 * 14 - 24);
+const panelKind = layer => !layer ? null
+    : (layer.kind === 'collection' || layer.kind === 'artist') ? 'tracks'
+    : (layer.kind === 'home' && layer.tab === 'local' && !layer.searchOpen) ? 'tree' : null;
 const SEAM_WIDE = 300, SEAM_NARROW = 120, SPINE_W = 64, NARROW_VW = 900;
 const isNarrow = () => state.vw < NARROW_VW;
-// 层的缝开口宽度：窄屏下默认收成书脊，展开（spineOpen）或首页搜索时才用完整宽度
+// 层的缝开口宽度由全局等级 state.seamLevel 决定：full = 完整信息条，spine = 书脊，hidden = 完全收起（只剩侧边悬浮按钮）。
+// 首页展开的搜索框和搜索层需要输入框，除非手动完全收起，否则总是完整宽度
 function withSeam(layer, full) {
     layer.seamFull = full;
     Object.defineProperty(layer, 'seamTarget', {
         get() {
             if (!this.seamFull) return 0;
-            const expanded = this.spineOpen || (this.kind === 'home' && this.searchOpen);
-            return isNarrow() && !expanded ? SPINE_W : this.seamFull;
+            if (state.seamLevel === 'hidden') return 0;
+            if (this.panelOpen && panelKind(this)) return panelWidth();
+            if (this.forceFull || (this.kind === 'home' && this.searchOpen)) return this.seamFull;
+            return state.seamLevel === 'spine' ? Math.min(SPINE_W, this.seamFull) : this.seamFull;
         },
         set(v) { this.seamFull = v; },
         enumerable: true,
@@ -273,14 +374,14 @@ function withSeam(layer, full) {
 
 let homeTab = 'playlist';
 function homeLayer(tab) {
-    const items = tab === 'playlist' ? allPlaylists : tab === 'album' ? allAlbums : allArtists;
+    const items = tab === 'playlist' ? allPlaylists : tab === 'album' ? allAlbums : tab === 'local' ? localFolders : allArtists;
     return withSeam({ kind: 'home', mode: 'infinite', items, tab, searchOpen: false, crumb: '書庫' }, SEAM_NARROW);
 }
 function collectionLayer(item) {
-    return withSeam({ kind: 'collection', mode: 'finite', source: item, items: item.tracks, query: '', crumb: item.title }, SEAM_WIDE);
+    return withSeam({ kind: 'collection', mode: opts.listMode === 'dual' ? 'infinite' : 'finite', dual: opts.listMode === 'dual', source: item, items: item.tracks, query: '', crumb: item.title }, SEAM_WIDE);
 }
 function artistLayer(artist) {
-    return withSeam({ kind: 'artist', mode: 'finite', source: artist, items: [...artist.albums, ...artist.tracks], query: '', crumb: artist.title }, SEAM_WIDE);
+    return withSeam({ kind: 'artist', mode: opts.listMode === 'dual' ? 'infinite' : 'finite', dual: opts.listMode === 'dual', source: artist, items: [...artist.albums, ...artist.tracks], query: '', crumb: artist.title }, SEAM_WIDE);
 }
 function searchItems(q) {
     if (!q) return [];
@@ -288,7 +389,7 @@ function searchItems(q) {
         ...allTracks.filter(t => matches(t, q))];
 }
 function searchLayer(q) {
-    return withSeam({ kind: 'search', mode: 'finite', items: searchItems(q), query: q, crumb: '搜索', spineOpen: true }, SEAM_WIDE);
+    return withSeam({ kind: 'search', mode: 'finite', items: searchItems(q), query: q, crumb: '搜索', forceFull: true }, SEAM_WIDE);
 }
 function queueLayer() {
     return withSeam({ kind: 'queue', mode: 'infinite', items: state.queue, crumb: '队列' }, 0);
@@ -372,13 +473,16 @@ function prepareFinite(layer, anchor, startSlot) {
 }
 function contentFor(slot, layer = cur()) {
     if (!layer) return null;
-    if (layer.mode === 'infinite') return layer.items.length ? layer.items[wrapIndex(slot, layer.items.length)] : null;
+    if (layer.mode === 'infinite') {
+        const n = layer.items.length;
+        return n ? layer.items[mod(wrapIndex(slot, n) + (layer.wrapOffset || 0), n)] : null;
+    }
     return layer.assign.get(slot.key) || null;
 }
 
 /* ───────────── 磁贴渲染 ───────────── */
 
-const KIND_LABEL = { playlist: '歌单', album: '专辑', artist: '歌手', track: '' };
+const KIND_LABEL = { playlist: '歌单', album: '专辑', artist: '歌手', folder: '文件夹', track: '' };
 function tileHTML(item, slot, layer) {
     if (!item) {
         const rank = layer && layer.rankOfSlot ? layer.rankOfSlot.get(slot.key) : undefined;
@@ -390,11 +494,12 @@ function tileHTML(item, slot, layer) {
         const idx = layer.kind === 'search' ? layer.positions.indexOf(item) : layer.items.indexOf(item);
         badge = (item.kind !== 'track' ? KIND_LABEL[item.kind] + ' · ' : '') + String(idx + 1).padStart(2, '0');
     } else {
-        badge = layer.kind === 'queue' ? String(layer.items.indexOf(item) + 1).padStart(2, '0') : KIND_LABEL[item.kind];
+        const numbered = layer.kind === 'queue' || layer.kind === 'collection' || layer.kind === 'artist';
+        badge = numbered ? (item.kind !== 'track' ? KIND_LABEL[item.kind] + ' · ' : '') + String(layer.items.indexOf(item) + 1).padStart(2, '0') : KIND_LABEL[item.kind];
     }
     if (item.key === state.nowKey) badge = '正在播放 · ' + badge;
     const sub = item.kind === 'artist' ? item.roman : item.kind === 'playlist' ? `${item.tracks.length} 首 · ${item.artist}` :
-        item.kind === 'album' ? `${item.artist} · ${item.tracks.length} 首` : item.artist;
+        item.kind === 'album' ? `${item.artist} · ${item.tracks.length} 首` : item.kind === 'folder' ? `${item.tracks.length} 首 · ${item.virtual ? '所有本地文件' : item.artist}` : item.artist;
     return `<div class="cover"><span class="glyph" style="font-size:${Math.min(slot.w, slot.h) * .9}px">${item.title[0]}</span></div>
         <div class="shade"></div><div class="badge">${badge}</div>
         <div class="copy"><div class="t" style="font-size:${fs}px">${item.title}</div><div class="a" style="font-size:${Math.max(15, fs * .4)}px">${sub}</div></div>`;
@@ -408,6 +513,8 @@ function setContent(rec, item) {
         inner.style.setProperty('--h', item ? item.hue : 0);
         el.classList.toggle('is-wall', !item);
         el.classList.toggle('is-playing', !!item && item.key === state.nowKey);
+        el.classList.toggle('is-selected', !!item && state.selected.has(item.key));
+        el.classList.toggle('is-linked', !!item && item.key === linkedKey);
     }
     rec.item = item;
     rec.shownKey = item ? item.key : 'wall';
@@ -572,11 +679,16 @@ function applyTransforms() {
     seamEl.style.left = (split - sw / 2) + 'px';
     seamEl.style.width = sw + 'px';
     seamEl.classList.toggle('closed', sw < 1);
-    const target = cur() ? Math.max(cur().seamTarget, 1) : 1;
+    // 内容的排版宽度跟「当前渲染的是哪一级的内容」走，不跟目标宽度走：
+    // 翻转前半段显示的仍是旧内容，必须保持旧宽度排版，只被变窄的缝裁掉；翻到 90° 换内容时才切到新宽度
+    const target = Math.max(renderedSeamW, 1);
     seamInner.style.width = target + 'px';
+    // 播放条在场时，缝的底部整体让出安全区，关键按钮（播放、展开、输入框）不会被胶囊挡住
+    seamInner.style.paddingBottom = (opts.playerBar ? PLAYER_BAR_SAFE_PX : 20) + 'px';
+    $('fakebar').classList.toggle('off', !opts.playerBar);
     seamInner.style.opacity = Math.max(0, Math.min(1, (sw / target - .35) / .65));
     // 收起后在缝离开的那一侧边缘留一个标签，点击在当前视口里裂开新缝
-    const collapsed = seamCollapsed();
+    const collapsed = seamCollapsed() || seamHidden();
     seamTab.style.display = collapsed ? 'block' : 'none';
     if (collapsed) {
         const left = split < line;
@@ -721,18 +833,52 @@ const orderSig = () => `${opts.seamCut}|${opts.coupling}|${opts.seamPos}`;
 async function push(layer, originSlot) {
     const parent = cur();
     parent.savedCam = { ...state.cam };
-    if (layer.mode === 'finite') {
+    if (layer.mode === 'finite' || layer.dual) {
         // 锚点继承缝当前所在的世界位置；axis 模式下相机横向对齐到锚点
         const pick = pickAnchor(layer.seamTarget);
         layer.cutThrough = pick.cut;
-        prepareFinite(layer, { x: pick.x, y: state.cam.y }, originSlot);
+        if (layer.mode === 'finite') prepareFinite(layer, { x: pick.x, y: state.cam.y }, originSlot);
+        else {
+            // 双模式的无限态：循环偏移让起点磁贴正好落在第 1 项
+            layer.anchor = { x: pick.x, y: state.cam.y };
+            layer.wrapOffset = originSlot ? -wrapIndex(originSlot, layer.items.length) : 0;
+        }
         if (couplingFor(layer) === 'axis') tweenCam({ x: layer.anchor.x, y: state.cam.y }, 380);
-        else if (pick.camX !== undefined && Math.abs(pick.camX - state.cam.x) > .5) tweenCam({ x: pick.camX, y: state.cam.y }, 420);
+        else if (!seamHidden(layer) && pick.camX !== undefined && Math.abs(pick.camX - state.cam.x) > .5) tweenCam({ x: pick.camX, y: state.cam.y }, 420);
     }
     const origin = originSlot ? { x: originSlot.cx, y: originSlot.cy } : seamPoint();
     await enterLayer(() => state.stack.push(layer), origin, layer.kind === 'search' && parent.kind === 'home' ? 'inplace' : opts.pushMode);
 }
+// 打开面板 = 往导航栈推一层（正式实现里同时写一条 history 记录，浏览器后退也能关）。
+// 目录树面板就是 GridMap 的批量模式：进入时退化为有限拼贴，未选中的卡片变灰
+async function openPanel() {
+    const layer = cur();
+    if (busy || !panelKind(layer) || layer.panelOpen) return;
+    layer.panelOpen = true;
+    if (state.seamLevel !== 'full') state.seamLevel = 'full';
+    const g = seamGeom(), onScreen = layer.anchor && g.x > 0 && g.x < state.vw;
+    const plan = blockSeamPlan(layer.seamTarget, onScreen ? layer.anchor.x : undefined);
+    if (!onScreen) layer.anchor = { x: plan.x, y: state.cam.y };
+    if (Math.abs(plan.camX - state.cam.x) > .5) tweenCam({ x: plan.camX, y: state.cam.y }, 340);
+    flipSeamContent(renderSeam);
+    await tweenSeam(layer.seamTarget, 360);
+    if (panelKind(layer) === 'tree') syncLocalMode();
+}
+async function closePanel() {
+    const layer = cur();
+    layer.panelOpen = false;
+    if (panelKind(layer) === 'tree') {
+        // 退出批量模式：清掉选择和目录过滤，翻回无限拼贴
+        state.selected.clear();
+        layer.query = '';
+        seamInput.value = '';
+        syncLocalMode();
+    }
+    flipSeamContent(renderSeam);
+    await tweenSeam(layer.seamTarget, 340);
+}
 async function back() {
+    if (cur() && cur().panelOpen && !busy) { await closePanel(); return; }
     if (state.stack.length <= 1 || busy) return;
     const leaving = cur(), parent = state.stack[state.stack.length - 2];
     if (parent.mode === 'finite') {
@@ -764,15 +910,21 @@ async function switchTab(tab) {
     if (busy || tab === homeTab) return;
     homeTab = tab;
     const layer = cur();
+    state.selected.clear();
+    layer.query = '';
+    layer.panelOpen = false;
+    layer.mode = 'infinite';
     layer.items = homeLayer(tab).items;
     layer.tab = tab;
     swapWall();
     renderSeam();
+    tweenSeam(layer.seamTarget, 300);
 }
 function onTileClick(rec) {
     const item = rec.item;
     if (!item || busy) return;
-    if (item.kind === 'playlist' || item.kind === 'album') push(collectionLayer(item), rec.slot);
+    if (item.kind === 'folder' && isBatchMode()) { toggleSelection([item.key], !state.selected.has(item.key)); return; }
+    if (item.kind === 'playlist' || item.kind === 'album' || item.kind === 'folder') push(collectionLayer(item), rec.slot);
     else if (item.kind === 'artist') push(artistLayer(item), rec.slot);
     else if (item.kind === 'track') play(item);
 }
@@ -817,6 +969,11 @@ async function onQuery() {
         layer.positions = null;
         layer.orderStale = false;
     }
+    if (layer.kind === 'home' && panelKind(layer) === 'tree' && layer.panelOpen) {
+        layer.query = q;
+        syncLocalMode();
+        return;
+    }
     if (layer.kind === 'home') {
         if (q) await push(searchLayer(q));
         return;
@@ -826,12 +983,29 @@ async function onQuery() {
         layer.query = q;
         layer.items = searchItems(q);
         if (layer.items.length > layer.order.length) layer.order = computeOrder(layer.anchor, layer.items.length, layer.seamTarget, layer);
+    } else if (layer.dual && q && layer.mode === 'infinite') {
+        // 数量敏感操作：退化为以当前缝为中心的有限拼贴（不再以起点磁贴为中心）
+        layer.query = q;
+        layer.mode = 'finite';
+        layer.rankFrom = null;
+        layer.startKey = null;
+        layer.anchor = { x: seamWorldX(), y: state.cam.y };
+        layer.order = computeOrder(layer.anchor, layer.items.length, layer.seamTarget, layer);
+        layer.positions = null;
+    } else if (layer.dual && !q && layer.mode === 'finite') {
+        // 清空过滤：翻回无限拼贴（起点偏移保留）
+        layer.query = '';
+        layer.mode = 'infinite';
+        flipWall({ x: seamWorldX(), y: state.cam.y });
+        if (layer.seamTarget === SPINE_W) renderSeam(); else { renderSeamMeta(); renderPanelBody(); }
+        updateChrome();
+        return;
     } else if (layer.mode === 'finite') {
         layer.query = q;
     } else return;
     assignFinite(layer);
     flipWall(layer.anchor);
-    if (layer.seamTarget === SPINE_W) renderSeam(); else renderSeamMeta();
+    if (layer.seamTarget === SPINE_W) renderSeam(); else { renderSeamMeta(); renderPanelBody(); }
     settleCamera();
     updateChrome();
 }
@@ -848,13 +1022,21 @@ function attachInput(placeholder, value) {
     slot.appendChild(seamInput);
 }
 const vtitleSize = (text, base) => Math.max(26, Math.min(base, (state.vh * .4) / Math.max(1, [...text].length)));
-function crumbsHTML() {
+function crumbsHTML(inPanel = false) {
     const names = state.stack.map(l => l.crumb);
-    return `<button class="back" data-act="back" title="返回 (Esc)">‹</button>${names.map(n => `<span>${n}</span>`).join('<span>›</span>')}`;
+    // 打开的面板是导航栈里的一层：面包屑多一级，返回先关它
+    if (cur().panelOpen && panelKind(cur())) names.push(panelKind(cur()) === 'tree' ? '目录' : '列表');
+    // 搜索态需要输入框，不能收成书脊，只能完全收起
+    const needsInput = !!(cur().forceFull || (cur().kind === 'home' && cur().searchOpen));
+    return `<button class="back" data-act="back" title="返回 (Esc)">‹</button>${names.map(n => `<span>${n}</span>`).join('<span>›</span>')}
+        <span style="flex:1"></span>${needsInput || inPanel ? '' : '<button class="lvl" data-act="to-spine" title="收为书脊">书脊</button>'}<button class="lvl" data-act="hide" title="完全收起">收起</button>`;
 }
 // 缝内容整体重渲染。innerHTML 会把输入框移出 DOM 并让它失焦，所以必须在清空之前记下焦点和选区，渲染完再还原
+let renderedSeamW = 0;
 function renderSeam() {
     seamInputFocus = document.activeElement === seamInput ? [seamInput.selectionStart, seamInput.selectionEnd] : null;
+    renderedSeamW = cur() ? cur().seamTarget : 0;
+    dirty = true;
     renderSeamContent();
     if (seamInputFocus && seamInput.isConnected) {
         seamInput.focus({ preventScroll: true });
@@ -864,13 +1046,17 @@ function renderSeam() {
 }
 function renderSeamContent() {
     const layer = cur();
-    seamInner.classList.remove('narrow', 'spine');
+    seamInner.classList.remove('narrow', 'spine', 'panel');
+    // 面板等级优先于首页窄缝：首页「本地」tab 的面板态也走这里
+    if (layer.panelOpen && panelKind(layer) && layer.seamTarget > SPINE_W) { renderPanel(layer); return; }
     if (layer.kind === 'home' && !layer.searchOpen) {
         seamInner.classList.add('narrow');
-        seamInner.innerHTML = `<div class="vtitle">書庫</div>
-            <div class="vtabs">${[['playlist', '歌单'], ['album', '专辑'], ['artist', '歌手']].map(([k, l]) =>
+        seamInner.innerHTML = `<button class="icon-btn sm" data-act="hide" title="完全收起">⇥</button>
+            <div class="vtitle">書庫</div>
+            <div class="vtabs">${[['playlist', '歌单'], ['album', '专辑'], ['artist', '歌手'], ['local', '本地']].map(([k, l]) =>
                 `<button data-tab="${k}" class="${layer.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
             <div style="flex:1"></div>
+            ${layer.tab === 'local' ? '<button class="icon-btn" data-act="panel" title="目录树">▤</button>' : ''}
             <button class="icon-btn" data-act="search" title="搜索 (/)">⌕</button>
             ${state.queue.length ? '<button class="icon-btn" data-act="queue" title="队列">≡</button>' : ''}`;
         return;
@@ -887,14 +1073,14 @@ function renderSeamContent() {
     } else if (layer.kind === 'collection') {
         const src = layer.source;
         title = src.title;
-        sub = src.kind === 'album' ? `${src.artist} · Album` : `Playlist · by ${src.artist}`;
-        actions = `<button class="primary" data-act="play-all">▶ 播放全部</button><button data-act="shuffle">随机</button><button data-act="queue">队列</button>`;
+        sub = src.kind === 'album' ? `${src.artist} · Album` : src.kind === 'folder' ? `Folder · ${src.virtual ? '全部本地文件' : src.path}` : `Playlist · by ${src.artist}`;
+        actions = `<button class="primary" data-act="play-all">▶ 播放全部</button><button data-act="shuffle">随机</button><button data-act="queue">队列</button><button data-act="panel">列表</button>`;
     } else if (layer.kind === 'artist') {
         const a = layer.source;
         title = a.title;
         sub = a.roman;
         bio = a.bio;
-        actions = `<button class="primary" data-act="play-all">▶ 热门</button><button data-act="shuffle">随机</button><button data-act="queue">队列</button>`;
+        actions = `<button class="primary" data-act="play-all">▶ 热门</button><button data-act="shuffle">随机</button><button data-act="queue">队列</button><button data-act="panel">列表</button>`;
     }
     seamInner.innerHTML = `<div class="crumbs">${crumbsHTML()}</div>
         <div class="quote">”</div>
@@ -904,7 +1090,7 @@ function renderSeamContent() {
         <div class="meta" id="seamMeta"></div>
         ${bio ? `<div class="bio">${bio}</div>` : ''}
         ${sub ? `<div class="meta">${sub}</div>` : ''}
-        <div class="actions">${actions}${isNarrow() && layer.kind !== 'search' ? '<button data-act="to-spine">收为书脊</button>' : ''}</div>
+        <div class="actions">${actions}</div>
         <div class="input-slot"></div>`;
     attachInput(placeholder, value);
     renderSeamMeta();
@@ -916,31 +1102,222 @@ function renderSpine(layer) {
     const tracks = layerItems(layer).filter(it => it.kind === 'track');
     const count = layer.query ? `${layer.count}/${layer.items.length}` : `${tracks.length}首`;
     seamInner.innerHTML = `<button class="icon-btn sm" data-act="back" title="返回 (Esc)">‹</button>
+        <button class="icon-btn sm" data-act="hide" title="完全收起">⇥</button>
         <div class="vtitle spine-title" data-act="expand" title="展开" style="font-size:${Math.max(18, Math.min(30, (state.vh * .42) / Math.max(1, [...title].length)))}px">${title}</div>
         <div class="spine-count">${count}</div>
         <div style="flex:1"></div>
         <button class="icon-btn sm" data-act="play-all" title="播放全部">▶</button>
         <button class="icon-btn sm" data-act="expand" title="展开 / 过滤">⌕</button>`;
 }
-// 书脊 ↔ 完整信息条；展开时如果缝离边缘太近，相机让一让，保证整条缝放得下
-async function setSpineOpen(open) {
+const seamHidden = (layer = cur()) => !!layer && layer.seamFull > 0 && layer.kind !== 'queue' && state.seamLevel === 'hidden';
+// 手动切换缝的等级（完整 → 书脊 → 完全收起，或反向恢复）。变宽时：锚点还在屏内就沿用它的块边界，
+// 相机只做放下整条缝所需的最小让位；锚点已经不在屏内就在当前视口里另取最近的块边界
+async function setSeamLevel(level, { focus = false } = {}) {
     const layer = cur();
-    if (!isNarrow() || layer.kind === 'home' || layer.kind === 'queue' || !!layer.spineOpen === open) return;
-    layer.spineOpen = open;
-    if (open) {
-        const g = seamGeom(), need = layer.seamTarget / 2 + SEAM_EDGE;
-        const sx = Math.max(need, Math.min(state.vw - need, g.x));
-        if (Math.abs(sx - g.x) > 1) tweenCam({ x: layer.anchor.x - (sx - seamLineX()) / state.scale, y: state.cam.y }, 340);
+    if (!layer || !layer.seamFull || layer.kind === 'queue' || busy) return;
+    if (state.seamLevel === level && !(layer.kind === 'home' && layer.searchOpen)) return;
+    const from = state.seamLevel;
+    if (level === 'hidden') state.seamRestore = from;
+    // 收窄时顺带关掉首页的搜索框（它只能以完整宽度存在）
+    if (level !== 'full' && layer.kind === 'home' && layer.searchOpen) {
+        layer.searchOpen = false;
+        layer.seamTarget = SEAM_NARROW;
+        seamInput.blur();
     }
-    flipSeamContent(renderSeam);
+    state.seamLevel = level;
+    if (level !== 'hidden') {
+        const g = seamGeom(), target = layer.seamTarget;
+        const onScreen = layer.anchor && g.x > 0 && g.x < state.vw;
+        const plan = blockSeamPlan(target, onScreen ? layer.anchor.x : undefined);
+        if (!onScreen) {
+            layer.anchor = { x: plan.x, y: state.cam.y };
+            if (layer.mode === 'finite') layer.orderStale = true;
+        }
+        if (Math.abs(plan.camX - state.cam.x) > .5) tweenCam({ x: plan.camX, y: state.cam.y }, 340);
+    }
+    if (level === 'hidden' || from === 'hidden') renderSeam(); else flipSeamContent(renderSeam);
     await tweenSeam(layer.seamTarget, 340);
-    if (open) seamInput.focus();
+    if (focus) seamInput.focus();
+}
+// 悬浮按钮：手动收起时恢复到收起前的等级；自动出屏收起时在当前视口裂开新缝
+function onSeamTab() {
+    if (seamHidden()) setSeamLevel(state.seamRestore === 'hidden' ? 'spine' : state.seamRestore);
+    else reopenSeamHere();
+}
+// 面板形态：标题横排压在顶部，下面是工具行（过滤 + 排序）、可滚动列表、底部批量操作（在播放条安全区之上）
+const listSort = { field: 'default', dir: 1 };
+const SORT_FIELDS = [['default', '默认'], ['title', '标题'], ['artist', '歌手'], ['dur', '时长']];
+function renderPanel(layer) {
+    seamInner.classList.add('panel');
+    const kind = panelKind(layer);
+    const title = kind === 'tree' ? '本地文件夹' : layer.source.title;
+    const sortable = kind === 'tracks' && layer.kind === 'collection';
+    seamInner.innerHTML = `<div class="crumbs">${crumbsHTML(true)}</div>
+        <div class="pnl-title">${title}</div>
+        <div class="meta" id="seamMeta"></div>
+        <div class="pnl-tools"><div class="input-slot"></div>
+            ${sortable ? `<select class="pnl-sort" data-sort>${SORT_FIELDS.map(([k, l]) => `<option value="${k}" ${listSort.field === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+            <button class="pnl-dir" data-act="sort-dir" title="升降序">${listSort.dir > 0 ? '↑' : '↓'}</button>` : ''}</div>
+        <div class="pnl-list" id="pnlList"></div>
+        ${kind === 'tree' ? `<div class="pnl-foot" id="pnlFoot"></div>` : ''}`;
+    attachInput(kind === 'tree' ? '过滤本地文件…' : '过滤…', layer.query);
+    renderSeamMeta();
+    renderPanelBody();
+}
+function renderPanelBody() {
+    const layer = cur(), list = $('pnlList');
+    if (!list) return;
+    if (panelKind(layer) === 'tree') { renderTree(list); renderFoot(); return; }
+    const rows = layerItems(layer);
+    list.innerHTML = rows.map(it => `<div class="row ${it.key === state.nowKey ? 'playing' : ''}" data-key="${it.key}">
+        <span class="r-idx">${String(layer.items.indexOf(it) + 1).padStart(2, '0')}</span>
+        <span class="r-main"><span class="r-t">${it.kind !== 'track' ? KIND_LABEL[it.kind] + ' · ' : ''}${it.title}</span><span class="r-a">${it.artist || it.roman || ''}</span></span>
+        <span class="r-d">${it.kind === 'track' ? fmtDur(it.dur) : it.tracks ? it.tracks.length + ' 首' : ''}</span></div>`).join('') || '<div class="pnl-empty">没有匹配的条目</div>';
+}
+// 换排序：重排层的条目顺序后整面翻牌（无限态保持起点偏移，起点磁贴变成新的第 1 项；有限态按新顺序重新 rank）
+function applySort() {
+    const layer = cur();
+    if (layer.kind !== 'collection') return;
+    const base = layer.source.tracks;
+    const key = { title: t => t.title, artist: t => t.artist, dur: t => t.dur }[listSort.field];
+    layer.items = key ? base.slice().sort((a, b) => (key(a) > key(b) ? 1 : key(a) < key(b) ? -1 : 0) * listSort.dir)
+        : listSort.dir > 0 ? base.slice() : base.slice().reverse();
+    if (layer.mode === 'finite') { layer.positions = null; assignFinite(layer); }
+    flipWall({ x: seamWorldX(), y: state.cam.y });
+    renderSeam();
+}
+/* 目录树：三态勾选（全选 / 部分 / 未选），点选整棵子树；勾选即多选 → 首页退化为有限拼贴 */
+const treeOpen = new Set(localTree.map(n => n.id));
+const isBatchMode = (layer = cur()) => !!layer && layer.kind === 'home' && layer.tab === 'local' && !!layer.panelOpen;
+// 勾选单位是文件夹卡片：节点状态 = 子树下文件夹卡片的选中情况
+function treeState(node) {
+    const n = node.folderKeys.filter(k => state.selected.has(k)).length;
+    return n === 0 ? 'none' : n === node.folderKeys.length ? 'all' : 'partial';
+}
+function renderTree(list) {
+    const q = cur().query, rows = [];
+    const walk = (node) => {
+        if (q && !node.folderKeys.some(k => matches(localFolders.find(f => f.key === k), q))) return;
+        rows.push(node);
+        if (treeOpen.has(node.id) || q) node.children.forEach(walk);
+    };
+    localTree.forEach(walk);
+    list.innerHTML = rows.map(node => {
+        const st = treeState(node);
+        return `<div class="trow" data-node="${node.id}" style="padding-left:${8 + node.depth * 16}px">
+            <span class="t-caret" data-caret="${node.id}">${node.children.length ? (treeOpen.has(node.id) || q ? '▾' : '▸') : ''}</span>
+            <span class="t-box ${st}" data-check="${node.id}">${st === 'all' ? '✓' : st === 'partial' ? '–' : ''}</span>
+            <span class="t-name">${node.name}</span><span class="t-count">${node.trackKeys.length}</span></div>`;
+    }).join('');
+}
+function renderFoot() {
+    const foot = $('pnlFoot');
+    if (!foot) return;
+    const n = state.selected.size, tracks = selectedTracks();
+    foot.innerHTML = n ? `<div class="meta"><strong>${n}</strong> 个文件夹 · ${tracks.length} 首已选</div><div class="actions">
+        <button class="primary" data-act="sel-play">▶ 播放所选</button><button data-act="sel-enqueue">加入队列</button>
+        <button data-act="sel-playlist">建歌单</button><button data-act="sel-remove">移除</button><button data-act="sel-clear">清空</button></div>
+        <div class="meta" id="pnlToast"></div>` : '<div class="meta">勾选文件夹，或点击墙上的文件夹卡片来多选</div>';
+}
+function findNode(id, nodes = localTree) {
+    for (const n of nodes) { if (n.id === id) return n; const c = findNode(id, n.children); if (c) return c; }
+    return null;
+}
+function toggleSelection(keys, on) {
+    keys.forEach(k => on ? state.selected.add(k) : state.selected.delete(k));
+    syncLocalMode();
+}
+// 首页「本地」：有选择或有过滤时是有限拼贴（以当前缝为中心），否则无限
+function syncLocalMode() {
+    const layer = cur();
+    if (layer.kind !== 'home' || layer.tab !== 'local') return;
+    const wantFinite = isBatchMode(layer) || !!layer.query;
+    if (wantFinite && layer.mode !== 'finite') {
+        layer.mode = 'finite';
+        layer.rankFrom = null; layer.startKey = null;
+        layer.anchor = { x: seamWorldX(), y: state.cam.y };
+        layer.order = computeOrder(layer.anchor, layer.items.length, layer.seamTarget, layer);
+        layer.positions = null;
+        assignFinite(layer);
+        flipWall(layer.anchor);
+        settleCamera();
+    } else if (wantFinite) {
+        assignFinite(layer);
+        flipWall(layer.anchor);
+        settleCamera();
+    } else if (layer.mode === 'finite') {
+        layer.mode = 'infinite';
+        flipWall({ x: seamWorldX(), y: state.cam.y });
+    }
+    refreshMarks();
+    renderPanelBody();
+    renderSeamMeta();
+}
+// 选中文件夹展开成曲目（去重：「全部歌曲」和具体文件夹可能同时选中）
+function selectedTracks() {
+    const seen = new Set(), out = [];
+    for (const f of localFolders) if (state.selected.has(f.key)) for (const t of f.tracks) if (!seen.has(t.key)) { seen.add(t.key); out.push(t); }
+    return out;
+}
+function selectionAction(a) {
+    const keys = selectedTracks().map(t => t.key);
+    const toast = msg => { const el = $('pnlToast'); if (el) el.textContent = msg; };
+    if (a === 'sel-clear') { state.selected.clear(); syncLocalMode(); return; }
+    if (a === 'sel-play') { const first = localTracks.find(t => t.key === keys[0]); state.queue = selectedTracks(); if (first) { state.nowKey = first.key; refreshMarks(); updateChrome(); } toast(`已播放 ${keys.length} 首`); return; }
+    if (a === 'sel-enqueue') { state.queue = [...state.queue, ...selectedTracks()]; toast(`已加入队列 ${keys.length} 首`); return; }
+    if (a === 'sel-playlist') { toast(`（原型）已用 ${keys.length} 首新建歌单`); return; }
+    if (a === 'sel-remove') { toast(`（原型）已从曲库移除 ${keys.length} 首`); return; }
+}
+// 列表与墙的联动标记：is-linked = 列表悬停的条目，is-selected = 多选中的本地曲目，is-playing = 正在播放
+let linkedKey = null;
+function refreshMarks() {
+    stage.classList.toggle('batch-mode', isBatchMode());
+    for (const rec of tiles.values()) {
+        const k = rec.item && rec.item.key;
+        for (const el of [rec.elL, rec.elR]) {
+            el.classList.toggle('is-linked', !!k && k === linkedKey);
+            el.classList.toggle('is-selected', !!k && state.selected.has(k));
+            el.classList.toggle('is-playing', !!k && k === state.nowKey);
+        }
+    }
+}
+// 列表行 → 墙：相机飞到「离缝最近」的那一份（无限态有很多份）；同时尽量让缝留在屏内，避免面板被挤出屏收起
+function locateItem(key) {
+    const layer = cur(), s = state.scale, line = seamLineX();
+    const a = layer.anchor || { x: state.cam.x, y: state.cam.y };
+    let best = null;
+    const abx = Math.floor(a.x / BW), aby = Math.floor(state.cam.y / BH);
+    for (let bx = abx - 4; bx <= abx + 4; bx++) for (let by = aby - 4; by <= aby + 4; by++) {
+        for (const slot of getBlock(bx, by)) {
+            const it = contentFor(slot);
+            if (!it || it.key !== key) continue;
+            const d = Math.abs(slot.cx - a.x) + Math.abs(slot.cy - state.cam.y) * .6;
+            if (!best || d < best.d) best = { slot, d };
+        }
+    }
+    if (!best) return;
+    const slot = best.slot, w = seamGeom().w || layer.seamTarget, need = w / 2 + SEAM_EDGE, pad = 40;
+    const [offL, offR] = halfOffsets(), off = slot.cx < a.x ? offL : offR;
+    // 相机 x 的两个可行区间：缝完整在屏内 / 磁贴中心在屏内（避开安全边距），取交集里离当前最近的值
+    const seamLo = a.x - (state.vw - need - line) / s, seamHi = a.x + (line - need) / s;
+    const tileLo = slot.cx - (state.vw - pad - line - off) / s, tileHi = slot.cx + (line + off - pad) / s;
+    const lo = Math.max(seamLo, tileLo), hi = Math.min(seamHi, tileHi);
+    const camX = lo <= hi ? clampToRange(state.cam.x, lo, hi) : clampToRange(state.cam.x, tileLo, tileHi);
+    const halfH = state.vh / 2 / s - slot.h / 2 - 30;
+    const camY = Math.abs(slot.cy - state.cam.y) > halfH ? slot.cy : state.cam.y;
+    tweenCam({ x: camX, y: camY }, 420).then(() => {
+        const rec = tiles.get(slot.key);
+        if (rec) [rec.innerL, rec.innerR].forEach(el => el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' }));
+    });
 }
 function renderSeamMeta() {
     const el = $('seamMeta');
     if (!el) return;
     const layer = cur();
-    if (layer.kind === 'home') { el.innerHTML = ''; return; }
+    if (layer.kind === 'home') {
+        el.innerHTML = layer.tab === 'local' ? `<strong>${localFolders.length - 1}</strong> 个文件夹 · ${localTracks.length} 首 · ${LOCAL_ROOTS.length} 个根目录${layer.query ? ` · 过滤「${layer.query}」匹配 ${layer.count}` : ''}` : '';
+        return;
+    }
     if (layer.kind === 'search') {
         const groups = {};
         layer.items.forEach(it => { groups[it.kind] = (groups[it.kind] || 0) + 1; });
@@ -957,6 +1334,29 @@ function renderSeamMeta() {
         ? `<strong>${shown}</strong> / ${all.length} 项匹配「${layer.query}」`
         : `<strong>${tracks.length}</strong> 首 · ${totalDur(tracks)}${layer.kind === 'artist' ? ` · ${layer.source.albums.length} 张专辑` : ''}`;
 }
+seamInner.addEventListener('change', e => {
+    if (e.target.matches('[data-sort]')) { listSort.field = e.target.value; applySort(); }
+});
+seamInner.addEventListener('mouseover', e => {
+    const row = e.target.closest('.row');
+    const k = row ? row.dataset.key : null;
+    if (k !== linkedKey) { linkedKey = k; refreshMarks(); }
+});
+seamInner.addEventListener('mouseleave', () => { if (linkedKey) { linkedKey = null; refreshMarks(); } });
+seamInner.addEventListener('dblclick', e => {
+    const row = e.target.closest('.row');
+    if (!row) return;
+    const it = cur().items.find(i => i.key === row.dataset.key);
+    if (it && it.kind === 'track') { play(it); renderPanelBody(); }
+});
+seamInner.addEventListener('click', e => {
+    const row = e.target.closest('.row');
+    if (row) { locateItem(row.dataset.key); return; }
+    const caret = e.target.closest('[data-caret]');
+    if (caret) { const id = caret.dataset.caret; treeOpen.has(id) ? treeOpen.delete(id) : treeOpen.add(id); renderPanelBody(); return; }
+    const check = e.target.closest('[data-check]');
+    if (check) { const node = findNode(check.dataset.check); toggleSelection(node.folderKeys, treeState(node) !== 'all'); return; }
+});
 seamInner.addEventListener('click', e => {
     const tab = e.target.closest('[data-tab]');
     if (tab) { switchTab(tab.dataset.tab); return; }
@@ -964,8 +1364,12 @@ seamInner.addEventListener('click', e => {
     if (!act) return;
     const a = act.dataset.act, layer = cur();
     if (a === 'back') back();
-    else if (a === 'expand') setSpineOpen(true);
-    else if (a === 'to-spine') setSpineOpen(false);
+    else if (a === 'expand') setSeamLevel('full', { focus: true });
+    else if (a === 'to-spine') setSeamLevel('spine');
+    else if (a === 'hide') setSeamLevel('hidden');
+    else if (a === 'panel') openPanel();
+    else if (a === 'sort-dir') { listSort.dir = -listSort.dir; applySort(); }
+    else if (a === 'sel-play' || a === 'sel-enqueue' || a === 'sel-playlist' || a === 'sel-remove' || a === 'sel-clear') selectionAction(a);
     else if (a === 'search') openSearch();
     else if (a === 'close-search') closeSearch();
     else if (a === 'queue') openQueue();
@@ -1024,6 +1428,18 @@ stage.addEventListener('pointerup', () => {
     else if (performance.now() - drag.t < 80) inertia = true;
     else settleCamera();
     drag = null;
+});
+stage.addEventListener('pointerover', e => {
+    if (drag && drag.moved) return;
+    const el = e.target.closest('.tile');
+    const rec = el && tiles.get(el.dataset.key);
+    const k = rec && rec.item ? rec.item.key : null;
+    const list = $('pnlList');
+    if (!list) return;
+    list.querySelectorAll('.row.hot').forEach(r => r.classList.remove('hot'));
+    if (!k) return;
+    const row = list.querySelector(`.row[data-key="${k}"]`);
+    if (row) { row.classList.add('hot'); row.scrollIntoView({ block: 'nearest' }); }
 });
 function panBy(dx, dy) {
     if (couplingFor(cur()) === 'axis' && state.seamW > 1) dx = 0;
@@ -1116,7 +1532,7 @@ async function reopenSeamHere() {
     if (pick.camX !== undefined && Math.abs(pick.camX - state.cam.x) > .5) tweenCam({ x: pick.camX, y: state.cam.y }, 420);
     await tweenSeam(layer.seamTarget, 420);
 }
-seamTab.onclick = reopenSeamHere;
+seamTab.onclick = onSeamTab;
 // 对比用：假装视口里没有干净的线，按兜底代价函数选一条必然切到磁贴的线重新裂开
 async function forceCutHere() {
     const layer = cur();
@@ -1140,6 +1556,8 @@ const OPTS = [
     ['缝与墙耦合', 'coupling', [['follow', '随墙移动（边缘收起）'], ['hybrid', '混合'], ['axis', '沿缝滑动'], ['fixed', '固定']]],
     ['缝位置', 'seamPos', [[.5, '中央'], [.36, '偏左']]],
     ['裂缝选线', 'seamPick', [['block', '块边界（相机让位）'], ['nearest', '就近（挤压/切开兜底）']]],
+    ['播放条', 'playerBar', [[true, '模拟显示（留安全区）'], [false, '隐藏']]],
+    ['歌单/歌手页', 'listMode', [['dual', '双模式（过滤时有限）'], ['finite', '始终有限']]],
     ['找不到位置时（仅就近）', 'fallback', [['squeeze', '挤压磁贴'], ['cut', '切开磁贴']]],
     ['调试', 'showRank', [[false, '隐藏 slot 序号'], [true, '显示 slot 序号']]],
 ];
@@ -1206,7 +1624,12 @@ addEventListener('keydown', e => {
 addEventListener('resize', () => {
     const wasNarrow = isNarrow();
     state.vw = innerWidth; state.vh = innerHeight;
-    if (wasNarrow !== isNarrow() && cur()) { renderSeam(); tweenSeam(cur().seamTarget, 300); }
+    // 跨过窄屏阈值时，非隐藏的等级回到该宽度下的默认值
+    if (wasNarrow !== isNarrow() && cur()) {
+        if (state.seamLevel !== 'hidden') state.seamLevel = isNarrow() ? 'spine' : 'full';
+        renderSeam();
+        tweenSeam(cur().seamTarget, 300);
+    }
     state.scale = state.vw < 700 ? .42 : state.vw < 1200 ? .52 : .62;
     dirty = true;
 });
@@ -1214,6 +1637,7 @@ addEventListener('resize', () => {
 /* ───────────── 启动 ───────────── */
 
 state.scale = state.vw < 700 ? .42 : state.vw < 1200 ? .52 : .62;
+state.seamLevel = state.seamRestore = isNarrow() ? 'spine' : 'full';
 state.stack.push(homeLayer(homeTab));
 cur().anchor = { x: state.cam.x, y: state.cam.y };
 renderSeam();
