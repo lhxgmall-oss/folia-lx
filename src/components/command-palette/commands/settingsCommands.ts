@@ -11,6 +11,7 @@ import { latticePosterTintSurface } from '../surfaces/latticePosterTintSurface';
 import { gridViewCardsSurface } from '../surfaces/gridViewCardsSurface';
 import { reduceMotionSurface } from '../surfaces/reduceMotionSurface';
 import { librarySuitePickerSurface } from '../surfaces/librarySuitePickerSurface';
+import { libraryWallLookCommands } from './libraryWallLookCommands';
 import { openCurrentPagePonder } from '../../../services/ponder/pagePonderTarget';
 
 // src/components/command-palette/commands/settingsCommands.ts
@@ -95,6 +96,8 @@ export const settingsCommands: CommandPaletteCommand[] = [
         placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),
         execute: () => false,
     }),
+    // bravais 的透光档位与每块窗数：只在生效 suite 是 bravais 时可用（与设置分区同一个谓词）。
+    ...libraryWallLookCommands,
     createSettingsAnchorCommand('settings-pinned-commands', 'Pinned command slots', 'Choose the three commands pinned in the palette', ['pinned commands', 'quick slots', '固定命令'], 'pinnedCommands'),
     createSettingsCommand('settings-interaction', 'Interaction settings', 'Open keyboard, shortcut and grid interaction settings', ['interaction', 'keyboard', 'hotkey', '交互', '快捷键设置'], 'options', 'interaction'),
     createSettingsAnchorCommand('settings-custom-shortcut', 'Custom shortcuts', 'Jump to the custom keyboard shortcut bindings', ['keybinding', 'rebind', 'hotkey', '自定义快捷键'], 'customShortcut'),

@@ -24,6 +24,7 @@ import type { CommandPaletteSurface } from './surfaces/types';
 import type { CommandSyntaxSpec } from './syntax/types';
 import type { PlaybackEntryView } from '../../stores/usePlaybackEntryViewStore';
 import type { PonderHintVisibility } from '../../types/ponder';
+import type { LibraryWallLook } from '../../utils/libraryWallLook';
 
 // src/components/command-palette/types.ts
 // Shared command palette contracts used by the registry, hook, and UI shell.
@@ -229,6 +230,18 @@ export type CommandPaletteSettingsContext = {
     canChooseLibrarySuite: () => boolean;
     /** Switches suites the way the settings section does (current session key + switchLibrarySuite). */
     chooseLibrarySuite: (suiteId: string) => void;
+    /**
+     * Same predicate the settings block (LibraryWallLookSettings) shows itself with: the *active* suite is bravais.
+     * A function, because switching suites while the palette is open has to close the wall-look commands off.
+     */
+    isLibraryWallLookAvailable: () => boolean;
+    /** bravais wall transparency (useLibraryWallLookStore); read live. Not part of appearance import / export. */
+    libraryWallLook: () => LibraryWallLook;
+    setLibraryWallLook: (look: LibraryWallLook) => void;
+    /** Windows per 12-slot block while the look is partial, 1–6; read live. */
+    libraryWallWindowsPerBlock: () => number;
+    /** Clamps to 1–6 before storing. */
+    setLibraryWallWindowsPerBlock: (windowsPerBlock: number) => void;
     ponderHintVisibility: PonderHintVisibility;
     setPonderHintVisibility: (visibility: PonderHintVisibility) => void;
     /** 触屏上那颗思索按钮显不显示。它是触屏唯一的入口，所以关掉是一个明确的选择。 */

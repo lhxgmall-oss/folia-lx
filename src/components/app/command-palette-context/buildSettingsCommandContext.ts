@@ -14,6 +14,8 @@ import { useMotionSettingsStore } from '../../../stores/useMotionSettingsStore';
 import { usePlaybackEntryViewStore } from '../../../stores/usePlaybackEntryViewStore';
 import { hasLibrarySuiteChoice } from '../../../library/registry';
 import { chooseLibrarySuite, getActiveLibrarySuiteId, listLibrarySuiteOptions } from '../../../library/app/librarySuiteChoice';
+import { isBravaisLibraryActive } from '../../../library/app/bravaisLibraryActive';
+import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import { usePonderStore } from '../../../stores/usePonderStore';
 import { useHomeLayoutSettingsStore } from '../../../stores/useHomeLayoutSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
@@ -88,6 +90,12 @@ export const buildSettingsCommandContext = (
         activeLibrarySuite: getActiveLibrarySuiteId,
         canChooseLibrarySuite: hasLibrarySuiteChoice,
         chooseLibrarySuite,
+        // bravais 的透光偏好：与设置分区同一个谓词；值与 setter 都现读 store（面板开着时也会变）。
+        isLibraryWallLookAvailable: isBravaisLibraryActive,
+        libraryWallLook: () => useLibraryWallLookStore.getState().look,
+        setLibraryWallLook: look => useLibraryWallLookStore.getState().setLook(look),
+        libraryWallWindowsPerBlock: () => useLibraryWallLookStore.getState().windowsPerBlock,
+        setLibraryWallWindowsPerBlock: windowsPerBlock => useLibraryWallLookStore.getState().setWindowsPerBlock(windowsPerBlock),
         ponderHintVisibility: ponder.ponderHintVisibility,
         setPonderHintVisibility: ponder.setPonderHintVisibility,
         togglePonderTouchButton: () => {
