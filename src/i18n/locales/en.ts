@@ -329,6 +329,7 @@ export default {
     "previewQueueSearchEmpty": "Type a song name, artist, album, or queue index",
     "pickerFilterPlaceholder": "Type to filter, then click or press Enter",
     "pickerCurrent": "Current: {{mode}}",
+    "librarySuitePicker": { "active": "In use", "switch": "Switch the library to this interface" },
     "pickerDescription": {
       "visualizer": {
         "still": "One line held still — no animation, no background, lowest load",
@@ -570,6 +571,8 @@ export default {
       "settings-playback-entry-view": { "title": "Play opens", "description": "Jump to which view pressing play opens" },
       "playback-entry-view-player": { "title": "Play opens: Visualizer", "description": "Pressing play opens the player and its visualizer" },
       "playback-entry-view-lattice": { "title": "Play opens: Lattice", "description": "Pressing play opens the queue collage" },
+      "settings-library-suite": { "title": "Library interface", "description": "Jump to which interface the library uses" },
+      "library-suite-picker": { "title": "Pick a library interface", "description": "Switch the interface the library is browsed in" },
       "settings-theme-presets": { "title": "Theme presets", "description": "Jump to the built-in and saved theme presets" },
       "settings-lyrics-renderer": { "title": "Lyrics renderer", "description": "Jump to how lyrics are drawn on the player" },
       "settings-grid-card-style": { "title": "Grid card style", "description": "Jump to how the home grid draws its cards" },
@@ -1496,6 +1499,8 @@ export default {
     "appLanguageSystemHint": "Follow the browser or system language. Current: {{language}}",
     "playbackEntryView": "View opened by Play",
     "playbackEntryViewDesc": "Which view opens by default after you press play.",
+    "librarySuite": "Library interface",
+    "librarySuiteDesc": "Which interface the home screen, collections and artist pages are browsed in. Switching keeps your filters, selection and queue.",
     "homeTabsVisibility": "Top Capsule Entries",
     "rememberHomeCardPosition": "Remember home card position",
     "rememberHomeCardPositionDesc": "Return to the last card in each section when switching tabs or leaving the player. Positions are kept until you close or reload the app.",
