@@ -26,12 +26,17 @@ import '../../dev/probes/accountBehavior/probeApi';
 // 两套共用的定位（登录框是 role=dialog 且 accessible name = 标题、二维码图片 alt、状态文案、按钮的 accessible name）
 // 在驱动之外。标题前缀 `[grid]` / `[tui]` 的用例对两个 suite 各跑一遍（`[${suite}]`），网格特有的切换器 / 连接面板细节
 // 只在 grid 那一遍断言；`[grid-only]` 依赖网格的层叠（切换器盖在弹窗之上）；`[switch]` 在两套之间切换。
+// B10 起 bravais 也参数化（`[bravais]`）：
+// - bravais：首页在线页签窄缝里的平台切换（账户位，鼠标点）、缝里的登录态（role=dialog，同样的二维码 / 状态 / 按钮名）与
+//   确认态（Enter 确认、Esc 取消）；关闭登录按 Esc（缝挂 data-folia-keyboard-window，按键归账户表单独占）。
+//   翻出去的那半圈旧表单对读屏藏起来（aria-hidden），所以「登录界面已关」不必等翻转结束。
+// `[switch] bravais` 在 grid / TUI 与 bravais 之间切换：登录会话与待确认切换都跟着 controller 走。
 //
 // 时序：二维码每 2 秒轮询一次（core/services/providerLoginSession 的 PROVIDER_LOGIN_POLL_INTERVAL_MS），探针用真实时钟，所以
 // 编排的状态要在要码之前排好，每一步最多等一个轮询周期。
 // test.fixme 记录的是现状缺陷，注释里写明由哪一步转正。
 
-const SUITES = ['grid', 'tui'] as const;
+const SUITES = ['grid', 'tui', 'bravais'] as const;
 type Suite = (typeof SUITES)[number];
 
 const shortName = (providerId: string) => accountRule(providerId)!.shortName;
@@ -102,9 +107,9 @@ const closeSwitcher = async (page: Page) => {
 };
 const gridLogoutButtons = (page: Page) => menu(page).getByRole('button', { name: 'Logout' });
 const gridCloseButton = (page: Page) => loginDialog(page).getByRole('button', { name: 'Close login' });
-// TUI 的账户层也挂 data-folia-keyboard-window、标题也是这句，所以排除掉它（[data-tui-account]）。
+// TUI 的账户层也挂 data-folia-keyboard-window、标题也是这句，所以排除掉它（[data-tui-account]）；bravais 的缝同理（[data-bravais-seam]）。
 const gridConfirmDialog = (page: Page): Locator => (
-    page.locator('[data-folia-keyboard-window]:not([data-tui-account])')
+    page.locator('[data-folia-keyboard-window]:not([data-tui-account]):not([data-bravais-seam])')
         .filter({ has: page.getByRole('heading', { name: 'Switch online music provider' }) })
 );
 const gridConnectPanel = (page: Page) => page.getByRole('group', { name: 'Connect platform accounts' });
@@ -130,6 +135,21 @@ const tuiFocusProvider = async (page: Page, providerId: string) => {
     await page.keyboard.press('Home');
     for (let step = 0; step < index; step += 1) await page.keyboard.press('ArrowDown');
     await expect(tuiAccountRow(page, providerId)).toHaveAttribute('data-focused', 'true');
+};
+
+// ---- bravais 驱动的定位：窄缝里的平台切换（账户位）、缝里的确认态（翻出去的旧表单 aria-hidden，排除） ----
+const bravaisStage = (page: Page) => page.locator('[data-library-stage="bravais"]');
+const bravaisSwitcher = (page: Page) => page.locator('[data-bravais-account-slot] [data-bravais-account]');
+const bravaisToggle = (page: Page) => page.locator('[data-bravais-account-toggle="strip"]');
+const bravaisAccountList = (page: Page) => page.locator('[data-bravais-account="panel"], [data-bravais-account="guest"]');
+const bravaisAccountRow = (page: Page, providerId: string) => bravaisAccountList(page).locator(`[data-bravais-account-provider="${providerId}"]`);
+const bravaisLogoutButtons = (page: Page) => bravaisAccountList(page).locator('[data-bravais-account-logout]');
+const bravaisConfirm = (page: Page) => page.locator('[data-bravais-account-confirm]:not([aria-hidden="true"])');
+/** 打开平台列表：未登录时它常开（guest），已登录时点账户位的按钮。 */
+const bravaisOpenAccounts = async (page: Page) => {
+    await expect(bravaisSwitcher(page)).toBeVisible();
+    if (await bravaisSwitcher(page).getAttribute('data-bravais-account') === 'closed') await bravaisToggle(page).click();
+    await expect(bravaisAccountList(page)).toBeVisible();
 };
 
 type AccountDriver = {
@@ -286,7 +306,69 @@ const TUI_DRIVER: AccountDriver = {
     },
 };
 
-const DRIVERS: Record<Suite, AccountDriver> = { grid: GRID_DRIVER, tui: TUI_DRIVER };
+const BRAVAIS_DRIVER: AccountDriver = {
+    suite: 'bravais',
+    ready: async page => {
+        // bravais 的首页与 stage 是 lazy chunk：等墙上出现首页层。
+        await expect(bravaisStage(page)).toHaveAttribute('data-bravais-layer', /^home:/);
+    },
+    selectProvider: async (page, providerId) => {
+        await bravaisOpenAccounts(page);
+        await bravaisAccountRow(page, providerId).getByRole('menuitemradio').click();
+    },
+    guestPicker: page => page.locator('[data-bravais-account="guest"]'),
+    selectFromGuestPicker: async (page, providerId) => {
+        await expect(page.locator('[data-bravais-account="guest"]')).toBeVisible();
+        await bravaisAccountRow(page, providerId).getByRole('menuitemradio').click();
+    },
+    expectCurrent: async (page, providerId) => {
+        await bravaisOpenAccounts(page);
+        await expect(bravaisAccountRow(page, providerId)).toHaveAttribute('data-current', 'true');
+        await expect(bravaisAccountList(page).locator('[data-current="true"]')).toHaveCount(1);
+        await expect(bravaisAccountRow(page, providerId).getByRole('menuitemradio')).toHaveAttribute('aria-checked', 'true');
+    },
+    openLogoutEntries: async page => {
+        await bravaisOpenAccounts(page);
+        return bravaisLogoutButtons(page);
+    },
+    expectLogoutOn: async (page, providerId) => {
+        await expect(bravaisAccountRow(page, providerId).locator('[data-bravais-account-logout]')).toHaveCount(1);
+    },
+    logoutCurrent: async (page, providerId) => {
+        await bravaisAccountRow(page, providerId).locator('[data-bravais-account-logout]').click();
+    },
+    closePicker: async page => {
+        // 未登录时列表常开（guest，没有开合按钮），留着。
+        if (await bravaisToggle(page).count() > 0 && await bravaisToggle(page).getAttribute('aria-expanded') === 'true') {
+            await bravaisToggle(page).click();
+        }
+        await expect(page.locator('[data-bravais-account="panel"]')).toHaveCount(0);
+    },
+    chooseMethod: async (page, label) => {
+        await methodButton(page, label).click();
+    },
+    retry: async page => {
+        await retryButton(page).click();
+    },
+    restart: async page => {
+        await restartButton(page).click();
+    },
+    expectRestartLabel: async (page, label) => {
+        await expect(restartButton(page)).toHaveText(label);
+    },
+    closeLogin: async page => {
+        await expect(loginDialog(page)).toBeVisible();
+        await page.keyboard.press('Escape');
+    },
+    confirmDialog: bravaisConfirm,
+    answerConfirm: async (page, answer) => {
+        await expect(bravaisConfirm(page)).toBeVisible();
+        await page.keyboard.press(answer === 'Confirm' ? 'Enter' : 'Escape');
+        await expect(bravaisConfirm(page)).toHaveCount(0);
+    },
+};
+
+const DRIVERS: Record<Suite, AccountDriver> = { grid: GRID_DRIVER, tui: TUI_DRIVER, bravais: BRAVAIS_DRIVER };
 
 const setSuite = async (page: Page, suite: Suite) => {
     await page.evaluate(id => window.__accountProbe!.setSuite(id), suite);
@@ -575,8 +657,8 @@ test.describe(`[${suite}] QQ diagnostics`, () => {
         await expect(loginDialog(page).getByText(/^Login was canceled on your phone\. You can get a new QR code in \d+s\.$/)).toBeVisible();
         // 用户自己取消的，没有要排查的东西。
         await expect(diagnosticsButton(page)).toHaveCount(0);
-        // 冷却中：网格的重试按钮在但不能点；TUI 不给重试，Enter 不要码。
-        if (isGrid) {
+        // 冷却中：网格与 bravais 的重试按钮在但不能点（bravais 还显示秒数）；TUI 不给重试，Enter 不要码。
+        if (suite !== 'tui') {
             await expect(retryButton(page)).toBeDisabled();
         } else {
             await expect(retryButton(page)).toHaveCount(0);
@@ -608,7 +690,7 @@ test.describe(`[${suite}] QQ diagnostics`, () => {
         await expect(retryButton(page)).toBeVisible();
         await expect(diagnosticsButton(page)).toHaveCount(0);
         await expect(loginDialog(page).getByText(/diagnostic/i)).toHaveCount(0);
-        if (!isGrid) {
+        if (suite === 'tui') {
             await expect(loginDialog(page).locator('[data-tui-login-diagnostics]')).toHaveCount(0);
             // F4 在没有诊断入口时不接：不出现复制状态，登录框还在。
             await page.keyboard.press('F4');
@@ -863,6 +945,136 @@ test.describe('[switch] grid and TUI share the account flows', () => {
         await expect(tuiConfirm(page)).toHaveCount(0);
         await expectConfirmFor(page, GRID_DRIVER, ACCOUNT_BETA);
         await GRID_DRIVER.answerConfirm(page, 'Confirm');
+        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_BETA);
+        expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_BETA]);
+    });
+});
+
+// B10：bravais 有自己的 account surface（登录与确认在缝里），同样接着 controller 里的会话与待确认请求。
+test.describe('[switch] bravais shares the account flows', () => {
+    const seam = (page: Page) => page.locator('[data-library-stage="bravais"] [data-bravais-seam]');
+
+    test.beforeEach(async ({ page, mount }) => {
+        await mountAccount(mount, page, 'grid');
+    });
+
+    test('[switch] with bravais selected, its seam (not the grid fallback) answers a sign-in and a switch request', async ({ page }) => {
+        await setSuite(page, 'bravais');
+        await expect(switcher(page)).toHaveCount(0);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+
+        // 登录：缝强制拉到完整宽度、翻成登录态，挂 keyboard window；扫码确认后翻成确认态，在缝里答复。
+        await scriptQr(page, ACCOUNT_GAMMA, ['scanned', 'confirmed']);
+        expect(await startLogin(page, ACCOUNT_GAMMA)).toBe('started');
+        await expect(loginDialog(page)).toHaveAttribute('data-bravais-account-login', ACCOUNT_GAMMA);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'login');
+        await expect(seam(page)).toHaveAttribute('data-folia-keyboard-window', 'true');
+        await expect(loginDialog(page)).toHaveAccessibleName('Scan with Netease App');
+        await expectQrKey(page, await lastKey(page, ACCOUNT_GAMMA));
+        await expect(statusText(page, 'scanned')).toBeVisible();
+        await expectConfirmFor(page, BRAVAIS_DRIVER, ACCOUNT_GAMMA);
+        await expect(bravaisConfirm(page)).toHaveAttribute('data-bravais-confirm-reason', 'activate-after-login');
+        await expect(gridConfirmDialog(page)).toHaveCount(0);
+        await expect(loginDialog(page)).toHaveCount(0);
+        await BRAVAIS_DRIVER.answerConfirm(page, 'Confirm');
+        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_GAMMA);
+        expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
+        expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('authenticated');
+        // 答复后翻回首页窄缝，键盘还给墙。
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect(seam(page)).not.toHaveAttribute('data-folia-keyboard-window', 'true');
+
+        // 切换：Esc 取消保持原平台，Enter 确认切过去并清理一次。
+        await requestSwitch(page, ACCOUNT_ALPHA);
+        await expectConfirmFor(page, BRAVAIS_DRIVER, ACCOUNT_ALPHA);
+        await BRAVAIS_DRIVER.answerConfirm(page, 'Cancel');
+        await expect.poll(() => switchResult(page)).toBe('declined:cancelled');
+        expect(await activeProvider(page)).toBe(ACCOUNT_GAMMA);
+
+        await requestSwitch(page, ACCOUNT_ALPHA);
+        await expectConfirmFor(page, BRAVAIS_DRIVER, ACCOUNT_ALPHA);
+        await BRAVAIS_DRIVER.answerConfirm(page, 'Confirm');
+        await expect.poll(() => switchResult(page)).toBe('switched');
+        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
+        expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA, ACCOUNT_ALPHA]);
+    });
+
+    test('[switch] the QQ-style two-step sign-in works in the bravais seam with keys only', async ({ page }) => {
+        await setSuite(page, 'bravais');
+
+        expect(await startLogin(page, ACCOUNT_QUILL)).toBe('started');
+        await expect(loginDialog(page)).toHaveAttribute('data-bravais-account-login', ACCOUNT_QUILL);
+        await expect(loginDialog(page).getByText('Pick a sign-in method to generate the QR code')).toBeVisible();
+        expect(await countCalls(page, 'create', ACCOUNT_QUILL)).toBe(0);
+        // 第一步：方向键在登录方式之间移焦点，Enter 选它（原生激活按钮）。
+        await page.keyboard.press('ArrowDown');
+        await expect(methodButton(page, 'QQ scan')).toBeFocused();
+        await page.keyboard.press('ArrowDown');
+        await expect(methodButton(page, 'WeChat scan')).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect.poll(() => calls(page, 'create', ACCOUNT_QUILL)).toEqual([
+            expect.objectContaining({ methodId: 'wechat' }),
+        ]);
+        await expect(methodButton(page, 'WeChat scan')).toHaveAttribute('aria-pressed', 'true');
+        await expectQrKey(page, await lastKey(page, ACCOUNT_QUILL));
+        // 表单开着时不带修饰键的按键归它：Esc 先撤销表单态（关闭登录），缝翻回首页窄缝。
+        await page.keyboard.press('Escape');
+        await expect(loginDialog(page)).toHaveCount(0);
+        await expect.poll(() => countCalls(page, 'cancel', ACCOUNT_QUILL)).toBe(1);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+    });
+
+    test('[switch] a sign-in started on the grid keeps its session in bravais and completes there', async ({ page }) => {
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_GAMMA);
+        await expect(loginDialog(page)).toBeVisible();
+        await expect.poll(() => countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
+        const key = await lastKey(page, ACCOUNT_GAMMA);
+
+        // 换到 bravais：缝里接着显示同一个二维码会话，不取消、不重新要码。
+        await setSuite(page, 'bravais');
+        await expect(loginDialog(page)).toHaveAttribute('data-bravais-account-login', ACCOUNT_GAMMA);
+        await expectQrKey(page, key);
+        expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
+        expect(await countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
+
+        // 回到网格：弹窗回到网格首页的账户层里，会话仍是同一个。
+        await setSuite(page, 'grid');
+        await expect(loginDialog(page)).toBeVisible();
+        await expect(page.locator('[data-bravais-account-login]')).toHaveCount(0);
+        await expectQrKey(page, key);
+        expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
+
+        // 再到 bravais 扫码确认：激活确认出现在缝里，在缝里答复；整个过程只有一次要码、没有取消。
+        await setSuite(page, 'bravais');
+        await expectQrKey(page, key);
+        await scriptQr(page, ACCOUNT_GAMMA, ['confirmed']);
+        await expectConfirmFor(page, BRAVAIS_DRIVER, ACCOUNT_GAMMA);
+        await BRAVAIS_DRIVER.answerConfirm(page, 'Confirm');
+        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_GAMMA);
+        expect(await countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
+        expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
+        expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
+    });
+
+    test('[switch] a pending switch asked in one suite can be answered in bravais, and the other way round', async ({ page }) => {
+        // 网格里问，bravais 里取消。
+        await GRID_DRIVER.selectProvider(page, ACCOUNT_BETA);
+        await expectConfirmFor(page, GRID_DRIVER, ACCOUNT_BETA);
+        await setSuite(page, 'bravais');
+        await expect(gridConfirmDialog(page)).toHaveCount(0);
+        await expectConfirmFor(page, BRAVAIS_DRIVER, ACCOUNT_BETA);
+        await BRAVAIS_DRIVER.answerConfirm(page, 'Cancel');
+        expect(await pendingSwitch(page)).toBeNull();
+        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
+        expect(await countCalls(page, 'switch-cleanup')).toBe(0);
+
+        // bravais 里问，TUI 里确认。
+        await BRAVAIS_DRIVER.selectProvider(page, ACCOUNT_BETA);
+        await expectConfirmFor(page, BRAVAIS_DRIVER, ACCOUNT_BETA);
+        await setSuite(page, 'tui');
+        await expect(bravaisConfirm(page)).toHaveCount(0);
+        await expectConfirmFor(page, TUI_DRIVER, ACCOUNT_BETA);
+        await TUI_DRIVER.answerConfirm(page, 'Confirm');
         await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_BETA);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_BETA]);
     });
