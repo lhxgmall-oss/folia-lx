@@ -1,6 +1,6 @@
 import { useCallback, useRef, type RefObject } from 'react';
 import type { WallView, WallViewCenter } from '../../../components/wall/wallView';
-import { computeBravaisFrame, type BravaisFrame } from './bravaisFrame';
+import { computeBravaisFrame } from './bravaisFrame';
 
 // src/library/suites/bravais/useBravaisFrame.ts
 // stage 每帧要写的那几样（相机、缝的锚点与动画中的开口、缝内容的排版宽度、是否折叠）放在一个可变的 ref 里，
@@ -24,11 +24,7 @@ export type BravaisFrameRefs = {
     tab: RefObject<HTMLButtonElement | null>;
 };
 
-/** renderFrame 写完墙与缝之后再调用的写入者（透光底板的遮罩位置，B6b③）。 */
-export type BravaisFrameWriter = (frame: BravaisFrame) => void;
-
 export const useBravaisFrame = (refs: BravaisFrameRefs) => {
-    const afterFrameRef = useRef<BravaisFrameWriter | null>(null);
     const stateRef = useRef<BravaisFrameState>({
         view: null,
         center: { x: 0, y: 0 },
@@ -66,8 +62,7 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
             if (tabElement.style.display !== display) tabElement.style.display = display;
             if (tabElement.dataset.side !== frame.tab.side) tabElement.dataset.side = frame.tab.side;
         }
-        afterFrameRef.current?.(frame);
     }, [refs]);
 
-    return { stateRef, renderFrame, afterFrameRef };
+    return { stateRef, renderFrame };
 };

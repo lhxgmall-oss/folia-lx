@@ -5,8 +5,9 @@ import type { PerfDriver, PerfStageCounters } from './PerfStageHost';
 
 // dev/probes/bravais-perf/perfRun.ts
 // 一轮测量：挂 stage（首屏）→ 预热 → 运动 → 停稳，分阶段记 rAF 间隔、长动画帧（LoAF）与长任务；运动阶段另记
-// 磁贴渲染 / 底板遮罩重建（dev 的 countRender，window.__renderCounts）、stage 的 React 提交（Profiler）、新挂进 DOM 的
-// 磁贴（MutationObserver）与每次触发时内容层在动的磁贴数（document.getAnimations()）。
+// 磁贴渲染（dev 的 countRender，window.__renderCounts）、stage 的 React 提交（Profiler）、新挂进 DOM 的磁贴与块底板、
+// 已挂块底板路径的改写（MutationObserver）与每次触发时内容层在动的磁贴数（document.getAnimations()）。
+// B12b：底板改为按块 SVG 后，「遮罩重建」换成「块底板重画」（<path d> 被改写的次数与块）。
 // 帧采样用原生 rAF：设了帧率限制时 utils/frameRateLimiter 会把 window.requestAnimationFrame 换成限流版。
 
 type RenderCountWindow = Window & {
@@ -86,6 +87,8 @@ const sampleAnimatedTiles = (root: HTMLElement, seen: Map<Element, string | null
 
 const hasContentTile = (root: HTMLElement | null) => Boolean(root?.querySelector('[data-library-entry], [data-library-card]'));
 
+const blockOfSlot = (slotKey: string | undefined) => slotKey?.split(',').slice(0, 2).join(',') ?? null;
+
 export type PerfRunHooks = {
     /** 挂上这一轮的 stage，返回它的驱动（挂好之后才 resolve）。 */
     mount: () => Promise<PerfDriver>;
@@ -142,6 +145,11 @@ export const runPerfJob = (job: PerfJob, { mount, counters, signal, onPhase }: P
         let motion: PerfResult['motion'] | null = null;
         let counts: PerfResult['counts'] | null = null;
         let tilesAdded = 0;
+        let platesAdded = 0;
+        let plateRedraws = 0;
+        const redrawnBlocks = new Set<string>();
+        /** 这一轮里展开过聚焦卡的块（收起时那一块也会重画一次）。 */
+        const expandedBlocks = new Set<string>();
         let tilesPeak = 0;
         let windowsPeak = 0;
         let nextTriggerAt = 0;
@@ -183,14 +191,33 @@ export const runPerfJob = (job: PerfJob, { mount, counters, signal, onPhase }: P
             armCounts();
             counters.commits = 0;
             counters.commitMs = 0;
+            const noteExpanded = () => {
+                const block = blockOfSlot(root.querySelector<HTMLElement>('[data-bravais-expanded]')?.dataset.bravaisSlot);
+                if (block) expandedBlocks.add(block);
+            };
+            noteExpanded();
             mutation = new MutationObserver((records) => {
                 for (const record of records) {
+                    if (record.type === 'attributes') {
+                        if (record.attributeName === 'd') {
+                            const block = (record.target as Element).closest<SVGElement>('[data-bravais-plate-block]')?.dataset.bravaisPlateBlock;
+                            if (block) {
+                                plateRedraws += 1;
+                                redrawnBlocks.add(block);
+                            }
+                        } else {
+                            noteExpanded();
+                        }
+                        continue;
+                    }
                     record.addedNodes.forEach((node) => {
-                        if (node instanceof Element && node.classList.contains('bravais-tile')) tilesAdded += 1;
+                        if (!(node instanceof Element)) return;
+                        if (node.classList.contains('bravais-tile')) tilesAdded += 1;
+                        else if (node.matches('[data-bravais-plate-block]')) platesAdded += 1;
                     });
                 }
             });
-            mutation.observe(root, { childList: true, subtree: true });
+            mutation.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['d', 'data-bravais-expanded'] });
             onPhase('motion');
         };
 
@@ -258,7 +285,10 @@ export const runPerfJob = (job: PerfJob, { mount, counters, signal, onPhase }: P
                     const renderCounts = readCounts();
                     counts = {
                         tileRenders: renderCounts.BravaisTile ?? 0,
-                        plateMaskRebuilds: renderCounts.BravaisPlateMask ?? 0,
+                        plateRedraws,
+                        plateRedrawBlocks: redrawnBlocks.size,
+                        strayPlateRedraws: [...redrawnBlocks].filter(block => !expandedBlocks.has(block)).length,
+                        platesAdded,
                         stageCommits: counters.commits,
                         stageCommitMs: counters.commitMs,
                         tilesAdded,

@@ -12,6 +12,8 @@ import '../../dev/probes/bravais-perf/probeApi';
 // - 整面翻牌只动「视口 + 外扩」里的磁贴、不超过 400 张，屏外的只换不翻；
 // - 小范围拖动只写底板遮罩的位置：遮罩不重建、磁贴不重渲染、stage 不提交；大范围拖动只渲染新进来的磁贴；
 // - 聚焦放大每次只重建常数次遮罩，只动两个块；换页签的整墙出场 / 入场同样受 400 张的上限约束。
+// B12b：底板改为按块 SVG（随世界层平移），「遮罩重建」换成「块底板重画」（已挂块的 <path d> 被改写）：小范围拖动
+// 与换页签一次都不重画，大范围拖动只新挂块、不重画已挂的块，聚焦放大只重画放大 / 收起的那几块。
 // 计数类断言是精确的（与机器无关）；时间类只比 500 与 5000 的差、兜一个很宽的天花板，数值按本机实测留了余量
 // （实测与依据见各断言旁的注释）。
 
@@ -77,13 +79,14 @@ test.describe('[bravais] wall performance guard rails', () => {
         expect(large.motion.loafMaxMs).toBeLessThan(250);
     });
 
-    test('panning inside the culled range only moves the plate mask', async ({ page }) => {
+    test('panning inside the culled range writes nothing but the world transforms', async ({ page }) => {
         const drift = await run(page, { items: [5000], scenarios: ['drift'], seconds: 2.5 });
         // eslint-disable-next-line no-console
         console.log('PERF bravais drift', JSON.stringify({ counts: drift.counts, motion: drift.motion }));
         expect(drift.motion.frames).toBeGreaterThan(30);
-        // 帧状态直接写 DOM：遮罩不重建、磁贴不重渲染、没有新磁贴、stage 不提交。
-        expect(drift.counts.plateMaskRebuilds).toBe(0);
+        // 帧状态直接写 DOM：块底板随世界层平移（不重画、不新挂）、磁贴不重渲染、没有新磁贴、stage 不提交。
+        expect(drift.counts.plateRedraws).toBe(0);
+        expect(drift.counts.platesAdded).toBe(0);
         expect(drift.counts.tileRenders).toBe(0);
         expect(drift.counts.tilesAdded).toBe(0);
         expect(drift.counts.stageCommits).toBe(0);
@@ -93,10 +96,10 @@ test.describe('[bravais] wall performance guard rails', () => {
         const pan = await run(page, { items: [5000], scenarios: ['pan'], seconds: 3 });
         // eslint-disable-next-line no-console
         console.log('PERF bravais pan', JSON.stringify({ counts: pan.counts, tiles: pan.tiles, motion: pan.motion }));
-        // 跨了块边界：重新裁剪、带进新磁贴、遮罩随可见块集合重建——但只在提交里发生，且只渲染新来的磁贴。
+        // 跨了块边界：重新裁剪、带进新磁贴与新块的底板——已挂的块底板一次都不重画。
         expect(pan.counts.tilesAdded).toBeGreaterThan(0);
-        expect(pan.counts.plateMaskRebuilds).toBeGreaterThan(0);
-        expect(pan.counts.plateMaskRebuilds).toBeLessThanOrEqual(pan.counts.stageCommits);
+        expect(pan.counts.platesAdded).toBeGreaterThan(0);
+        expect(pan.counts.plateRedraws).toBe(0);
         // 新挂的磁贴各渲染一次（StrictMode 下两次），已在场的不重渲染。
         expect(pan.counts.tileRenders).toBeLessThanOrEqual(pan.counts.tilesAdded * 2);
         expect(pan.tiles.peak).toBeLessThanOrEqual(400);
@@ -112,15 +115,16 @@ test.describe('[bravais] wall performance guard rails', () => {
         // 放大只让位一个块（12 张）、收起另一个块：在动的磁贴不超过两块。
         expect(expand.animation.peakAnimated).toBeGreaterThan(0);
         expect(expand.animation.peakAnimated).toBeLessThanOrEqual(24);
-        // 每次放大：开始时主底板挖整块洞、落定时按新位置挖洞——两次重建；StrictMode 的 layout effect 双调用不额外计数
-        // 之外留一次余量。
-        expect(expand.counts.plateMaskRebuilds).toBeLessThanOrEqual(expand.animation.triggers * 3);
+        // 只重画放大的块（让位期间逐帧）与收起的那一块（一次）：重画过的块都在「展开过聚焦卡」的块里，块数不超过触发数 + 1。
+        expect(expand.counts.plateRedraws).toBeGreaterThan(0);
+        expect(expand.counts.strayPlateRedraws).toBe(0);
+        expect(expand.counts.plateRedrawBlocks).toBeLessThanOrEqual(expand.animation.triggers + 1);
 
         expect(tab.animation.triggers).toBeGreaterThanOrEqual(2);
         expect(tab.animation.peakAnimated).toBeGreaterThan(0);
         expect(tab.animation.peakAnimated).toBeLessThanOrEqual(400);
         expect(tab.animation.maxOffscreen).toBe(0);
-        // 窗位是结构位、固定在世界坐标上：换页签不重建底板遮罩。
-        expect(tab.counts.plateMaskRebuilds).toBe(0);
+        // 窗位是结构位、固定在世界坐标上：换页签不重画块底板。
+        expect(tab.counts.plateRedraws).toBe(0);
     });
 });

@@ -372,7 +372,8 @@
 /* ---------- 透光（B6b③，设计稿 §11）：实色底板、窗、全透明的标题磁贴、半透明的缝 ---------- */
 
 /* 墙面（与 wall.css 的 .lattice-root 同一身：两团主题光晕 + 底色）。实色档画在根节点上；透明档根节点不画底，
-   换成世界层之下的全屏底板（不透明、不 blur），遮罩只在窗位挖洞，露出下面的 visualizer。 */
+   换成世界层之下的全屏底板（不透明、不 blur），遮罩只在窗位挖洞，露出下面的 visualizer。
+   B12b 起透明档的底板是世界层里按块的 SVG（见下方 .bravais-block-plate）。 */
 .bravais-root {
     --bravais-wall-surface:
         radial-gradient(circle at 14% 12%, color-mix(in srgb, var(--text-accent, #fd5c47) 16%, transparent), transparent 29%),
@@ -394,15 +395,20 @@
     backdrop-filter: blur(18px);
 }
 
-/* 主底板与局部底板：遮罩由 stage 写（mask-image 只在洞变了时换，mask-position / -size 每帧跟相机）。
-   mask-composite：第一层底色减去其余各层（洞）的并集。 */
-.bravais-plate {
+/* 块底板（B12b）：每个已挂载的块一张内联 SVG，在世界层里、磁贴之下，随相机平移；evenodd 路径 = 外框减去窗洞，
+   不用 CSS 遮罩。填的是墙面的底色：墙面那两团主题光晕定位在视口上（屏幕固定），跟着世界走的底板画不出来，
+   而底板露出来的只有磁贴间约 6px 的缝隙与空画框，差别看不出来。2D translate：不为每块单独升合成层。 */
+.bravais-block-plate {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    overflow: visible;
     pointer-events: none;
-    background: var(--bravais-wall-surface);
-    mask-repeat: no-repeat;
-    mask-composite: subtract, add, add, add;
+    transform-origin: 0 0;
+}
+
+.bravais-block-plate > path {
+    fill: var(--bg-color, #070707);
 }
 
 /* 窗：没有内容、不可聚焦、不可点；内容层透明，只垫一层很淡的光晕。 */

@@ -52,6 +52,8 @@ export const BRAVAIS_SEAM_BASE_BOTTOM_PX = 20;
 
 /** 聚焦卡块内让位的过渡时长（毫秒），与 bravais.css 里 .bravais-tile.is-reflowing 的 500ms 一致。 */
 export const BRAVAIS_REFLOW_MS = 500;
+/** 让位过渡的缓动（与 bravais.css 里 .bravais-tile.is-reflowing 的 cubic-bezier 一致）：块底板逐帧重画时按它推算磁贴的位置。 */
+export const BRAVAIS_REFLOW_EASE = [0.2, 0.9, 0.25, 1.08] as const;
 
 /** 全透明档：透着的磁贴只画一条封面底条，取最小一档的图就够。 */
 export const BRAVAIS_SEE_THROUGH_STRIP_ARTWORK_PX = 96;

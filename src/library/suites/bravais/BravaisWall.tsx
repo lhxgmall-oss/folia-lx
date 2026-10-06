@@ -1,5 +1,7 @@
 import React, { type MutableRefObject, type RefObject } from 'react';
 import type { WallSlot } from '../../../components/wall/wallSlots';
+import { EMPTY_PLATE_BLOCKS, type PlateBlockSet } from './bravaisBlockPlate';
+import BravaisBlockPlates from './BravaisBlockPlates';
 import { resolveSlotFace, type BravaisDisplay } from './bravaisDisplay';
 import { isSeeThroughFace } from './bravaisLook';
 import BravaisTile, { type BravaisTileHandlers, type BravaisTileRect } from './BravaisTile';
@@ -7,6 +9,7 @@ import BravaisTile, { type BravaisTileHandlers, type BravaisTileRect } from './B
 // src/library/suites/bravais/BravaisWall.tsx
 // 墙的两半：缝锚点左边的 slot 进左边的世界层，右边的进右边的（缝只开在块边界上，没有 slot 跨过它）。两个世界层的
 // transform 由 stage 每帧直接写（bravaisFrame），这里只在裁剪范围、显示的层、聚焦 / 焦点变化时渲染。
+// 透光档（B12b）：每一半先画各自块的实色底板（BravaisBlockPlates，在磁贴之下），底板随世界层一起平移。
 
 type BravaisWallProps = {
     slots: readonly WallSlot[];
@@ -24,6 +27,8 @@ type BravaisWallProps = {
     handlers: BravaisTileHandlers;
     leftRef: RefObject<HTMLDivElement | null>;
     rightRef: RefObject<HTMLDivElement | null>;
+    /** 透光档的块底板（按缝锚点分好左右）；实色档为空。 */
+    plates?: PlateBlockSet;
 };
 
 const BravaisWall: React.FC<BravaisWallProps> = ({
@@ -40,6 +45,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
     handlers,
     leftRef,
     rightRef,
+    plates = EMPTY_PLATE_BLOCKS,
 }) => {
     const left: React.ReactNode[] = [];
     const right: React.ReactNode[] = [];
@@ -73,8 +79,14 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
     }
     return (
         <>
-            <div ref={leftRef} className="lattice-world" data-bravais-half="left">{left}</div>
-            <div ref={rightRef} className="lattice-world" data-bravais-half="right">{right}</div>
+            <div ref={leftRef} className="lattice-world" data-bravais-half="left">
+                <BravaisBlockPlates blocks={plates.left} />
+                {left}
+            </div>
+            <div ref={rightRef} className="lattice-world" data-bravais-half="right">
+                <BravaisBlockPlates blocks={plates.right} />
+                {right}
+            </div>
         </>
     );
 };

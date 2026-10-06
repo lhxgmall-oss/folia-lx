@@ -226,13 +226,13 @@ const BravaisPerfProbe: React.FC = () => {
                         {rows.length > 0 && (
                             <table>
                                 <thead>
-                                    <tr><th>条目</th><th>场景</th><th>档位</th><th>fps</th><th>p95</th><th>p99</th><th>&gt;33</th><th>LoAF</th><th>遮罩</th><th>磁贴渲染</th><th>动画峰值</th><th>首块 ms</th><th>堆 MB</th><th>vis</th></tr>
+                                    <tr><th>条目</th><th>场景</th><th>档位</th><th>fps</th><th>p95</th><th>p99</th><th>&gt;33</th><th>LoAF</th><th>底板重画</th><th>磁贴渲染</th><th>动画峰值</th><th>首块 ms</th><th>堆 MB</th><th>vis</th></tr>
                                 </thead>
                                 <tbody>
                                     {rows.map(row => (
                                         <tr key={row.key}>
                                             <td>{row.items}</td><td>{row.scenario}</td><td>{row.look}</td><td>{fmt(row.fps)}</td><td>{fmt(row.p95)}</td><td>{fmt(row.p99)}</td>
-                                            <td>{fmt(row.over33, 0)}</td><td>{fmt(row.loaf, 0)}</td><td>{fmt(row.maskRebuilds, 0)}</td><td>{fmt(row.tileRenders, 0)}</td>
+                                            <td>{fmt(row.over33, 0)}</td><td>{fmt(row.loaf, 0)}</td><td>{fmt(row.plateRedraws, 0)}</td><td>{fmt(row.tileRenders, 0)}</td>
                                             <td>{fmt(row.peakAnimated, 0)}</td><td>{fmt(row.firstTileMs, 0)}</td><td>{row.heapMB === null ? '—' : fmt(row.heapMB, 0)}</td><td>{row.visualizer}</td>
                                         </tr>
                                     ))}

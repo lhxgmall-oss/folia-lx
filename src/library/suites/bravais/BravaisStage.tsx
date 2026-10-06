@@ -20,7 +20,7 @@ import { useBravaisFocus } from './useBravaisFocus';
 import { useBravaisFrame } from './useBravaisFrame';
 import { bravaisSlotFromKey, useBravaisInteractions } from './useBravaisInteractions';
 import { useBravaisKeyboard } from './useBravaisKeyboard';
-import { useBravaisPlate } from './useBravaisPlate';
+import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
@@ -45,6 +45,8 @@ import './bravais.css';
 // reportPlayerOcclusion）在 B6b③。高频的东西（相机、缝的开合、翻牌）都不经过 React：帧状态 + 直接写 DOM。
 // 透光（B6b③，设计稿 §11）：实色档根节点画墙面并报告遮挡播放页；透明档根节点不画底，墙面交给世界层之下的实色底板
 // （useBravaisPlate，遮罩只在窗位挖洞），缝的纸条换成半透明。
+// B12b：底板改为按块的内联 SVG（useBravaisBlockPlates → BravaisWall 画进世界层、磁贴之下），不再有全屏遮罩底板与
+// 局部底板；聚焦卡让位只逐帧重画那一块。
 // B9：首页层的目录树面板与集合层的列表面板同一种开口；首页的全局搜索框开着时窄缝临时展开（search）；管理隐藏视图里
 // 根节点挂 is-managing-hidden（歌单类磁贴的眼睛按钮常驻）。
 // B10：账户的登录态 / 确认态是缝的内容态（bravaisAccountStore → login / confirm 变体），不接 accountLayerRef。
@@ -66,7 +68,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const seamContentRef = useRef<HTMLDivElement>(null);
     const tabRef = useRef<HTMLButtonElement>(null);
     const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamContent: seamContentRef, tab: tabRef }), []);
-    const { stateRef: frameRef, renderFrame, afterFrameRef } = useBravaisFrame(frameRefs);
+    const { stateRef: frameRef, renderFrame } = useBravaisFrame(frameRefs);
     const wallLook = useBravaisWallLook(reportPlayerOcclusion);
     const view = useBravaisViewport(rootRef);
     const reducedMotion = useReducedMotionFor('lattice');
@@ -195,7 +197,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     });
     // 透光以墙上此刻显示的档位为准（换档时与翻牌同一次提交）；还没有显示时看偏好。
     const seeThrough = (display?.look ?? wallLook.look) !== 'solid';
-    const plate = useBravaisPlate({
+    const plates = useBravaisBlockPlates({
         enabled: seeThrough,
         slots,
         display,
@@ -204,8 +206,6 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         anchorX: seam.anchorX,
         reducedMotion,
         fieldRef,
-        renderFrame,
-        afterFrameRef,
     });
 
     const active = isInteractive && owned && Boolean(layer?.isInteractive);
@@ -317,18 +317,6 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
             data-bravais-look={display?.look ?? wallLook.look}
             aria-label={t('libraryBravais.wallLabel')}
         >
-            {seeThrough && (
-                <>
-                    <div ref={plate.plateRef} className="bravais-plate" data-bravais-plate="" aria-hidden="true" />
-                    <div
-                        ref={plate.livePlateRef}
-                        className="bravais-plate is-live"
-                        data-bravais-live-plate={plate.liveBlockKey ?? undefined}
-                        aria-hidden="true"
-                        style={{ display: 'none' }}
-                    />
-                </>
-            )}
             <div
                 ref={fieldRef}
                 className="lattice-field bravais-field"
@@ -357,6 +345,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
                     handlers={interactions.handlers}
                     leftRef={leftRef}
                     rightRef={rightRef}
+                    plates={plates}
                 />
             </div>
             <BravaisSeam

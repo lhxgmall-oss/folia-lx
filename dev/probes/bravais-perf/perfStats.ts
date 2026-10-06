@@ -35,8 +35,17 @@ export type MountStats = {
 export type PerfCounts = {
     /** 运动阶段 BravaisTile 函数体执行次数（StrictMode 下挂载 / 更新都是两次）。 */
     tileRenders: number;
-    /** 运动阶段主底板遮罩重建次数（countRender('BravaisPlateMask')）。 */
-    plateMaskRebuilds: number;
+    /**
+     * 运动阶段块底板的重画次数（B12b 起底板按块画）：已挂着的块底板 <path d> 被改写的次数（MutationObserver，含聚焦卡
+     * 让位期间的逐帧重画；不含新挂的块）。拖动 / 补挂只新挂块，不该有重画。
+     */
+    plateRedraws: number;
+    /** 被重画过的块数（去重）。 */
+    plateRedrawBlocks: number;
+    /** 其中不是「这一轮里展开过 / 收起过聚焦卡」的块：应为 0（只重画放大的块）。 */
+    strayPlateRedraws: number;
+    /** 运动阶段新挂进 DOM 的块底板。 */
+    platesAdded: number;
     /** 运动阶段 stage 子树的 React 提交次数与 actualDuration 合计（React.Profiler）。 */
     stageCommits: number;
     stageCommitMs: number;
@@ -111,7 +120,8 @@ export type PerfRow = {
     p99: number;
     over33: number;
     loaf: number;
-    maskRebuilds: number;
+    plateRedraws: number;
+    platesAdded: number;
     tileRenders: number;
     stageCommits: number;
     peakAnimated: number;
@@ -143,7 +153,8 @@ export const aggregateResults = (results: readonly PerfResult[]): PerfRow[] => {
             p99: pick(result => result.motion.p99),
             over33: pick(result => result.motion.over33),
             loaf: pick(result => result.motion.loafCount),
-            maskRebuilds: pick(result => result.counts.plateMaskRebuilds),
+            plateRedraws: pick(result => result.counts.plateRedraws),
+            platesAdded: pick(result => result.counts.platesAdded),
             tileRenders: pick(result => result.counts.tileRenders),
             stageCommits: pick(result => result.counts.stageCommits),
             peakAnimated: pick(result => result.animation.peakAnimated),
@@ -159,8 +170,8 @@ const fixed = (value: number, digits = 1) => value.toFixed(digits);
 
 /** 结果表 → Markdown（复制进交接记录 / 报告）。 */
 export const formatPerfTable = (rows: readonly PerfRow[]) => {
-    const header = '| 条目 | 场景 | 档位 | 次数 | fps | p95 | p99 | >33ms | LoAF | 遮罩重建 | 磁贴渲染 | stage 提交 | 动画磁贴峰值 | 首块 ms | 首屏长任务 ms | JS 堆 MB | visualizer |';
-    const divider = `|${' --- |'.repeat(17)}`;
-    const lines = rows.map(row => `| ${row.items} | ${row.scenario} | ${row.look} | ${row.runs} | ${fixed(row.fps)} | ${fixed(row.p95)} | ${fixed(row.p99)} | ${fixed(row.over33, 0)} | ${fixed(row.loaf, 0)} | ${fixed(row.maskRebuilds, 0)} | ${fixed(row.tileRenders, 0)} | ${fixed(row.stageCommits, 0)} | ${fixed(row.peakAnimated, 0)} | ${fixed(row.firstTileMs, 0)} | ${fixed(row.mountLongTaskMs, 0)} | ${row.heapMB === null ? '—' : fixed(row.heapMB, 0)} | ${row.visualizer} |`);
+    const header = '| 条目 | 场景 | 档位 | 次数 | fps | p95 | p99 | >33ms | LoAF | 底板重画 | 新挂底板 | 磁贴渲染 | stage 提交 | 动画磁贴峰值 | 首块 ms | 首屏长任务 ms | JS 堆 MB | visualizer |';
+    const divider = `|${' --- |'.repeat(18)}`;
+    const lines = rows.map(row => `| ${row.items} | ${row.scenario} | ${row.look} | ${row.runs} | ${fixed(row.fps)} | ${fixed(row.p95)} | ${fixed(row.p99)} | ${fixed(row.over33, 0)} | ${fixed(row.loaf, 0)} | ${fixed(row.plateRedraws, 0)} | ${fixed(row.platesAdded, 0)} | ${fixed(row.tileRenders, 0)} | ${fixed(row.stageCommits, 0)} | ${fixed(row.peakAnimated, 0)} | ${fixed(row.firstTileMs, 0)} | ${fixed(row.mountLongTaskMs, 0)} | ${row.heapMB === null ? '—' : fixed(row.heapMB, 0)} | ${row.visualizer} |`);
     return [header, divider, ...lines].join('\n');
 };

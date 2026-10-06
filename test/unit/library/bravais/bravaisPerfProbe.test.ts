@@ -59,7 +59,7 @@ describe('bravais perf probe stats', () => {
             mount: { firstTileMs: 10 * (index + 1), worstFrameMs: 0, longTaskMaxMs: 0, loafMaxMs: 0, tiles: 60 },
             motion: summarizePhase([8, 8 + index], []),
             settle: summarizePhase([8], []),
-            counts: { tileRenders: index, plateMaskRebuilds: index * 2, stageCommits: 1, stageCommitMs: 1, tilesAdded: 0 },
+            counts: { tileRenders: index, plateRedraws: index * 2, plateRedrawBlocks: index, strayPlateRedraws: 0, platesAdded: 1, stageCommits: 1, stageCommitMs: 1, tilesAdded: 0 },
             animation: { triggers: 0, peakAnimated: 0, maxOffscreen: 0 },
             tiles: { peak: 60, windows: 15 },
             memory: null,
@@ -68,7 +68,7 @@ describe('bravais perf probe stats', () => {
         } satisfies PerfResult));
         const rows = aggregateResults(results);
         expect(rows).toHaveLength(1);
-        expect(rows[0]).toMatchObject({ items: 500, scenario: 'pan', look: 'partial·3', runs: 3, firstTileMs: 20, maskRebuilds: 2, heapMB: null, visualizer: 'none' });
+        expect(rows[0]).toMatchObject({ items: 500, scenario: 'pan', look: 'partial·3', runs: 3, firstTileMs: 20, plateRedraws: 2, platesAdded: 1, heapMB: null, visualizer: 'none' });
         expect(formatPerfTable(rows).split('\n')).toHaveLength(3);
     });
 });

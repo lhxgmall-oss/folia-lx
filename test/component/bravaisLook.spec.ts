@@ -9,11 +9,15 @@ import '../../dev/probes/homeBehavior/probeApi';
 // - 外观动作换窗数与循环三档：窗数跟着变，全透明时墙上只剩标题（聚焦卡照常有封面），实色档没有底板；
 // - 聚焦卡让位期间局部底板顶上，落定后收起；
 // - 拖动只改底板遮罩的位置，不重建遮罩、不重渲染磁贴。
+// B12b：底板改为按块的 SVG（世界层里、磁贴之下，没有 CSS 遮罩）——让位期间只逐帧重画聚焦那一块、洞跟着窗磁贴的实时矩形；
+// 拖动时底板随世界层平移，块底板与磁贴都不重画。
 // 探针里没有 visualizer，窗里露出的是页面底色；visualizer 的挂载 / 卸载在 e2e 的 bravaisVisualizerMount 里。
 
 const stage = (page: Page) => page.locator('[data-library-stage="bravais"]');
-const plate = (page: Page) => page.locator('[data-bravais-plate]');
-const livePlate = (page: Page) => page.locator('.bravais-plate.is-live');
+const plates = (page: Page) => page.locator('[data-bravais-plate-block]');
+type CountWindow = Window & { __renderCounts?: Record<string, number>; __plateWrites?: string[]; __reflowError?: number[] };
+const plateHoleCounts = (page: Page) => page.evaluate(() => [...new Set([...document.querySelectorAll<SVGSVGElement>('[data-bravais-plate-block]')]
+    .map(svg => svg.dataset.bravaisPlateHoles))]);
 const runChrome = (page: Page, id: string) => page.evaluate(actionId => window.__homeProbe!.runChrome(actionId), id);
 const chromeAvailable = (page: Page) => page.evaluate(() => window.__homeProbe!.chrome()?.available ?? []);
 
@@ -74,8 +78,21 @@ test.describe('[bravais] see-through wall', () => {
         await expect(stage(page)).toHaveClass(/is-see-through/);
         expect(await stage(page).evaluate(element => getComputedStyle(element).backgroundImage)).toBe('none');
         await expect.poll(() => windowsPerRenderedBlock(page)).toEqual([3]);
-        // 底板：遮罩里有窗的 SVG（evenodd 路径），底色减去洞。
-        await expect.poll(() => plate(page).evaluate(element => getComputedStyle(element).maskImage)).toContain('data:image/svg+xml');
+        // 底板：每个已挂载的块一张 SVG（evenodd 路径 = 外框减去 3 个窗洞），在世界层里、磁贴之前；整个 stage 没有 CSS 遮罩。
+        await expect(plates(page).first()).toBeAttached();
+        const plateShape = await page.evaluate(() => {
+            const all = [...document.querySelectorAll<SVGSVGElement>('[data-bravais-plate-block]')];
+            return {
+                holes: [...new Set(all.map(svg => svg.dataset.bravaisPlateHoles))],
+                subpaths: [...new Set(all.map(svg => svg.querySelector('path')!.getAttribute('d')!.match(/M/g)!.length))],
+                fillRule: getComputedStyle(all[0].querySelector('path')!).fillRule,
+                beforeTiles: all.every(svg => svg.parentElement!.classList.contains('lattice-world')
+                    && !svg.previousElementSibling?.classList.contains('bravais-tile')),
+                masked: [...document.querySelectorAll('[data-library-stage="bravais"], [data-library-stage="bravais"] *')]
+                    .filter(element => getComputedStyle(element).maskImage !== 'none').length,
+            };
+        });
+        expect(plateShape).toEqual({ holes: ['3'], subpaths: [4], fillRule: 'evenodd', beforeTiles: true, masked: 0 });
         await expect(page.locator('.bravais-tile[data-bravais-kind="window"][data-library-card]')).toHaveCount(0);
 
         // 点窗：不聚焦、不展开、不打开下一层。
@@ -106,6 +123,7 @@ test.describe('[bravais] see-through wall', () => {
         expect(await runChrome(page, 'wall-look')).toBe(true);
         await expect(stage(page)).toHaveAttribute('data-bravais-look', 'clear');
         await expect.poll(() => windowsPerRenderedBlock(page)).toEqual([0]);
+        await expect.poll(() => plateHoleCounts(page)).toEqual(['12']);
         await expect.poll(() => chromeAvailable(page)).not.toContain('more-windows');
         const seeThrough = page.locator('.bravais-tile[data-bravais-see-through] > article').first();
         await expect(seeThrough).toBeAttached();
@@ -124,28 +142,79 @@ test.describe('[bravais] see-through wall', () => {
         // 实色：没有底板、没有窗，根节点画墙面。
         expect(await runChrome(page, 'wall-look')).toBe(true);
         await expect(stage(page)).toHaveAttribute('data-bravais-look', 'solid');
-        await expect(plate(page)).toHaveCount(0);
+        await expect(plates(page)).toHaveCount(0);
         await expect(page.locator('.bravais-tile[data-bravais-see-through], .bravais-tile[data-bravais-kind="window"]')).toHaveCount(0);
         expect(await stage(page).evaluate(element => getComputedStyle(element).backgroundImage)).toContain('radial-gradient');
     });
 
-    test('a live plate covers the focused block while it re-gears, then hands back to the main plate', async ({ page }) => {
+    test('a focus reflow redraws only its own block plate, with the holes riding on the moving windows', async ({ page }) => {
         await openCollection(page);
+        await expect(plates(page).first()).toBeAttached();
         const track = await visibleSlot(page, '.bravais-tile[data-library-entry]');
+        const blockKey = track!.split(',').slice(0, 2).join(',');
+        // 每次块底板的路径被写（MutationObserver 的微任务，与写入同一帧）：记下是哪一块，并把路径里的洞对照块里窗磁贴
+        // 此刻的实际位置（getBoundingClientRect；磁贴越出块外框的部分先裁掉，洞本来就裁到外框里）。
+        await page.evaluate((key) => {
+            const countWindow = window as CountWindow;
+            countWindow.__plateWrites = [];
+            countWindow.__reflowError = [];
+            const measure = (svg: SVGSVGElement) => {
+                const box = svg.getBoundingClientRect();
+                const ratio = box.width / svg.viewBox.baseVal.width;
+                const holes = [...svg.querySelector('path')!.getAttribute('d')!.matchAll(/M(-?[\d.]+) (-?[\d.]+)h(-?[\d.]+)v(-?[\d.]+)/g)]
+                    .slice(1)
+                    .map(match => ({
+                        left: box.left + Number(match[1]) * ratio,
+                        top: box.top + Number(match[2]) * ratio,
+                        right: box.left + (Number(match[1]) + Number(match[3])) * ratio,
+                        bottom: box.top + (Number(match[2]) + Number(match[4])) * ratio,
+                    }));
+                let worst = 0;
+                document.querySelectorAll<HTMLElement>(`.bravais-tile[data-bravais-slot^="${key},"][data-bravais-kind="window"]`).forEach((tile) => {
+                    const rect = tile.getBoundingClientRect();
+                    const clipped = {
+                        left: Math.max(box.left, rect.left),
+                        top: Math.max(box.top, rect.top),
+                        right: Math.min(box.right, rect.right),
+                        bottom: Math.min(box.bottom, rect.bottom),
+                    };
+                    worst = Math.max(worst, Math.min(...holes.map(hole => Math.max(
+                        Math.abs(hole.left - clipped.left), Math.abs(hole.top - clipped.top),
+                        Math.abs(hole.right - clipped.right), Math.abs(hole.bottom - clipped.bottom),
+                    ))));
+                });
+                countWindow.__reflowError!.push(worst);
+            };
+            new MutationObserver((records) => {
+                const written = new Set<SVGSVGElement>();
+                for (const record of records) {
+                    const svg = (record.target as Element).closest<SVGSVGElement>('[data-bravais-plate-block]');
+                    if (!svg) continue;
+                    countWindow.__plateWrites!.push(svg.dataset.bravaisPlateBlock!);
+                    written.add(svg);
+                }
+                written.forEach(svg => { if (svg.dataset.bravaisPlateBlock === key) measure(svg); });
+            }).observe(document.querySelector('[data-library-stage="bravais"]')!, { attributes: true, subtree: true, attributeFilter: ['d'] });
+        }, blockKey);
         await tile(page, track!).locator('article').click();
-        // 让位期间：局部底板顶上（块矩形减去窗的实时矩形），主底板在这一块上挖整块的洞。
-        await expect(livePlate(page)).toHaveAttribute('data-bravais-live-plate', /^-?\d+,-?\d+$/);
-        await expect(livePlate(page)).toBeVisible();
-        const layers = await livePlate(page).evaluate(element => element.style.maskComposite.split(',').length);
-        expect(layers).toBe(1 + 3);
-        // 落定：局部底板收起。
-        await expect(livePlate(page)).toBeHidden({ timeout: 3_000 });
-        await expect(livePlate(page)).not.toHaveAttribute('data-bravais-live-plate', /.+/);
+        // 让位期间：只有聚焦的块挂着 data-bravais-plate-live；落定后摘掉。
+        await expect(page.locator('[data-bravais-plate-live]')).toHaveAttribute('data-bravais-plate-block', blockKey);
+        await expect(page.locator('[data-bravais-plate-live]')).toHaveCount(0, { timeout: 3_000 });
         await expect(tile(page, track!)).toHaveAttribute('data-bravais-expanded', 'true');
+        const result = await page.evaluate(() => ({
+            writes: (window as CountWindow).__plateWrites ?? [],
+            error: (window as CountWindow).__reflowError ?? [],
+        }));
+        // 逐帧重画的只有这一块（远多于落定时的一次），别的块一次都没重画。
+        expect(new Set(result.writes)).toEqual(new Set([blockKey]));
+        expect(result.writes.length).toBeGreaterThan(5);
+        // 洞贴着窗磁贴走：每次写入时的误差都在 1.5 屏幕像素以内（按让位过渡自己的参数推算，不读样式）。
+        expect(result.error.length).toBeGreaterThan(5);
+        expect(Math.max(...result.error)).toBeLessThan(1.5);
     });
 
-    test('dragging only moves the plate mask, without rebuilding it or re-rendering tiles', async ({ page }) => {
-        await expect.poll(() => plate(page).evaluate(element => element.style.maskPosition)).not.toBe('');
+    test('dragging moves the block plates with the world, without redrawing them or re-rendering tiles', async ({ page }) => {
+        await expect(plates(page).first()).toBeAttached();
         const field = await page.locator('.bravais-field').boundingBox();
         const x = field!.x + field!.width * 0.25;
         const y = field!.y + field!.height * 0.4;
@@ -160,18 +229,42 @@ test.describe('[bravais] see-through wall', () => {
             }
             await page.mouse.up();
         };
-        // 先拖一段让裁剪范围跟上（快到已渲染范围的边缘时会加挂整块，那时重建遮罩是预期的：可见块集合变了），
-        // 再拖回来量：这一段在已裁剪的范围里，只该改遮罩位置。
+        // 先拖一段让裁剪范围跟上（挂载时的裁剪范围是缝张开之前量的），再拖回来量：这一段在已裁剪的范围里。
         await drag(x, y, 72, 48);
         await page.waitForTimeout(300);
-        await page.evaluate(() => { (window as Window & { __renderCounts?: Record<string, number> }).__renderCounts = {}; });
-        const before = await plate(page).evaluate(element => ({ position: element.style.maskPosition, image: element.style.maskImage }));
+        await page.evaluate(() => {
+            const countWindow = window as CountWindow;
+            countWindow.__renderCounts = {};
+            countWindow.__plateWrites = [];
+            new MutationObserver((records) => {
+                for (const record of records) {
+                    if (record.type === 'attributes') countWindow.__plateWrites!.push('d');
+                    record.addedNodes.forEach((node) => {
+                        if (node instanceof Element && node.matches('[data-bravais-plate-block]')) countWindow.__plateWrites!.push('added');
+                        if (node instanceof Element && node.matches('.bravais-tile')) countWindow.__plateWrites!.push('tile added');
+                    });
+                }
+            }).observe(document.querySelector('[data-library-stage="bravais"]')!, { attributes: true, childList: true, subtree: true, attributeFilter: ['d'] });
+        });
+        const worldBefore = await page.locator('[data-bravais-half="right"]').evaluate(element => element.style.transform);
+        const plateKey = await plates(page).first().getAttribute('data-bravais-plate-block');
+        const plate = page.locator(`[data-bravais-plate-block="${plateKey}"]`);
+        const firstTile = page.locator(`.bravais-tile[data-bravais-slot^="${plateKey},"]`).first();
+        const boxBefore = await plate.boundingBox();
+        const tileBefore = await firstTile.boundingBox();
         await drag(x + 72, y + 48, -72, -48);
-        const after = await plate(page).evaluate(element => ({ position: element.style.maskPosition, image: element.style.maskImage }));
-        expect(after.position).not.toBe(before.position);
-        expect(after.image).toBe(before.image);
-        const counts = await page.evaluate(() => (window as Window & { __renderCounts?: Record<string, number> }).__renderCounts ?? {});
-        expect(counts.BravaisPlateMask ?? 0).toBe(0);
-        expect(counts.BravaisTile ?? 0).toBe(0);
+        const worldAfter = await page.locator('[data-bravais-half="right"]').evaluate(element => element.style.transform);
+        const boxAfter = await plate.boundingBox();
+        const tileAfter = await firstTile.boundingBox();
+        // 底板与磁贴一起随世界层平移（同一个 transform），自己什么都不写。
+        expect(worldAfter).not.toBe(worldBefore);
+        expect(Math.abs(boxAfter!.x - boxBefore!.x) + Math.abs(boxAfter!.y - boxBefore!.y)).toBeGreaterThan(10);
+        expect(boxAfter!.x - boxBefore!.x).toBeCloseTo(tileAfter!.x - tileBefore!.x, 1);
+        expect(boxAfter!.y - boxBefore!.y).toBeCloseTo(tileAfter!.y - tileBefore!.y, 1);
+        const counts = await page.evaluate(() => ({ renders: (window as CountWindow).__renderCounts ?? {}, writes: (window as CountWindow).__plateWrites ?? [] }));
+        // 已裁剪的范围里拖动：块底板不重画、不新挂块、不新挂磁贴（没有重新裁剪），也不重渲染。
+        expect(counts.writes).toEqual([]);
+        expect(counts.renders.BravaisBlockPlate ?? 0).toBe(0);
+        expect(counts.renders.BravaisTile ?? 0).toBe(0);
     });
 });

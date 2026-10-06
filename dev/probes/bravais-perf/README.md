@@ -2,7 +2,8 @@
 
 真实的 `BravaisStage`（与宿主 `GridViewOverlayHost` 给的 props 同形）+ 合成的集合 / 首页层描述（走 surface 用的
 同一套投影），底下可选挂一个真实 visualizer（默认绘光 full，`showText: false`，与真实首页一致）。按任务矩阵一轮一轮地跑：
-每轮重新挂 stage（量首屏）→ 预热 → 运动 → 停稳，记帧间隔、长动画帧、底板遮罩重建、磁贴渲染与 stage 的 React 提交。
+每轮重新挂 stage（量首屏）→ 预热 → 运动 → 停稳，记帧间隔、长动画帧、块底板的重画与新挂、磁贴渲染与 stage 的 React 提交。
+（B12b 起透光底板按块画：每个已挂载的 12×8 块一张内联 SVG，在世界层里、磁贴之下，随相机平移；不再有全屏遮罩底板。）
 
 它测的是真实 stage；`folia-veil-probe` 里的 `bravaisVeil` 台架测的是简化墙（只用来比较底板的几种写法）。
 
@@ -13,7 +14,7 @@
 | 开发机 / 测试机的浏览器 | `npm run dev`，打开 `http://localhost:3000/dev-probe.html?probe=bravaisPerf`（或 `npm run dev:probe` 后在索引页点它）。空闲时是一份可拖动、可点的预览，面板上可切条目数 / 档位 / 窗数 / 层 |
 | 一条命令跑整套矩阵 | dev server 开着时 `npm run manual:bravais-perf -- --query "&repeats=3"`：脚本自己开一个有界面的 Chromium（窗口最大化、系统 DPR），跑完把 JSON 写到临时目录并打印结果表；每轮「停稳」时按进程采一次工作集（gpu-process / renderer），用来比较实色档卸载 visualizer 前后的内存。参数见 `test/manual/bravais-perf-probe.mjs` 文件头 |
 | Electron（开发构建） | `npm run dev:electron`（Electron + vite 3000，自动开 DevTools），在 DevTools Console 执行 `location.href = 'http://localhost:3000/dev-probe.html?probe=bravaisPerf&autorun=1&repeats=3'`。跑完 `copy(window.__bravaisPerfProbe.table())` 拿 Markdown 表，或点面板上的「导出 JSON」。回应用：`location.href = 'http://localhost:3000/'` |
-| Electron 正式包 | **探针打不开**：正式包从 `dist/index.html`（file://）加载，`dev-probe.html` 不在 `vite.config.ts` 的 `build.rollupOptions.input` 里，而且 `countRender` 在生产构建里是空函数（遮罩重建 / 磁贴渲染计数全是 0）。正式包里量的是**真实首页**：见下面「正式包里量真实首页」 |
+| Electron 正式包 | **探针打不开**：正式包从 `dist/index.html`（file://）加载，`dev-probe.html` 不在 `vite.config.ts` 的 `build.rollupOptions.input` 里，而且 `countRender` 在生产构建里是空函数（磁贴渲染计数全是 0）。正式包里量的是**真实首页**：见下面「正式包里量真实首页」 |
 
 Electron 开发构建与正式包用的是同一个 Chromium、同一组 GPU 开关（`electron/main.cjs` 顶部的 `appendSwitch`），合成与 GPU 的成本一致；
 差别是 React 开发版的 JS 开销更高、探针页面开着 StrictMode。所以探针里看**相对差异**（档位之间、有无 visualizer），绝对帧时间以正式包为准。
@@ -47,10 +48,10 @@ Electron 开发构建与正式包用的是同一个 Chromium、同一组 GPU 开
 | 场景 | 层 | 动作 |
 | --- | --- | --- |
 | `idle` | 集合 | 不动 |
-| `pan` | 集合 | 经真实滚轮处理的大范围往返平移（x 一个来回 ±2.2 屏、y 两个来回 ±1.6 屏），跨越大量块边界：重新裁剪、加挂磁贴、遮罩随可见块集合重建 |
-| `drift` | 集合 | 同一条轨迹缩到 ±110 / ±70px，先空走一圈让裁剪范围跟上，再量第二圈：只该改遮罩位置 |
+| `pan` | 集合 | 经真实滚轮处理的大范围往返平移（x 一个来回 ±2.2 屏、y 两个来回 ±1.6 屏），跨越大量块边界：重新裁剪、加挂磁贴与新块的底板（已挂的块底板不重画） |
+| `drift` | 集合 | 同一条轨迹缩到 ±110 / ±70px，先空走一圈让裁剪范围跟上，再量第二圈：只该写两个世界层的 transform（底板随之平移） |
 | `flip` | 集合 | 每 1.5s 进 / 出一次有限态过滤（每 7 首留 1 首，`planCount` 仍是全量），从缝的两侧边缘整面翻 |
-| `expand` | 集合 | 每 0.9s 点另一个块里的一张曲目磁贴：新旧两个块同时让位重排（局部底板逐帧重画） |
+| `expand` | 集合 | 每 0.9s 点另一个块里的一张曲目磁贴：新块让位重排（只有这一块的底板逐帧重画）、旧块瞬时归位（重画一次） |
 | `tab` | 首页 | 每 1.3s 换一次页签（歌单 ↔ 专辑）：整墙出场 → 入场 |
 
 ## 读数
@@ -61,7 +62,8 @@ Electron 开发构建与正式包用的是同一个 Chromium、同一组 GPU 开
 | --- | --- |
 | fps / p95 / p99 / >33ms | 运动阶段的 rAF 间隔。基准是 `1000 / 刷新率`（120Hz = 8.3ms）。rAF 间隔反映主线程与合成器交付帧的节奏，**不是 GPU 耗时** |
 | LoAF | 长动画帧（>50ms 的一帧）数量 |
-| 遮罩重建 | 主底板遮罩图重建次数（`countRender('BravaisPlateMask')`） |
+| 底板重画 | 已挂块底板的 `<path d>` 被改写的次数（MutationObserver；含聚焦卡让位期间的逐帧重画）。JSON 里另有重画过的块数 `plateRedrawBlocks` 与其中不是展开 / 收起聚焦卡那几块的 `strayPlateRedraws`（应为 0） |
+| 新挂底板 | 运动阶段新挂进 DOM 的块底板（重新裁剪带进来的块） |
 | 磁贴渲染 | `BravaisTile` 函数体执行次数（StrictMode 下挂载 / 更新各算两次） |
 | stage 提交 | stage 子树的 React 提交次数（`React.Profiler`） |
 | 动画磁贴峰值 | 一次触发里在动的磁贴数（翻牌上限 400；JSON 里 `maxOffscreen` 是其中落在翻牌范围之外的） |
@@ -153,5 +155,5 @@ dropped frames 才是判断「GPU 过载」的依据。
 ## 回归护栏
 
 `test/component/bravaisPerf.spec.ts` 挂同一个探针（`vis: 'none'`）钉结构不变量：首屏磁贴数与条目数无关、整面翻牌不超过
-400 张且屏外只换不翻、小范围拖动遮罩不重建 / 磁贴不重渲染 / stage 不提交、大范围拖动只渲染新进来的磁贴、聚焦放大每次常数次
-重建遮罩、换页签不重建遮罩。时间类只比 500 与 5000 首的差并兜宽天花板。它们是回归护栏，不是性能标准。
+400 张且屏外只换不翻、小范围拖动块底板不重画 / 磁贴不重渲染 / stage 不提交、大范围拖动只渲染新进来的磁贴并且只新挂块底板、
+聚焦放大只重画放大 / 收起的那几块、换页签不重画块底板。时间类只比 500 与 5000 首的差并兜宽天花板。它们是回归护栏，不是性能标准。
