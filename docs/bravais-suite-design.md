@@ -1,6 +1,6 @@
 # Bravais Suite 设计稿
 
-> 状态：讨论稿。原型在 `dev/prototypes/bravais/index.html`，用浏览器直接打开即可，不需要构建。
+> 状态：已实现（`src/library/suites/bravais/`，与 Lattice 共享的墙面几何在 `src/components/wall/`）。本文保留设计理由与否决方案的记录；与 core / 宿主的接口、外观动作、透光偏好、测试入口以 `docs/library-suites.md` 的「bravais：一面墙与一道缝」为准。原型在 `dev/prototypes/bravais/index.html`（用浏览器直接打开即可，不需要构建），是交互与几何的参照实现，不再随正式实现同步；文中「原型实测」「原型选项」指的是它。
 
 ## 0. 一句话
 
@@ -205,7 +205,7 @@ grid suite 有两个列表型面板需要保留：歌单页右侧展开的歌曲
 **歌曲列表**（歌单 / 专辑 / 文件夹 / 歌手页）
 
 - 列表顺序 = 层的条目顺序；过滤时只列出匹配项。
-- 本地歌单的工具行有排序字段和升降序（实现时接 `useLocalTrackSortStore`，跨 renderer 共用）。换排序会重排层的条目，整面翻牌：无限态保留起点偏移，起点磁贴变成新的第 1 项；有限态按新顺序重新 rank。排序不触发退化（§4）。
+- 本地歌单的工具行有排序字段和升降序（接 `useLocalTrackSortStore`，跨 renderer 共用）。换排序会重排层的条目，整面翻牌：无限态保留起点偏移，起点磁贴变成新的第 1 项；有限态按新顺序重新 rank。排序不触发退化（§4）。
 - 列表 ↔ 墙双向联动：
   - 悬停列表行，墙上该条目的所有可见副本高亮（`is-linked`）。
   - 单击列表行，定位到离缝最近的那一份（无限态有多份）。相机 x 在「缝完整在屏内」和「磁贴在屏内」两个可行区间的交集里取离当前最近的值，避免面板被挤出屏幕自动收起；交集为空时优先保证磁贴可见。到位后磁贴轻微脉冲。
@@ -219,7 +219,7 @@ grid suite 有两个列表型面板需要保留：歌单页右侧展开的歌曲
   - 批量模式本身「怕重复」，面板一打开就退化为以缝为中心的有限拼贴；关闭面板（返回）即退出批量模式：清空选择和目录过滤，翻回无限拼贴。
   - 样式沿用 GridMap：**未选中的卡片灰度 + 半透明**（`opacity-35 grayscale`），选中的保持原色并带勾。
   - 点卡片**只切换选中，绝不进入文件夹**（对应 GridMap `onSelect` 里批量模式的提前 return）。拖动后的残余 click 要像 GridMap 的 `suppressSelectionRef` 一样吞掉。
-- 树：根目录 / 歌手 / 专辑，可以展开或收起。勾选单位是文件夹卡片，节点三态（全选 / 部分 / 未选）按子树下的文件夹卡片计算，点击勾选或取消整棵子树。grid 还有「仅本层」（direct）状态，实现时沿用 `resolveDirectoryNodeSelection` 和 `resolveNextDirectoryNodeSelectionTarget`。
+- 树：根目录 / 歌手 / 专辑，可以展开或收起。勾选单位是文件夹卡片，节点三态（全选 / 部分 / 未选）按子树下的文件夹卡片计算，点击勾选或取消整棵子树。grid 还有「仅本层」（direct）状态，实现沿用 `resolveDirectoryNodeSelection` 和 `resolveNextDirectoryNodeSelectionTarget`。
 - 面板里的输入框在这里是**目录过滤**（`directory-filter`），不是全局搜索。
 - 底部批量操作对应 core 的 home actions，所选文件夹展开成曲目时去重：播放所选（`directory-play-selection`）、加入队列（`directory-enqueue-selection`）、建歌单（`directory-create-playlist`）、移除（`directory-remove-selection`）、清空选择。根目录级的重新扫描、移除根目录、恢复忽略（`directory-rescan-root` / `directory-remove-root` / `directory-clear-ignore`）放在节点行的悬停操作里，原型未做。
 - 窄屏下面板几乎占满屏幕宽度，相当于切换到列表模式，墙只在两侧露出一点。
@@ -233,11 +233,13 @@ grid suite 有两个列表型面板需要保留：歌单页右侧展开的歌曲
 folia 的底部播放胶囊（`FloatingPlayerControls`）居中悬浮，宽 `min(32rem, 100vw − 120px)`，底距是全局基线 `PLAYER_BOTTOM_BAR_BASE_OFFSET_PX`（32，用户可以抬高）。缝在屏幕中间时正好落在它上方，底部的播放、展开按钮和输入框会被挡住。
 
 - 缝内容底部整体让出安全区，和播放页字幕用同一套几何：`底距 + PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX(80) + 8`。默认是 120px。
-- 实现时底距不要写死，而是走 `usePlayerBottomBarBottomPx()`（共享 MotionValue）。控制条隐藏或出现时，按 `resolvePlayerSubtitleBottomFromPresence` 的方式用 presence 连续过渡。这样用户拖高播放条时，缝的安全区会跟手。
+- 底距不写死，读共享的 MotionValue（`playerBottomBarLiveOffset`，`usePlayerBottomBarBottomPx()` 背后的同一个值；最初设想直接用这个 hook）。控制条隐藏或出现时，按 `resolvePlayerSubtitleBottomFromPresence` 的方式用 presence 连续过渡（`useBravaisPlayerSafeArea`）。这样用户拖高播放条时，缝的安全区会跟手。
 - 只要控制条在场就始终让出，不按缝和胶囊是否水平重叠来切换，避免拖动墙时缝的内容上下跳。
 - 原型实测：完整态和书脊态下，缝内可交互元素与胶囊的重叠数都为 0。
 
-### 待原型验证
+### 原型阶段的未决问题（已结）
+
+下面三条是原型阶段列出的问题，都已经有结论：裂缝只开在块边界上，块边界不会切到磁贴，遮挡 / 断开不再相关（实现是断开：缝两侧各是一半墙，各自平移）；缝的基准线在视口正中；窄屏不改横向，而是收成书脊（本节「窄屏：书脊形态」）。原文保留如下。
 
 1. 墙横移时，跨缝的磁贴怎么处理：**遮挡**（世界连续，缝盖在上面）还是**断开**（缝两侧各是一段视口，世界坐标不连续）。原型里两种都做。
 2. 缝放在视口正中，还是偏左三分之一。
@@ -380,7 +382,7 @@ bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不�
 - 坑：过滤框里的 ↓ 把焦点交给墙后必须 `stopPropagation`，否则同一次按键会冒泡到墙的方向键处理，焦点多走一格。正式实现放在 `filterViewSurface.onKeyDown` 里返回「已处理」即可。
 - 键盘焦点按 slot key 记录只适合原型；正式实现按条目 key 记录在会话的 `focusedEntryKey`，因为无限墙同一条目有多份、翻牌后 slot 内容会变。
 
-## 8. 架构落点（实现阶段）
+## 8. 架构落点
 
 ### 8.1 单一常驻墙
 
@@ -388,8 +390,8 @@ home 由 `Home.tsx` 渲染，collection/artist 由 `GridViewOverlayHost.tsx` 以
 
 方案：
 
-- bravais 通过 `transitions.Overlay`（由 `listLibrarySuiteOverlays` 常驻挂载）挂一个 `BravaisStage`。它拥有墙、相机和缝。
-- 各 surface 组件（`BravaisHome` / `BravaisCollection` / `BravaisArtist`）**不渲染墙**，只把自己的层描述推进 suite 内的 `bravaisStageStore`：
+- bravais 在 manifest 上声明 `stage`（`BravaisStage`，类型 `LibrarySuiteStageProps`）。宿主 `GridViewOverlayHost` 只挂**生效 suite** 的 stage，位置在首页容器之后、集合层之前，打开 / 关闭集合只换 props、不重挂；当前层归 bravais 时宿主不垫中性背景板、也不隐藏首页。stage 拥有墙、相机和缝。（早先设想用 `transitions.Overlay` 挂 stage，但每一套 suite 的 Overlay 都常驻挂载、只拿到 `enabled`，承载不了常驻画面，也会让选 grid 的用户加载 bravais，所以在 core 里加了 `stage` 契约。）
+- 各 surface 组件（`BravaisHome` / `BravaisCollection` / `BravaisArtist`）**不渲染墙**，只把自己的层描述推进 suite 内的 `bravaisStageStore`。下面是最初的草图；实际的类型在 `bravaisLayer.ts`（多了 `sessionKey`、`surface`、回调、`wall` / `entries` / `home` 等可选扩展；起点磁贴不在层描述里，由 stage 在打开之前记下）：
 
 ```ts
 type BravaisLayer = {
@@ -426,9 +428,9 @@ type BravaisLayer = {
      - 在线搜索分页：搜索层是有限墙，相机拖近结果尽头（最后一个有内容的 slot 进入视口加 overscan）时调用 `loadMore`。新结果按 rank 接着往外填，有限墙的边界和相机范围随之扩大。已占用的 slot 不动，严格 rank 天然保证追加时只有新 slot 翻牌。
 2. **account surface**：已随 library-v2 合入 main（`surfaces.account`，整体回退）。bravais 的登录和账户切换也应该在墙上完成（例如用「二维码磁贴」翻出来）。没实现之前回退到 grid。具体落点改为缝内登录态，见 §10.7。
 3. ~~队列层接入 suite~~：不接入。Lattice 保持独立 app 视图，只和 bravais 共享 wall 引擎（§8.2）。
-4. **suite 外观动作注册接口（已定）**：palette 现有的作用范围（`grid-surface` / `directory-surface` / `artist-surface` 等）只覆盖 core 的资料动作，suite 自己的外观操作（缝的等级、面板、裂开、定位正在播放）没有位置。在 core 约定里加一个通用接口，其他 suite 也能用：
-   - 契约：`LibrarySuiteChromeAction = { id, labelKey, keywords, executeShortcut?, isAvailable(): boolean, run(): void }`；`useLibrarySuiteChromeRegistration({ isInteractive, getActions })`，与其他 surface 注册同一套 latest-ref + 按 `isInteractive` 注册 / 注销的模式。
-   - palette 侧：新增作用范围 `suite-chrome`，进入 `useCommandPaletteContext` 的 `scope`；命令由一个工厂按注册的动作动态生成（id 加 suite 前缀，如 `bravais-seam-spine`），执行键在同时可用的命令之间保持无前缀冲突。
+4. **suite 外观动作注册接口（已实现）**：palette 现有的作用范围（`grid-surface` / `directory-surface` / `artist-surface` 等）只覆盖 core 的资料动作，suite 自己的外观操作（缝的等级、面板、裂开、定位正在播放、透光）没有位置。在 core 约定里加了一个通用接口，其他 suite 也能用：
+   - 契约：动作的元数据**静态声明在 manifest 的 `chromeActions`** 里（`LibrarySuiteChromeActionMeta = { id, title, description, keywords, executeShortcut? }`），运行时只注册可用性与执行：`useLibrarySuiteChromeRegistration({ suiteId, isInteractive, handlers })`，`handlers` 是「动作 id → `{ isAvailable(), run() }`」，与其他 surface 注册同一套 latest-ref + 按 `isInteractive` 注册 / 注销的模式。没有 `labelKey`：正式文案在三份 locale 的 `commandPalette.commands.<suiteId>-<id>`（命令面板全链路都按命令 id 找文案），`title` / `description` 只是缺译时的英文回退。静态声明让命令契约测试与拼音插件能枚举它们。（最初的草案是运行时注册整条动作 `{ id, labelKey, keywords, executeShortcut?, isAvailable, run }`，改掉的原因同上。）
+   - palette 侧：新增作用范围 `suite-chrome`（要求首页视图），进入 `useCommandPaletteContext` 的 `scope`；命令由工厂按 manifest 的声明生成（id 加 suite 前缀，如 `bravais-seam-spine`），bootstrap 渲染前装进命令列表，执行键在同时可用的命令之间保持无前缀冲突（装入时检查）。
    - 动作只描述「做什么」，不碰 DOM；挂哪个 suite 由当前激活的 suite 决定，切换 suite 时随组件卸载自动注销。
 5. **集合导航栈只折叠紧邻往返（N1，已合入；2026-10-06 订正了原先的「去环」）**：不再无条件去环（A › B › C › D › E 再点 B 时退回 B 会丢掉 C、D、E，用户接着按返回期待回到 E）。只有要进入的集合正好是上一层（倒数第二层）时当作一次返回（X → Y → X 变回 X，浏览器历史同步退回），其余照常压栈——**栈里可以有重复的集合**，深度不设上限。N1 同时提供 `popCollectionTo(depth)`（suite 契约 `LibraryCollectionNavigation.onPopTo`），depth 按位置算；bravais 的面包屑点击跳层用它，过长时折叠中间层（§5「面包屑」）。原型里专辑页点同一张专辑会重复压栈，是原型自身的 bug（主应用栈顶相同时什么都不做），原型不再单独修。
 
@@ -459,14 +461,20 @@ type BravaisLayer = {
 - 对齐 Library Core：声明并实现四个 surface 的全部动作，不靠回退 grid（§10）。需要输入 / 确认 / 选择的动作（改名、删除、加入歌单、登录与切换确认）在缝里原地翻成表单态，不弹浮层；集合页不做多选；本地 tab 四行是缝里的二级切换；管理隐藏是缝里按钮进入的视图模式，不是导航。
 - bravais 是 library v2 的正式 UI：设置里加 UI suite 选项，正式接入主程序（§10.10）。
 
+- 透光三档（实色 / 部分透明 / 全透明，默认部分透明，每块 1–6 个窗、默认 3），实色档卸载 visualizer，偏好不进外观导入导出（§11）。
+- 集合导航栈只折叠紧邻往返，面包屑可点击跳层（§5「面包屑」、§8.3 #5）。
+- 常驻画面走 manifest 的 `stage`，外观动作静态声明在 manifest 的 `chromeActions`（§8.1、§8.3 #4）。
+
 待定：
 
 1. 是否给 `PlaybackEntryView` 加「留在资料库（原地播放）」第三个值（§7，倾向不加）。
-1. core 侧补全局搜索的 search surface，以及搜索层的三处调整：只有歌曲、缝内切换搜索源、分页扩展有限墙（§8.3）。实现阶段再做。
+1. core 侧补全局搜索的 search surface，以及搜索层的三处调整：只有歌曲、缝内切换搜索源、分页扩展有限墙（§8.3）。在那之前，全局搜索提交是唯一一条离墙路径（§10.5）。
+1. 换机实测之后的四个决定（§11.6）：缝要不要 blur；透光是否接入静态模式 / 帧率限制；部分透明是否保留为默认；是否需要连续掉帧时自动降级。
+1. 正式版的初始选择是否保持 bravais（发版前复核，§10.10）。
 
-## 10. Library Core 能力对齐（实现前置）
+## 10. Library Core 能力对齐
 
-原型只覆盖了浏览、过滤、聚焦、播放 / 入队和面板这几条主线。bravais 要作为正式 suite 上线，必须按 `docs/library-suites.md` 的契约，**声明并实现全部四个 surface 的全部动作**。
+原型只覆盖了浏览、过滤、聚焦、播放 / 入队和面板这几条主线。bravais 要作为正式 suite 上线，必须按 `docs/library-suites.md` 的契约，**声明并实现全部四个 surface 的全部动作**。现状：四个 surface 都已实现，动作集与 grid 相同（集合页 23 个、首页 15 个、歌手页 10 个、账户 7 个）。下面各表的「原型已做」「原型未做」记的是原型阶段的进度，正式实现里都已做。
 
 原因：grid 是唯一的回退。回退到 grid 的页面会以覆盖层的形式压在墙上，等于打破「始终站在墙前」。所以目标是和 grid 声明的动作集一致（grid 声明了全部动作），不靠回退兜底。
 
@@ -682,7 +690,7 @@ bravais 是 library v2 的正式新 UI，以后的开发以它为主。它不走
 
 **选项与存储**：
 
-- `useLibrarySuiteStore` 改为持久化（localStorage）。读取时先经 registry 校验；未知或当前构建不可用的 id 回到默认 suite。这个 store 的注释里已经预留了「成为正式选项时再接入设置」。
+- `useLibrarySuiteStore` 改为持久化（localStorage `library_suite`，只在用户选择时写）。store 不校验 id（state 不 import registry）；未知或当前构建不可用的 id 在渲染时经 registry 回到默认 suite，设置项与命令显示的是实际生效的 suite（`resolveActiveLibrarySuiteId`）。
 - 选项列表取 registry 里 `available` 为真的 suite：生产构建里是 grid 与 bravais；TUI 仍是开发验证 suite，只在开发 flag 打开时出现。
 - 默认值（已定）：开发阶段，没做过选择的用户默认进入 bravais（「初始选择」）；grid 仍是回退 suite（未知 id、缺 surface 时用它）。现有测试与截图基线经构建变量钉在 grid。发版前复核正式版的初始选择。
 - 开发浮层 `DevLibraryRendererSwitch` 保留给开发用，和设置项写同一个 store。
@@ -691,18 +699,19 @@ bravais 是 library v2 的正式新 UI，以后的开发以它为主。它不走
 
 - 放在**界面设置**（`GeneralSettingsSubview`），在「播放进入视图」旁边（已定）。
 - 不进外观配置的导入导出（短码 / JSON）：suite 选择是界面偏好而不是视觉调参，避免分享外观配置时顺带改掉对方的资料库界面。
-- 命令面板：在 `settingsCommands` 里加一条「切换资料库界面」（picker surface 列出可用 suite），`isAvailable` 与设置 UI 用同一个判断。文案同步 en / zh-CN / in 三份 locale，关键词带中英文和拼音缩写。
+- 命令面板：`settingsCommands` 里的 `settings-library-suite`（锚点）与 `library-suite-picker`（picker surface 列出可用 suite），`isAvailable` 与设置 UI 用同一个判断（`hasLibrarySuiteChoice`）。文案同步 en / zh-CN / in 三份 locale；关键词只写中英文，拼音由构建期插件生成（契约测试禁止手写能生成的拼音）。
 - 切换时走现有的 `app/switchLibrarySuite`：不重新请求，筛选、选中、焦点与播放队列保持；转场计划由各 suite 的 `transitions.reset` 丢弃。
 
 **按需加载**：
 
-- bravais 的 surface 组件都用 `React.lazy`，用户没选 bravais 时不加载它的 chunk。
-- 注意 `listLibrarySuiteOverlays()` 会把**每一套** suite 的 `transitions.Overlay` 常驻挂载（`GridViewOverlayHost`）。所以 bravais 的 Overlay 必须是一个很薄的壳：只在当前 suite 是 bravais 时才 lazy 加载 `BravaisStage`，否则渲染 null。不能让选 grid 的用户也加载整面墙。
-- `BravaisStage` 横跨首页与集合层（§8.1），要确认 `GridViewOverlayHost` 在首页时也常驻。若不是，就把 stage 的挂载点上移到首页外壳与集合宿主的共同祖先。这是实现第一步要核实的点。
+- bravais 的 stage 与四个 surface 组件都用 `React.lazy`，entry 只静态 import react；用户没选 bravais 时不加载它的 chunk（生产构建产物核对过）。
+- stage 不走 `transitions.Overlay`：`listLibrarySuiteOverlays()` 会把**每一套** suite 的 Overlay 常驻挂载，所以 core 加了 manifest 的 `stage`，宿主只挂生效 suite 的那一个（§8.1）。`GridViewOverlayHost` 是首页与集合层的共同祖先，打开 / 关闭集合时 stage 不重挂；离开首页约 350ms 后首页外壳卸载，stage 随之卸载，所以相机、缝的锚点等布局记忆放在 sessionStorage，缝的等级放在模块级 store。
 
-### 10.11 实现顺序（草案）
+### 10.11 实现顺序（已按计划实现）
 
-正式实现计划（步骤、闸门、交接记录）在 `plan/bravais-implementation-plan.md`（git-ignored）。下面是概要。
+下面的顺序已按正式实现计划（本地的 `plan/bravais-implementation-plan.md`，不入库）实现完毕，留作记录：前置的 core / app 契约（suite 选项、`stage`、外观动作、N1）→ 抽出 wall 引擎 → bravais 几何 → 骨架与透光 → 集合页、歌手页、首页、账户 → 导航与转场收尾 → 性能探针与按块底板。实现后的接口与测试入口见 `docs/library-suites.md` 的「bravais：一面墙与一道缝」；还没做的只剩第 6、7 条（发版前复核初始选择；search surface 落地后搜索进墙）与 §11.6 的换机实测。
+
+原先的概要：
 
 1. **core / app 前置**：
    - suite 选项持久化与设置项（§10.10）；

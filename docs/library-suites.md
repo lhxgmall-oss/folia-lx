@@ -7,7 +7,13 @@
 1. 音乐库浏览（首页、集合详情、歌手页）与在线账户（扫码登录、选平台、切换确认、登出）的代码怎么分成「core」和「UI suite」，它们之间怎么配合；
 2. 想写一套新的 UI 时，core 提供了哪些能力、哪些建议实现、哪些可以不做。
 
-代码都在 `src/library/` 下。目前提供默认的 `grid`，以及默认关闭、需显式启用的开发验证 suite `tui`。
+代码都在 `src/library/` 下。目前有三套 suite：
+
+- `grid`：默认 suite，也是**回退 suite**——未知 id、某套 suite 缺某个 surface 时都由它渲染。
+- `bravais`：library v2 的正式新 UI（「一面墙 + 一道缝」，设计稿 `docs/bravais-suite-design.md`），实现全部四个 surface，开发阶段是没做过选择的用户的**初始选择**。
+- `tui`：开发验证 suite，默认关闭，需显式启用。
+
+选哪套、初始选择与回退见「选哪套：设置项、初始选择与回退」。
 
 ## 一句话
 
@@ -20,9 +26,12 @@ flowchart LR
     Shell[应用外壳<br/>Home / App] --> Host[宿主 library/app<br/>创建资源、控制器、端口]
     Host --> Registry[registry.ts<br/>按 surface 选 suite]
     Registry --> Grid[suites/grid]
+    Registry --> Bravais[suites/bravais]
     Registry --> Tui[suites/tui]
     Grid --> Core[core<br/>契约 · 规则 · 资源 · 状态 · hooks]
+    Bravais --> Core
     Tui --> Core
+    Bravais --> Wall[components/wall<br/>共享 wall 引擎]
     Host --> Core
     Core --> Svc[既有服务<br/>Omni · 本地曲库 · Navidrome · 播放器]
 ```
@@ -31,18 +40,20 @@ flowchart LR
 | --- | --- | --- | --- |
 | core | `src/library/core/` | 定义能力；加载、缓存、分页；判定「此刻能不能做」；执行删歌、订阅等动作；保存筛选词、选中项、焦点；持有在线账户的扫码登录、待确认切换与登出流程 | 不知道任何 UI 长什么样，不 import 任何 suite 或组件 |
 | suite | `src/library/suites/<id>/` | 把 core 的数据画出来，把按键 / 点击映射成 core 的动作；声明自己实现了哪些能力 | 不自己请求数据，不直接调 Omni / Navidrome / 本地曲库服务，不读账户 store，不 import 别的 suite |
-| 宿主 | `src/library/app/` | 为当前打开的页面创建资源和控制器，接好播放、编辑等端口，挂载共用的对话框，通过 registry 渲染当前 suite；创建在线账户 controller（`useLibraryAccountController.ts`），接好切换清理端口（`createLibraryAccountPort.ts`），在首页外壳里按 suite 渲染账户界面（`LibraryAccountHost.tsx`） | 不画具体界面 |
-| registry | `src/library/registry.ts` | 自动发现 `suites/*/entry.ts`；给定「哪个页面 + 用户选了哪套 suite」，返回该渲染的组件和它声明的动作 | — |
+| 宿主 | `src/library/app/` | 为当前打开的页面创建资源和控制器，接好播放、编辑等端口，挂载共用的对话框，通过 registry 渲染当前 suite（以及它的常驻舞台）；创建在线账户 controller（`useLibraryAccountController.ts`），接好切换清理端口（`createLibraryAccountPort.ts`），在首页外壳里按 suite 渲染账户界面（`LibraryAccountHost.tsx`） | 不画具体界面 |
+| registry | `src/library/registry.ts` | 自动发现 `suites/*/entry.ts`；给定「哪个页面 + 用户选了哪套 suite」，返回该渲染的组件和它声明的动作；给出生效 suite 的 stage | — |
+
+suite 可以 import `src/components/`（共享组件，例如 bravais 用的 wall 引擎 `src/components/wall/`）、`src/hooks/`、`src/stores/` 里的 app 级 store（播放、动效设置等），但不碰 `core/services`、不读账户与网易后端 store（见「账户」与「规则」两节）。
 
 core 内部再分五层，依赖只能从上往下：
 
 | 层 | 目录 | 内容 |
 | --- | --- | --- |
 | contracts | `core/contracts/` | 只有类型：能力清单、各页面的 props、资源快照、端口接口 |
-| model | `core/model/` | 纯函数：筛选、条目身份、批量范围、能力判定、账户规则（选平台、可登出、登录文案） |
+| model | `core/model/` | 纯函数：筛选、条目身份、批量范围、能力判定、账户规则（选平台、可登出、登录文案）、导航栈规则 |
 | services | `core/services/` | 资源（加载、分页、缓存、作废晚到结果）、动作控制器、账户 controller 与扫码登录会话 |
-| state | `core/state/` | zustand store：浏览会话、目录会话、隐藏项、当前 suite |
-| bindings | `core/bindings/` | React hooks：订阅资源、读写会话、拿到动作 |
+| state | `core/state/` | zustand store：浏览会话、目录会话、隐藏项、当前 suite、外观动作注册 |
+| bindings | `core/bindings/` | React hooks：订阅资源、读写会话、拿到动作、注册外观动作 |
 
 这些依赖规则由 `test/unit/library/layerBoundaries.test.ts` 和 `dev/mcp/ts-code-map/codemap.mjs` 检查，违反会直接报错。
 
@@ -90,7 +101,7 @@ P5 收尾后，首页、集合与歌手业务的真源统一为 core 资源、�
 6. 控制器先问 core 的规则「这个歌单能删歌吗」，再调上游接口；上游确认后，更新资源。
 7. 资源一更新，**所有订阅它的 UI 同时看到**。如果这时切回网格，网格拿到的是同一份资源：不重新请求，筛选词和焦点也还在（它们在浏览会话里，不在组件里）。
 
-网格删歌时有 460ms 的卡片退出动画。动画是网格自己的事：它在展示层「按住」旧的一帧，动画放完再显示已提交的数据。core 不等动画，TUI 也不受影响。
+网格删歌时有 460ms 的卡片退出动画。动画是网格自己的事：它在展示层「按住」旧的一帧，动画放完再显示已提交的数据。core 不等动画，TUI 也不受影响。bravais 同理：它比较前后两份条目认出移除，先把被删的那一格翻成空、按住旧帧，再让后面的条目依次前移一格（两段翻牌），也不需要 core 通知。
 
 ## 能力是怎么定义的
 
@@ -108,7 +119,10 @@ core 把能力分成两级：
 
 **没实现的 surface 会回退到默认 suite（grid）**：某套 suite 没有歌手页，打开歌手时就由网格渲染，用户照样能用。**没声明的动作**则既不出现在这套 UI 上，也不出现在命令面板里，避免「面板里有、界面上却做不到」。
 
-suite 还可以有自己的「局部动作」（`extraActions`），它们不属于 core。例如网格的「开关信息面板」「开关曲目侧栏」「编辑模式」。
+core 之外，suite 还有两类自己的操作：
+
+- **局部动作**（`extraActions`）：挂在某个 surface 上、只属于这套 UI 的动作，例如网格集合页的「开关信息面板」「开关曲目侧栏」「编辑模式」。
+- **外观动作**（manifest 的 `chromeActions`）：不挂在任何 surface 上的呈现操作，只出现在命令面板里，例如 bravais 的缝等级、打开列表、透光档位。见「外观动作（suite-chrome）」一节。
 
 ## 宿主交给每个页面的东西
 
@@ -116,28 +130,57 @@ suite 还可以有自己的「局部动作」（`extraActions`），它们不属
 
 | 页面 | 主要输入 |
 | --- | --- |
-| collection | `collection`（描述）、`resource`（曲目资源）、`mutations`（变更控制器）、`playback`（播放端口）、导航（`onBack` / `onDone` / `onOpenAlbum` / `onOpenArtist`）、`declaredActions`、`isInteractive` |
+| collection | `collection`（描述）、`resource`（曲目资源）、`mutations`（变更控制器）、`playback`（播放端口）、导航（`onBack` / `onDone` / `onOpenAlbum` / `onOpenArtist` / `onPopTo`）、`declaredActions`、`isInteractive` |
 | artist | `collection`、`resource`（歌手资源：详情、热门歌曲、专辑）、`playback`、导航（同上）、`onEditEntity`、`declaredActions`、`isInteractive` |
 | home | 首页数据（歌单、本地曲库……）、`account`（在线账户 controller：provider 列表、当前平台、选平台、登出）、可选的 `accountLayerRef`（账户层挂载点）、`homeResources`（收藏专辑、电台 feed、首页动作、Navidrome 概览、文件夹树）、`directoryActions`（目录批量动作）、`onOpenGridView`、`declaredActions`、`isInteractive` |
 | account | `account`（同一个 controller）、`layer`（首页 surface 交上来的账户层）、`theme`、`isDaylight`、`declaredActions`（账户动作）、`isInteractive`（首页外壳层的值） |
+| stage（可选，见「常驻舞台」） | `isInteractive`、`theme`、`isDaylight`、`navigation`（导航快照：`depth` / `origin` / `activeType` / `trail`）、`reportPlayerOcclusion` |
 
 `isInteractive` 为 false 时（例如另一层盖在上面、或正在退场），页面不要接键盘、不要往命令面板注册。
 
-## 返回：「完成」与「离开」
+## 导航栈：压栈、返回与跳层
 
-同一个手势在每套 suite 里含义相同，执行在宿主（`src/library/app/GridViewOverlayHost.tsx`），suite 只按手势选一个回调：
+集合与歌手页是一个导航栈（`src/stores/useCollectionNavigationStore.ts`），执行都在宿主（`src/library/app/GridViewOverlayHost.tsx`）与 `src/hooks/useAppNavigation.ts`，suite 只按手势选一个回调。
+
+### 压栈：只折叠紧邻往返
+
+`core/model/collectionNavigation.ts` 的 `resolveCollectionPush(snapshot, collection)` 决定一次打开怎么落：
+
+- 栈顶就是它 → `noop`；
+- 正好是倒数第二层（X → Y → X）→ `back`：当作一次返回，浏览器历史同步退一步（`popCollectionLayer({ leaveLayer: true })`，连同这一层之上 suite 自己写的面板记录一起越过，见下面「suite 自己的 history 记录」）；
+- 其余 → `push`。栈里**可以有重复的集合**，深度不设上限（A › B › C › D › E 再打开 B 是压栈，不会丢掉 C、D、E）。
+
+`useCollectionNavigationStore.push` 返回这个决定。宿主只在 `push` 分支跑 `transitions.beforePush`；`back` 分支与浏览器后退一样，由弹栈通知跑一次 `beforeBack`。`history.back()` 在途（popstate 落地前，≤1 秒）时忽略新的压栈与跳层。
+
+### 返回：「完成」与「离开」
+
+同一个手势在每套 suite 里含义相同：
 
 | 手势 | 回调 | 含义 | 宿主做什么 |
 | --- | --- | --- | --- |
-| 显式的返回按钮 | `onDone` | 看完了 | 清掉这一层的浏览会话（筛选、焦点）；让**每一套** suite 忘掉这一层的布局记录（manifest 的 `layout.forget`，网格丢掉 `folia_gridview_state:v2:` / `folia_artist_grid_state:v2:` 两份记录）；再返回 |
+| 显式的返回按钮 | `onDone` | 看完了 | 清掉这一层的浏览会话（筛选、焦点）；让**每一套** suite 忘掉这一层的布局记录（manifest 的 `layout.forget`，网格丢掉 `folia_gridview_state:v2:` / `folia_artist_grid_state:v2:` 两份记录，bravais 丢掉 `folia_bravais_layout:v1:`）；再返回 |
 | Escape 阶梯的最后一步 | `onBack` | 离开但保留 | 只返回 |
 | 浏览器后退 | —（不经过 suite） | 离开但保留 | popstate 弹栈之前由导航 store 通知（`subscribeCollectionPop`），宿主让渲染这一层的 suite 跑 `transitions.beforeBack` |
+| 面包屑跳层 | `onPopTo(depth)` | 一次退回到某一层 | 见下面「跳层」 |
 
 要点：
 
 - 两条返回路径都只跑一次 `beforeBack`：应用内返回先跑，再走 `history.back()`；随后的弹栈通知认出这是同一次弹栈，不再跑。浏览器后退时 `beforeBack` 也是在界面与导航 store 都还没变的时候运行，网格的反向移形换影与卡片散开和点返回按钮一样出现。
 - 「完成」先清会话再返回。离开的那一层卸载时如果还想把焦点写回（TUI 会），要先比较会话的「代」（`getLibrarySessionGeneration`）：挂载以来被清过就不写，否则会把刚清掉的会话又写出来。
 - 布局记录不在 core 里，但「忘掉」要由宿主统一发起：在 TUI 里看完的集合，下次在网格里打开也应该从头开始。有布局记录的 suite 在 entry 里给 `layout: { forget(sessionKey) }`。
+
+### 跳层：`onPopTo` 与 `trail`
+
+- **`onPopTo(depth)`**（`LibraryCollectionNavigation.onPopTo`，经 `useAppNavigation.popCollectionTo` → `HomeViewModel.onPopCollectionTo` → 宿主 prop 交给集合 / 歌手 surface）：`depth` 是保留的层数（与导航快照的 `depth` 同一种量，0 = 整个关掉），栈有重复时按位置算；不比当前浅、负数、非整数时什么都不做。导航层在历史日志（`src/hooks/navigationHistoryJournal.ts`）里找到目标层的第一条记录后 `history.go(-k)`，一次 popstate；找不到时兜底为通知弹栈 + 压一条截短的记录。调用方**不要**自己跑 `beforeBack`（弹栈通知触发一次），也不要先关自己的面板。
+- **`trail`**（`LibraryNavigationContext.trail`，`core/model/collectionNavigation.ts` 的 `projectNavigationTrail` 投影）：导航栈每一层的 `{ key, name, type }`（key = collectionKey），自底向上按位置，重复的集合各占一项，长度等于 `depth`。面包屑用它显示中间层的名字；宿主总会给，测试替身可以不给（当作不知道中间层的名字）。stage 的 `navigation` 与转场钩子的上下文都带它。
+
+### suite 自己的 history 记录
+
+suite 可以为自己的「导航状态」（例如 bravais 的列表 / 目录树面板：打开面板是一次导航，浏览器后退先关面板）写 history 记录，规则：
+
+- 沿用 `useAppNavigation` 的历史状态形状：拷贝当前记录（含 `appHistorySession`），加上自己的标记（bravais 是 `bravaisPanel: 层 key`）、`appHistoryIndex + 1` 后 `pushState`。这样历史日志认得它是本会话的记录。
+- 宿主 popstate 在这类记录之间来回时导航栈不变，不算弹栈，不跑 `beforeBack`；suite 自己听 popstate 按标记开合。
+- 应用内返回（返回按钮 / Esc）在面板记录在顶上时只关面板；N1 的折叠往返与 `onPopTo` 跳层会越过它们：`findLayerBaseIndex` 把「往回连着的、首页视图、集合栈逐层一致」的记录认作同一层，折叠往返退到上一层、跳层落在目标层的第一条记录上。网格与 TUI 不写这种记录。
 
 ## 转场与背景板
 
@@ -149,39 +192,47 @@ suite 还可以有自己的「局部动作」（`extraActions`），它们不属
 - `subscribe(listener)` 返回退订函数。suite 自己解析设置，只有最终快照变化时通知；宿主通过 `app/useLibraryBackdrop` 订阅，切 suite 时自动换订阅。
 - `enabled` 控制这套 suite 的 `beforePush` / `beforeBack` 与 `Overlay`。没有声明背景板时使用 0.18 秒的中性淡入淡出，并保留该 suite 已声明的转场钩子；服务端渲染也使用中性快照。
 
-网格在 `suites/grid/transitions/gridBackdrop.ts` 解析「降低动态效果」的 `collectionMorph` 设置：正常入场 0.62 秒、退场 0.28 秒；降低动效时使用 0.18 秒中性背景板，并关闭移形换影。TUI 没有声明转场，使用中性背景板。应用内返回与浏览器后退仍走同一套 `beforeBack`，一次返回只调用一次。
+`transitions.reset` 在切换 suite 时对每一套都调用（`app/switchLibrarySuite`），丢掉还没用掉的转场计划。
 
-带 stage 的 suite（bravais）的转场由 stage 观察导航深度驱动，所以只声明需要的钩子：`beforePush`（宿主压栈前记下起点磁贴）与 `reset`（切 suite 时丢掉没用掉的起点）。不声明 `beforeBack`（每一种返回都是一次深度变浅，stage 翻一次）、`Overlay` 与 `backdrop`（宿主不给它垫背景板；「降低动态效果」由 stage 自己解析）。entry 只能静态 import react，钩子的实现由 stage 的 chunk 加载后装上，没选过它的人钩子是空操作。
+各 suite 的做法：
+
+- **网格**在 `suites/grid/transitions/gridBackdrop.ts` 解析「降低动态效果」的 `collectionMorph` 设置：正常入场 0.62 秒、退场 0.28 秒；降低动效时使用 0.18 秒中性背景板，并关闭移形换影（`Overlay`）。应用内返回与浏览器后退仍走同一套 `beforeBack`，一次返回只调用一次。
+- **TUI** 没有声明转场，使用中性背景板。
+- **带 stage 的 suite（bravais）** 的转场由 stage 观察导航深度驱动，所以只声明需要的钩子：`beforePush`（宿主压栈前记下起点磁贴）与 `reset`（丢掉没用掉的起点）。不声明 `beforeBack`（应用内返回、浏览器后退、折叠往返、跳层都是一次深度变浅，stage 各翻一次）、`Overlay` 与 `backdrop`（宿主不给它垫背景板；「降低动态效果」由 stage 自己解析）。entry 只能静态 import react，钩子的实现由 stage 的 chunk 加载后装上，没选过它的人钩子是空操作。
 
 ## 常驻舞台（stage）
 
 有的 suite 不是「首页一张图、集合层盖一张图」，而是一块横跨首页与集合层的画面（bravais 的整面墙：换层时墙上的磁贴原地翻牌，不能因为换 surface 而重挂）。这种 suite 在 manifest 上声明可选的 `stage`（类型 `LibrarySuiteStageProps`，在 `core/contracts/suite.ts`）：
 
-- **输入**：`isInteractive`（首页外壳层的值，集合层打开时仍为真；上面盖了别的层时为假）、`theme`、`isDaylight`、`navigation`（集合导航快照：`depth` / `origin` / `activeType`，首页时 `depth` 为 0；B11 起还有 `trail`——导航栈每一层的 `key`（collectionKey）/ `name` / `type`，自底向上按位置，栈里有重复的集合时各占一项，给面包屑点击跳层用，跳层本身走 `onPopTo`），以及回调 `reportPlayerOcclusion`（见下面「遮挡播放页」）。
+- **输入**：`isInteractive`（首页外壳层的值，集合层打开时仍为真；上面盖了别的层时为假）、`theme`、`isDaylight`、`navigation`（集合导航快照：`depth` / `origin` / `activeType` / `trail`，首页时 `depth` 为 0），以及回调 `reportPlayerOcclusion`（见下面「遮挡播放页」）。导航快照不含当前层的数据；层身份与内容由这套 suite 的 surface 交给 stage。
 - **分工**：stage 负责画面；这套 suite 的首页 / 集合 / 歌手 surface 不画画面，只把自己的数据投影成层描述交给 suite 内部的 store，并照常注册命令面板。
-- **宿主怎么挂**：`GridViewOverlayHost` 经 `registry.resolveLibraryStage(store 的 suite)` 只挂**生效 suite** 的 stage（未知 id 生效的是 grid，grid 与 TUI 都没有 stage），位置在首页容器之后、中性背景板与集合层之前，包 `Suspense`（fallback 为 null）。打开 / 关闭集合只换 props，不重挂；换 suite 时卸载（换成另一套带 stage 的 suite 时重挂）。首页外壳整个卸载时（播放页全屏约 350ms 后 `Home` 返回 null）stage 也卸载，跨卸载要保留的布局放进 sessionStorage 或 store，并在 `layout.forget` 里能丢掉。
+- **宿主怎么挂**：`GridViewOverlayHost` 经 `registry.resolveLibraryStage(store 的 suite)` 只挂**生效 suite** 的 stage（未知 id 生效的是 grid，grid 与 TUI 都没有 stage），挂载位 `app/LibrarySuiteStageSlot.tsx` 在首页容器之后、中性背景板与集合层之前，包 `Suspense`（fallback 为 null）。打开 / 关闭集合只换 props，不重挂；换 suite 时卸载（换成另一套带 stage 的 suite 时重挂）。首页外壳整个卸载时（播放页全屏约 350ms 后 `Home` 返回 null）stage 也卸载，跨卸载要保留的布局放进 sessionStorage 或模块级 store，并在 `layout.forget` 里能丢掉。
 - **背景板与首页**：渲染当前层（集合或歌手页）的 suite 正是挂着 stage 的那套时，宿主不渲染中性背景板，首页容器也不加 `visibility: hidden`（`aria-hidden` 与 `pointer-events: none` 照旧）；当前层回退到 grid 时与没有 stage 一样。规则是 `core/model/libraryStage.ts` 的 `resolveLibraryLayerPresentation`。
 - **和 `transitions.Overlay` 的区别**：Overlay 是**每一套** suite 都常驻挂载的转场层，只拿到 `enabled`，`enabled=false`（降低动效、或当前层不归它）表示「不做转场」，承载不了常驻画面；stage 只在这套 suite 生效时挂载，是画面本身。网格的移形换影继续用 Overlay；有 stage 的 suite 一般不需要 Overlay。
 - **按需加载**：非默认 suite 的 stage 必须是 `React.lazy`（`test/unit/library/suiteEntries.test.ts` 按源码检查），没选它的用户不加载它的 chunk。
-- **遮挡播放页（`reportPlayerOcclusion`）**：stage 用 `reportPlayerOcclusion(occludes)` 告诉宿主自己此刻是否**完全**盖住了下面的播放页（visualizer）。只有画面完全不透光时才报 `true`（bravais 的「实色」档）；只要有透光处（窗、半透明材质）就报 `false`；没报过视为 `false`。值不变时重复报告没有开销，函数引用在同一次挂载内稳定。
-  - 宿主怎么用：挂载位把报告写进 `src/stores/useLibraryPlayerOcclusionStore.ts`，App 读 `selectLibraryOccludesPlayer`，visualizer 的挂载条件是 `currentView !== 'lattice' && hasLatticeExited && !(shouldShowHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled)`（`components/app/presentation/playerVisualizerMount.ts`）。App 不认识任何 suite，也不读 suite 的偏好。
-  - 时序：进入时首页显示着并且遮挡持续约 0.3 秒（首页 0.25 秒淡入结束）之后才卸载 visualizer（`hooks/useLibraryOcclusionSettled.ts`），淡入过程中仍能看到它；首页一不显示（回播放页、设置弹窗 / 面板盖上）或 stage 改报 `false`，同一次渲染里就重新挂载。改报 `false` 之后 visualizer 出画面前有一小段空白（Pixi 初始化），透光档应在窗里自己垫一层底色。
-  - 复位不靠 stage：挂载位卸载（包括离开首页约 350ms 后 `Home` 返回 null）、换 suite、生效 suite 没有 stage 时自动回到 `false`，stage 不需要在卸载时报 `false`；已卸载的 stage 晚到的报告不生效。grid / TUI 没有 stage，永远是 `false`，visualizer 的行为与以前相同。
+
+### 遮挡播放页（`reportPlayerOcclusion`）
+
+stage 用 `reportPlayerOcclusion(occludes)` 告诉宿主自己此刻是否**完全**盖住了下面的播放页（visualizer）。只有画面完全不透光时才报 `true`（bravais 的「实色」档）；只要有透光处（窗、半透明材质）就报 `false`；没报过视为 `false`。值不变时重复报告没有开销，函数引用在同一次挂载内稳定。
+
+- 宿主怎么用：挂载位把报告写进 `src/stores/useLibraryPlayerOcclusionStore.ts`，App 读 `selectLibraryOccludesPlayer`，visualizer 的挂载条件是 `currentView !== 'lattice' && hasLatticeExited && !(shouldShowHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled)`（`components/app/presentation/playerVisualizerMount.ts`）。App 不认识任何 suite，也不读 suite 的偏好。
+- 时序：进入时首页显示着并且遮挡持续约 0.3 秒（首页 0.25 秒淡入结束）之后才卸载 visualizer（`hooks/useLibraryOcclusionSettled.ts`），淡入过程中仍能看到它；首页一不显示（回播放页、设置弹窗 / 面板盖上）或 stage 改报 `false`，同一次渲染里就重新挂载。改报 `false` 之后 visualizer 出画面前有一小段空白（Pixi 初始化），透光的 suite 应在透光处自己垫一层底色。
+- 复位不靠 stage：挂载位卸载（包括离开首页约 350ms 后 `Home` 返回 null）、换 suite、生效 suite 没有 stage 时自动回到 `false`，stage 不需要在卸载时报 `false`；已卸载的 stage 晚到的报告不生效。grid / TUI 没有 stage，永远是 `false`，visualizer 的行为与以前相同。
 
 ## 外观动作（suite-chrome）
 
-suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在播放）不是 core 的资料动作，挂不到任何 surface 上，又不该占全局快捷键。它们走命令面板的 `suite-chrome` 作用范围（B2）。
+suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在播放、透光档位）不是 core 的资料动作，挂不到任何 surface 上，又不该占全局快捷键。它们走命令面板的 `suite-chrome` 作用范围。
 
 - **什么时候用**：只属于这套 UI 的呈现操作，别的 suite 没有对应物。core 的资料动作（播放、筛选、排序、删歌……）照旧走 grid / directory / artist surface；网格的三个局部动作（信息面板、曲目侧栏、编辑模式）仍是 grid surface 的 `extraActions`，不改造。
-- **manifest 声明**（静态，命令契约测试能枚举）：`chromeActions: [{ id, title, description, keywords, executeShortcut? }]`，类型 `LibrarySuiteChromeActionMeta`（`core/contracts/suiteChrome.ts`）。`id` 是 suite 内唯一的小写 kebab-case；`title` / `description` 只是缺译时的英文回退，正式文案写在 en / zh-CN / in 三份 locale 的 `commandPalette.commands.<命令 id>`（与其它命令同一约定，契约测试缺一份就红）。`keywords` 写英文与中文，不手写拼音、ASCII 关键词不照抄标题；拼音由构建期插件从中文生成，它只扫 `suites/<id>/entry.ts` 与同目录的 `chromeActions.ts`，所以声明只能放在这两种文件里。建索引时校验 id 格式、重复与空文案（`core/model/suiteChrome.ts`）。
+- **manifest 声明**（静态，命令契约测试能枚举）：`chromeActions: [{ id, title, description, keywords, executeShortcut? }]`，类型 `LibrarySuiteChromeActionMeta`（`core/contracts/suiteChrome.ts`）。没有 `labelKey`：`id` 是 suite 内唯一的小写 kebab-case；`title` / `description` 只是缺译时的英文回退，正式文案写在 en / zh-CN / in 三份 locale 的 `commandPalette.commands.<命令 id>`（与其它命令同一约定，契约测试缺一份就红）。`keywords` 写英文与中文，不手写拼音、ASCII 关键词不照抄标题；拼音由构建期插件从中文生成，它只扫 `suites/<id>/entry.ts` 与同目录的 `chromeActions.ts`，所以声明只能放在这两种文件里。建索引时校验 id 格式、重复与空文案（`core/model/suiteChrome.ts`）。
 - **运行时注册**：suite 用 `useLibrarySuiteChromeRegistration({ suiteId, isInteractive, handlers })`（`core/bindings`），`handlers` 是「动作 id → `{ isAvailable(): boolean; run(): void }`」，每次渲染可以给新对象（latest-ref，不重注册）。`isInteractive` 为假或组件卸载（换 suite）时注销；旧实例晚一步卸载不会清掉接手的新实例。store 是 `core/state/useLibrarySuiteChromeStore`，命令面板经 `useCommandPaletteContext` 的 `scope.chrome` 读它。动作只描述做什么，不碰 DOM。
-- **命令 id 与可用性**：命令 id 为 `<suiteId>-<动作 id>`（`libraryChromeCommandId`），由 `createSuiteChromeCommand` 生成，group 为 `grid`。可用要同时满足：当前视图是首页（`suite-chrome` 作用范围要求 `view === 'home'`）、注册着的正是这套 suite、它给了这条动作的实现且 `isAvailable()` 为真。执行时再问一次 `isAvailable()` 才调 `run()`。
-- **怎么进命令列表**：命令文件不 import registry（会把默认 suite 的整套组件拉进命令面板的模块图），所以命令不是静态声明的：`library/app/installLibrarySuiteChromeCommands` 在 bootstrap 渲染前（只在主窗口）用 registry 的可用 suite 生成命令，经 `commandRegistry.setSuiteChromeCommands` 装进列表（重复调用替换上一批）。契约测试与拼音覆盖测试用同一个 `buildSuiteChromeCommands(listLibrarySuites())` 自己生成并检查。
+- **命令 id 与可用性**：命令 id 为 `<suiteId>-<动作 id>`（`libraryChromeCommandId`），由 `createSuiteChromeCommand` 生成，group 为 `grid`。可用要同时满足：当前视图是首页（`suite-chrome` 作用范围要求 `view === 'home'`，集合层打开时也是首页视图）、注册着的正是这套 suite、它给了这条动作的实现且 `isAvailable()` 为真。执行时再问一次 `isAvailable()` 才调 `run()`。
+- **怎么进命令列表**：命令文件不 import registry（会把默认 suite 的整套组件拉进命令面板的模块图），所以命令不是静态声明的：`library/app/installLibrarySuiteChromeCommands` 在 bootstrap 渲染前（只在主窗口）用 registry 的可用 suite 生成命令，经 `commandRegistry.setSuiteChromeCommands` 装进列表（重复调用替换上一批）。契约测试与拼音覆盖测试用同一个 `buildSuiteChromeCommands(listLibrarySuites())` 自己生成并检查。Vitest 与 dev-probe 不经过 bootstrap：组件用例要从命令面板执行外观动作时，探针里先调一次 `installLibrarySuiteChromeCommands()`（幂等）。
 - **执行键**：给不给 `executeShortcut` 的判断与其它命令相同（危险、不可撤销、要确认的不给）。装入时对整张列表做无前缀冲突检查，冲突直接抛错（启动即暴露）。`suite-chrome` 只在首页视图成立，与 `lattice`（Lattice 视图）、`player-surface`（播放页）互斥，可以复用它们的键（例如 Lattice「聚焦当前歌曲」的 `c`）；不同 suite 的外观动作同一时刻只有一套可用，彼此也可以同键。与全局命令（`n` 下一首、`l` 循环……）和同时可能出现的 grid / directory / artist surface 命令必须无前缀冲突。
 
 ## 页面教程（Ponder）
 
-页面教程跟实际渲染的页面走，按可见的 `data-ponder-page-scope` 解析。网格首页、集合 / 歌手页和目录保留各自的教程标记；TUI 的 `home` / `collection` / `artist` 都显式声明 `data-ponder-page-scope="none"`，表示当前页面没有教程。某套 suite 回退到网格时，由网格页面的标记提供教程。
+页面教程跟实际渲染的页面走，按可见的 `data-ponder-page-scope` 解析。网格首页、集合 / 歌手页和目录保留各自的教程标记；TUI 与 bravais 的 `home` / `collection` / `artist` 都显式声明 `data-ponder-page-scope="none"`，表示当前页面没有教程。某套 suite 回退到网格时，由网格页面的标记提供教程。
 
 显式的 `none` 与没有标记不同：`none` 返回空目标；缺失或未知标记仍按主视图回退。隐藏或尺寸为零的标记不参与解析；设置、帮助等上层页面可覆盖底下的页面，首次使用引导优先打开总览。
 
@@ -225,6 +276,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 - 显示加载中、错误（`snapshot.error`，不要和「歌单本来就是空的」混在一起）、后台补页进度与中断。
 - 动作结果是判别式（`ok`，或 `busy` / `stale` / `limit-reached` / `failed` …），文案由 UI 自己翻译。重复提交时控制器会返回 `busy`，UI 不需要自己防抖。
 - 打开嵌套的专辑 / 歌手之前，把焦点写回浏览会话（`setFocusedEntry`）；离开（卸载、换 suite 的冲刷）时也写，但只在用户在这里动过焦点时写——没动过就写，会把会话里别处记下的焦点盖成第一行。返回时按会话里的条目键恢复焦点。
+- 面包屑（可选）：用导航快照的 `trail` 显示中间层，点击经 `onPopTo(depth)` 跳层（见「导航栈」）。
 
 ### 首页与目录（`home`）
 
@@ -304,7 +356,7 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 
 要码串行：上一轮的要码请求还没回来时，新一轮先等它结算再发，等待期间又被取代就不发。后端同一时间只允许一个要码在建会话，连点刷新、快速换登录方式时并发的第二个会被拒（409 session-busy）。
 
-失败原因与冷却：provider 能确定用户在手机上取消时，轮询结果带 `reason: 'canceled-on-device'`，会话记为 `canceled-on-device`（不给诊断入口）；失败带着后端要求的冷却（轮询结果的 `retryAfterMs`，或要码错误 `OnlineProviderError.retryAfterMs`）时，登录快照的 `retryCooldownSeconds` 给出秒数，冷却结束自动回到 null。冷却期间 `canRetryLogin` 为 false、`retryLogin` 返回 `rejected`（`cooling-down`），状态行说明原因与秒数；suite 照常按视图的 `canRetry` 显示重试（grid 显示为禁用按钮，TUI 不给重试）。
+失败原因与冷却：provider 能确定用户在手机上取消时，轮询结果带 `reason: 'canceled-on-device'`，会话记为 `canceled-on-device`（不给诊断入口）；失败带着后端要求的冷却（轮询结果的 `retryAfterMs`，或要码错误 `OnlineProviderError.retryAfterMs`）时，登录快照的 `retryCooldownSeconds` 给出秒数，冷却结束自动回到 null。冷却期间 `canRetryLogin` 为 false、`retryLogin` 返回 `rejected`（`cooling-down`），状态行说明原因与秒数；suite 照常按视图的 `canRetry` 显示重试（grid 与 bravais 显示为禁用按钮，TUI 不给重试）。
 
 日志：会话与 controller 里带 providerId 的错误（要码、轮询、取消、方式解析、确认后与切换后的刷新、登出）经 `accountRules` 的 `describeAccountError` 描述，轮询报 error 时附带的后端文字经 `describeLoginStateMessage`。QQ 自己在 `[QQProvider] qr-login:failed` 里写白名单过滤后的摘要，这两处对它只记 `reason: 'provider-error'`，不记原始文字。
 
@@ -330,7 +382,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 
 - 宿主持有一个账户层（`app/libraryAccountLayer.ts`）。home surface 可以经 `accountLayerRef` 把自己层叠上下文里的一个元素交上来，宿主经 `layer` 把它交给 account surface（`useLibraryAccountLayerElement` 订阅）。
 - grid：Grid3D 把 `<div data-library-account-layer>` 放在平台切换器之前，登录弹窗 portal 进这个层，切换器仍盖在弹窗之上、弹窗开着时也能点；确认框 portal 到 `body`（fixed，z-200，盖住首页与切换器）。没接层时登录弹窗就地渲染。
-- 不接 layer 的 suite 就地渲染自己的层，例如 TUI 用 fixed 全屏层（z-200）。
+- 不接 layer 的 suite 就地渲染自己的层，例如 TUI 用 fixed 全屏层（z-200）；bravais 的 account surface 本身渲染 null，把登录 / 确认的投影交给 stage，由缝翻成登录态 / 确认态。
 
 写 account surface（以及首页上的平台列表）时：
 
@@ -338,35 +390,88 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 - 确认框按下确认后立即收起：`confirmSwitch` 同步清掉 `pendingSwitch`，不要 `await confirmSwitch` 再关框（它要等清理与刷新走完）。
 - 登出入口的可用性用 `core/model/accountRules` 的 `canLogoutProvider`，且 `logout.status` 不是 `pending`；与 controller 的判定、网格切换器、AccountTab 一致。
 - 诊断入口（区块、按键、提示行）只看视图的 `diagnosticsPrompt` / `canShowDiagnostics`，不要自己按 provider 判断；哪些 provider 不给入口由 core 的 `canShowLoginDiagnostics` 决定（目前是 QQ）。
-- 键盘只在 `isInteractive` 为真且界面显示着时接。`isInteractive` 是首页外壳层的值，集合层打开时可能仍为真；登录与确认在最上层时，挂 `data-folia-keyboard-window` 让底下的页面按键与全局热键让路。
+- 键盘只在 `isInteractive` 为真且界面显示着时接。`isInteractive` 是首页外壳层的值，集合层打开时可能仍为真；登录与确认在最上层时，挂 `data-folia-keyboard-window` 让底下的页面按键与全局热键让路。独占不带修饰键的按键可以复用 `src/hooks/useExclusiveKeyLayer`（TUI 与 bravais 共用）。
 
 ## 写一套新 suite 的步骤
 
-1. 新建 `src/library/suites/<id>/entry.ts`，默认导出一个 `LibrarySuiteManifest`：`id`、显示名（`labelKey`）、`surfaces`（每个页面的组件 + 声明的动作），可选的 `transitions`（转场钩子与背景板订阅）、`layout`（「完成」时忘掉布局记录）、`stage`（横跨首页与集合层的常驻舞台，见上面「常驻舞台」一节）与 `chromeActions`（只出现在命令面板里的外观动作，见「外观动作」一节）。组件必须用 `React.lazy` 引入（只有默认 suite 例外）。registry 会自动发现它，不需要在别处登记。
+1. 新建 `src/library/suites/<id>/entry.ts`，默认导出一个 `LibrarySuiteManifest`：`id`、显示名（`labelKey`）、`surfaces`（每个页面的组件 + 声明的动作），可选的 `transitions`（转场钩子与背景板订阅）、`layout`（「完成」时忘掉布局记录）、`stage`（横跨首页与集合层的常驻舞台，见「常驻舞台」一节）与 `chromeActions`（只出现在命令面板里的外观动作，见「外观动作」一节）。组件与 stage 必须用 `React.lazy` 引入（只有默认 suite 例外）。registry 会自动发现它，不需要在别处登记。
 2. 先实现 `collection`。用 core 的 hooks 拿数据和动作：`useCollectionResourceState`（订阅资源）、`useCollectionView`（筛选与范围）、`useCollectionActions`（播放、入队、重拉）、`useCollectionMutationSnapshot`（变更能力与状态）、`useLibrarySessionQuery`（筛选词）。
 3. 向命令面板注册：集合页用 `useGridSurfaceRegistration` + `buildCoreSurfaceParams`（它会按你的声明过滤）；目录用 `useLibraryDirectorySurfaceRegistration`；歌手页用 `useLibraryArtistSurfaceRegistration`；suite 自己的外观动作用 `useLibrarySuiteChromeRegistration`。只在 `isInteractive` 为真时注册。
 4. 键盘：可打印字符留给命令面板（它是筛选框），空格是全局的播放 / 暂停。你的页面只用方向键、Enter（可带修饰键）、Delete、Insert、Esc、功能键这类不可打印的键。
 5. 在 `entry.ts` 里如实声明你做了哪些动作。没把握的先别声明：它会自动在命令面板里消失，用户切回网格就能做。
 6. 账户：不做 `account` surface 时登录与确认由网格答复；要做就列全三个基础动作，按上面「账户」一节的规则写。
-7. 测试：`test/component/libraryBehavior.spec.ts`、`homeBehavior.spec.ts`、`artistBehavior.spec.ts`、`accountBehavior.spec.ts` 里的语义用例按 suite 参数化。把你的 suite 加进去，同一批场景会对它再跑一遍。
+7. 测试：`test/component/libraryBehavior.spec.ts`、`homeBehavior.spec.ts`、`artistBehavior.spec.ts`、`accountBehavior.spec.ts` 里的语义用例按 suite 参数化。把你的 suite 加进去，同一批场景会对它再跑一遍；e2e 的 `test/ui/libraryNavigation.spec.ts` 与 `libraryRendererSwitch.spec.ts` 覆盖真实应用里的导航与切换。
 
 ## 规则（写 suite 时不要做的事）
 
 - 不要在 suite 里调用 Omni、本地曲库服务、Navidrome 服务或 `core/services`。数据和动作都由宿主经 props 交给你。
-- 不要 import 别的 suite（包括网格的卡片、六边形视口、转场）。需要共享的东西应放进 core。
+- 不要 import 别的 suite（包括网格的卡片、六边形视口、转场）。需要共享的东西应放进 core，或者（与资料库无关的画面引擎）放进 `src/components/` 下的共享目录，例如 `src/components/wall/`。
 - 不要自己实现删歌、订阅、批量范围这类规则，用 core 的。否则两套 UI 会对同一个动作给出不同的结果。
 - 不要把筛选词、选中项、焦点存在组件 state 里。它们在会话 store 里，切换 suite 时才不会丢。
 - 布局相关的东西（滚动位置、坐标、展开状态）属于 suite 自己，不要放进 core；但要在 `layout.forget` 里能按会话键丢掉它。
 - 不要在 suite 的返回按钮里自己清会话或布局记录：调 `onDone`，由宿主统一做（Escape 调 `onBack`）。
 
-## 两套现有 suite 的对照
+## 现有 suite 的对照
 
-| 页面 | grid（默认） | tui（开发验证） |
-| --- | --- | --- |
-| home | 全部；在线平台切换器与连接面板 | 全部；在线页签是可操作的平台列表（未登录时即页签内容，已登录时 F2 打开） |
-| collection | 全部，另有信息面板、曲目侧栏、编辑模式三个局部动作 | 除 `add-to-playlist` / `create-playlist` 外全部（P4.4 起行上的歌手 / 专辑可打开，Alt+Enter / Alt+Shift+Enter） |
-| artist | 全部 | 全部（P4.3 起；之前回退到网格） |
-| account | 全部 7 个动作：登录弹窗（portal 进首页账户层）、通用确认框（portal 到 body） | 全部 7 个动作：fixed 全屏层里的登录方框与确认方框；诊断只复制到剪贴板，没有反馈入口 |
+| 页面 | grid（默认、回退） | bravais（正式新 UI） | tui（开发验证） |
+| --- | --- | --- | --- |
+| home | 全部 15 个动作；在线平台切换器与连接面板 | 全部 15 个动作；五个页签各是一面墙（F6 整墙出场 / 入场），本地四行与 Navidrome 分区是缝里的二级切换；目录树面板（= 批量模式）、管理隐藏视图、导入 / 刷新与 app 入口在首页窄缝里 | 全部；在线页签是可操作的平台列表（未登录时即页签内容，已登录时 F2 打开） |
+| collection | 全部 23 个，另有信息面板、曲目侧栏、编辑模式三个局部动作 | 全部 23 个；三个局部动作改为外观动作（缝等级、`list`）与改名表单态 | 除 `add-to-playlist` / `create-playlist` 外全部（行上的歌手 / 专辑可打开，Alt+Enter / Alt+Shift+Enter） |
+| artist | 全部 10 个 | 全部 10 个；热门歌曲与专辑混排在一面墙上，信息在缝里 | 全部 |
+| account | 全部 7 个动作：登录弹窗（portal 进首页账户层）、通用确认框（portal 到 body） | 全部 7 个动作：首页在线页签窄缝里的平台切换；登录与确认是缝的表单态 | 全部 7 个动作：fixed 全屏层里的登录方框与确认方框；诊断只复制到剪贴板，没有反馈入口 |
+| stage | — | `BravaisStage`（墙、相机、缝、翻牌、聚焦卡、键盘、面板） | — |
+| transitions | `beforePush` / `beforeBack` / `Overlay`（移形换影）/ `backdrop` | 只有 `beforePush` / `reset` | 无 |
+| 外观动作 | — | 10 条（见下） | — |
+| 布局记录 | `folia_gridview_state:v2:` / `folia_artist_grid_state:v2:` | sessionStorage `folia_bravais_layout:v1:<会话键>` | 无（焦点写回会话） |
+
+### bravais：一面墙与一道缝
+
+设计与理由在 `docs/bravais-suite-design.md`（下称设计稿）；这里只写它与 core / 宿主的接口。代码在 `src/library/suites/bravais/`，与内容无关的墙面几何在共享的 wall 引擎 `src/components/wall/`（Lattice 也用它；wall 不依赖 `components/app/**` 与 `src/library/**`）。
+
+**stage 与 surface 的分工**
+
+- `BravaisStage`（manifest 的 `stage`）拥有画面：墙（虚拟化的磁贴，最多约 400 张）、相机、缝（信息条 / 书脊 / 折叠三级开口，只开在 12×8 块的边界上）、翻牌、聚焦卡、键盘焦点、列表 / 目录树面板、表单态，以及外观动作的注册。
+- `BravaisHome` / `BravaisCollection` / `BravaisArtist` 订阅 core 的 binding，把数据投影成**层描述**（`BravaisLayer`：已投影的展示数据 + 身份稳定的回调，不放资源对象），经 `useBravaisLayerRegistration` 推进 suite 内的 `bravaisStageStore`（首页一个位、顶层一个位）；照常注册命令面板；自己只渲染不接指针的锚点（命令面板内联过滤框的 anchor、`data-ponder-page-scope="none"`）。
+- `BravaisAccount` 渲染 null，把登录 / 确认表单的投影写进 `bravaisAccountStore`，stage 让缝翻成登录态 / 确认态（压过其他一切开口），挂 `data-folia-keyboard-window`。
+- stage 按导航快照的 `depth` 与上次显示时记下的深度决定换层种类：变深 = push（被点的磁贴成为起点，排序从它向外展开）、变浅 = back（按布局记忆恢复相机、缝的锚点、起点与焦点）、同深度换层 = replace（首页换页签，整墙出场 / 入场）、`origin` 为 search / player 时 0 ↔ ≥1 是整墙 enter / exit。栈里有重复的集合时，「同键不同深度且正是栈顶」也算换层。stage 根节点的 `data-bravais-shift` / `-seq` 记下每次换层。
+
+**导航**
+
+- transitions 只声明 `beforePush`（墙上点磁贴、聚焦卡的链接已记下起点；命令面板对焦点那一项的打开用键盘焦点所在的 slot）与 `reset`（丢掉没用掉的起点与移除的翻牌起点）；钩子经 entry 的 `installBravaisTransitionHook` 由 stage 的 chunk 装上。
+- 面包屑在缝里（`BravaisSeamCrumbs`，规则 `bravaisCrumbs`）：根是书库 / 搜索 / 播放页（按 `origin`），中间层名字来自 `trail`，多于一层时折成可展开的「…」；点击调层描述上的 `onPopTo`（集合与歌手 surface 把宿主的 `onPopTo` 包成稳定回调交给 stage）。面板开着时当前层名 = 关面板。
+- 面板 history：列表面板与目录树面板是导航状态，`bravaisPanelHistory` 按「suite 自己的 history 记录」的规则 `pushState`（标记 `bravaisPanel`）；应用内返回先关面板，折叠往返与跳层越过它。
+- 「降低动态效果」：stage 自己解析（`bravaisMotion`：「队列拼贴」或「歌单展开转场」任一降级）——翻牌换成 0.18 秒淡出淡入、整墙波次换成淡入淡出；相机、缝与悬停的补间只看 `lattice` 动效面。
+- 唯一的离墙路径：首页缝里的全局搜索提交走 `onSearchCommitted`，去 `SearchWorkspace`（core 的 search surface 落地后再进墙）。从搜索页 / 播放页打开集合时整墙入场，回到来源时整墙出场。
+
+**外观动作**（命令 id `bravais-<id>`）
+
+| id | 做什么 | 执行键 | 可用 |
+| --- | --- | --- | --- |
+| `seam-full` / `seam-spine` / `seam-hide` | 缝的开口：完整信息条 / 书脊 / 折叠到屏幕侧边 | — | 当前等级不是它 |
+| `seam-here` | 缝随墙滑出屏后在当前视野里重新裂开 | — | 缝收在屏幕边缘（没有折叠） |
+| `list` | 打开列表面板（grid 曲目侧栏的对应） | —（`l` 被全局循环播放占用） | 非首页层、面板没开 |
+| `directory` | 打开目录树面板（批量模式） | — | 首页本地有批量的那几行、面板没开 |
+| `locate-playing` | 键盘焦点移到正在播放的那一首 | `c` | 当前层有正在播放的条目 |
+| `wall-look` | 循环透光三档 | `p` | 有当前层即可 |
+| `more-windows` / `fewer-windows` | 部分透明时每块多开 / 少开一个窗 | — | 部分透明且没到 1 / 6 的边界 |
+
+**透光与遮挡播放页**
+
+- 三档：实色 / 部分透明（默认，每块 12 个 slot 里固定 k 个是透明的「窗」，k = 1–6，默认 3）/ 全透明（墙上的磁贴只画标题，聚焦卡照常画封面）。窗是 wall 引擎的保留位（`blockReservedSlots`），rank→slot 跳过它们，不可聚焦、不可点。
+- 偏好是 app 层的 `src/stores/useLibraryWallLookStore.ts`（`look`、`windowsPerBlock`，localStorage `library_wall_look` / `library_wall_windows_per_block`）——设置 UI 不能 import suite，所以不放在 suite 里。设置在界面设置「资料库界面」分区里的 `LibraryWallLookSettings`（只在生效 suite 是 bravais 时显示），命令面板有 `library-wall-look-picker` 与 `library-wall-windows-picker`（窗数只在部分透明时可用），外观动作 `wall-look` / `more-windows` / `fewer-windows` 写同一个 store。**不进外观配置的导入导出**（用户决定，是 `skills/settings-feature-integration` 视觉设置规则的明确例外，store 的 `@note` 写明）。
+- 两个透明档下，墙面由按块的实色底板铺（每个已挂载的 12×8 块一张内联 SVG，只在窗位挖洞，随相机平移；聚焦卡让位时只逐帧重画那一块），详见设计稿 §11。
+- 实色档时 stage `reportPlayerOcclusion(true)`，首页停稳后 visualizer 卸载（与 Lattice 一致）；其余档报 `false`，visualizer 照常在墙下渲染。
+
+**布局记忆**：每层的相机视图中心、缝的锚点、无限墙的起点 slot、键盘焦点 slot 存在 sessionStorage `folia_bravais_layout:v1:<会话键>`（首页的会话键是 `'home'`），`layout.forget` 整条删除；缝的开口等级是全局的（`useBravaisSeamStore`，跨层沿用、跨 stage 卸载存活），不按层记。
+
+**测试**
+
+- 参数化：`libraryBehavior` / `homeBehavior` / `artistBehavior` / `accountBehavior` 的 suite 列表含 bravais（含 `[switch]`）；另有 `[bravais-only]` 用例。墙是虚拟化的，用例经列表面板或键盘焦点定位条目，翻牌期间 stage 根节点挂 `data-bravais-settling`，要等它消失再点。
+- bravais 自己的组件用例：`test/component/bravaisWall.spec.ts`、`bravaisLook.spec.ts`、`bravaisHome.spec.ts`、`bravaisPerf.spec.ts`（性能护栏：计数为主）。e2e：`test/ui/bravaisCollectionFilter.spec.ts`、`bravaisVisualizerMount.spec.ts`、`bravaisPanelFold.spec.ts`，以及 `libraryNavigation` / `libraryRendererSwitch` 里的 bravais 用例。单测在 `test/unit/library/bravais/`，wall 引擎的在 `test/unit/wall/`。
+- 性能探针：`dev-probe.html?probe=bravaisPerf`（`npm run dev:probe`），整套矩阵 `npm run manual:bravais-perf`；用法与换机实测清单在 `dev/probes/bravais-perf/README.md`。
+- 探针标记统一用 `data-bravais-*`（磁贴 `data-bravais-slot` / `-kind`、聚焦卡 `data-bravais-focus-card`、缝 `data-bravais-seam` / `-seam-level` / `-seam-action`、面板 `data-bravais-list`、表单 `data-bravais-form` 等）；集合曲目磁贴另有通用的 `data-library-entry`。
+
+### TUI：开发验证 suite
 
 TUI 的账户按键：
 
@@ -378,43 +483,47 @@ TUI 的账户按键：
 
 账户层的按键在 window 的捕获阶段独占：不带修饰键的按键一律截住，底下的 TUI 页面、命令面板的打字即筛选和全局空格都收不到；带 Ctrl / Alt / Meta 的组合键与 Tab 放过。账户层可交互时挂 `data-folia-keyboard-window`，只在层显示着且首页外壳 `isInteractive` 为真时装监听。
 
-TUI 保留为 Library Core 的第二消费者和开发验证 suite。普通开发默认关闭，只注册 grid，切换浮层与「资料库界面」设置项都不出现。要手动验证，显式启用：
+TUI 保留为 Library Core 的又一个消费者和开发验证 suite。普通开发默认关闭（只有 grid 与 bravais 可用）。要手动验证，显式启用：
 
 ```sh
 npx cross-env VITE_LIBRARY_TUI=true npm run dev
 npx cross-env VITE_LIBRARY_TUI=true npm run dev:probe
 ```
 
-启用后，开发浮层和界面设置的「资料库界面」都可以在两套之间切换；切换不重新请求，筛选、选中、焦点与当前播放队列都保留。Vitest 的 `test.env` 和 Playwright 的 `webServer.command` 自动显式启用该 flag，参数化回归继续覆盖两套消费者；跑 Playwright 前应保持 4173 端口空闲，避免复用没有开启 TUI 的手动服务器。
+启用后，开发浮层和界面设置的「资料库界面」都可以在三套之间切换；切换不重新请求，筛选、选中、焦点与当前播放队列都保留。Vitest 的 `test.env` 和 Playwright 的 `webServer.command` 自动显式启用该 flag，参数化回归覆盖全部三套；跑 Playwright 前应保持 4173 端口空闲，避免复用没有开启 TUI、或没把初始选择钉在 grid 的手动服务器。
 
 entry 用同一个 `import.meta.env.DEV && import.meta.env.VITE_LIBRARY_TUI === 'true'` 条件门控三套 lazy surface 与 `available`。生产构建的 DEV 为 false，即使 flag 误设为 true 仍不可用；关闭或未知 suite id 经真实 registry 回到同一个 grid 解析结果。启用/关闭/生产行为矩阵在 `test/unit/library/tuiAvailability.test.ts`，P5 已用显式 flag=true 的实际 Web 生产构建与浏览器预览确认排除，并核对 App / grid 模块作为正对照；以后修改 entry 时仍应核验实际产物。
 
 ## 选哪套：设置项、初始选择与回退
 
 - **回退 suite**（`DEFAULT_LIBRARY_SUITE_ID = 'grid'`）：实现全部 surface，未知 id、缺 surface 时都由它渲染。
-- **初始选择**（`LIBRARY_SUITE_INITIAL_CHOICE`，`core/model/librarySuites.ts`）：用户从没选过时 `useLibrarySuiteStore` 的初值。开发阶段为 `bravais`，构建变量 `VITE_LIBRARY_INITIAL_SUITE` 可覆盖；Vitest 的 `test.env` 与 Playwright 的 `webServer.command` 把它钉在 `grid`。
+- **初始选择**（`LIBRARY_SUITE_INITIAL_CHOICE`，`core/model/librarySuites.ts`）：用户从没选过时 `useLibrarySuiteStore` 的初值。开发阶段为 `bravais`（发版前复核），构建变量 `VITE_LIBRARY_INITIAL_SUITE` 可覆盖；Vitest 的 `test.env` 与 Playwright 的 `webServer.command` 把它钉在 `grid`，所以现有截图基线与网格用例不受影响，bravais 的覆盖走参数化用例与它自己的用例。
 - **持久化**：store 只在用户选择时写 localStorage `library_suite`，没有记录就用初始选择，所以改初始选择会带走所有没选过的人。store 不校验 id（state 不 import registry），值可能是这个构建里没有的 suite，渲染照常回退。
-- **展示「当前」用生效的 suite**：`registry.resolveActiveLibrarySuiteId(store.suite)`（React 里用 `app/librarySuiteChoice` 的 `useActiveLibrarySuiteId`）。设置项、命令面板 picker、开发浮层都这样显示；`switchLibrarySuite` 比较的也是生效的 suite，选中已经生效的那套不算一次选择，不写存储。
-- **入口**：界面设置的 `LibrarySuiteSection`、命令面板的 `settings-library-suite`（锚点）与 `library-suite-picker`，都经 `chooseLibrarySuite` → `switchLibrarySuite(resolveCurrentLibrarySessionKey(), id)`；只有一套可用时（`hasLibrarySuiteChoice()` 为假）设置节、侧栏目录项与两条命令都不出现。不进外观配置的导入导出。
+- **展示「当前」用生效的 suite**：`registry.resolveActiveLibrarySuiteId(store.suite)`（React 里用 `app/librarySuiteChoice` 的 `useActiveLibrarySuiteId`；只关心「是不是 bravais」时用 `app/bravaisLibraryActive`）。设置项、命令面板 picker、开发浮层都这样显示；`switchLibrarySuite` 比较的也是生效的 suite，选中已经生效的那套不算一次选择，不写存储。
+- **入口**：界面设置的 `LibrarySuiteSection`（「播放进入视图」下面）、命令面板的 `settings-library-suite`（锚点）与 `library-suite-picker`，都经 `chooseLibrarySuite` → `switchLibrarySuite(resolveCurrentLibrarySessionKey(), id)`。只有一套可用时（`hasLibrarySuiteChoice()` 为假）设置节、侧栏目录项与两条命令都不出现；grid 与 bravais 都在 registry 里，所以正式构建里它们总会出现。开发浮层 `DevLibraryRendererSwitch` 只在开发构建里挂。不进外观配置的导入导出（suite 选择是界面偏好，不是视觉调参）。
+- **按需加载**：选 grid 的用户不加载 bravais 的任何 chunk——bravais 的 entry 只静态 import react，stage 与四个 surface 都是 `React.lazy`；manifest 本身（含布局键前缀与外观动作声明）随 registry 进 bootstrap。
 
 ## 相关文件
 
 - 能力契约：`src/library/core/contracts/suite.ts`
 - suite 发现与回退：`src/library/registry.ts`、`src/library/core/model/librarySuites.ts`
-- 两套 suite 的声明：`src/library/suites/grid/entry.ts`、`src/library/suites/tui/entry.ts`
-- 宿主：`src/library/app/GridViewOverlayHost.tsx`（集合与歌手页）、`src/components/app/Home.tsx`（首页）
-- 账户：契约 `src/library/core/contracts/account.ts`；规则 `core/model/accountRules.ts`；服务 `core/services/providerAccountController.ts`、`providerLoginSession.ts`、`providerAccountDeps.ts`；绑定 `core/bindings/useLibraryAccount.ts`；宿主 `src/library/app/useLibraryAccountController.ts`、`createLibraryAccountPort.ts`、`libraryAccountLayer.ts`、`LibraryAccountHost.tsx`；grid `suites/grid/account/`；TUI `suites/tui/LibraryTuiAccount*.tsx`、`useLibraryTuiAccountKeys.ts`
+- 三套 suite 的声明：`src/library/suites/grid/entry.ts`、`src/library/suites/bravais/entry.ts`、`src/library/suites/tui/entry.ts`
+- 宿主：`src/library/app/GridViewOverlayHost.tsx`（集合与歌手页、stage 挂载位）、`src/components/app/Home.tsx`（首页）
+- 导航栈：`src/stores/useCollectionNavigationStore.ts`（`notifyCollectionPop` / `subscribeCollectionPop`，`push` 返回 `resolveCollectionPush` 的决定）、`src/library/core/model/collectionNavigation.ts`（`resolveCollectionPush`、`resolveCollectionPopTo`、`projectNavigationTrail`）、`src/hooks/useAppNavigation.ts`（popstate、`popCollectionLayer`、`popCollectionTo`）、`src/hooks/navigationHistoryJournal.ts`（历史日志、`findLayerBaseIndex`）；单测 `test/unit/navigation/navigationHistoryJournal.test.ts`、`test/unit/library/bravais/bravaisPanelNavigation.test.ts`
+- 账户：契约 `src/library/core/contracts/account.ts`；规则 `core/model/accountRules.ts`；服务 `core/services/providerAccountController.ts`、`providerLoginSession.ts`、`providerAccountDeps.ts`；绑定 `core/bindings/useLibraryAccount.ts`；宿主 `src/library/app/useLibraryAccountController.ts`、`createLibraryAccountPort.ts`、`libraryAccountLayer.ts`、`LibraryAccountHost.tsx`；grid `suites/grid/account/`；TUI `suites/tui/LibraryTuiAccount*.tsx`、`useLibraryTuiAccountKeys.ts`；bravais `suites/bravais/BravaisAccount.tsx`、`bravaisAccountStore.ts`、`BravaisSeamAccount*.tsx`
 - 账户回归：探针 `dev/probes/accountBehavior*` + `test/component/accountBehavior.spec.ts`（`window.__accountProbe`，按 suite 参数化，另有 `[grid-only]`、`[switch]` 与 AccountTab 用例）；单测 `test/unit/library/core/accountRules.test.ts`、`providerLoginSession.test.ts`、`providerAccountController.test.ts`、`useLibraryAccount.test.ts`，`test/unit/library/app/useLibraryAccountController.test.ts`、`libraryAccountPort.test.ts`；account surface 的回退与基础动作校验在 `test/unit/library/core/librarySuites.test.ts`、`test/unit/library/registry.test.ts`
 - 背景板订阅与网格设置解析：`src/library/app/useLibraryBackdrop.ts`、`src/library/suites/grid/transitions/gridBackdrop.ts`
-- 常驻舞台：契约 `LibrarySuiteStageProps`（`core/contracts/suite.ts`）；解析 `registry.resolveLibraryStage`；挂载位 `src/library/app/LibrarySuiteStageSlot.tsx`；背景板 / 首页隐藏规则 `core/model/libraryStage.ts`；单测 `test/unit/library/app/librarySuiteStageSlot.test.ts`（假 suite 的挂载、卸载与 lazy）、`test/unit/library/core/libraryStage.test.ts`；遮挡播放页：store `src/stores/useLibraryPlayerOcclusionStore.ts`、接线 `src/library/app/useLibraryPlayerOcclusionReporter.ts`、挂载条件 `src/components/app/presentation/playerVisualizerMount.ts`、时序 `src/hooks/useLibraryOcclusionSettled.ts`，单测 `test/unit/library/app/libraryPlayerOcclusion.test.ts`（假 suite）、`test/unit/navigation/playerVisualizerMount.test.ts`、`test/unit/hooks/useLibraryOcclusionSettled.test.ts`
-- 外观动作：契约 `src/library/core/contracts/suiteChrome.ts`；规则 `core/model/suiteChrome.ts`；store `core/state/useLibrarySuiteChromeStore.ts`；绑定 `core/bindings/useLibrarySuiteChromeRegistration.ts`；命令 `src/components/command-palette/commands/suiteChromeCommands.ts`、`commandFactories.createSuiteChromeCommand`、`commandRegistry.setSuiteChromeCommands`；装入 `src/library/app/installLibrarySuiteChromeCommands.ts`（bootstrap 调用）；单测 `test/unit/command-palette/suiteChromeCommands.test.ts`（假 suite）、`test/unit/library/core/useLibrarySuiteChromeRegistration.test.ts`、`suiteChrome.test.ts`
+- 常驻舞台：契约 `LibrarySuiteStageProps`（`core/contracts/suite.ts`）；解析 `registry.resolveLibraryStage`；挂载位 `src/library/app/LibrarySuiteStageSlot.tsx`；背景板 / 首页隐藏规则 `core/model/libraryStage.ts`；单测 `test/unit/library/app/librarySuiteStageSlot.test.ts`（假 suite 的挂载、卸载与 lazy）、`test/unit/library/core/libraryStage.test.ts`
+- 遮挡播放页：store `src/stores/useLibraryPlayerOcclusionStore.ts`、接线 `src/library/app/useLibraryPlayerOcclusionReporter.ts`、挂载条件 `src/components/app/presentation/playerVisualizerMount.ts`、时序 `src/hooks/useLibraryOcclusionSettled.ts`，单测 `test/unit/library/app/libraryPlayerOcclusion.test.ts`（假 suite）、`test/unit/navigation/playerVisualizerMount.test.ts`、`test/unit/hooks/useLibraryOcclusionSettled.test.ts`
+- 外观动作：契约 `src/library/core/contracts/suiteChrome.ts`；规则 `core/model/suiteChrome.ts`；store `core/state/useLibrarySuiteChromeStore.ts`；绑定 `core/bindings/useLibrarySuiteChromeRegistration.ts`；命令 `src/components/command-palette/commands/suiteChromeCommands.ts`、`commandFactories.createSuiteChromeCommand`、`commandRegistry.setSuiteChromeCommands`；装入 `src/library/app/installLibrarySuiteChromeCommands.ts`（bootstrap 调用）；单测 `test/unit/command-palette/suiteChromeCommands.test.ts`、`test/unit/library/core/useLibrarySuiteChromeRegistration.test.ts`、`suiteChrome.test.ts`
+- suite 选项与透光偏好：`src/library/app/librarySuiteChoice.ts`、`bravaisLibraryActive.ts`、`switchLibrarySuite.ts`；设置 `src/components/modal/settings/LibrarySuiteSection.tsx`、`LibraryWallLookSettings.tsx`；store `src/library/core/state/useLibrarySuiteStore.ts`、`src/stores/useLibraryWallLookStore.ts`（取值规则 `src/utils/libraryWallLook.ts`）；命令 `settingsCommands.ts`（`settings-library-suite` / `library-suite-picker`）、`libraryWallLookCommands.ts`
+- 共享 wall 引擎：`src/components/wall/`（几何、相机、标题、海报样式 `wall.css`）；边界测试 `test/unit/wall/wallBoundaries.test.ts`
 - 页面教程解析与回归：`src/services/ponder/pagePonderTarget.ts`、`test/component/pagePonder.spec.ts`
-- 导航栈与弹栈通知：`src/stores/useCollectionNavigationStore.ts`（`notifyCollectionPop` / `subscribeCollectionPop`）、`src/hooks/useAppNavigation.ts`（popstate）
 - 分层规则：`skills/codebase-navigation/SKILL.md` 的 Boundaries 段、`test/unit/library/layerBoundaries.test.ts`
 
 ## 验收入口
 
-P5 的六项结构与行为条件可由以下入口复查。行为用例同时驱动 grid 与显式启用的 TUI；支持范围以各 suite 声明为准，不要求开发验证 UI 补齐产品界面。
+P5 的六项结构与行为条件可由以下入口复查。行为用例同时驱动 grid、bravais 与显式启用的 TUI；支持范围以各 suite 声明为准，不要求开发验证 UI 补齐产品界面。
 
 | 条件 | 验证入口 |
 | --- | --- |
@@ -423,7 +532,7 @@ P5 的六项结构与行为条件可由以下入口复查。行为用例同时�
 | 按钮、命令与 suite 能力 / 范围一致 | `collectionMutationCapabilities`、`collectionSurface`、`directorySurface`、`artistSurface` 单测与参数化行为用例 |
 | 切 suite 保持会话与队列，布局隔离 | 三组行为探针；真实应用 `libraryRendererSwitch.spec.ts` 的播放引用身份回归；`registry.test.ts` 的布局清理 |
 | Grid 视觉、500 / 5000 首性能与有界资源寿命 | `app.screenshot.spec.ts`；`gridEntrancePerf.spec.ts`；`npm run test:render`；资源 registry 与 suite resolver 单测 |
-| 同业务新 UI 只新增视图、展示适配与注册 | TUI 三 surface 与 entry；本页新增 suite 步骤；生产构建的 manifest / retained modules 检查 |
+| 同业务新 UI 只新增视图、展示适配与注册 | TUI 与 bravais 的 surface 与 entry；本页新增 suite 步骤；生产构建的 manifest / retained modules 检查 |
 
 账户流程进入 core 的验收入口：
 
@@ -431,10 +540,21 @@ P5 的六项结构与行为条件可由以下入口复查。行为用例同时�
 | --- | --- |
 | suite 不直接调扫码 / 登出接口、不读账户与网易后端 store | `src/library/suites/` 下 rg 无 Omni 扫码 / 登出调用与这两个 store 的引用；`layerBoundaries.test.ts` 钉住 suite 不用 `core/services`、账户服务只经端口 |
 | 切换确认由 controller 持有，确认后的清理是宿主端口 | `providerAccountController.test.ts`；`libraryAccountPort.test.ts`；`accountBehavior` 的切换用例 |
-| 两套 suite 完成扫码登录（含 QQ 两步）、切换（含确认）、登出 | `accountBehavior.spec.ts` 的 grid / tui 参数化用例 |
+| 各套 suite 完成扫码登录（含 QQ 两步）、切换（含确认）、登出 | `accountBehavior.spec.ts` 的参数化用例 |
 | 登录进行中切 suite，会话与待确认切换保持 | `accountBehavior` 的 `[switch]` 用例 |
 | account surface 整体回退、基础动作缺失时报错 | `test/unit/library/core/librarySuites.test.ts`、`registry.test.ts` |
 | 扫码状态机、竞态与选平台规则 | `providerLoginSession.test.ts`、`providerAccountController.test.ts`、`accountRules.test.ts` |
 | 网格的登录弹窗、切换器、确认框不变 | `accountBehavior` grid 用例；`providerConnect` 组件用例；`app.screenshot.spec.ts` 三张首页基线 |
+
+bravais 的验收入口：
+
+| 条件 | 验证入口 |
+| --- | --- |
+| 四个 surface、动作集与 grid 相同（23 / 15 / 10 / 7），外观动作文案齐全 | `suites/bravais/entry.ts`；`registry.test.ts`；`commandRegistryContract.test.ts` 与 `suiteChromeCommands.test.ts` |
+| 参数化行为用例与切换 suite | 四组 `*Behavior.spec.ts` 的 [bravais] 与 `[switch]`；`libraryRendererSwitch.spec.ts` |
+| 每一种返回只翻一次（应用内返回、浏览器后退、折叠往返、跳层） | `libraryNavigation.spec.ts` 的 bravais 用例（`data-bravais-shift` 序列）；`bravaisPanelFold.spec.ts` |
+| 选 grid 时不加载 bravais 的 chunk | entry 只静态 import react（`suiteEntries.test.ts`）；生产构建产物检查 |
+| 实色档卸载 visualizer，grid / TUI / Lattice 不变 | `bravaisVisualizerMount.spec.ts`；`playerVisualizerMount.test.ts`；`lattice*` 组件用例 |
+| 拖动 / 翻牌 / 聚焦让位的渲染开销有界 | `bravaisPerf.spec.ts`；`npm run test:render` |
 
 开发行为与截图分别验证。正式三张首页截图基线属于 Linux；Windows 上的同机截图比较不能替代 Linux / CI 基线。生产门控应以实际 Web 构建确认，而不是仅依赖 entry 注释：即使构建环境设置 `VITE_LIBRARY_TUI=true`，产物仍不得包含 TUI 组件（含账户层 `LibraryTuiAccount*`）、其键盘 / 焦点实现（含 `useLibraryTuiAccountKeys`）或 `DevLibraryRendererSwitch`；grid 的 `GridAccountSurface` 应在产物里。通用 locale 中保留 TUI 文案不表示其 UI 被加载。
