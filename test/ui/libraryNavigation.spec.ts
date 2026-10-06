@@ -96,6 +96,13 @@ const searchLocal = async (page: Page, query: string) => {
     expect(await historyState(page)).toMatchObject({ hash: `#search/${query}`, view: 'home', stack: [] });
 };
 
+/**
+ * 换成 bravais 后等它的 stage 挂上（stage 是 lazy 的）。搜索页下面的首页外壳还挂着，stage 会在那里先显示一次首页层
+ * （记成 first）；不等的话，这次挂载可能落在 watchShifts 之后、点击之前（记下 first + enter），也可能落在点击之后
+ * （直接以 enter 挂上），用例就随 chunk 的加载快慢时过时不过。
+ */
+const waitForBravaisStage = (page: Page) => expect(bravaisStage(page)).toHaveAttribute('data-bravais-shift-seq', /.+/);
+
 /** 搜索页还在、结果还在：返回落回的就是离开时的那一页。 */
 const expectSearchResults = async (page: Page, query: string) => {
     await expect(collectionLayer(page)).toHaveCount(0);
@@ -172,6 +179,7 @@ test.describe('search results', () => {
         await openLocalHome(page);
         await searchLocal(page, 'Midnight');
         await selectSuite(page, 'bravais');
+        await waitForBravaisStage(page);
         await watchShifts(page);
 
         await page.getByRole('button', { name: 'Fixture Album' }).click();
@@ -192,6 +200,7 @@ test.describe('search results', () => {
         await openLocalHome(page);
         await searchLocal(page, 'Midnight');
         await selectSuite(page, 'bravais');
+        await waitForBravaisStage(page);
         await watchShifts(page);
 
         await page.getByRole('button', { name: 'Test Artist' }).click();
