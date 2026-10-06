@@ -60,16 +60,16 @@ score(slot) = distanceToSeam(slot.center) − areaWeight × slot.area
 | 首页氛围浏览（歌单、专辑、每日、FM） | 无限 | 自由拖拽 + 惯性 | 允许 |
 | 播放队列（Lattice，独立 app 视图） | 无限 | 同上 | 允许 |
 | 歌单 / 专辑详情、歌手页（普通打开） | 无限 | 同上 | 允许 |
-| 歌单 / 专辑详情、歌手页（过滤、多选等怕重复的操作中） | 有限 | 钳制在内容边界内，带弹性回弹；内容装得下一屏时锁定 | **禁止**，剩余 slot 显示墙面 |
+| 歌单 / 专辑详情、歌手页（过滤中） | 有限 | 钳制在内容边界内，带弹性回弹；内容装得下一屏时锁定 | **禁止**，剩余 slot 显示墙面 |
 | 全局搜索结果 | 有限 | 同上 | **禁止** |
 
 ### 歌单 / 歌手页的双模式（已定）
 
 - **普通打开时是无限拼贴**，和首页一样循环铺满，不论歌单大小。循环带偏移（`wrapOffset`），让起点磁贴（§7）正好是第 1 项，badge 显示条目在列表里的序号。
 - **怕重复的操作触发时，退化为有限拼贴**，以**当前张开的缝**为中心做 rank→slot，不再以起点磁贴为中心。
-  - 「怕重复」指重复出现会造成误解的操作：过滤（重复会让人误以为结果更多）、多选/批量编辑（同一首出现多次，勾选状态让人困惑）。
+  - 「怕重复」指重复出现会造成误解的操作：过滤（重复会让人误以为结果更多），以及首页目录树的批量模式（同一项出现多次，勾选状态让人困惑）。集合页不做多选（§10.3）。
   - 排序这类不怕重复的操作留在无限态，直接重排。
-- **操作结束（清空过滤、退出多选）后翻回无限拼贴**，起点偏移保留，起点磁贴还是第 1 项。
+- **操作结束（清空过滤）后翻回无限拼贴**，起点偏移保留，起点磁贴还是第 1 项。
 - **翻转方式（已定）**：进出有限态时，屏内所有内容变化的 slot 都翻牌，从缝开始错开。结果少时整面墙会瞬间翻成空画框，这本身就是「进入过滤状态」的反馈，不做暗化之类的弱化处理。
 - 大歌单：只要过滤结果超过一屏，有限态看起来和无限态一样满，区别只是不重复、能拖到尽头。所以不需要为大歌单单独开 wrap，原「大歌单要不要 wrap」的问题就此关闭。
 - 有限层的世界大小 = 能装下 N 条内容的最少整块数，按 2.2:1 横向排布（沿用 `FIELD_ASPECT`）。至少铺满视口，铺不满的部分就是墙面。
@@ -416,7 +416,7 @@ type BravaisLayer = {
      - 搜索层只有歌曲磁贴。搜歌手、歌单需要 Omni 和 provider 层先支持，不在 bravais 范围内。
      - 缝里放搜索源切换（当前在线源 / 本地 / Navidrome），切换时整墙翻牌换成新来源的结果。
      - 在线搜索分页：搜索层是有限墙，相机拖近结果尽头（最后一个有内容的 slot 进入视口加 overscan）时调用 `loadMore`。新结果按 rank 接着往外填，有限墙的边界和相机范围随之扩大。已占用的 slot 不动，严格 rank 天然保证追加时只有新 slot 翻牌。
-2. **account surface**：library-v2 A 步正在加。bravais 的登录和账户切换也应该在墙上完成（例如用「二维码磁贴」翻出来）。没实现之前回退到 grid。
+2. **account surface**：已随 library-v2 合入 main（`surfaces.account`，整体回退）。bravais 的登录和账户切换也应该在墙上完成（例如用「二维码磁贴」翻出来）。没实现之前回退到 grid。具体落点改为缝内登录态，见 §10.7。
 3. ~~队列层接入 suite~~：不接入。Lattice 保持独立 app 视图，只和 bravais 共享 wall 引擎（§8.2）。
 4. **suite 外观动作注册接口（已定）**：palette 现有的作用范围（`grid-surface` / `directory-surface` / `artist-surface` 等）只覆盖 core 的资料动作，suite 自己的外观操作（缝的等级、面板、裂开、定位正在播放）没有位置。在 core 约定里加一个通用接口，其他 suite 也能用：
    - 契约：`LibrarySuiteChromeAction = { id, labelKey, keywords, executeShortcut?, isAvailable(): boolean, run(): void }`；`useLibrarySuiteChromeRegistration({ isInteractive, getActions })`，与其他 surface 注册同一套 latest-ref + 按 `isInteractive` 注册 / 注销的模式。
@@ -443,13 +443,266 @@ type BravaisLayer = {
 - 缝的开口等级：信息条 / 书脊 / 收起，全局沿用；切换时的翻转不重排（§5）。
 - grid 的歌曲列表和目录树放进缝里的「面板」。打开面板是一次导航（返回先关面板），不是收起链上的一级；目录树面板即 GridMap 的批量模式（§5）。
 - 缝内容底部为播放条让出安全区（§5）。
-- 歌单/歌手页双模式：普通打开无限拼贴，过滤、多选等怕重复的操作中退化为以缝为中心的有限拼贴；进出时整面翻牌，不弱化（§4）。
+- 歌单/歌手页双模式：普通打开无限拼贴，过滤中退化为以缝为中心的有限拼贴（集合页不做多选）；进出时整面翻牌，不弱化（§4）。
 - 点击歌曲 = 就地聚焦（复用 Lattice 块内让位，6×6），卡上有歌手 / 专辑链接和「立即播放」「加入队列」；立即播放沿用 folia 的播放后进入视图设置。不做卡片背面（§7）。
 - 键盘：沿用 Lattice / TUI 约定，不新增全局键；Tab 在墙与缝之间切换，F6 切首页 tab；过滤用 palette 内联框渲染进缝里；首页保持不注册过滤；suite 外观动作走 core 新增的通用注册接口（§7.6、§8.3）。
 - 视觉风格完全继承 Lattice（主题变量、海报、染色、聚焦卡、按钮、缩放档位），缝默认用 Lattice 主题材质（§7.5）。
 - push 时被点磁贴作为起点磁贴：原地成为 rank 0，排序从它向外展开，缝不动（§7）。
+- 对齐 Library Core：声明并实现四个 surface 的全部动作，不靠回退 grid（§10）。需要输入 / 确认 / 选择的动作（改名、删除、加入歌单、登录与切换确认）在缝里原地翻成表单态，不弹浮层；集合页不做多选；本地 tab 四行是缝里的二级切换；管理隐藏是缝里按钮进入的视图模式，不是导航。
+- bravais 是 library v2 的正式 UI：设置里加 UI suite 选项，正式接入主程序（§10.10）。
 
 待定：
 
 1. 是否给 `PlaybackEntryView` 加「留在资料库（原地播放）」第三个值（§7，倾向不加）。
 1. core 侧补全局搜索的 search surface，以及搜索层的三处调整：只有歌曲、缝内切换搜索源、分页扩展有限墙（§8.3）。实现阶段再做。
+
+## 10. Library Core 能力对齐（实现前置）
+
+原型只覆盖了浏览、过滤、聚焦、播放 / 入队和面板这几条主线。bravais 要作为正式 suite 上线，必须按 `docs/library-suites.md` 的契约，**声明并实现全部四个 surface 的全部动作**。
+
+原因：grid 是唯一的回退。回退到 grid 的页面会以覆盖层的形式压在墙上，等于打破「始终站在墙前」。所以目标是和 grid 声明的动作集一致（grid 声明了全部动作），不靠回退兜底。
+
+### 10.1 放置原则
+
+core 判定「能不能做」，bravais 只决定「在哪做」。按动作的**作用对象**放：
+
+| 作用对象 | 放在哪 | 说明 |
+|---|---|---|
+| 一个条目（歌曲） | 聚焦卡（§7） | 主按钮行只放「立即播放」「加入队列」；其余条目动作放进卡片右上角的「⋯」 |
+| 当前层（集合 / 歌手 / 首页 tab） | 缝 | 高频动作（播放全部、随机、过滤、排序、收藏）直接放在缝里；低频动作进缝底部的「⋯ 更多」 |
+| 选中的一组 | 面板底部 | 目录树批量（§5 面板）。集合页没有批量动作（见 10.3） |
+| 需要输入 / 确认 / 选择 | 缝原地翻成表单态 | 见下方「表单态」 |
+| 外观（缝等级、面板、定位正在播放） | 缝 + `suite-chrome` 注册 | §8.3 #4 |
+
+**表单态**：不弹浮层。缝的内容翻牌换成输入框、确认或选择列表，完成或取消后再翻回。
+
+- 翻成表单态不是导航，不写 history。
+- Esc 先撤销表单态。
+
+**命令面板注册**：所有动作同时向命令面板注册，只在 `isInteractive` 为真时注册。
+
+- 集合页：`useGridSurfaceRegistration` + `buildCoreSurfaceParams`。
+- 目录：`useLibraryDirectorySurfaceRegistration`。
+- 歌手页：`useLibraryArtistSurfaceRegistration`。
+
+声明以 entry 为准，界面上没有入口的动作不声明。
+
+### 10.2 集合页（`collection`）
+
+| 动作 | bravais 入口 | 墙上的表现 |
+|---|---|---|
+| `play` / `enqueue` | 聚焦卡主按钮 | 原型已做。队列 = 当前筛选范围（`useCollectionActions().playTrack`） |
+| `play-scope` / `enqueue-scope` | 缝：播放全部 / 加入队列 | 原型已做。随机是 `play-scope` 的乱序变体，沿用 grid |
+| `filter` | 缝里的 palette 内联框 | 原型已做。触发退化为有限拼贴（§4） |
+| `sort` | 列表面板工具行 | 原型已做。整面翻牌，不触发退化 |
+| `subscribe` | 缝：标题下的收藏星标 | `subscribing` 时星标转圈；结果为 `busy` 时不提示 |
+| `reload` | 缝「⋯ 更多」：重新拉取 | 新快照到达后按 rank 重填，只翻变化的 slot |
+| `resume-sync` | 缝元数据行的「续传」 | 见 10.6 补页进度 |
+| `remove-entry` | 聚焦卡「⋯」：移出歌单（每日推荐里是「不喜欢」） | 见下方说明 |
+| `match-song` | 聚焦卡「⋯」：手动匹配 | 用宿主对话框。对话框是 app 级的，不算打破墙 |
+| `open-album` / `open-artist` | 聚焦卡上的文字链接 | 原型已做。push 前写回 `setFocusedEntry` |
+| `rename` | 缝「⋯ 更多」：改名 | 见下方说明 |
+| `delete-collection` | 缝「⋯ 更多」：删除 | 缝翻成确认态（标题 + 「删除 / 取消」）；成功后走 `onBack`，整墙翻回父层 |
+| `resync-folder` / `resync-all-folders` | 缝「⋯ 更多」 | 进行中的状态显示在缝元数据行 |
+| `export-playlist` | 缝「⋯ 更多」 | 走宿主的导出流程 |
+| `edit-entity` / `organize-song-info` | 缝「⋯ 更多」 | 集合级动作（无参数），用宿主对话框 |
+| `add-to-playlist` | 聚焦卡「⋯」：加入歌单 | 缝翻成选择态，列出可写的 Navidrome 歌单（横排列表，复用面板的列表样式）；不新增一层磁贴墙 |
+| `create-playlist` | 选择态列表顶部「新建歌单…」 | 输入框在同一个选择态里展开 |
+| `daily-date` | 缝：每日推荐的日期步进（‹ 日期 ›） | 换日期就是换内容：整面翻牌，不换层，不写 history |
+
+**`remove-entry`**：
+
+- 聚焦卡先收起，该 slot 翻成墙面。
+- 后面的 rank 依次前移一格，从这个 slot 向外错开翻牌。这是严格 rank 的自然结果。
+- 展示层「按住」旧帧直到翻牌结束，core 不等动画。这和 grid 的 460ms 退出动画是同一个原则。
+
+**`rename`**：
+
+- 缝翻成表单态，竖排标题的位置换成横排输入框。
+- Enter 提交（`mutations.rename`），没改成就停在表单态；Esc 撤销。
+- 对应 grid 的编辑模式：`toggle-edit-mode` 的唯一用途就是改名。
+
+grid 的三个局部动作在 bravais 里的对应：
+
+- `toggle-info-panel` → 缝的开口等级（`suite-chrome`）。
+- `toggle-track-list` → 列表面板（导航状态）。
+- `toggle-edit-mode` → 改名表单态，不再单列。
+
+### 10.3 集合页不做多选（已定）
+
+§4 的双模式原先把「多选」列为怕重复的操作之一。但 core 的集合页**没有批量动作**，集合页的多选因此没有落点：
+
+- `CollectionMutationController` 的条目动作都是单条。
+- `add-to-playlist` / `create-playlist` 虽然接收 `tracks` 参数，但在 grid 里只来自单条或整个范围。
+
+处理方式：
+
+- 去掉集合页多选。触发退化的条件只剩过滤，以及首页目录树的批量模式（它对应 core 的 `directory-*`）。
+- 如果以后要做集合页批量（批量移出、批量加入歌单），这属于 core 的新能力，先进 core 再进 suite。
+
+### 10.4 歌手页（`artist`）
+
+| 动作 | bravais 入口 | 说明 |
+|---|---|---|
+| `play` / `enqueue` | 热门歌曲磁贴 → 聚焦卡 | 与集合页一致 |
+| `open-album` | 单击专辑磁贴 | 进入专辑（`artistAlbumLink` → `onOpenAlbum`），被点的专辑 = 起点磁贴 |
+| `filter` | 缝里的内联框 | 只筛专辑名（core 约定），热门歌曲不参与 |
+| `play-scope` / `enqueue-scope` | 缝：播放热门 / 加入队列 | `enqueueAll(tracks, { suppressToast: true })` 返回收下的条数，提示由缝自己显示 |
+| `open-artist` | 聚焦卡上的其他歌手链接 | 推入另一个歌手页 |
+| `reload` / `resume-sync` | 错误态的「重试」；专辑分页中断时元数据行的「续页」 | `resource.reload()` / `retryAlbums()` |
+| `edit-entity` | 缝「⋯ 更多」（本地歌手） | `onEditEntity`，用宿主对话框 |
+
+歌手页的墙由两类磁贴组成：热门歌曲（track）和专辑（album）。
+
+- rank 顺序：热门歌曲在前（离缝最近），专辑在后。
+- 专辑分页到达时，按 §8.3 搜索分页的方式向外追加。
+- 缝承载 ArtistGridView 的信息：头像、简介、别名、统计。
+
+### 10.5 首页（`home`）
+
+首页 tab（`HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio'`）切换 = 整墙出场 / 入场（F6，§7.6）。各 tab 的墙：
+
+| tab | 墙上 | 数据 |
+|---|---|---|
+| 歌单（在线） | 歌单卡、云盘、每日推荐卡（有没有由 provider 能力决定；空结果与不支持分开表达） | `useLibraryHomeOnline` / `useLibraryHomeOnlineFeeds` |
+| 专辑（在线） | 收藏专辑卡 | `homeResources` 的收藏专辑 feed |
+| 电台（在线） | 电台 feed / FM 卡 | radio feed。点 FM 卡直接播放（`onPlaySong(…, isFmCall)`），不 push |
+| 本地 | 文件夹卡（原型已做），以及专辑 / 歌手 / 歌单 | `useLibraryHomeLocal`。文件夹 / 专辑 / 歌手 / 歌单四行在 bravais 里是缝里的二级切换，切换时整面翻牌，不做成四段墙（已定） |
+| Navidrome | 概览分区（专辑、歌单、随机、收藏） | `useLibraryHomeNavidrome` |
+
+打开条目统一经 `homeResources.actions.openOnlineCard` / `openLocalGroup` / `openNavidromeCard`，被点的卡片 = 起点磁贴。
+
+首页动作：
+
+| 动作 | bravais 入口 |
+|---|---|
+| `directory-filter` / `directory-select` / `directory-play-selection` / `directory-enqueue-selection` / `directory-create-playlist` / `directory-remove-selection` | 目录树面板（原型已做，§5）。建歌单、移除走面板底部的表单态 / 确认态 |
+| `directory-rescan-root` / `directory-remove-root` / `directory-clear-ignore` | 目录树根节点行的悬停操作（原型未做）；移除根走确认态 |
+| `directory-manage-hidden` | 缝里的「管理隐藏」按钮进入的视图（已定），见下方说明 |
+| `directory-toggle-hidden` | 歌单磁贴悬停时右上角的眼睛按钮（只有「歌单类」磁贴有，由 core 判定）。隐藏后该 slot 翻成墙面，后续 rank 前移 |
+| `home-import-folder` / `home-refresh-folders` / `home-import-playlist` | 本地 tab 窄缝的「⋯」 |
+| `home-refresh-navidrome` | Navidrome tab 窄缝的刷新 |
+
+**管理隐藏视图**（已定）：
+
+- 入口是缝里一个常驻的「管理隐藏」按钮，不放进「⋯ 更多」；只在当前 tab 有可隐藏条目（歌单类）时出现。再点一次、或 Esc，退出视图。
+- 它是视图模式，不是导航：不推层、不写 history，面包屑不变。对应 core 的 `useLibraryDirectoryVisibility`（`browse` / `manage` / `manage-hidden-only`），和 grid GridMap 的「隐藏编辑模式」同一份会话状态，切 suite 不丢。
+- 进入 `manage`：墙整面翻牌，已隐藏的歌单也翻上来，显示为灰度 + 半透明（同目录树未选中的样式），每张可隐藏的磁贴右上角常驻眼睛按钮；点眼睛切换隐藏（`directory-toggle-hidden`），磁贴原地变色，不重排。
+- 缝里同时出现「只看隐藏」开关（`manage-hidden-only`）：打开后只留已隐藏的歌单，墙退化为有限拼贴。
+- 退出视图时整面翻回 `browse`：隐藏项的 slot 翻成墙面，后续 rank 前移。
+
+首页 props 里还有几个 app 级入口，bravais 都放在首页窄缝里：
+
+- 打开队列（`onOpenLattice`）：整墙切到 Lattice。
+- 回到播放页（`onBackToPlayer`）。
+- 舞台播放器（`onOpenStagePlayer`）。
+- 设置（`onOpenSettings`）。
+- 扫描进度（`homeResources` 的 scan progress）：显示在缝元数据行。
+
+**全局搜索的过渡方案**：在 core 补上 search surface（§8.3 #1）之前，首页缝里的搜索框**提交**时走 `onSearchCommitted`，跳到现有的 `SearchWorkspace`，也就是离开墙。这是过渡期唯一一处离墙的路径。search surface 落地后，改成墙内的搜索层。
+
+### 10.6 状态：加载、错误、空、补页
+
+原型的数据是同步的。正式实现要把资源状态画在墙上，并且不能把「错误」和「本来就空」混在一起：
+
+| 状态 | 墙 | 缝 |
+|---|---|---|
+| 加载中（首屏） | 有限态的空画框，轻微呼吸；数据到达后从起点 / 缝向外翻入 | 标题照常显示（描述里已有），元数据行显示「加载中」 |
+| 后台补页（`sync.status` 进行中） | 新页按 rank 追加到外圈，只有新 slot 翻牌 | 元数据行显示已载 / 总数 |
+| 补页中断（`interrupted`） | 不变 | 元数据行显示「已中断 · 续传」（`resume-sync`） |
+| 错误（`snapshot.error`、歌手 `status: 'error'`） | 空画框，不呼吸 | 错误文案 + 「重试」（`reload`） |
+| 空（ready 但没有条目；歌手 `ready` 但没有 `detail`） | 空画框 | 「这里还没有内容」，文案和图标都与错误态不同 |
+| 过滤无结果 | 全部 slot 翻成墙面（原型已做） | 「没有匹配」+ 清除过滤 |
+
+动作结果是判别式（`ok` / `busy` / `stale` / `limit-reached` / `failed` …），文案由 bravais 自己翻译：
+
+- 失败与限制类结果：在缝底部的状态行显示几秒。不走 toast，避免挡住墙。
+- `busy`：不提示。
+
+### 10.7 账户（`account`）
+
+account surface 是整体回退的：bravais 不声明时，由 grid 的 `GridAccountSurface` 答复，登录弹窗会盖在墙上。一旦声明，就必须列全三个基础动作。
+
+bravais 声明全部 7 个动作，登录与确认都在**缝里**完成（已定）。
+
+- `account-select` / `account-logout`：放在首页在线 tab 的窄缝里，是一个平台切换（provider 列表 + 当前平台 + 登出）。规则与 grid 的切换器相同：`canLogoutProvider`，且 `logout.status` 不是 `pending`。
+- `account-login` / `account-login-method`：选中未登录的平台后，缝强制拉到 `full`，内容翻成登录态：二维码、状态行、重试 / 关闭。
+  - 缝宽 300px，足够放下 200px 的二维码。
+  - QQ 先在缝里选登录方式（`choosing-method`）。
+  - 冷却期间重试按钮禁用，并显示剩余秒数（`retryCooldownSeconds`）。
+- `account-switch-confirm`：缝翻成确认态，按钮为「切换 / 取消」。确认后立即翻回，不 `await confirmSwitch`。
+- `account-login-diagnostics` / `account-backend-restart`：登录失败后的次级按钮，只看视图的 `diagnosticsPrompt` / `backendFailure`。
+- 账户层：不接 `accountLayerRef`，登录态就是缝的一个内容态。登录态或确认态显示时，缝挂上 `data-folia-keyboard-window`，独占不带修饰键的按键。
+- 寿命：controller 属于 App，切换 suite 时登录会话和待确认切换都保持。`accountBehavior` 的 `[switch]` 用例也要对 bravais 跑通。
+
+这个方案替代 §8.3 #2 里「二维码磁贴」的设想：二维码放在缝里，不占墙上的 slot，也不受翻牌和相机影响，扫码时不会被拖走。
+
+### 10.8 导航、会话与转场的契约对齐
+
+| 契约 | bravais 做法 |
+|---|---|
+| `onDone` vs `onBack` | 缝的 ‹ 返回按钮 = `onDone`（清会话、忘布局）；Esc 阶梯的最后一步 = `onBack`。Esc 阶梯顺序：表单态 → 聚焦卡 → 面板 → 过滤词 → `onBack` |
+| 浏览器后退 | 不经过 suite。在 `transitions.beforeBack` 里启动反向翻牌（此时界面和导航 store 都还是返回前的样子），一次返回只跑一次 |
+| `beforePush` | 记下起点磁贴（被点卡片的 slot），供新层使用 |
+| `transitions.Overlay` | 即 `BravaisStage`（§8.1），常驻挂载；`enabled=false` 时只做中性淡入淡出 |
+| `transitions.backdrop` | 解析「降低动态效果」设置：开启时翻牌换成 0.18s 淡入淡出，并关闭整墙波次 |
+| `transitions.reset` | 切换 suite 时丢掉还没用掉的起点 / 翻牌计划 |
+| `layout.forget(sessionKey)` | bravais 的布局记录（每层的相机位置、缝等级、无限态的 `wrapOffset`）存在 sessionStorage 里，按会话键丢弃 |
+| 会话（筛选词、焦点、选中） | 全部放在 core 会话 store 里，见下方说明 |
+| 打开来源（`origin: 'home' \| 'search' \| 'player'`） | 从搜索页或播放页打开集合时，下面没有首页墙：整墙入场到集合层；`onBack` 回到来源时整墙出场 |
+| `isInteractive` | 为 false 时（例如另一层盖在上面，或正在退场）不接键盘、不注册 palette、不响应墙上的点击 |
+| Ponder | 先在各 surface 根上声明 `data-ponder-page-scope="none"`，bravais 自己的教程以后再加 |
+
+会话状态的对应：
+
+- 过滤词：`useLibrarySessionQuery`。
+- 聚焦卡 / 键盘焦点：`setFocusedEntry`。只在用户动过焦点时写，写之前先比较 `getLibrarySessionGeneration`。
+- 目录选择：`useLibraryDirectorySelection`。
+- 缝等级、面板开合属于布局，不进 core。
+
+### 10.9 测试与验收
+
+- **参数化行为用例**：把 bravais 加进 `libraryBehavior` / `homeBehavior` / `artistBehavior` / `accountBehavior`。
+  - 这些用例按语义驱动（探针），所以 bravais 要给磁贴、缝、聚焦卡、面板和表单态加上探针能定位的语义标记（role / data 属性），不靠坐标。
+- **虚拟化**：墙只渲染视口内的磁贴加 overscan。用例里「找到某一首」要经键盘焦点或列表面板定位，不能假设所有条目都在 DOM 里。
+- **分层**：`layerBoundaries.test.ts` 会自动覆盖新 suite。如果 wall 引擎从 `components/app/lattice/` 抽出来（§8.2），要放在 suite 能 import 的位置：不能 import 别的 suite，也不能让 Lattice 反向依赖 bravais。
+- **加载方式**：entry 用 `React.lazy`（非默认 suite 都要这样）。不用开发 flag 门控，经设置项正式接入（10.10）。
+
+### 10.10 正式接入：设置里的 UI suite 选项（已定）
+
+bravais 是 library v2 的正式新 UI，以后的开发以它为主。它不走 TUI 那种开发开关，而是正式接入主程序：在设置里加一个 UI suite 选项，用户通过这个选项切换。
+
+**选项与存储**：
+
+- `useLibrarySuiteStore` 改为持久化（localStorage）。读取时先经 registry 校验；未知或当前构建不可用的 id 回到默认 suite。这个 store 的注释里已经预留了「成为正式选项时再接入设置」。
+- 选项列表取 registry 里 `available` 为真的 suite：生产构建里是 grid 与 bravais；TUI 仍是开发验证 suite，只在开发 flag 打开时出现。
+- 默认值（已定）：开发阶段，没做过选择的用户默认进入 bravais（「初始选择」）；grid 仍是回退 suite（未知 id、缺 surface 时用它）。现有测试与截图基线经构建变量钉在 grid。发版前复核正式版的初始选择。
+- 开发浮层 `DevLibraryRendererSwitch` 保留给开发用，和设置项写同一个 store。
+
+**设置集成**（按 `skills/settings-feature-integration`）：
+
+- 放在**界面设置**（`GeneralSettingsSubview`），在「播放进入视图」旁边（已定）。
+- 不进外观配置的导入导出（短码 / JSON）：suite 选择是界面偏好而不是视觉调参，避免分享外观配置时顺带改掉对方的资料库界面。
+- 命令面板：在 `settingsCommands` 里加一条「切换资料库界面」（picker surface 列出可用 suite），`isAvailable` 与设置 UI 用同一个判断。文案同步 en / zh-CN / in 三份 locale，关键词带中英文和拼音缩写。
+- 切换时走现有的 `app/switchLibrarySuite`：不重新请求，筛选、选中、焦点与播放队列保持；转场计划由各 suite 的 `transitions.reset` 丢弃。
+
+**按需加载**：
+
+- bravais 的 surface 组件都用 `React.lazy`，用户没选 bravais 时不加载它的 chunk。
+- 注意 `listLibrarySuiteOverlays()` 会把**每一套** suite 的 `transitions.Overlay` 常驻挂载（`GridViewOverlayHost`）。所以 bravais 的 Overlay 必须是一个很薄的壳：只在当前 suite 是 bravais 时才 lazy 加载 `BravaisStage`，否则渲染 null。不能让选 grid 的用户也加载整面墙。
+- `BravaisStage` 横跨首页与集合层（§8.1），要确认 `GridViewOverlayHost` 在首页时也常驻。若不是，就把 stage 的挂载点上移到首页外壳与集合宿主的共同祖先。这是实现第一步要核实的点。
+
+### 10.11 实现顺序（草案）
+
+正式实现计划（步骤、闸门、交接记录）在 `plan/bravais-implementation-plan.md`（git-ignored）。下面是概要。
+
+1. **core / app 前置**：
+   - suite 选项持久化与设置项（§10.10）；
+   - suite 外观动作注册接口（§8.3 #4）；
+   - 集合导航栈去环 N1（§8.3 #5）。
+2. **wall 引擎**：从 `components/app/lattice/` 抽出共享 wall 引擎（§8.2），Lattice 改用抽出后的版本。抽出前后 Lattice 的截图基线不变。
+3. **bravais 骨架**：entry（四个 surface 全部 lazy）、`BravaisStage` 与 stage store、缝、rank→slot、双模式、翻牌状态机、键盘焦点。
+4. **按 surface 补齐**：collection → artist → home → account，每补一个就声明对应动作，并接入参数化行为用例。
+5. **状态**：加载、错误、空、补页（§10.6），以及表单态（改名、删除、加入歌单）。
+6. 发版前复核初始选择（开发阶段已默认 bravais）。
+7. core 的 search surface（§8.3 #1）落地后，搜索层进墙，去掉过渡期的离墙路径。
