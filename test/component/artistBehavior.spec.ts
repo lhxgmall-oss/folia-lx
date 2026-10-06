@@ -770,6 +770,8 @@ test.describe('[bravais-only] artist page wall', () => {
         await expect(artistAnchor(page)).toHaveAttribute('data-bravais-mode', 'finite');
         const filtered = artistAlbumIdsMatching(main, 'cedar');
         await expect.poll(async () => (await artist(page))?.albumIds).toEqual(filtered);
+        // 缝里的过滤位显示过滤词（Home / End 让相机移动之前看：缝可能随墙移出屏幕而收起）。
+        await expect(stageRoot(page).locator('[data-bravais-seam-filter="active"]')).toBeVisible();
         // 列表面板只列匹配的专辑（虚拟列表，只看前几行）：热门歌曲仍在前面。
         await expect.poll(() => rows.evaluateAll(elements => elements.slice(0, 11).map(element => element.getAttribute('data-bravais-list-row'))))
             .toEqual([...topKeys(main).map(key => `song:${key}`), `album:${filtered[0]}`]);
@@ -780,7 +782,6 @@ test.describe('[bravais-only] artist page wall', () => {
         await pressOnPage(page, 'End');
         await expect(page.locator('.bravais-tile[data-bravais-focused]')).toHaveAttribute('data-library-card', `album:${filtered.at(-1)}`);
         expect((await artist(page))!.topSongIds).toEqual(topKeys(main));
-        await expect(stageRoot(page).locator('[data-bravais-seam-filter="active"]')).toBeVisible();
     });
 
     test('a new album page only fills slots that were empty: tiles already showing something keep it', async ({ mount, page }) => {
