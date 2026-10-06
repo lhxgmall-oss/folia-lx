@@ -1,5 +1,6 @@
 import type { GridSurfaceActionId, GridSurfaceState } from '../../../src/types/gridCommandSurface';
 import type { LibraryDeclaredActions, LibrarySuiteId, LibrarySurfaceId } from '../../../src/library/core/contracts/suite';
+import type { CollectionNavigationOrigin } from '../../../src/library/core/contracts/collection';
 import type { LibraryArtistSurfaceActionId, LibraryArtistSurfaceState } from '../../../src/library/core/contracts/artist';
 import type { ArtistFixtureId, OnlineArtistFixtureId, OnlineFixtureId, ProbeFixtureId } from './fixtureRules';
 import type { ProbeFault } from './fakeProviders';
@@ -51,8 +52,11 @@ export type LibraryProbeApi = {
     /** 沙盒模式才写 IndexedDB / Navidrome 配置；测试浏览器里自动开启。 */
     sandbox: boolean;
     fixtures: () => ProbeFixtureId[];
-    /** 等价于在首页点开这个集合。 */
-    open: (fixtureId: ProbeFixtureId) => void;
+    /**
+     * 等价于在首页点开这个集合。B11：origin 给 search / player 时等价于从搜索页 / 播放页打开（根层的来源，
+     * bravais 整墙入场）；缺省是首页。
+     */
+    open: (fixtureId: ProbeFixtureId, origin?: CollectionNavigationOrigin) => void;
     /** 等价于浏览器后退：先发「将要弹栈」的通知（宿主让 suite 跑 beforeBack），再弹栈；不清会话与布局记录。 */
     back: () => void;
     /** 浏览会话里这个键的筛选词与焦点（没有会话时为 null）。 */

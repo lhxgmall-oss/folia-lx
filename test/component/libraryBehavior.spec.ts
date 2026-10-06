@@ -1979,3 +1979,169 @@ test.describe('[bravais-only] N1 fold', () => {
         expect(foldWatch).toEqual(backWatch);
     });
 });
+
+// B11 导航与转场收尾：面包屑按位置跳层（栈里有重复的集合、面板开着）、从搜索页打开的整墙入场、降低动态效果的淡入淡出。
+// stage 根节点的 data-bravais-shift(-seq) 记下每次换层的种类；探针没有首页层，回到深度 0 的出场在 bravaisHome 里验。
+test.describe('[bravais-only] B11 navigation and transitions', () => {
+    const stageRoot = (page: Page) => page.locator('[data-library-stage="bravais"]');
+    const layerKey = (page: Page) => stageRoot(page).getAttribute('data-bravais-layer');
+    const crumbs = (page: Page) => stageRoot(page).locator('[data-bravais-crumb]');
+    const crumbKinds = (page: Page) => crumbs(page).evaluateAll(nodes => nodes.map(node => (
+        `${node.getAttribute('data-bravais-crumb')}${node.getAttribute('data-bravais-crumb-depth') ?? ''}:${node.textContent ?? ''}`
+    )));
+    const push = (page: Page, id: ProbeFixtureId) => page.evaluate(fixtureId => window.__libraryProbe!.push(fixtureId), id);
+    /** 从现在起记下每一次换层的种类（按序号认新的一次）。 */
+    const watchShifts = (page: Page) => page.evaluate(() => {
+        const root = document.querySelector('[data-library-stage="bravais"]')!;
+        const record: string[] = [];
+        (window as unknown as { __shifts?: string[] }).__shifts = record;
+        let seq = root.getAttribute('data-bravais-shift-seq');
+        new MutationObserver(() => {
+            const next = root.getAttribute('data-bravais-shift-seq');
+            if (next === seq || next === null) return;
+            seq = next;
+            record.push(root.getAttribute('data-bravais-shift') ?? '');
+        }).observe(root, { attributes: true, attributeFilter: ['data-bravais-shift-seq'] });
+    });
+    const shifts = (page: Page) => page.evaluate(() => (window as unknown as { __shifts?: string[] }).__shifts ?? []);
+    /** 此刻在磁贴内容层上跑着的动画：关键帧里有没有绕 Y 轴转、抬起、只改透明度。 */
+    const tileAnimations = (page: Page) => page.evaluate(() => document.getAnimations()
+        .filter(animation => {
+            // 只看磁贴自己放的 WAAPI 动画（CSS 的过渡 / 动画也在 getAnimations 里，例如悬停与日光切换的过渡）。
+            if (animation instanceof CSSTransition || animation instanceof CSSAnimation) return false;
+            const target = (animation.effect as KeyframeEffect | null)?.target;
+            return target instanceof Element && target.classList.contains('bravais-tile-face');
+        })
+        .map(animation => {
+            const effect = animation.effect as KeyframeEffect;
+            const frames = effect.getKeyframes();
+            const transforms = frames.map(frame => String(frame.transform ?? '')).join(' ');
+            return {
+                rotates: transforms.includes('rotateY'),
+                lifts: transforms.includes('-90px'),
+                fadesOnly: !frames.some(frame => frame.transform !== undefined) && frames.some(frame => frame.opacity !== undefined),
+                duration: Number(effect.getTiming().duration),
+                fill: effect.getTiming().fill,
+            };
+        }));
+    const openFixture = async (page: Page, id: keyof typeof fixture) => {
+        await open(page, id);
+        await waitForScope(page, expectedPlayableIndexes(fixture[id].rawIndexes).length);
+        await waitForBravaisWall(page);
+    };
+    const pushAndWait = async (page: Page, id: ProbeFixtureId, expected: string[]) => {
+        const before = await layerKey(page);
+        expect(await push(page, id)).toBe(true);
+        await expect.poll(() => stack(page)).toEqual(expected);
+        await expect.poll(() => layerKey(page)).not.toBe(before);
+        await waitForBravaisWall(page);
+    };
+    const PUBLIC = fixture['online-public'].name;
+    const OWNED = fixture['online-owned'].name;
+    const DAILY = fixture['online-daily'].name;
+
+    test('a stack that repeats a collection: crumbs fold, expand and jump by position; the repeated layer flips back once', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await openFixture(page, 'online-public');
+        const publicKey = (await layerKey(page))!;
+        await expect.poll(() => crumbKinds(page)).toEqual(['root0:Library', `current:${PUBLIC}`]);
+
+        await pushAndWait(page, 'online-owned', [PUBLIC, OWNED]);
+        await expect.poll(() => crumbKinds(page)).toEqual(['root0:Library', `layer1:${PUBLIC}`, `current:${OWNED}`]);
+        await pushAndWait(page, 'online-daily', [PUBLIC, OWNED, DAILY]);
+        // 不是紧邻的往返：照常压栈，栈里第二次出现 Public。
+        expect(await push(page, 'online-public')).toBe(true);
+        await expect.poll(() => stack(page)).toEqual([PUBLIC, OWNED, DAILY, PUBLIC]);
+        await expect.poll(() => layerKey(page)).toBe(publicKey);
+        await waitForBravaisWall(page);
+
+        // 中间层多于 1 层：只留紧挨当前层的那一层，其余折成「…」；点「…」展开，每一层都给它自己的位置。
+        await expect.poll(() => crumbKinds(page)).toEqual(['root0:Library', 'more:…', `layer3:${DAILY}`, `current:${PUBLIC}`]);
+        await expect(stageRoot(page).locator('[data-bravais-crumb="more"]')).toHaveAttribute('title', `${PUBLIC} › ${OWNED}`);
+        await stageRoot(page).locator('[data-bravais-crumb="more"]').click();
+        await expect.poll(() => crumbKinds(page)).toEqual([
+            'root0:Library', `layer1:${PUBLIC}`, `layer2:${OWNED}`, `layer3:${DAILY}`, `current:${PUBLIC}`,
+        ]);
+
+        // 点第 1 层的 Public：同一个集合、深度从 4 变 1——是一次返回，翻一次，层还是 Public。
+        await page.waitForTimeout(300);
+        await watchShifts(page);
+        await stageRoot(page).locator('[data-bravais-crumb="layer"][data-bravais-crumb-depth="1"]').click();
+        await expect.poll(() => stack(page)).toEqual([PUBLIC]);
+        await waitForBravaisWall(page);
+        await page.waitForTimeout(400);
+        expect(await shifts(page)).toEqual(['back']);
+        await expect(stageRoot(page)).toHaveAttribute('data-bravais-layer', publicKey);
+        await expect.poll(() => crumbKinds(page)).toEqual(['root0:Library', `current:${PUBLIC}`]);
+    });
+
+    test('with the list panel open the current crumb closes it, and a crumb jump leaves the panel behind', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await openFixture(page, 'online-public');
+        await pushAndWait(page, 'online-owned', [PUBLIC, OWNED]);
+        await pushAndWait(page, 'online-daily', [PUBLIC, OWNED, DAILY]);
+
+        await openBravaisList(page);
+        await expect.poll(() => crumbKinds(page)).toEqual([
+            'root0:Library', 'more:…', `layer2:${OWNED}`, `current:${DAILY}`, 'panel:List',
+        ]);
+        // 当前层（面板开着）= 关面板，不换层。
+        await watchShifts(page);
+        await stageRoot(page).locator('[data-bravais-crumb="current"]').click();
+        await expect(page.locator('[data-bravais-list]')).toHaveCount(0);
+        expect(await stack(page)).toEqual([PUBLIC, OWNED, DAILY]);
+
+        // 再开面板，点上一层：调用方不先关面板，落地后面板不在了，翻一次。
+        await openBravaisList(page);
+        await page.waitForTimeout(300);
+        await stageRoot(page).locator('[data-bravais-crumb="layer"][data-bravais-crumb-depth="2"]').click();
+        await expect.poll(() => stack(page)).toEqual([PUBLIC, OWNED]);
+        await expect(page.locator('[data-bravais-list]')).toHaveCount(0);
+        await waitForBravaisWall(page);
+        await page.waitForTimeout(400);
+        expect(await shifts(page)).toEqual(['back']);
+    });
+
+    test('opening from the search enters the whole wall: no start tile, every tile lands from lifted', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await page.evaluate(() => window.__libraryProbe!.open('online-public', 'search'));
+        await expect(stageRoot(page)).toHaveAttribute('data-bravais-shift', 'enter');
+        await expect.poll(async () => (await tileAnimations(page)).length).toBeGreaterThan(0);
+        const animations = await tileAnimations(page);
+        expect(animations.every(animation => animation.lifts && !animation.rotates && animation.fill === 'backwards')).toBe(true);
+        await expect(stageRoot(page).locator('[data-bravais-crumb="root"]')).toHaveText('Search');
+        await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes).length);
+        await waitForBravaisWall(page);
+        // 落定后墙上是这一层的内容（入场途中到达的数据照样落回），起点没有留下。
+        await expect(stageRoot(page).locator('.bravais-tile[data-library-entry]').first()).toBeAttached();
+        expect(await page.evaluate(async () => {
+            const modulePath = '/src/library/suites/bravais/bravaisStageStore.ts';
+            const { useBravaisStageStore } = await import(/* @vite-ignore */ modulePath);
+            return useBravaisStageStore.getState().pendingOrigin as unknown;
+        })).toBeNull();
+    });
+
+    test('reduced motion fades the flips in 0.18s instead of turning them, both ways', async ({ mount, page }) => {
+        await page.addInitScript(() => localStorage.setItem('reduce_motion_lattice', 'true'));
+        await mountProbe(mount, page, 'bravais');
+        await openFixture(page, 'online-public');
+        await page.waitForTimeout(300);
+
+        const settleStarted = Date.now();
+        expect(await push(page, 'online-owned')).toBe(true);
+        await expect.poll(async () => (await tileAnimations(page)).length).toBeGreaterThan(0);
+        const pushed = await tileAnimations(page);
+        expect(pushed.every(animation => animation.fadesOnly && animation.duration === 90)).toBe(true);
+        await expect.poll(() => stack(page)).toEqual([PUBLIC, OWNED]);
+        await waitForBravaisWall(page);
+        // 落定按 0.18s 算（加上换层前后的余量），不是翻牌的错开上限。
+        expect(Date.now() - settleStarted).toBeLessThan(2000);
+
+        await page.waitForTimeout(300);
+        await back(page);
+        await expect.poll(async () => (await tileAnimations(page)).length).toBeGreaterThan(0);
+        expect((await tileAnimations(page)).every(animation => animation.fadesOnly)).toBe(true);
+        await expect.poll(() => stack(page)).toEqual([PUBLIC]);
+        await waitForBravaisWall(page);
+    });
+});

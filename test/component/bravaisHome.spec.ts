@@ -318,3 +318,90 @@ test.describe('[bravais-only] home ↔ collection / artist', () => {
         await expect(seam(page).locator('[data-bravais-section="artists"]')).toHaveAttribute('aria-selected', 'true');
     });
 });
+
+// B11：从搜索页 / 播放页打开的集合下面没有首页墙——整墙入场（磁贴从抬起落回，没有起点磁贴）；‹ 回到来源是整墙出场
+// （首页层在遮盖之下落回，相机回到离开时的位置）。探针里没有搜索页，用导航 store 以 search 来源打开同一个歌单。
+test.describe('[bravais-only] whole-wall entrance and exit from a source', () => {
+    const wallContent = (page: Page) => page.evaluate(() => Object.fromEntries(
+        [...document.querySelectorAll<HTMLElement>('.bravais-tile')]
+            .map(tile => [tile.dataset.bravaisSlot ?? '', tile.dataset.libraryCard ?? tile.dataset.libraryEntry ?? ''])
+            .filter(([, entry]) => entry),
+    ));
+    const watchShifts = (page: Page) => page.evaluate(() => {
+        const root = document.querySelector('[data-library-stage="bravais"]')!;
+        const record: string[] = [];
+        (window as unknown as { __shifts?: string[] }).__shifts = record;
+        let seq = root.getAttribute('data-bravais-shift-seq');
+        new MutationObserver(() => {
+            const next = root.getAttribute('data-bravais-shift-seq');
+            if (next === seq || next === null) return;
+            seq = next;
+            record.push(root.getAttribute('data-bravais-shift') ?? '');
+        }).observe(root, { attributes: true, attributeFilter: ['data-bravais-shift-seq'] });
+    });
+    const shifts = (page: Page) => page.evaluate(() => (window as unknown as { __shifts?: string[] }).__shifts ?? []);
+    /** 此刻磁贴内容层上的动画：抬起（整墙波次）、转（翻牌）、fill。 */
+    const tileAnimations = (page: Page) => page.evaluate(() => document.getAnimations()
+        .filter(animation => {
+            // 只看磁贴自己放的 WAAPI 动画（CSS 的过渡 / 动画也在 getAnimations 里，例如悬停与日光切换的过渡）。
+            if (animation instanceof CSSTransition || animation instanceof CSSAnimation) return false;
+            const target = (animation.effect as KeyframeEffect | null)?.target;
+            return target instanceof Element && target.classList.contains('bravais-tile-face');
+        })
+        .map(animation => {
+            const effect = animation.effect as KeyframeEffect;
+            const transforms = effect.getKeyframes().map(frame => String(frame.transform ?? '')).join(' ');
+            return { lifts: transforms.includes('-90px'), rotates: transforms.includes('rotateY'), fill: effect.getTiming().fill };
+        }));
+
+    test.beforeEach(async ({ mount, page }) => {
+        await mountBravais(mount, page);
+    });
+
+    test('a playlist opened from the search enters the whole wall, and Back exits it with the home wall landing as it was', async ({ page }) => {
+        // 先从首页打开一次拿到描述（宿主收到的同一份），退回首页。
+        await card(page, 'card:playlist:owned').locator('article').dispatchEvent('click');
+        await expect.poll(async () => (await stack(page)).length).toBe(1);
+        const descriptor = await page.evaluate(async () => {
+            const modulePath = '/src/stores/useCollectionNavigationStore.ts';
+            const { useCollectionNavigationStore } = await import(/* @vite-ignore */ modulePath);
+            return useCollectionNavigationStore.getState().snapshot!.stack[0] as unknown;
+        });
+        await settled(page);
+        await seam(page).locator('[data-bravais-seam-action="back"]').first().dispatchEvent('click');
+        await expect.poll(() => stack(page)).toEqual([]);
+        await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:playlist');
+        await settled(page);
+        await page.waitForTimeout(400);
+        const before = await wallContent(page);
+        expect(Object.keys(before).length).toBeGreaterThan(0);
+
+        await watchShifts(page);
+        await page.evaluate(async collection => {
+            const modulePath = '/src/stores/useCollectionNavigationStore.ts';
+            const { useCollectionNavigationStore } = await import(/* @vite-ignore */ modulePath);
+            useCollectionNavigationStore.getState().openRoot(collection, 'search');
+        }, descriptor);
+        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'enter');
+        await expect.poll(async () => (await tileAnimations(page)).length).toBeGreaterThan(0);
+        expect((await tileAnimations(page)).every(animation => animation.lifts && !animation.rotates && animation.fill === 'backwards')).toBe(true);
+        await expect(stage(page).locator('[data-bravais-crumb="root"]')).toHaveText('Search');
+        await settled(page);
+        await page.waitForTimeout(400);
+
+        await seam(page).locator('[data-bravais-seam-action="back"]').first().dispatchEvent('click');
+        await expect.poll(() => stack(page)).toEqual([]);
+        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'exit');
+        await expect.poll(async () => (await tileAnimations(page)).length).toBeGreaterThan(0);
+        expect((await tileAnimations(page)).some(animation => animation.lifts)).toBe(true);
+        expect((await tileAnimations(page)).some(animation => animation.rotates)).toBe(false);
+        await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:playlist');
+        await settled(page);
+        await page.waitForTimeout(400);
+        expect(await shifts(page)).toEqual(['enter', 'exit']);
+        const after = await wallContent(page);
+        const shared = Object.keys(before).filter(slot => slot in after);
+        expect(shared.length).toBeGreaterThan(0);
+        for (const slot of shared) expect(after[slot], slot).toBe(before[slot]);
+    });
+});

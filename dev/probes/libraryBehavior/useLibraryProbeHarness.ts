@@ -18,6 +18,7 @@ import {
     type CollectionNavigationSnapshot,
 } from '../../../src/stores/useCollectionNavigationStore';
 import { resolveCollectionPopTo } from '../../../src/library/core/model/collectionNavigation';
+import type { CollectionNavigationOrigin } from '../../../src/library/core/contracts/collection';
 import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
 import { useLibrarySuiteStore } from '../../../src/library/core/state/useLibrarySuiteStore';
 import { DEFAULT_LIBRARY_SUITE_ID } from '../../../src/library/core/model/librarySuites';
@@ -279,7 +280,7 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
         return group ? createLocalGridViewCollection(group) : null;
     }, [localLibraryCatalog, localPlaylists, localSongs, t]);
 
-    const open = useCallback((fixtureId: ProbeFixtureId) => {
+    const open = useCallback((fixtureId: ProbeFixtureId, origin: CollectionNavigationOrigin = 'home') => {
         if (SANDBOX_ONLY.has(fixtureId) && !sandbox) {
             console.warn(`[libraryBehavior] ${fixtureId} needs sandbox mode (?probe=libraryBehavior&sandbox)`);
             return;
@@ -289,7 +290,8 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
             console.warn(`[libraryBehavior] fixture ${fixtureId} is not available yet`);
             return;
         }
-        onOpenCollection(collection);
+        if (origin === 'home') onOpenCollection(collection);
+        else useCollectionNavigationStore.getState().openRoot(collection, origin);
     }, [onOpenCollection, resolveFixture, sandbox]);
 
     // 从当前集合压入一个 fixture 集合（经 onPushCollection，N1 的规则与真实宿主一致）。
@@ -339,7 +341,7 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
         sandbox,
         fixtures: () => ALL_FIXTURES,
         ready: () => latestRef.current.ready,
-        open: fixtureId => latestRef.current.open(fixtureId),
+        open: (fixtureId, origin) => latestRef.current.open(fixtureId, origin),
         back: popNavigation,
         push: fixtureId => latestRef.current.push(fixtureId),
         pushArtist: () => latestRef.current.pushArtist(),
