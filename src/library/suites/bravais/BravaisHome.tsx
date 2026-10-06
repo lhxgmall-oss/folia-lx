@@ -1,114 +1,102 @@
-import React, { useCallback, useMemo, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useCallback } from 'react';
 import type { LibraryHomeSurfaceProps } from '../../core/contracts/suite';
-import type { LibraryHomeCard, LibraryHomeTabKey } from '../../core/contracts/homeModel';
+import type { LibraryHomeTabKey } from '../../core/contracts/homeModel';
+import { isOnlineHomeTab } from '../../core/model/homeSources';
 import { useLibraryHomeSources } from '../../core/bindings/useLibraryHomeSources';
 import { useLibraryHomeOnline } from '../../core/bindings/useLibraryHomeOnline';
+import { useLibraryHomeActions } from '../../core/bindings/useLibraryHomeActions';
+import { useLibraryHomeDirectory } from '../../core/bindings/useLibraryHomeDirectory';
 import { useLibraryHomeTabsRegistration } from '../../core/bindings/useLibraryHomeSurfaceRegistration';
-import type { BravaisItemKind, BravaisLayer, BravaisSeamModel } from './bravaisLayer';
-import { homeCardItemKey, projectHomeCards } from './bravaisProjection';
-import { useBravaisLayerRegistration } from './useBravaisLayerRegistration';
+import { setBravaisSearchOpen } from './bravaisHomeUiStore';
+import { useBravaisHomeChrome } from './useBravaisHomeChrome';
+import { BravaisHomeLocal, BravaisHomeNavidrome, BravaisHomeOnline } from './BravaisHomeSources';
 
 // src/library/suites/bravais/BravaisHome.tsx
-// 首页 surface（B6：只有「歌单」页签铺墙）。与 TUI、网格用同一套首页绑定（来源与页签、在线列表都来自 core，
-// 换 suite 不重新请求），把当前页签的卡片投影成层描述推进 stage store；它自己只渲染一个不可见的锚点。
-// 其它页签（专辑、电台、本地、Navidrome）在 B9 铺墙：现在缝里照常列出页签，选中它们时墙面留空、缝里说明还没有墙面。
-// 打开卡片经首页资源的 openOnlineCard（与 TUI 同一个入口），被点的磁贴由 stage 记成新层的起点。
+// 首页 surface（B9，设计稿 §10.5）：五个页签（歌单 / 电台 / 专辑 / 本地 / Navidrome）都铺墙。与 TUI、网格用同一套首页
+// 绑定（来源与页签、在线列表、首页资源与动作都来自 core，换 suite 不重新请求），按当前来源挂一个来源组件
+// （BravaisHomeSources），它把当前页签 / section 的卡片投影成首页层推进 stage store；这里自己只渲染一个不可见的锚点。
+// 切页签 = 换首页层（`home:<页签>`）：stage 整墙出场 → 入场；本地四行、Navidrome 的 section 是缝里的二级切换，不换层。
+// 页签条交给首页 surface 句柄（useLibraryHomeTabsRegistration），命令面板的「打开歌单 / 本地…」写的是同一个页签。
 
-const NO_KEYS: ReadonlySet<string> = new Set();
-const NO_CARDS: LibraryHomeCard[] = [];
-
-const KIND_LABEL_KEYS: Record<BravaisItemKind, string> = {
-    track: 'libraryBravais.kind.track',
-    playlist: 'libraryBravais.kind.playlist',
-    album: 'libraryBravais.kind.album',
-    artist: 'libraryBravais.kind.artist',
-    folder: 'libraryBravais.kind.folder',
-    feed: 'libraryBravais.kind.feed',
-};
-
-const BravaisHome: React.FC<LibraryHomeSurfaceProps> = ({
-    account,
-    user,
-    playlists,
-    cloudPlaylist,
-    navidromeEnabled,
-    homeResources,
-    onOpenGridView,
-    isInteractive,
-}) => {
-    const { t } = useTranslation();
+const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
+    const {
+        account,
+        user,
+        playlists,
+        cloudPlaylist,
+        navidromeEnabled,
+        localMusicState,
+        setLocalMusicState,
+        homeResources,
+        directoryActions,
+        onOpenGridView,
+        isInteractive,
+        declaredActions,
+    } = props;
     const sources = useLibraryHomeSources({ account, user, playlists, cloudPlaylist, navidromeEnabled });
     const { tab, setTab, tabs, online } = sources;
     const onlineList = useLibraryHomeOnline(homeResources, sources);
+    const { scanPercent, snapshot: actionState } = useLibraryHomeActions(homeResources.actions);
+    const { directoryKey, hiddenScope } = useLibraryHomeDirectory({
+        tab,
+        providerId: online.providerId,
+        localRow: localMusicState.activeRow,
+    });
 
     const selectTab = useCallback((key: LibraryHomeTabKey) => {
         const target = tabs.find(candidate => candidate.key === key);
         if (!target || target.disabledReason) return false;
+        setBravaisSearchOpen(false);
         setTab(key);
         return true;
     }, [setTab, tabs]);
     useLibraryHomeTabsRegistration({ getState: () => ({ active: tab, tabs }), setTab: selectTab });
 
-    const hasWall = tab === 'playlist';
-    const cards = hasWall ? onlineList.items : NO_CARDS;
-    const items = useMemo(() => projectHomeCards(cards, {
-        kindLabel: kind => t(KIND_LABEL_KEYS[kind]),
-        trackCount: count => t('libraryBravais.trackCount', { count }),
-    }), [cards, t]);
-
-    // 打开卡片：执行时读最新的卡片映射与来源（回调身份稳定，层描述不因它换身份）。
-    const latest = useRef({ cards, providerId: online.providerId, homeResources, onOpenGridView });
-    latest.current = { cards, providerId: online.providerId, homeResources, onOpenGridView };
-    const onOpenItem = useCallback((key: string) => {
-        const { cards: currentCards, providerId, homeResources: resources, onOpenGridView: open } = latest.current;
-        const card = currentCards.find(candidate => homeCardItemKey(candidate) === key);
-        if (card) void resources.actions.openOnlineCard(card, providerId, open);
-    }, []);
-
-    const status = !hasWall
-        ? t('libraryBravais.tabPending')
-        : items.length === 0
-            ? (onlineList.isLoading ? t('playlist.loading') : onlineList.emptyMessage)
-            : undefined;
-    const seam = useMemo<BravaisSeamModel>(() => ({
-        title: t('libraryBravais.homeTitle'),
-        crumb: t('libraryBravais.homeTitle'),
-        meta: online.providerLabel,
-        status,
-        tabs: tabs.map(candidate => ({
-            key: candidate.key,
-            label: candidate.label,
-            active: candidate.key === tab,
-            disabled: Boolean(candidate.disabledReason),
-        })),
-        onSelectTab: key => { selectTab(key as LibraryHomeTabKey); },
-    }), [online.providerLabel, selectTab, status, t, tab, tabs]);
-
-    const layer = useMemo<BravaisLayer>(() => ({
-        key: `home:${tab}`,
-        sessionKey: 'home',
-        surface: 'home',
-        mode: 'infinite',
-        items,
-        seam,
+    const chrome = useBravaisHomeChrome({
+        tab,
+        tabs,
+        selectTab,
+        scanPercent,
+        scanning: Boolean(actionState.scan?.active),
+        props,
+    });
+    const tabLabel = (key: LibraryHomeTabKey) => tabs.find(candidate => candidate.key === key)?.label ?? key;
+    const common = {
+        chrome,
+        directoryKey,
+        hiddenScope,
+        declaredActions,
         isInteractive,
-        focusedEntryKey: null,
-        nowPlayingKey: null,
-        queuedKeys: NO_KEYS,
-        onOpenItem,
-    }), [isInteractive, items, onOpenItem, seam, tab]);
-    useBravaisLayerRegistration('home', layer);
+        homeActions: homeResources.actions,
+        onOpenGridView,
+    };
 
     return (
         <div
             data-library-home="bravais"
-            data-library-renderer="bravais"
             data-library-surface="home"
             data-ponder-page-scope="none"
             aria-hidden
             className="pointer-events-none absolute inset-0"
-        />
+        >
+            {isOnlineHomeTab(tab) ? (
+                <BravaisHomeOnline {...common} tab={tab} online={online} list={onlineList} />
+            ) : tab === 'local' ? (
+                <BravaisHomeLocal
+                    {...common}
+                    meta={tabLabel('local')}
+                    localSongs={props.localSongs}
+                    localPlaylists={props.localPlaylists}
+                    catalog={props.localLibraryCatalog}
+                    activeRow={localMusicState.activeRow}
+                    setActiveRow={row => setLocalMusicState(previous => ({ ...previous, activeRow: row }))}
+                    treesResource={homeResources.localDirectoryTrees}
+                    directoryActions={directoryActions}
+                />
+            ) : (
+                <BravaisHomeNavidrome {...common} meta={tabLabel('navidrome')} overview={homeResources.navidromeOverview} />
+            )}
+        </div>
     );
 };
 

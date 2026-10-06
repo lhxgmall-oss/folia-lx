@@ -1,5 +1,5 @@
 import React from 'react';
-import type { LibraryActionId, LibrarySuiteManifest } from '../../core/contracts/suite';
+import type { LibraryActionId, LibraryHomeActionId, LibrarySuiteManifest } from '../../core/contracts/suite';
 
 // src/library/suites/bravais/entry.ts
 // bravais suite（library v2 的正式新 UI，设计稿 docs/bravais-suite-design.md）：用户始终站在一面墙前，导航与筛选都是
@@ -8,6 +8,7 @@ import type { LibraryActionId, LibrarySuiteManifest } from '../../core/contracts
 //
 // B6（骨架）只实现首页（「歌单」页签）与集合页的浏览，按「声明以 entry 为准」只声明做到了的 surface 与动作：
 // 歌手页与账户没声明，照常回退 grid；首页的目录 / 导入等动作、集合页的过滤与变更动作在 B7–B10 补齐。
+// B9 起首页五个页签都铺墙，声明 grid 的全部 15 个首页动作（见 HOME_ACTIONS）。
 // 本文件只能静态 import react（test/unit/library/suiteEntries.test.ts）：组件与 stage 一律 React.lazy，
 // 没选 bravais 的人不加载它的任何 chunk。
 
@@ -52,6 +53,30 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'open-artist',
 ];
 
+// 首页（B9，设计稿 §10.5）：15 个动作全部声明。
+// - 目录树面板（本地窄缝的 ▤，面板 = 批量模式）：目录过滤（面板里的命令面板内联框）、卡片 / 树节点的选择与全选、
+//   底部的播放 / 入队 / 建歌单（表单态）/ 移除所选（确认态）；根节点行悬停的重新扫描、移除根（确认态）、恢复忽略。
+// - 管理隐藏：缝里常驻的「管理隐藏」按钮进入的视图（只看隐藏）；歌单类磁贴右上角的眼睛按钮切换隐藏。
+// - 本地窄缝「⋯」的导入文件夹 / 刷新 / 导入歌单文件；Navidrome 窄缝的刷新。
+// 在线账户（平台切换、登录）在 B10 的 account surface 里声明。
+const HOME_ACTIONS: readonly LibraryHomeActionId[] = [
+    'directory-filter',
+    'directory-select',
+    'directory-play-selection',
+    'directory-enqueue-selection',
+    'directory-create-playlist',
+    'directory-remove-selection',
+    'directory-rescan-root',
+    'directory-remove-root',
+    'directory-clear-ignore',
+    'directory-manage-hidden',
+    'directory-toggle-hidden',
+    'home-import-folder',
+    'home-refresh-folders',
+    'home-import-playlist',
+    'home-refresh-navidrome',
+];
+
 // 外观动作（suite-chrome，只出现在命令面板里）：缝的三级开口、在这里裂开缝、定位正在播放。
 // 正式文案在三份 locale 的 commandPalette.commands.bravais-<id>；这里的 title / description 只是缺译时的英文回退。
 // 关键词只写英文与中文（拼音由构建期插件从这里的中文生成）。执行键：只有「定位正在播放」给 `c`（与 Lattice 的
@@ -88,6 +113,13 @@ const CHROME_ACTIONS: LibrarySuiteManifest['chromeActions'] = [
         description: "Widen the seam on the library wall into this collection's track list",
         keywords: ['track list', 'list panel', '歌曲列表', '打开列表'],
     },
+    // B9：打开目录树（首页「本地」有批量的那几行；面板 = 批量模式）。同样不给执行键。
+    {
+        id: 'directory',
+        title: 'Open the directory',
+        description: 'Widen the seam on the library home into the local folder tree and select in batches',
+        keywords: ['folder tree', 'batch select', '目录树', '批量选择'],
+    },
     {
         id: 'locate-playing',
         title: 'Locate the playing song',
@@ -123,8 +155,7 @@ const bravais: LibrarySuiteManifest = {
     labelKey: 'libraryBravais.suiteName',
     stage: BravaisStage,
     surfaces: {
-        // 首页：B6 只铺「歌单」页签；首页的目录、隐藏、导入等动作在 B9 声明。
-        home: { component: BravaisHome, actions: [] },
+        home: { component: BravaisHome, actions: HOME_ACTIONS },
         collection: { component: BravaisCollection, actions: COLLECTION_ACTIONS },
     },
     chromeActions: CHROME_ACTIONS,

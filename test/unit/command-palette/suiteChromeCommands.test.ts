@@ -198,7 +198,7 @@ describe('installing suite chrome commands', () => {
         const before = COMMAND_PALETTE_COMMANDS.map(command => command.id);
         installLibrarySuiteChromeCommands();
         installLibrarySuiteChromeCommands();
-        const bravais = ['seam-full', 'seam-spine', 'seam-hide', 'seam-here', 'list', 'locate-playing', 'wall-look', 'more-windows', 'fewer-windows'].map(id => `bravais-${id}`);
+        const bravais = ['seam-full', 'seam-spine', 'seam-hide', 'seam-here', 'list', 'directory', 'locate-playing', 'wall-look', 'more-windows', 'fewer-windows'].map(id => `bravais-${id}`);
         expect(COMMAND_PALETTE_COMMANDS.map(command => command.id)).toEqual([...before, ...bravais]);
         setSuiteChromeCommands([]);
         expect(COMMAND_PALETTE_COMMANDS.map(command => command.id)).toEqual(before);

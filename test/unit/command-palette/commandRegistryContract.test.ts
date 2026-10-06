@@ -55,6 +55,8 @@ describe('command palette registry contract', () => {
             'bravais-seam-hide',
             'bravais-seam-here',
             'bravais-list',
+            // B9：首页本地的目录树面板（批量模式）。
+            'bravais-directory',
             'bravais-locate-playing',
             // B6b③ 透光：循环档位、每块多开 / 少开一个窗。
             'bravais-wall-look',

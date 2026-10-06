@@ -49,6 +49,12 @@ import {
     firstHostElement,
     propsOf,
 } from './reactFiberProbe';
+import {
+    bravaisDirectoryProps,
+    closeBravaisDirectoryPanel,
+    isBravaisPanelOpen,
+    openBravaisDirectoryPanel,
+} from './bravaisHomeProbe';
 
 // dev/probes/homeBehavior/homeProbeApi.ts
 // `window.__homeProbe` 的实现。页签、当前列表的条目 / section / 动作 / 加载态 / 隐藏作用域 / 批量类型 / 目录树
@@ -73,6 +79,9 @@ import {
 //   isBatchOpen 就是「这个目录有批量」。
 // - 隐藏：toggleHidden 与行尾按钮、命令面板同一个 store 动作；setHiddenView 直接写目录会话的隐藏视图（TUI 的
 //   [全部] / [只看隐藏的] / [完成] 写的就是它）。
+//
+// B9 起首页也可以是 bravais（setSuite('bravais')）：读 BravaisHomeDirectory 的 props，对应关系见 bravaisHomeProbe.ts 的
+// 文件头（墙就是目录；筛选与批量 = 本地的目录树面板；在线页签没有目录过滤）。
 
 const HIDDEN_STORAGE_KEY = 'hidden_grid_playlists';
 
@@ -118,6 +127,8 @@ type TuiDirectoryProps = {
 const homeSuite = () => resolveLibrarySurface('home', useLibrarySuiteStore.getState().suite).suiteId;
 const isTuiHome = () => homeSuite() === 'tui';
 const tuiDirectoryProps = () => (isTuiHome() ? propsOf<TuiDirectoryProps>(findPresentComponent(LibraryTuiDirectory)) : null);
+const isBravaisHome = () => homeSuite() === 'bravais';
+const bravaisProps = () => (isBravaisHome() ? bravaisDirectoryProps() : null);
 
 /** 当前的目录（网格：打开着的 GridMap；TUI：列表），以及它的会话 key、条目与批量配置。 */
 type ProbeDirectory = {
@@ -128,6 +139,16 @@ type ProbeDirectory = {
     batchOpen: boolean;
 };
 const currentDirectory = (): ProbeDirectory | null => {
+    if (isBravaisHome()) {
+        const props = bravaisProps();
+        if (!props) return null;
+        return {
+            sessionId: props.directoryKey,
+            items: props.items.map(homeCardToDirectoryItem),
+            batchConfig: props.batchConfig,
+            batchOpen: isBravaisPanelOpen(props),
+        };
+    }
     if (isTuiHome()) {
         const props = tuiDirectoryProps();
         if (!props) return null;
@@ -274,6 +295,8 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
             }));
         },
         visibleItems: () => {
+            const bravais = bravaisProps();
+            if (bravais) return filterDirectoryByVisibility(bravais.items, currentHiddenIds(), 'browse').map(item => asId(item.id));
             const tui = tuiDirectoryProps();
             if (tui) return filterDirectoryByVisibility(tui.items, currentHiddenIds(), 'browse').map(item => asId(item.id));
             return (sliderProps()?.items ?? []).map(item => asId(item.id));
@@ -295,7 +318,7 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
         },
 
         open: id => {
-            const tui = tuiDirectoryProps();
+            const tui = tuiDirectoryProps() ?? bravaisProps();
             if (tui) {
                 const card = filterDirectoryByVisibility(tui.items, currentHiddenIds(), 'browse').find(item => asId(item.id) === id);
                 if (!card) return false;
@@ -313,6 +336,12 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
         closeCollection: () => useCollectionNavigationStore.getState().clear(),
 
         openMap: () => {
+            if (isBravaisHome()) {
+                const props = bravaisProps();
+                if (!props) return false;
+                openBravaisDirectoryPanel(props);
+                return true;
+            }
             if (isTuiHome()) return Boolean(tuiDirectoryProps());
             const onOpenMap = propsOf<{ onOpenMap?: () => void }>(findPresentComponent(GridViewTabs, surfaceFiber()))?.onOpenMap;
             if (!onOpenMap) return false;
@@ -320,7 +349,9 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
             return true;
         },
         closeMap: () => {
-            const tui = tuiDirectoryProps();
+            const bravais = bravaisProps();
+            if (bravais) closeBravaisDirectoryPanel(bravais);
+            const tui = tuiDirectoryProps() ?? bravais;
             if (tui) {
                 const store = useLibraryDirectorySessionStore.getState();
                 store.closeDirectory(tui.directoryKey);
@@ -332,9 +363,9 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
             props.onBack();
             return true;
         },
-        isMapOpen: () => (isTuiHome() ? Boolean(tuiDirectoryProps()) : Boolean(gridMapFiber())),
+        isMapOpen: () => (isBravaisHome() ? Boolean(bravaisProps()) : isTuiHome() ? Boolean(tuiDirectoryProps()) : Boolean(gridMapFiber())),
         mapItems: () => {
-            if (isTuiHome()) {
+            if (isTuiHome() || isBravaisHome()) {
                 const scope = currentBatchScope();
                 if (!scope) return [];
                 const hiddenIds = currentHiddenIds();
@@ -377,6 +408,11 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
 
         batchAvailable: () => Boolean(listState()?.batchSelectionType),
         openPanel: () => {
+            if (isBravaisHome()) {
+                const props = bravaisProps();
+                if (props) openBravaisDirectoryPanel(props);
+                return Boolean(props);
+            }
             if (isTuiHome()) return Boolean(tuiDirectoryProps());
             if (isPanelOpen()) return true;
             const button = titleButton();
@@ -385,6 +421,11 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
             return true;
         },
         closePanel: () => {
+            if (isBravaisHome()) {
+                const props = bravaisProps();
+                if (props) closeBravaisDirectoryPanel(props);
+                return Boolean(props);
+            }
             if (isTuiHome()) return Boolean(tuiDirectoryProps());
             if (!isPanelOpen()) return true;
             const button = titleButton();
@@ -456,7 +497,7 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
         })),
 
         toggleHidden: id => {
-            const tui = tuiDirectoryProps();
+            const tui = tuiDirectoryProps() ?? bravaisProps();
             if (tui) {
                 const card = tui.items.find(candidate => asId(candidate.id) === id);
                 if (!card || !isHideableDirectoryItem(card)) return false;
@@ -471,7 +512,7 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
         },
         hiddenView: readHiddenView,
         setHiddenView: async view => {
-            const tui = tuiDirectoryProps();
+            const tui = tuiDirectoryProps() ?? bravaisProps();
             if (tui) {
                 if (tui.batchConfig) return false;
                 useLibraryDirectorySessionStore.getState().setVisibilityMode(tui.directoryKey, view);
