@@ -27,11 +27,12 @@ import { useBravaisViewport } from './useBravaisViewport';
 import { closeCommandFilter, useAppViewStore } from '../../../stores/useAppViewStore';
 import { findDisplayItemSlot } from './bravaisItemSlots';
 import { closeBravaisPanel, openBravaisPanel, syncPanelWithHistory } from './bravaisPanelHistory';
-import { resolveSeamTarget, type BravaisSeamTargetInput } from './bravaisSeamTarget';
+import { resolveStageSeamTarget, type BravaisSeamTargetInput } from './bravaisSeamTarget';
 import { useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisPanelActions } from './BravaisListPanel';
 import { useBravaisWallLook } from './useBravaisWallLook';
 import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStore';
+import { selectBravaisAccountVariant, useBravaisAccountStore } from './bravaisAccountStore';
 import '../../../components/wall/wall.css';
 import './bravais.css';
 
@@ -44,6 +45,7 @@ import './bravais.css';
 // （useBravaisPlate，遮罩只在窗位挖洞），缝的纸条换成半透明。
 // B9：首页层的目录树面板与集合层的列表面板同一种开口；首页的全局搜索框开着时窄缝临时展开（search）；管理隐藏视图里
 // 根节点挂 is-managing-hidden（歌单类磁贴的眼睛按钮常驻）。
+// B10：账户的登录态 / 确认态是缝的内容态（bravaisAccountStore → login / confirm 变体），不接 accountLayerRef。
 
 const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
     left: bounds.left - by,
@@ -86,6 +88,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const linkedKey = useBravaisUiStore(state => state.linkedKey);
     const isFilterOpen = useAppViewStore(state => state.isCommandFilterOpen);
     const isSearchOpen = useBravaisHomeUiStore(state => state.searchOpen);
+    // B10：账户的登录态 / 确认态（account surface 经 bravaisAccountStore 交来）压过层上的一切开口。
+    const accountVariant = useBravaisAccountStore(selectBravaisAccountVariant);
     const seamInputFor = useCallback((
         target: BravaisLayer,
         live?: { level: BravaisSeamLevel; panelFor: string | null; filterOpen: boolean; searchOpen: boolean },
@@ -107,12 +111,14 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         };
     }, [frameRef]);
     const seamTarget = layer
-        ? resolveSeamTarget({
+        ? resolveStageSeamTarget({
             ...seamInputFor(layer, { level: seamLevel, panelFor, filterOpen: isFilterOpen && owned, searchOpen: isSearchOpen }),
             viewportWidth: view?.width ?? 0,
-        })
+        }, accountVariant)
         : { width: 0, variant: 'none' as const };
-    const openWidthFor = useCallback((target: BravaisLayer) => resolveSeamTarget(seamInputFor(target)).width, [seamInputFor]);
+    const openWidthFor = useCallback((target: BravaisLayer) => (
+        resolveStageSeamTarget(seamInputFor(target), selectBravaisAccountVariant(useBravaisAccountStore.getState())).width
+    ), [seamInputFor]);
 
     const camera = useBravaisCamera({ frameRef, renderFrame, fieldRef, reducedMotion });
     const seam = useBravaisSeam({

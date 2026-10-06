@@ -80,7 +80,7 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
             className="pointer-events-none absolute inset-0"
         >
             {isOnlineHomeTab(tab) ? (
-                <BravaisHomeOnline {...common} tab={tab} online={online} list={onlineList} />
+                <BravaisHomeOnline {...common} tab={tab} online={online} list={onlineList} account={account} />
             ) : tab === 'local' ? (
                 <BravaisHomeLocal
                     {...common}

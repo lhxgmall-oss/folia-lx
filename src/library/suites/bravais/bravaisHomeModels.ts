@@ -1,5 +1,6 @@
 import type { LibraryDirectoryVisibilityMode } from '../../core/contracts/directory';
 import type { BravaisSeamFilter, BravaisSeamForm, BravaisSeamMenuItem, BravaisSeamNotice } from './bravaisSeamModels';
+import type { BravaisAccountRow } from './bravaisAccountModel';
 
 // src/library/suites/bravais/bravaisHomeModels.ts
 // B9 首页挂在层描述上的扩展类型（设计稿 §10.5、§5「面板」的目录树）：首页窄缝里的二级切换、工具按钮（搜索、目录、
@@ -62,6 +63,19 @@ export type BravaisHomeSearch = {
 export type BravaisHomeAccount = {
     providerId: string;
     providerLabel: string;
+    /** B10：当前平台的账户状态（昵称 / 未登录 / 无需登录）。 */
+    detail: string;
+    /** B10：当前平台未登录（墙空着）：列表常开，就是这个页签的登录入口。 */
+    guest: boolean;
+    /** B10：列表的读屏名（「在线音乐平台」）与开合按钮的标题（「切换在线音乐平台」）。 */
+    title: string;
+    toggleLabel: string;
+    /** B10：provider 列表（bravaisAccountModel 的 projectAccountSwitcherRows）。 */
+    rows: readonly BravaisAccountRow[];
+    /** B10：选一个平台（account.selectProvider：能直接切的问确认，要登录的翻成登录态）。 */
+    onSelect: (providerId: string) => void;
+    /** B10：登出（只对能登出、且没有登出在途的那一行）。 */
+    onLogout: (providerId: string) => void;
 };
 
 /** 首页层在缝里的那一部分（BravaisSeamModel.home）。 */

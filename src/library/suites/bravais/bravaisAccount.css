@@ -1,0 +1,269 @@
+/* src/library/suites/bravais/bravaisAccount.css
+   B10 账户的样式（设计稿 §10.7）：缝里的登录态 / 确认态（沿用 B7 表单态 .bravais-seam-form 的排版与按钮），
+   首页在线页签窄缝里的平台切换。单独成文件，不改 bravais.css / bravaisCollection.css / bravaisHome.css 的已有块。
+   颜色都跟主题变量走；二维码位是白底（扫码要高对比），不随日光 / 暗色切换。 */
+
+/* ---------- 表单态：登录 / 确认 ---------- */
+
+/* 登录态内容多（方式、二维码、状态、按钮、诊断、说明）：顶部留白比表单态小，内容超出时缝内滚动。 */
+.bravais-seam-form.bravais-account-form {
+    gap: 12px;
+    padding: 28px 22px 16px;
+    overflow-y: auto;
+    outline: none;
+}
+
+.bravais-seam-form.bravais-account-form.is-confirm { padding-top: 76px; }
+
+.bravais-account-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.bravais-account-head .bravais-form-title { font-size: 19px; }
+
+.bravais-login-methods { display: flex; flex-direction: column; gap: 4px; }
+
+.bravais-login-methods .is-label {
+    margin: 0;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.bravais-login-methods .is-hint {
+    margin: 0;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+.bravais-login-method-options { display: flex; gap: 6px; margin-top: 4px; }
+
+.bravais-seam .bravais-login-method-options button {
+    display: inline-flex;
+    min-height: 40px;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 8px;
+    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    background: none;
+    cursor: pointer;
+    opacity: 0.75;
+}
+
+.bravais-seam .bravais-login-method-options button:hover { opacity: 1; background: color-mix(in srgb, currentColor 10%, transparent); }
+
+.bravais-seam .bravais-login-method-options button.is-selected {
+    border-color: var(--text-accent, currentColor);
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    opacity: 1;
+}
+
+.bravais-login-method-options img { width: 18px; height: 18px; object-fit: contain; }
+.bravais-login-method-options svg { width: 13px; height: 13px; color: var(--text-accent, currentColor); }
+
+/* 二维码位：200px 的码 + 8px 白边，选方式的占位与后端故障同一个尺寸。 */
+.bravais-login-qr {
+    display: grid;
+    width: 216px;
+    height: 216px;
+    flex: none;
+    place-items: center;
+    align-self: center;
+    box-sizing: border-box;
+    padding: 8px;
+    border-radius: 14px;
+    color: #71717a;
+    background: #fff;
+}
+
+.bravais-login-qr img { display: block; width: 200px; height: 200px; }
+.bravais-login-qr > svg { width: 24px; height: 24px; }
+
+.bravais-login-qr.is-choose-method span {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 0 18px;
+    border: 2px dashed #d4d4d8;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.bravais-login-backend {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border-radius: 10px;
+    color: #dc2626;
+    text-align: center;
+    background: #fef2f2;
+}
+
+.bravais-login-backend svg { width: 22px; height: 22px; }
+.bravais-login-backend p { margin: 0; }
+.bravais-login-backend .is-title { font-size: 12px; font-weight: 700; line-height: 1.4; }
+.bravais-login-backend .is-detail { max-height: 64px; overflow-y: auto; font-size: 10px; line-height: 1.35; overflow-wrap: anywhere; opacity: 0.85; }
+
+.bravais-login-current,
+.bravais-login-status {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.bravais-login-current { color: var(--bravais-seam-ink-soft); }
+.bravais-login-status { font-weight: 650; }
+.bravais-login-status.is-success { color: #4ade80; }
+.bravais-login-status.is-error { color: color-mix(in srgb, #f87171 80%, var(--text-primary, #fff)); }
+.bravais-root.is-daylight .bravais-login-status.is-success { color: #16a34a; }
+
+.bravais-account-form .bravais-form-buttons { justify-content: center; }
+.bravais-account-form .bravais-form-buttons .bravais-chrome-button { min-height: 38px; padding: 0 14px; font-size: 13px; }
+.bravais-account-form .bravais-form-buttons .bravais-chrome-button svg { width: 15px; height: 15px; }
+.bravais-login-cooldown { font-variant-numeric: tabular-nums; opacity: 0.8; }
+
+.bravais-login-diagnostics {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-size: 11px;
+    line-height: 1.5;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.bravais-login-diagnostics p { margin: 0; }
+.bravais-login-diagnostics .is-soft { color: var(--bravais-seam-ink-soft); font-size: 10px; }
+.bravais-login-diagnostics .bravais-chrome-button { min-height: 32px; margin-top: 4px; padding: 0 10px; font-size: 12px; }
+.bravais-login-diagnostics .bravais-chrome-button svg { width: 13px; height: 13px; }
+
+.bravais-login-note { margin: 0; color: var(--bravais-seam-ink-soft); font-size: 10px; line-height: 1.5; text-align: center; opacity: 0.8; }
+
+/* ---------- 首页窄缝：平台切换 ---------- */
+
+.bravais-account-switcher { display: flex; width: 100%; flex-direction: column; gap: 4px; }
+
+.bravais-seam .bravais-account-toggle {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 6px 4px;
+    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+    border-radius: 11px;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam .bravais-account-toggle:hover,
+.bravais-seam .bravais-account-toggle[aria-expanded='true'] { background: color-mix(in srgb, currentColor 12%, transparent); }
+
+.bravais-account-toggle .is-name,
+.bravais-account-row .is-name {
+    display: flex;
+    max-width: 100%;
+    align-items: center;
+    gap: 3px;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.bravais-account-toggle .is-name svg { width: 12px; height: 12px; flex: none; opacity: 0.6; }
+
+.bravais-account-toggle .is-detail,
+.bravais-account-row .is-detail,
+.bravais-account-row .is-action {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 10px;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-account-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 12px;
+    background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.bravais-account-list .is-heading {
+    margin: 2px 4px 2px;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 10px;
+    font-weight: 800;
+    text-align: center;
+}
+
+.bravais-account-row { display: flex; flex-direction: column; align-items: stretch; }
+
+.bravais-seam .bravais-account-row > button[role='menuitemradio'] {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 5px 6px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam .bravais-account-row > button[role='menuitemradio']:hover:not(:disabled) { border-color: color-mix(in srgb, currentColor 24%, transparent); }
+.bravais-seam .bravais-account-row > button[role='menuitemradio']:disabled { cursor: not-allowed; opacity: 0.4; }
+.bravais-account-row.is-current > button[role='menuitemradio'] { background: color-mix(in srgb, currentColor 14%, transparent); }
+.bravais-account-row.is-current .is-name { color: var(--text-accent, currentColor); }
+.bravais-account-row .is-action { color: var(--text-accent, currentColor); }
+
+.bravais-seam .bravais-account-logout {
+    align-self: center;
+    margin: 2px 0 2px;
+    padding: 3px 10px;
+    border: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam .bravais-account-logout:hover:not(:disabled) { background: color-mix(in srgb, currentColor 14%, transparent); }
+.bravais-seam .bravais-account-logout:disabled { cursor: default; opacity: 0.4; }
+
+/* 书脊上只留一个图标按钮：点它展开窄缝。 */
+.bravais-account-switcher.is-compact { align-items: center; }

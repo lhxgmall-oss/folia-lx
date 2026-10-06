@@ -10,6 +10,7 @@ import BravaisSeamFormView from './BravaisSeamFormView';
 import BravaisSeamHome from './BravaisSeamHome';
 import BravaisSeamSearch from './BravaisSeamSearch';
 import BravaisDirectoryPanel from './BravaisDirectoryPanel';
+import BravaisSeamAccount from './BravaisSeamAccount';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
 // 缝里的四套内容（设计稿 §5）：首页窄缝（竖排「书库」+ 竖排页签）、首页书脊、完整信息条（面包屑行、竖排标题、
@@ -17,6 +18,7 @@ import BravaisDirectoryPanel from './BravaisDirectoryPanel';
 // 这里只排内容。文案都来自层描述（已翻译）与 libraryBravais 的 key。界面文案：「收起」= 收成书脊，「折叠」= 折到侧边。
 // B9：首页窄缝 / 书脊换成 BravaisSeamHome（页签、二级切换、工具按钮、管理隐藏、账户位），另有全局搜索框（search）；
 // 首页层的面板是目录树（BravaisDirectoryPanel），集合层的面板仍是歌曲列表。
+// B10：账户的登录态 / 确认态（login / confirm）不属于任何一层，内容来自 bravaisAccountStore（BravaisSeamAccount）。
 
 export type BravaisSeamActions = {
     setLevel: (level: BravaisSeamLevel) => void;
@@ -148,6 +150,8 @@ const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer,
                 ? <BravaisDirectoryPanel layer={layer} actions={actions.panel} />
                 : <BravaisListPanel layer={layer} depth={depth} actions={actions.panel} />;
         case 'form': return layer.seam.collection?.form ? <BravaisSeamFormView form={layer.seam.collection.form} /> : null;
+        case 'login':
+        case 'confirm': return <BravaisSeamAccount variant={variant} />;
         default: return null;
     }
 };

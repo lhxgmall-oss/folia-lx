@@ -141,6 +141,14 @@ export default {
     "actionStale": "That item has moved; try again",
     "actionUnsupported": "This collection does not support that"
   },
+  "libraryBravaisAccount": {
+    "confirmSwitch": "Switch",
+    "cancel": "Cancel",
+    "cooldown": "· {{seconds}}s",
+    "notSignedIn": "Not signed in",
+    "notConfigured": "Not configured",
+    "loggingOut": "Signing out…"
+  },
   "notifications": {
     "coverColorAdded": "Cover color added",
     "coverColorDefault": "Using default color",
