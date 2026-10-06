@@ -139,7 +139,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     }, []);
     const focus = useBravaisFocus({ frameRef, tweenTo: camera.tweenTo, getBottomInset, onFocusEntry });
 
-    const { display, displayRef } = useBravaisDisplay(layer, {
+    const { display, displayRef, isSettling } = useBravaisDisplay(layer, {
         frameRef,
         view,
         slotsRef,
@@ -257,6 +257,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
             data-library-stage="bravais"
             data-bravais-layer={display?.layer.key}
             data-bravais-active={active || undefined}
+            data-bravais-settling={isSettling || undefined}
             aria-label={t('libraryBravais.wallLabel')}
         >
             <div

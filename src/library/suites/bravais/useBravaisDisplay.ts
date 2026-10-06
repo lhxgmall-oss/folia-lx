@@ -95,6 +95,19 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
     const holdRef = useRef<{ timer: ReturnType<typeof setTimeout>; origin: FlipOrigin } | null>(null);
     const releasedOriginRef = useRef<FlipOrigin | null>(null);
     const [holdRelease, setHoldRelease] = useState(0);
+    // 翻牌在放（含移除按住旧帧的那一段）：给 stage 根节点挂 data-bravais-settling，探针据此等墙落定再操作。
+    // 只在一次翻牌开始与结束时各 setState 一次（离散）。
+    const [isSettling, setIsSettling] = useState(false);
+    const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const markSettling = useCallback((durationMs: number | undefined) => {
+        if (!durationMs || durationMs <= 0) return;
+        setIsSettling(true);
+        if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = setTimeout(() => {
+            settleTimerRef.current = null;
+            if (!holdRef.current) setIsSettling(false);
+        }, durationMs + REMOVAL_SETTLE_MS * 2);
+    }, []);
 
     const commit = useCallback((next: BravaisDisplay, depth: number) => {
         displayRef.current = next;
@@ -204,6 +217,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
                 const flip = planFlipFor(previous, masked, origin);
                 controlsNow.collapseFocusCard();
                 commit({ ...masked, flips: flip?.steps ?? masked.flips, flipToken: flipTokenRef.current }, displayedDepthRef.current);
+                markSettling(flip?.durationMs);
                 if (flip && flip.durationMs > 0) {
                     holdRef.current = {
                         origin,
@@ -229,6 +243,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             if (fresh && fresh.steps.size > 0) controlsNow.collapseFocusCard();
             const flips = mergeFlipSteps(previous, draft, fresh?.steps ?? new Map(), slotsRef.current);
             commit({ ...draft, flips, flipToken: flipTokenRef.current }, displayedDepthRef.current);
+            markSettling(fresh?.durationMs);
             return;
         }
 
@@ -278,16 +293,18 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         const draft = { ...createBravaisDisplay(layer, startSlotKey), finite: resolveFinite(layer, null) };
         const flips = planFlipFor(previous, draft, origin);
         commit({ ...draft, flips: flips?.steps ?? draft.flips, flipToken: flipTokenRef.current }, depth);
+        markSettling(flips?.durationMs);
         controlsNow.tweenTo(center);
         controlsNow.restoreFocus(focusFromSession ? focusSessionEntry(draft) ?? focusKey : focusKey);
-    }, [commit, controls.view, focusSessionEntry, holdRelease, layer, planFlipFor, remember, resolveFinite]);
+    }, [commit, controls.view, focusSessionEntry, holdRelease, layer, markSettling, planFlipFor, remember, resolveFinite]);
 
     // stage 卸载（离开首页约 350ms 后）：记下当前层，回来时按它恢复；还在按住的移除第一段丢掉。
     useEffect(() => () => {
         if (holdRef.current) clearTimeout(holdRef.current.timer);
+        if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
         holdRef.current = null;
         if (displayRef.current) remember(displayRef.current);
     }, [remember]);
 
-    return { display, displayRef };
+    return { display, displayRef, isSettling };
 };

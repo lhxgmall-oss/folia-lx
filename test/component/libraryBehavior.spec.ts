@@ -160,9 +160,15 @@ const openBravaisList = async (page: Page) => {
     await expect(panel).toBeVisible();
 };
 
+/** bravais：等墙上的翻牌放完（移除的两段、过滤、数据到达）——翻牌期间聚焦卡会被收起。 */
+const waitForBravaisWall = (page: Page) => (
+    expect(page.locator('[data-library-stage="bravais"][data-bravais-settling]')).toHaveCount(0)
+);
+
 /** bravais：经列表面板定位一个条目（相机飞到离缝最近的一份并展开聚焦卡），返回那张聚焦卡所在的磁贴。 */
 const focusBravaisEntry = async (page: Page, itemKey: string, occurrence = 0) => {
     await openBravaisList(page);
+    await waitForBravaisWall(page);
     const entryKey = `${itemKey}-${occurrence}`;
     await page.locator(`[data-bravais-list-row="${entryKey}"]`).click();
     const card = page.locator(`.bravais-tile[data-bravais-expanded][data-library-entry="${entryKey}"]`);
