@@ -9,13 +9,8 @@ import {
     BRAVAIS_SEAM_TWEEN_S,
 } from './bravaisConstants';
 import type { BravaisLayer } from './bravaisLayer';
-import {
-    resolveSeamOpenWidth,
-    resolveSeamVariant,
-    seamVariantWidth,
-    useBravaisSeamStore,
-    type BravaisSeamVariant,
-} from './bravaisSeamLevel';
+import { useBravaisSeamStore } from './bravaisSeamLevel';
+import { resolveVariantWidth, type BravaisSeamContentVariant } from './bravaisSeamTarget';
 import type { BravaisFrameState } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisSeam.ts
@@ -24,7 +19,7 @@ import type { BravaisFrameState } from './useBravaisFrame';
 // 「此刻渲染的内容」是单独的 state，只在换的那一刻 setState 一次。开口变宽或恢复时，锚点还在屏内就沿用它的
 // 块边界、相机只做最小让位；不在屏内就在当前视口里另取最近的块边界（B5 的 blockSeamPlan）。
 
-export type BravaisRenderedSeam = { variant: BravaisSeamVariant; layer: BravaisLayer | null };
+export type BravaisRenderedSeam = { variant: BravaisSeamContentVariant; layer: BravaisLayer | null };
 
 const flipTransform = (degrees: number) => `perspective(1400px) rotateY(${degrees}deg)`;
 
@@ -32,6 +27,8 @@ export const useBravaisSeam = ({
     frameRef,
     renderFrame,
     layer,
+    target,
+    viewportWidth,
     contentRef,
     reducedMotion,
     tweenCamera,
@@ -39,14 +36,17 @@ export const useBravaisSeam = ({
     frameRef: MutableRefObject<BravaisFrameState>;
     renderFrame: () => void;
     layer: BravaisLayer | null;
+    /** 此刻的开口与内容（等级之上还有表单、列表面板、过滤框的临时展开，见 bravaisSeamTarget）。 */
+    target: { width: number; variant: BravaisSeamContentVariant };
+    viewportWidth: number;
     contentRef: RefObject<HTMLDivElement | null>;
     reducedMotion: boolean;
     tweenCamera: (center: WallViewCenter) => void;
 }) => {
     const level = useBravaisSeamStore(state => state.level);
     const [anchorX, setAnchorState] = useState<number | null>(null);
-    const targetWidth = layer ? resolveSeamOpenWidth(layer.surface, level) : 0;
-    const targetVariant: BravaisSeamVariant = layer ? resolveSeamVariant(layer.surface, level) : 'none';
+    const targetWidth = layer ? target.width : 0;
+    const targetVariant: BravaisSeamContentVariant = layer ? target.variant : 'none';
     const [rendered, setRendered] = useState<BravaisRenderedSeam>({ variant: targetVariant, layer });
     const widthAnimationRef = useRef<{ stop: () => void } | null>(null);
 
@@ -101,21 +101,26 @@ export const useBravaisSeam = ({
 
     // 目标宽度变了（换层、换等级）就补间过去；折叠等级也写进帧状态（悬浮按钮常驻）。
     const hasLayer = Boolean(layer);
+    // 「折叠」看的是生效的内容（过滤框、面板、表单开着时折叠等级暂不生效）。
+    const isFolded = hasLayer && targetVariant === 'none';
     useEffect(() => {
-        frameRef.current.hidden = hasLayer && level === 'hidden';
+        frameRef.current.hidden = isFolded;
         tweenWidth(targetWidth);
-    }, [frameRef, hasLayer, level, targetWidth, tweenWidth]);
+    }, [frameRef, isFolded, targetWidth, tweenWidth]);
 
-    // 换等级（不是换层）且要张开：锚点在屏内就沿用、相机最小让位；不在屏内就另取一条块边界。
-    const previousLevelRef = useRef(level);
+    // 同一层换了开口（换等级、开合列表面板、表单态、过滤框的临时展开）且要张开：锚点在屏内就沿用、相机最小让位；
+    // 不在屏内就另取一条块边界。换层时的开口由换层编排（useBravaisDisplay）一起算，这里不重复让位。
+    const layerKey = layer?.key ?? null;
+    const previousOpeningRef = useRef({ layerKey, width: targetWidth });
     useEffect(() => {
-        if (previousLevelRef.current === level) return;
-        previousLevelRef.current = level;
+        const previous = previousOpeningRef.current;
+        previousOpeningRef.current = { layerKey, width: targetWidth };
+        if (previous.layerKey !== layerKey || previous.width === targetWidth) return;
         if (!layer || targetWidth <= 0) return;
         const plan = planOpening(frameRef.current.center, targetWidth, isAnchorOnScreen());
         if (plan.anchorX !== frameRef.current.anchorX) setAnchor(plan.anchorX);
         tweenCamera(plan.center);
-    }, [frameRef, isAnchorOnScreen, layer, level, planOpening, setAnchor, targetWidth, tweenCamera]);
+    }, [frameRef, isAnchorOnScreen, layer, layerKey, planOpening, setAnchor, targetWidth, tweenCamera]);
 
     // 缝里的内容：换层或换形态时翻转（转到 90° 换内容与排版宽度），同一层的数据更新就地刷新（渲染时取最新的层）。
     const renderedLayer = rendered.layer && layer && rendered.layer.key === layer.key ? layer : rendered.layer;
@@ -158,9 +163,9 @@ export const useBravaisSeam = ({
 
     // 排版宽度跟着「此刻渲染的那套内容」走，不跟目标宽度走。
     useLayoutEffect(() => {
-        frameRef.current.contentWidth = seamVariantWidth(rendered.variant);
+        frameRef.current.contentWidth = resolveVariantWidth(rendered.variant, viewportWidth);
         renderFrame();
-    }, [frameRef, renderFrame, rendered.variant]);
+    }, [frameRef, renderFrame, rendered.variant, viewportWidth]);
 
     useEffect(() => () => widthAnimationRef.current?.stop(), []);
 
@@ -180,5 +185,6 @@ export const useBravaisSeam = ({
         return getSeamGeometry({ anchorX: x, cameraX: center.x, openWidth: Math.max(openWidth, targetWidth), view }).collapsed;
     }, [frameRef, targetWidth]);
 
-    return { level, anchorX, setAnchor, targetWidth, rendered: { variant: rendered.variant, layer: renderedLayer }, planOpening, isAnchorOnScreen, reopenHere, isCollapsed };
+    const contentWidth = resolveVariantWidth(rendered.variant, viewportWidth);
+    return { level, anchorX, setAnchor, targetWidth, rendered: { variant: rendered.variant, layer: renderedLayer, width: contentWidth }, planOpening, isAnchorOnScreen, reopenHere, isCollapsed };
 };

@@ -32,6 +32,8 @@ type BravaisTileProps = {
     keyboardFocused: boolean;
     /** 只有展开的那张才需要：「✓ 已在队列」。 */
     queued: boolean;
+    /** B7：列表面板里悬停的那一项（墙上它的所有可见副本高亮，is-linked）。 */
+    linked?: boolean;
     pixelScale: number;
     reducedMotion: boolean;
     didDragRef: MutableRefObject<boolean>;
@@ -67,6 +69,7 @@ function BravaisTile({
     expanded,
     keyboardFocused,
     queued,
+    linked = false,
     pixelScale,
     reducedMotion,
     didDragRef,
@@ -157,10 +160,13 @@ function BravaisTile({
             data-bravais-focused={keyboardFocused || undefined}
             data-bravais-expanded={isExpanded || undefined}
             data-bravais-current={isCurrent || undefined}
+            data-bravais-linked={(linked && Boolean(display)) || undefined}
+            onMouseEnter={() => handlers.hover(slotKey)}
+            onMouseLeave={() => handlers.hover(null)}
         >
             <article
                 ref={faceRef}
-                className={`lattice-poster bravais-tile-face${display ? '' : ' is-wall'}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}`}
+                className={`lattice-poster bravais-tile-face${display ? '' : ' is-wall'}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}`}
                 style={display ? { backgroundImage: coverUrl ? `url("${coverUrl}")` : fallbackBackground(display.key) } : undefined}
                 role={display ? (isExpanded ? 'group' : 'button') : undefined}
                 aria-label={display ? `${display.title} · ${display.subtitle}` : undefined}

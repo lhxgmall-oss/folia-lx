@@ -2,7 +2,11 @@ import React from 'react';
 import { ChevronLeft, FoldHorizontal, ListPlus, Maximize2, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
-import type { BravaisSeamLevel, BravaisSeamVariant } from './bravaisSeamLevel';
+import type { BravaisSeamLevel } from './bravaisSeamLevel';
+import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
+import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamFilterSlot, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import BravaisListPanel, { type BravaisPanelActions } from './BravaisListPanel';
+import BravaisSeamFormView from './BravaisSeamFormView';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
 // 缝里的四套内容（设计稿 §5）：首页窄缝（竖排「书库」+ 竖排页签）、首页书脊、完整信息条（面包屑行、竖排标题、
@@ -11,10 +15,13 @@ import type { BravaisSeamLevel, BravaisSeamVariant } from './bravaisSeamLevel';
 
 export type BravaisSeamActions = {
     setLevel: (level: BravaisSeamLevel) => void;
+    /** B7：打开列表面板、面板里的定位 / 播放 / 关闭（stage 给）。 */
+    openList?: () => void;
+    panel?: BravaisPanelActions;
 };
 
 type BravaisSeamContentProps = {
-    variant: BravaisSeamVariant;
+    variant: BravaisSeamContentVariant;
     layer: BravaisLayer | null;
     /** 导航栈深度：面包屑在首页与当前层之间折叠中间层。 */
     depth: number;
@@ -76,6 +83,7 @@ const HomeSeam: React.FC<{ layer: BravaisLayer; compact: boolean; actions: Brava
 const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisSeamActions }> = ({ layer, depth, actions }) => {
     const { t } = useTranslation();
     const { seam } = layer;
+    const collection = seam.collection;
     return (
         <div className="bravais-seam-full">
             <div className="bravais-seam-crumbs">
@@ -97,14 +105,17 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
                     {t('libraryBravais.seamFold')}
                 </button>
             </div>
+            {collection && <BravaisSeamFilterSlot filter={collection.filter} />}
             <div className="bravais-seam-quote" aria-hidden>”</div>
             <div className="bravais-seam-vtitle-wrap">
-                <h2 className="bravais-seam-vtitle" style={{ fontSize: verticalTitleSize(seam.title, 52, 26) }}>{seam.title}</h2>
+                <h2 className="bravais-seam-vtitle" data-bravais-seam-title style={{ fontSize: verticalTitleSize(seam.title, 52, 26) }}>{seam.title}</h2>
             </div>
             <div className="bravais-seam-quote is-closing" aria-hidden>“</div>
             <div className="bravais-seam-rule" />
             <div className="bravais-seam-meta">{seam.meta}</div>
+            {collection && <BravaisSeamCollectionMeta collection={collection} />}
             {seam.status && <div className="bravais-seam-status" data-bravais-seam-status>{seam.status}</div>}
+            {collection?.status && <BravaisSeamStatusLine status={collection.status} />}
             <div className="bravais-seam-actions">
                 {seam.onPlayScope && (
                     <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
@@ -117,6 +128,7 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
                     </button>
                 )}
             </div>
+            {collection && <BravaisSeamCollectionMenu collection={collection} onOpenList={actions.openList} />}
         </div>
     );
 };
@@ -133,7 +145,7 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
                 </button>
             )}
             <FoldButton onClick={() => actions.setLevel('hidden')} />
-            <button type="button" className="bravais-seam-vtitle is-button" data-bravais-seam-action="expand"
+            <button type="button" className="bravais-seam-vtitle is-button" data-bravais-seam-action="expand" data-bravais-seam-title
                 style={{ fontSize: verticalTitleSize(seam.title, 30, 18) }} onClick={() => actions.setLevel('full')}
                 title={t('libraryBravais.seamExpand')}>
                 {seam.title}
@@ -161,6 +173,8 @@ const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer,
         case 'home-spine': return <HomeSeam layer={layer} compact actions={actions} />;
         case 'full': return <FullSeam layer={layer} depth={depth} actions={actions} />;
         case 'spine': return <SpineSeam layer={layer} actions={actions} />;
+        case 'panel': return actions.panel ? <BravaisListPanel layer={layer} depth={depth} actions={actions.panel} /> : null;
+        case 'form': return layer.seam.collection?.form ? <BravaisSeamFormView form={layer.seam.collection.form} /> : null;
         default: return null;
     }
 };

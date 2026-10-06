@@ -4,6 +4,7 @@ import { getBlockSize, getBlockSlots, type WallSlot } from '../../../components/
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import { findItemSlotNear, type BravaisDisplay } from './bravaisDisplay';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
+import { useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisFrameState } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisChromeActions.ts
@@ -20,6 +21,7 @@ export const useBravaisChromeActions = ({
     isCollapsed,
     reopenHere,
     focusSlot,
+    openList,
 }: {
     active: boolean;
     displayRef: MutableRefObject<BravaisDisplay | null>;
@@ -28,6 +30,8 @@ export const useBravaisChromeActions = ({
     isCollapsed: () => boolean;
     reopenHere: () => void;
     focusSlot: (slot: WallSlot, options: { reveal?: boolean }) => void;
+    /** B7：打开列表面板。 */
+    openList?: () => void;
 }) => {
     const handlers = useMemo(() => {
         const level = () => useBravaisSeamStore.getState().level;
@@ -52,6 +56,14 @@ export const useBravaisChromeActions = ({
             'seam-spine': { isAvailable: () => hasLayer() && level() !== 'spine', run: () => setLevel('spine') },
             'seam-hide': { isAvailable: () => hasLayer() && level() !== 'hidden', run: () => setLevel('hidden') },
             'seam-here': { isAvailable: () => hasLayer() && level() !== 'hidden' && isCollapsed(), run: reopenHere },
+            // B7：打开列表（grid 的 toggle-track-list 在 bravais 的对应）；只有支持面板的层、面板还没开时可用。
+            list: {
+                isAvailable: () => {
+                    const layer = displayRef.current?.layer;
+                    return Boolean(openList && layer?.entries?.hasPanel && useBravaisUiStore.getState().panelFor !== layer.key);
+                },
+                run: () => openList?.(),
+            },
             'locate-playing': {
                 isAvailable: () => nowPlayingSlot() !== null,
                 run: () => {
@@ -60,7 +72,7 @@ export const useBravaisChromeActions = ({
                 },
             },
         };
-    }, [displayRef, focusSlot, frameRef, isCollapsed, reopenHere]);
+    }, [displayRef, focusSlot, frameRef, isCollapsed, openList, reopenHere]);
 
     useLibrarySuiteChromeRegistration({ suiteId: BRAVAIS_SUITE_ID, isInteractive: active, handlers });
 };

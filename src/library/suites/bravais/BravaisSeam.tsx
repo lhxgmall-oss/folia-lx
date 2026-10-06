@@ -2,8 +2,10 @@ import React, { type RefObject } from 'react';
 import { motion, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
-import type { BravaisSeamLevel, BravaisSeamVariant } from './bravaisSeamLevel';
-import { seamVariantWidth } from './bravaisSeamLevel';
+import type { BravaisSeamLevel } from './bravaisSeamLevel';
+import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
+import type { BravaisPanelActions } from './BravaisListPanel';
+import { setBravaisFilterHost } from './bravaisUiStore';
 import BravaisSeamContent from './BravaisSeamContent';
 
 // src/library/suites/bravais/BravaisSeam.tsx
@@ -15,7 +17,9 @@ type BravaisSeamProps = {
     seamRef: RefObject<HTMLDivElement | null>;
     contentRef: RefObject<HTMLDivElement | null>;
     tabRef: RefObject<HTMLButtonElement | null>;
-    variant: BravaisSeamVariant;
+    variant: BravaisSeamContentVariant;
+    /** 此刻渲染的那一套内容的排版宽度（翻转不重排）。 */
+    contentWidth: number;
     layer: BravaisLayer | null;
     /** 当前层（标签上的标题跟着它，不等内容翻转）。 */
     currentLayer: BravaisLayer | null;
@@ -24,6 +28,9 @@ type BravaisSeamProps = {
     bottomPx: MotionValue<number>;
     setLevel: (level: BravaisSeamLevel) => void;
     onTab: () => void;
+    /** B7：完整信息条的「列表」与列表面板的动作。 */
+    openList?: () => void;
+    panel?: BravaisPanelActions;
 };
 
 const BravaisSeam: React.FC<BravaisSeamProps> = ({
@@ -31,6 +38,7 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     contentRef,
     tabRef,
     variant,
+    contentWidth,
     layer,
     currentLayer,
     level,
@@ -38,9 +46,11 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     bottomPx,
     setLevel,
     onTab,
+    openList,
+    panel,
 }) => {
     const { t } = useTranslation();
-    const width = seamVariantWidth(variant);
+    const width = contentWidth;
     const tabLabel = currentLayer?.seam.title ?? '';
     return (
         <>
@@ -54,9 +64,16 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
             >
                 <div ref={contentRef} className="bravais-seam-content" style={{ width, marginLeft: -width / 2 }}>
                     <motion.div className="bravais-seam-body" style={{ paddingBottom: bottomPx }}>
-                        <BravaisSeamContent variant={variant} layer={layer} depth={depth} actions={{ setLevel }} />
+                        <BravaisSeamContent variant={variant} layer={layer} depth={depth} actions={{ setLevel, openList, panel }} />
                     </motion.div>
                 </div>
+                {/* B7：命令面板的内联过滤框画在这里（不随内容翻转；位置对着完整信息条 / 面板里留出的过滤位）。 */}
+                <div
+                    ref={setBravaisFilterHost}
+                    className="bravais-seam-filter-host"
+                    data-bravais-filter-host={variant === 'panel' ? 'panel' : 'strip'}
+                    style={{ width: Math.max(0, width - 44), marginLeft: -Math.max(0, width - 44) / 2 }}
+                />
             </div>
             <button
                 ref={tabRef}

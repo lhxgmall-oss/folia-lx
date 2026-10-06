@@ -13,6 +13,7 @@ export type BravaisKeyAction =
     | { type: 'open-artist' }
     | { type: 'escape' }
     | { type: 'first' }
+    | { type: 'last' }
     | { type: 'page'; direction: -1 | 1 }
     | { type: 'tab'; backwards: boolean };
 
@@ -47,6 +48,7 @@ export const resolveBravaisKey = (input: BravaisKeyInput): BravaisKeyAction | nu
     const direction = ARROWS[key];
     if (direction) return { type: 'move', direction };
     if (key === 'Home') return { type: 'first' };
+    if (key === 'End') return { type: 'last' };
     if (key === 'PageDown') return { type: 'page', direction: 1 };
     if (key === 'PageUp') return { type: 'page', direction: -1 };
     return null;

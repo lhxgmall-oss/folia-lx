@@ -1,0 +1,341 @@
+/* src/library/suites/bravais/bravaisCollection.css — B7 集合页的样式：缝里的过滤位与命令面板过滤框的锚点、收藏星标、
+   补页进度、日期步进、状态行（加载 / 错误 / 空 / 过滤无结果各有图标）、「⋯ 更多」、结果提示、表单态、列表面板与列表行、
+   聚焦卡的「⋯」、列表联动高亮（is-linked）与首屏加载的呼吸。单独成文件，不改 bravais.css 的已有块。
+   视觉沿用 Lattice：主题变量、bravais-chrome-button 的悬停框、日光切换（.is-daylight）。 */
+
+/* ---------- 过滤位：完整信息条与列表面板在同一个高度留出它，命令面板的内联过滤框画在锚点上 ---------- */
+
+.bravais-seam-filter-slot {
+    display: flex;
+    flex: none;
+    height: 44px;
+    align-items: center;
+}
+
+.bravais-seam-filter-host {
+    position: absolute;
+    top: 68px;
+    left: 50%;
+    z-index: 3;
+    height: 44px;
+    pointer-events: none;
+}
+
+/* 命令面板的内联框（CommandPaletteInlineFrame）：贴在过滤位上，宽度跟着缝。不在 @layer 里，盖过 Tailwind 工具类。 */
+.bravais-seam-filter-host > [data-testid='command-palette-filter'] {
+    top: 0;
+    left: 0;
+    width: 100%;
+    translate: none;
+}
+
+.bravais-seam-filter-open,
+.bravais-seam-filter-query {
+    display: inline-flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    border-radius: 999px;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 12px;
+    background: transparent;
+    cursor: text;
+}
+
+.bravais-seam-filter-open svg,
+.bravais-seam-filter-query svg { width: 14px; height: 14px; flex: none; }
+.bravais-seam-filter-open:hover,
+.bravais-seam-filter-query:hover { border-color: color-mix(in srgb, currentColor 30%, transparent); }
+
+.bravais-seam-filter-chip { display: flex; width: 100%; align-items: center; gap: 4px; }
+.bravais-seam-filter-query { color: var(--text-primary, #f7f4ee); border-color: var(--text-accent, currentColor); }
+.bravais-seam-filter-query span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bravais-seam-filter-query em { margin-left: auto; color: var(--bravais-seam-ink-soft); font-style: normal; font-variant-numeric: tabular-nums; }
+
+/* ---------- 星标、补页进度、日期步进 ---------- */
+
+.bravais-seam-star {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: var(--bravais-seam-ink-soft);
+    background: transparent;
+    cursor: pointer;
+}
+
+.bravais-seam-star svg { width: 18px; height: 18px; }
+.bravais-seam-star.is-on { color: var(--text-accent, currentColor); }
+.bravais-seam-star.is-on svg { fill: currentColor; }
+.bravais-seam-star:hover:not(:disabled) { border-color: color-mix(in srgb, currentColor 26%, transparent); }
+.bravais-seam-star:disabled { cursor: default; }
+
+.bravais-seam-sync {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    background: none;
+}
+
+.bravais-seam-sync svg { width: 13px; height: 13px; flex: none; }
+.bravais-seam-sync.is-interrupted { color: var(--text-primary, #f7f4ee); text-decoration: underline dotted; cursor: pointer; }
+
+.bravais-seam-daily { display: flex; align-items: center; gap: 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.bravais-seam-daily-label { min-width: 0; flex: 1 1 auto; text-align: center; }
+.bravais-seam-daily .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
+
+/* ---------- 状态行：图标与文案按语气区分（错误与空不能混在一起） ---------- */
+
+.bravais-seam-status-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.bravais-seam-status-line svg { width: 15px; height: 15px; flex: none; }
+.bravais-seam-status-line.is-error { color: color-mix(in srgb, #f87171 75%, var(--text-primary, #fff)); }
+.bravais-seam-status-line.is-empty,
+.bravais-seam-status-line.is-loading,
+.bravais-seam-status-line.is-no-match { color: var(--bravais-seam-ink-soft); }
+
+.bravais-seam-link {
+    padding: 0;
+    border: 0;
+    color: var(--text-primary, #f7f4ee);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    background: none;
+    cursor: pointer;
+}
+
+/* ---------- 「⋯ 更多」与结果提示 ---------- */
+
+.bravais-seam-menu,
+.bravais-focus-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 14px;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.bravais-seam-menu button,
+.bravais-focus-menu button {
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam-menu button:hover:not(:disabled),
+.bravais-focus-menu button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.bravais-seam-menu button:disabled { opacity: 0.35; cursor: default; }
+.bravais-seam-menu button.is-danger,
+.bravais-focus-menu button.is-danger { color: color-mix(in srgb, #f87171 80%, var(--text-primary, #fff)); }
+
+.bravais-seam-notice {
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.bravais-seam-notice.is-error { color: color-mix(in srgb, #f87171 80%, var(--text-primary, #fff)); }
+
+/* ---------- 表单态 ---------- */
+
+.bravais-seam-form {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    gap: 14px;
+    padding: 76px 22px 0;
+    box-sizing: border-box;
+}
+
+.bravais-form-title { margin: 0; font-size: 22px; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; }
+.bravais-form-message { margin: 0; color: var(--bravais-seam-ink-soft); font-size: 13px; line-height: 1.6; }
+.bravais-form-error { margin: 0; color: color-mix(in srgb, #f87171 80%, var(--text-primary, #fff)); font-size: 12px; }
+
+.bravais-form-input { display: flex; flex-direction: column; gap: 12px; }
+
+.bravais-form-input input {
+    width: 100%;
+    padding: 10px 0;
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    background: transparent;
+    outline: none;
+}
+
+.bravais-form-input input:focus { border-bottom-color: var(--text-accent, currentColor); }
+.bravais-form-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.bravais-chrome-button.is-danger.is-primary { background: color-mix(in srgb, #ef4444 26%, transparent); }
+
+.bravais-form-list {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.bravais-form-row {
+    display: flex;
+    min-height: 44px;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 10px;
+    color: inherit;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-form-row svg { width: 16px; height: 16px; }
+.bravais-form-row:hover:not(:disabled) { background: color-mix(in srgb, currentColor 12%, transparent); }
+.bravais-form-row.is-create { color: var(--text-accent, currentColor); }
+
+/* ---------- 列表面板 ---------- */
+
+.bravais-seam-panel {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    gap: 10px;
+    padding: 22px 22px 0;
+    box-sizing: border-box;
+}
+
+.bravais-panel-title {
+    margin: 0;
+    overflow: hidden;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-panel-tools { display: flex; align-items: center; gap: 6px; }
+
+.bravais-panel-tools select {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 10px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    background: var(--bravais-seam-paper);
+}
+
+.bravais-panel-list { min-height: 0; flex: 1 1 auto; margin: 0 -10px; }
+
+.bravais-list-row {
+    display: grid;
+    grid-template-columns: 4ch minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    border-radius: 10px;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.bravais-list-row:hover,
+.bravais-list-row.is-linked { background: color-mix(in srgb, currentColor 12%, transparent); }
+.bravais-list-row.is-current .bravais-list-badge { color: var(--text-accent, currentColor); }
+.bravais-list-row.is-unavailable { opacity: 0.45; }
+.bravais-list-badge { color: var(--bravais-seam-ink-soft); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
+.bravais-list-text { display: flex; min-width: 0; flex-direction: column; }
+.bravais-list-text strong,
+.bravais-list-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bravais-list-text strong { font-size: 13px; font-weight: 700; }
+.bravais-list-text small { color: var(--bravais-seam-ink-soft); font-size: 11px; }
+.bravais-list-time { color: var(--bravais-seam-ink-soft); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* ---------- 聚焦卡的「⋯」 ---------- */
+
+.bravais-focus-more {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    color: #fff;
+    filter: drop-shadow(0 1px 3px var(--bravais-chrome-shadow));
+}
+
+.bravais-focus-more-toggle { min-height: 36px; padding: 0 10px; }
+.bravais-focus-menu { min-width: 180px; background: rgb(0 0 0 / 55%); backdrop-filter: blur(18px); }
+
+/* ---------- 墙：列表联动（与键盘焦点同一道环）与首屏加载的呼吸 ---------- */
+
+.bravais-tile > .lattice-poster.bravais-tile-face.is-linked:not(.is-focused) {
+    z-index: 4;
+    box-shadow:
+        0 0 0 1px rgb(0 0 0 / 62%),
+        0 0 0 4px var(--text-primary, #fff),
+        0 0 0 5px rgb(0 0 0 / 38%);
+}
+
+.lattice-root.is-daylight .bravais-tile > .lattice-poster.bravais-tile-face.is-linked:not(.is-focused) {
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 78%),
+        0 0 0 4px var(--text-primary, #111),
+        0 0 0 5px rgb(255 255 255 / 45%);
+}
+
+.bravais-tile > .lattice-poster.bravais-tile-face.is-linked .lattice-poster-tint { opacity: 0; }
+
+@keyframes bravais-wall-breathe {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+
+.bravais-root.is-loading .lattice-poster.bravais-tile-face.is-wall {
+    animation: bravais-wall-breathe 2.4s ease-in-out infinite;
+}
+
+:root[data-reduce-motion~='lattice'] .bravais-root.is-loading .lattice-poster.bravais-tile-face.is-wall { animation: none; }

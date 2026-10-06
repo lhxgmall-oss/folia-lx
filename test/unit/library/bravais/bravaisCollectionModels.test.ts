@@ -13,6 +13,8 @@ import {
     type CollectionStatusInput,
 } from '@/library/suites/bravais/bravaisCollectionStatus';
 import { resolvePanelWidth, resolveSeamTarget } from '@/library/suites/bravais/bravaisSeamTarget';
+import { decideDataUpdate } from '@/library/suites/bravais/bravaisDisplayUpdate';
+import { resolveBravaisKey } from '@/library/suites/bravais/bravaisKeyboardModel';
 
 // test/unit/library/bravais/bravaisCollectionModels.test.ts
 // B7 集合页的纯规则：双模式（有限拼贴的严格 rank、清空后翻回无限拼贴且起点偏移保留）、补页期间的循环周期（新页只让
@@ -261,10 +263,34 @@ describe('seam target', () => {
         expect(resolveSeamTarget({ ...base, formOpen: true, panelOpen: true })).toEqual({ width: 300, variant: 'form' });
         expect(resolveSeamTarget({ ...base, panelOpen: true })).toEqual({ width: 420, variant: 'panel' });
         expect(resolveSeamTarget({ ...base, viewportWidth: 400, panelOpen: true })).toEqual({ width: 348, variant: 'panel' });
+        expect(resolveSeamTarget({ ...base, level: 'hidden', panelOpen: true })).toEqual({ width: 0, variant: 'none' });
         expect(resolveSeamTarget({ ...base, filterOpen: true })).toEqual({ width: 300, variant: 'full' });
         expect(resolveSeamTarget({ ...base, level: 'hidden', filterOpen: true })).toEqual({ width: 300, variant: 'full' });
         expect(resolveSeamTarget(base)).toEqual({ width: 64, variant: 'spine' });
         expect(resolveSeamTarget({ ...base, surface: 'home', panelOpen: true, level: 'full' })).toEqual({ width: 120, variant: 'home' });
         expect(resolvePanelWidth(120)).toBe(160);
+    });
+});
+
+describe('same-layer data updates', () => {
+    const base = layer(items('t', 6));
+
+    it('refreshes without flipping when only the seam or the marks changed', () => {
+        const display = createBravaisDisplay(base, null);
+        expect(decideDataUpdate(display, { ...base, nowPlayingKey: 't1' })).toEqual({ kind: 'refresh' });
+    });
+
+    it('flips from the seam edges when the filter or the mode changes, and spots a removal', () => {
+        const display = createBravaisDisplay(base, null);
+        expect(decideDataUpdate(display, { ...base, mode: 'finite', items: base.items.slice(0, 2), wall: { filterKey: 'a' } })).toEqual({ kind: 'filter' });
+        const filtered = createBravaisDisplay({ ...base, mode: 'finite', wall: { filterKey: 'a' } }, null);
+        expect(decideDataUpdate(filtered, { ...base, mode: 'finite', wall: { filterKey: 'ab' } })).toEqual({ kind: 'filter' });
+        expect(decideDataUpdate(display, { ...base, items: base.items.filter(item => item.key !== 't2') }))
+            .toEqual({ kind: 'removal', removed: new Set(['t2']) });
+        expect(decideDataUpdate(display, { ...base, items: items('t', 9) })).toEqual({ kind: 'update' });
+    });
+
+    it('reads End as the last item key', () => {
+        expect(resolveBravaisKey({ key: 'End', shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, repeat: false })).toEqual({ type: 'last' });
     });
 });

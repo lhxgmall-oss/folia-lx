@@ -3,6 +3,7 @@ import { planFlip, type FlipOrigin } from '../../../components/wall/flipPlan';
 import { nearestSeamBoundaryX } from '../../../components/wall/seamPlan';
 import { getViewWorldBounds, type WallView, type WallViewCenter } from '../../../components/wall/wallView';
 import { getWallSlot, parseWallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
+import type { WallCameraRange } from '../../../components/wall/finiteWall';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import {
     createBravaisDisplay,
@@ -14,10 +15,15 @@ import {
     type BravaisDisplay,
     type BravaisFlipStep,
 } from './bravaisDisplay';
+import { decideDataUpdate } from './bravaisDisplayUpdate';
+import { canReuseFinitePlan, planBravaisFinite, resolveFiniteCameraRange, type BravaisFiniteState } from './bravaisFiniteWall';
+import { findDisplayItemSlot } from './bravaisItemSlots';
 import type { BravaisLayer } from './bravaisLayer';
 import { readBravaisLayout, writeBravaisLayout } from './bravaisLayoutMemory';
-import { resolveSeamOpenWidth, useBravaisSeamStore } from './bravaisSeamLevel';
+import { releasePanelOnLayerChange } from './bravaisPanelHistory';
+import { maskRemovedEntries } from './bravaisRemoval';
 import { takeBravaisPendingOrigin } from './bravaisStageStore';
+import { takeBravaisRemovalOrigin } from './bravaisUiStore';
 import type { BravaisFrameState } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisDisplay.ts
@@ -25,10 +31,15 @@ import type { BravaisFrameState } from './useBravaisFrame';
 // 的数据更新，算出新层的起点 slot、缝锚点与相机去处，对已渲染的 slot 比较前后内容排一次翻牌（wall 的 planFlip），
 // 一次 setState 换上新的显示。缝保持张开、只翻缝里的内容（useBravaisSeam）；push 时被点的磁贴是起点磁贴，原地成为
 // 新层的第 1 项；back 时相机回到父层离开时的位置，翻牌从缝开始。
+// B7：同一层的数据更新分四种（bravaisDisplayUpdate）——进出有限态 / 过滤从缝的两侧边缘翻；移除先把那一项翻成墙面、
+// 翻完（按住旧帧）再让后面的 rank 前移；有限态的相机钳制在有内容的部分；进入一层时没有起点磁贴就用会话的
+// focusedEntryKey 摆键盘焦点。
 // 布局记忆：push 离开一层时、stage 卸载时写 sessionStorage；back 时离开的那一层不写（「完成」刚让宿主忘掉了它）。
 
 /** 翻牌只排视口外扩这么多（世界单位）以内的磁贴。 */
 const FLIP_OVERSCAN = 160;
+/** 移除第一段（翻成墙面）放完之后再多等这么久才换上新数据。 */
+const REMOVAL_SETTLE_MS = 40;
 
 export type BravaisDisplayControls = {
     frameRef: MutableRefObject<BravaisFrameState>;
@@ -36,11 +47,15 @@ export type BravaisDisplayControls = {
     /** 此刻渲染着的 slot（翻牌只比较它们）。 */
     slotsRef: MutableRefObject<readonly WallSlot[]>;
     depth: number;
+    /** 这一层此刻的开口宽度（等级、面板、表单、过滤框都算进去了）。 */
+    openWidthFor: (layer: BravaisLayer) => number;
     setAnchor: (x: number | null) => void;
     planOpening: (center: WallViewCenter, width: number, preferAnchor: boolean) => { anchorX: number | null; center: WallViewCenter };
     isAnchorOnScreen: () => boolean;
     moveTo: (center: WallViewCenter, forceRecull?: boolean) => void;
     tweenTo: (center: WallViewCenter) => void;
+    /** 有限态的相机范围（无限态给 null）。 */
+    setCameraRange: (range: WallCameraRange | null, settle?: boolean) => void;
     /** 换层时收起聚焦卡、按起点 / 记忆放键盘焦点。 */
     collapseFocusCard: () => void;
     getFocusedSlotKey: () => string | null;
@@ -76,6 +91,10 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
     const flipTokenRef = useRef(0);
     const latestControls = useRef(controls);
     latestControls.current = controls;
+    // 移除的第一段在放：期间来的层先不上墙，放完一次换上最新的（holdRelease 让 effect 重跑）。
+    const holdRef = useRef<{ timer: ReturnType<typeof setTimeout>; origin: FlipOrigin } | null>(null);
+    const releasedOriginRef = useRef<FlipOrigin | null>(null);
+    const [holdRelease, setHoldRelease] = useState(0);
 
     const commit = useCallback((next: BravaisDisplay, depth: number) => {
         displayRef.current = next;
@@ -105,7 +124,32 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             visible: getViewWorldBounds(center, view, { seamWidth: openWidth, overscan: FLIP_OVERSCAN }),
             metrics: BRAVAIS_METRICS,
         });
-        return toFlipSteps(flipTokenRef.current, plan);
+        return { steps: toFlipSteps(flipTokenRef.current, plan), durationMs: plan.durationMs };
+    }, []);
+
+    /** 有限态（过滤）：沿用上一次的规划或以缝为中心重新规划；无限态为 null。相机范围随之更新。 */
+    const resolveFinite = useCallback((next: BravaisLayer, previous: BravaisFiniteState | null | undefined) => {
+        const { frameRef, setCameraRange, openWidthFor } = latestControls.current;
+        const { view, center, anchorX } = frameRef.current;
+        if (next.mode !== 'finite' || !view) {
+            setCameraRange(null);
+            return null;
+        }
+        const count = Math.max(next.items.length, next.wall?.planCount ?? 0);
+        const finite = canReuseFinitePlan(previous, { anchorX, count })
+            ? previous
+            : planBravaisFinite({ count, anchorX, center, view });
+        setCameraRange(resolveFiniteCameraRange({ finite, itemCount: next.items.length, view, seamWidth: openWidthFor(next) }), true);
+        return finite;
+    }, []);
+
+    /** 用会话记着的焦点条目摆键盘焦点（离缝最近的那一份）。 */
+    const focusSessionEntry = useCallback((next: BravaisDisplay) => {
+        const key = next.layer.focusedEntryKey;
+        if (!key) return null;
+        const { frameRef } = latestControls.current;
+        const { anchorX, center } = frameRef.current;
+        return findDisplayItemSlot(next, key, { x: anchorX ?? center.x, y: center.y })?.key ?? null;
     }, []);
 
     useLayoutEffect(() => {
@@ -113,10 +157,11 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         const { frameRef, slotsRef } = controlsNow;
         const previous = displayRef.current;
         if (!layer || !controls.view) return;
-        if (previous && previous.layer === layer) return;
+        if (previous && previous.layer === layer && !releasedOriginRef.current) return;
+        // 移除的第一段还在放：等它放完。
+        if (holdRef.current && previous && previous.layer.key === layer.key) return;
         const depth = controlsNow.depth;
-        const level = useBravaisSeamStore.getState().level;
-        const width = resolveSeamOpenWidth(layer.surface, level);
+        const width = controlsNow.openWidthFor(layer);
         const seamPoint = () => ({ x: frameRef.current.anchorX ?? frameRef.current.center.x, y: frameRef.current.center.y });
         const nearestToSeam = () => findNearestSlot(slotsRef.current, seamPoint())?.key ?? null;
 
@@ -128,33 +173,83 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             if (width > 0) center = controlsNow.planOpening(center, width, true).center;
             controlsNow.setAnchor(frameRef.current.anchorX);
             controlsNow.moveTo(center, true);
-            commit(createBravaisDisplay(layer, memory?.startSlotKey ?? null), depth);
+            releasePanelOnLayerChange('first', layer.key);
+            const draft = createBravaisDisplay(layer, memory?.startSlotKey ?? null);
+            const next = { ...draft, finite: resolveFinite(layer, null) };
+            commit(next, depth);
+            controlsNow.restoreFocus(memory?.focusSlotKey ?? focusSessionEntry(next));
             return;
         }
 
-        // 同一层的数据更新（加载完成、补页、正在播放换了）：只翻内容变了的 slot，从起点磁贴或缝开始。
+        // 同一层的数据更新。
         if (previous.layer.key === layer.key) {
-            const draft = createBravaisDisplay(layer, previous.startSlotKey);
+            const released = releasedOriginRef.current;
+            releasedOriginRef.current = null;
+            const decision = released ? { kind: 'update' as const } : decideDataUpdate(previous, layer);
+            if (decision.kind === 'refresh') {
+                commit({ ...previous, layer }, displayedDepthRef.current);
+                return;
+            }
             const start = slotFromKey(previous.startSlotKey);
-            const fresh = planFlipFor(previous, draft, pointOrigin(start ? { x: start.centerX, y: start.centerY } : seamPoint()));
+            const startPoint = start ? { x: start.centerX, y: start.centerY } : seamPoint();
+
+            if (decision.kind === 'removal') {
+                // 第一段：旧帧按住，只把消失的条目翻成墙面，从被删的那张（或离缝最近的一份）开始。
+                const originKey = takeBravaisRemovalOrigin(layer.key)
+                    ?? findDisplayItemSlot(previous, [...decision.removed][0], seamPoint())?.key
+                    ?? null;
+                const originSlot = slotFromKey(originKey);
+                const origin = pointOrigin(originSlot ? { x: originSlot.centerX, y: originSlot.centerY } : seamPoint());
+                const masked = maskRemovedEntries(previous, decision.removed);
+                const flip = planFlipFor(previous, masked, origin);
+                controlsNow.collapseFocusCard();
+                commit({ ...masked, flips: flip?.steps ?? masked.flips, flipToken: flipTokenRef.current }, displayedDepthRef.current);
+                if (flip && flip.durationMs > 0) {
+                    holdRef.current = {
+                        origin,
+                        timer: setTimeout(() => {
+                            releasedOriginRef.current = holdRef.current?.origin ?? origin;
+                            holdRef.current = null;
+                            setHoldRelease(value => value + 1);
+                        }, flip.durationMs + REMOVAL_SETTLE_MS),
+                    };
+                    return;
+                }
+                releasedOriginRef.current = null;
+            }
+
+            const finite = resolveFinite(layer, previous.finite);
+            const draft = { ...createBravaisDisplay(layer, previous.startSlotKey), finite };
+            const origin: FlipOrigin = released
+                ?? (decision.kind === 'filter'
+                    ? { kind: 'seam-edges', x: frameRef.current.anchorX ?? frameRef.current.center.x }
+                    : pointOrigin(startPoint));
+            const fresh = planFlipFor(previous, draft, origin);
             // 整墙有内容在翻：聚焦卡收起（它所在的块也可能在翻）。
-            if (fresh && fresh.size > 0) controlsNow.collapseFocusCard();
-            const flips = mergeFlipSteps(previous, draft, fresh ?? new Map(), slotsRef.current);
+            if (fresh && fresh.steps.size > 0) controlsNow.collapseFocusCard();
+            const flips = mergeFlipSteps(previous, draft, fresh?.steps ?? new Map(), slotsRef.current);
             commit({ ...draft, flips, flipToken: flipTokenRef.current }, displayedDepthRef.current);
             return;
         }
 
-        // 换层。
+        // 换层：上一层若还在按住移除的第一段，直接放弃。
+        if (holdRef.current) {
+            clearTimeout(holdRef.current.timer);
+            holdRef.current = null;
+        }
+        releasedOriginRef.current = null;
         const kind = depth > displayedDepthRef.current ? 'push' : depth < displayedDepthRef.current ? 'back' : 'replace';
         const hadKeyboardFocus = controlsNow.getFocusedSlotKey() !== null;
         controlsNow.collapseFocusCard();
         const pending = takeBravaisPendingOrigin(previous.layer.key);
         if (kind !== 'back') remember(previous);
+        releasePanelOnLayerChange(kind, layer.key);
 
         let center = frameRef.current.center;
         let startSlotKey: string | null;
         let origin: FlipOrigin;
         let focusKey: string | null = null;
+        let focusFromSession = false;
         if (kind === 'back') {
             const memory = readBravaisLayout(layer.sessionKey);
             center = memory?.center ?? center;
@@ -162,12 +257,15 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             startSlotKey = memory?.startSlotKey ?? nearestToSeam();
             origin = pointOrigin(seamPoint());
             focusKey = memory?.focusSlotKey ?? null;
+            focusFromSession = !focusKey;
         } else {
             const memory = pending ? null : readBravaisLayout(layer.sessionKey);
             startSlotKey = pending?.slotKey ?? memory?.startSlotKey ?? nearestToSeam();
             const start = slotFromKey(startSlotKey);
             origin = pointOrigin(start ? { x: start.centerX, y: start.centerY } : seamPoint());
             if (hadKeyboardFocus) focusKey = startSlotKey;
+            // 不是从一张磁贴打开的（从别处、换 suite 时正开着）：焦点落在会话记着的那一项上。
+            focusFromSession = !pending && !hadKeyboardFocus;
         }
         // 缝保持张开：可见就沿用它的块边界，新开口放不下时相机最小让位（完全收起时不为看不见的缝平移相机）。
         if (width > 0) {
@@ -177,15 +275,17 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             center = plan.center;
         }
         controlsNow.setAnchor(frameRef.current.anchorX);
-        const draft = createBravaisDisplay(layer, startSlotKey);
+        const draft = { ...createBravaisDisplay(layer, startSlotKey), finite: resolveFinite(layer, null) };
         const flips = planFlipFor(previous, draft, origin);
-        commit({ ...draft, flips: flips ?? draft.flips, flipToken: flipTokenRef.current }, depth);
+        commit({ ...draft, flips: flips?.steps ?? draft.flips, flipToken: flipTokenRef.current }, depth);
         controlsNow.tweenTo(center);
-        controlsNow.restoreFocus(focusKey);
-    }, [commit, controls.view, layer, planFlipFor, remember]);
+        controlsNow.restoreFocus(focusFromSession ? focusSessionEntry(draft) ?? focusKey : focusKey);
+    }, [commit, controls.view, focusSessionEntry, holdRelease, layer, planFlipFor, remember, resolveFinite]);
 
-    // stage 卸载（离开首页约 350ms 后）：记下当前层，回来时按它恢复。
+    // stage 卸载（离开首页约 350ms 后）：记下当前层，回来时按它恢复；还在按住的移除第一段丢掉。
     useEffect(() => () => {
+        if (holdRef.current) clearTimeout(holdRef.current.timer);
+        holdRef.current = null;
         if (displayRef.current) remember(displayRef.current);
     }, [remember]);
 

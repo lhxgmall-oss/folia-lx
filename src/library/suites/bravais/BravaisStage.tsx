@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { collectWallSlots, type WallSlot } from '../../../components/wall/wallSlots';
 import { FLIP_MAX_TILES } from '../../../components/wall/flipPlan';
@@ -23,6 +23,12 @@ import { useBravaisKeyboard } from './useBravaisKeyboard';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
+import { closeCommandFilter, useAppViewStore } from '../../../stores/useAppViewStore';
+import { findDisplayItemSlot } from './bravaisItemSlots';
+import { closeBravaisPanel, openBravaisPanel, syncPanelWithHistory } from './bravaisPanelHistory';
+import { resolveSeamTarget, type BravaisSeamTargetInput } from './bravaisSeamTarget';
+import { useBravaisUiStore } from './bravaisUiStore';
+import type { BravaisPanelActions } from './BravaisListPanel';
 import '../../../components/wall/wall.css';
 import './bravais.css';
 
@@ -66,8 +72,48 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const { layer, owned } = resolveCurrentLayer({ depth: navigation.depth, home, top, previous: previousLayerRef.current });
     previousLayerRef.current = layer;
 
+    // B7：缝此刻的开口——等级之上还有表单态、列表面板与命令面板过滤框的临时展开（bravaisSeamTarget）。
+    const seamLevel = useBravaisSeamStore(state => state.level);
+    const panelFor = useBravaisUiStore(state => state.panelFor);
+    const linkedKey = useBravaisUiStore(state => state.linkedKey);
+    const isFilterOpen = useAppViewStore(state => state.isCommandFilterOpen);
+    const seamInputFor = useCallback((
+        target: BravaisLayer,
+        live?: { level: BravaisSeamLevel; panelFor: string | null; filterOpen: boolean },
+    ): BravaisSeamTargetInput => {
+        const current = live ?? {
+            level: useBravaisSeamStore.getState().level,
+            panelFor: useBravaisUiStore.getState().panelFor,
+            filterOpen: useAppViewStore.getState().isCommandFilterOpen,
+        };
+        return {
+            surface: target.surface,
+            level: current.level,
+            viewportWidth: frameRef.current.view?.width ?? window.innerWidth,
+            formOpen: Boolean(target.seam.collection?.form),
+            panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
+            filterOpen: current.filterOpen && target.surface === 'collection',
+        };
+    }, [frameRef]);
+    const seamTarget = layer
+        ? resolveSeamTarget({
+            ...seamInputFor(layer, { level: seamLevel, panelFor, filterOpen: isFilterOpen && owned }),
+            viewportWidth: view?.width ?? 0,
+        })
+        : { width: 0, variant: 'none' as const };
+    const openWidthFor = useCallback((target: BravaisLayer) => resolveSeamTarget(seamInputFor(target)).width, [seamInputFor]);
+
     const camera = useBravaisCamera({ frameRef, renderFrame, fieldRef, reducedMotion });
-    const seam = useBravaisSeam({ frameRef, renderFrame, layer, contentRef: seamContentRef, reducedMotion, tweenCamera: camera.tweenTo });
+    const seam = useBravaisSeam({
+        frameRef,
+        renderFrame,
+        layer,
+        target: seamTarget,
+        viewportWidth: view?.width ?? 0,
+        contentRef: seamContentRef,
+        reducedMotion,
+        tweenCamera: camera.tweenTo,
+    });
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
 
     // 量到视口（或尺寸变了）：写进帧状态，相机保持视图中心不动，重新裁剪；跨过窄屏阈值时缝回到新宽度的默认等级。
@@ -98,6 +144,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         view,
         slotsRef,
         depth: navigation.depth,
+        openWidthFor,
+        setCameraRange: camera.setRange,
         setAnchor: seam.setAnchor,
         planOpening: seam.planOpening,
         isAnchorOnScreen: seam.isAnchorOnScreen,
@@ -121,6 +169,48 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     });
     const active = isInteractive && owned && Boolean(layer?.isInteractive);
     useBravaisKeyboard(active, interactions.handleAction);
+    // B7 列表面板：打开是一次导航（写 history，面包屑多「列表」），打开时等级拉回 full；单击一行定位到离缝最近的一份并
+    // 聚焦（歌曲直接展开聚焦卡），双击播放。
+    const openList = useCallback(() => {
+        const current = displayRef.current?.layer;
+        if (!current?.entries?.hasPanel) return;
+        if (useBravaisSeamStore.getState().level !== 'full') useBravaisSeamStore.getState().setLevel('full');
+        openBravaisPanel(current.key);
+    }, [displayRef]);
+    const panelActions = useMemo<BravaisPanelActions>(() => ({
+        close: closeBravaisPanel,
+        fold: () => useBravaisSeamStore.getState().setLevel('hidden'),
+        locate: itemKey => {
+            const current = displayRef.current;
+            const { anchorX, center } = frameRef.current;
+            const slot = findDisplayItemSlot(current, itemKey, { x: anchorX ?? center.x, y: center.y });
+            if (!current || !slot) return;
+            const item = resolveSlotItem(current, slot);
+            focus.focusSlot(slot, { reveal: item?.kind !== 'track' });
+            if (item?.kind === 'track') focus.expand(slot);
+        },
+        play: itemKey => displayRef.current?.layer.onPlayItem?.(itemKey),
+    }), [displayRef, focus.expand, focus.focusSlot, frameRef]);
+    // 浏览器后退 / 前进：面板开合跟着 history 记录上的标记走。
+    useEffect(() => {
+        window.addEventListener('popstate', syncPanelWithHistory);
+        return () => window.removeEventListener('popstate', syncPanelWithHistory);
+    }, []);
+    // 过滤框里按 ↓：收起过滤框（过滤词保留），键盘焦点交给墙上的第 1 项（有限拼贴的 rank 0）。
+    const { handleAction, focusWall } = interactions;
+    useEffect(() => {
+        if (!active) return;
+        const focusFirst = () => {
+            closeCommandFilter();
+            focusWall();
+            return handleAction({ type: 'first' }, null);
+        };
+        useBravaisUiStore.setState({ focusFirst });
+        return () => {
+            if (useBravaisUiStore.getState().focusFirst === focusFirst) useBravaisUiStore.setState({ focusFirst: null });
+        };
+    }, [active, focusWall, handleAction]);
+
     useBravaisChromeActions({
         active,
         displayRef,
@@ -128,6 +218,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         isCollapsed: seam.isCollapsed,
         reopenHere: seam.reopenHere,
         focusSlot: focus.focusSlot,
+        openList,
     });
 
     const setLevel = useCallback((level: BravaisSeamLevel) => useBravaisSeamStore.getState().setLevel(level), []);
@@ -149,6 +240,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         vignette ? 'has-vignette' : '',
         tintEnabled ? 'has-poster-tint' : '',
         tintCustom ? 'uses-custom-poster-tint' : '',
+        layer?.wall?.loading ? 'is-loading' : '',
     ].filter(Boolean).join(' ');
 
     return (
@@ -185,6 +277,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
                     reflow={focus.reflow}
                     expandedSlotKey={focus.expandedSlotKey}
                     focusedSlotKey={focus.focusedSlotKey}
+                    linkedKey={panelFor !== null && panelFor === display?.layer.key ? linkedKey : null}
                     pixelScale={(view?.scale ?? 1) * devicePixelRatio}
                     reducedMotion={reducedMotion}
                     didDragRef={camera.pointer.didDragRef}
@@ -198,6 +291,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
                 contentRef={seamContentRef}
                 tabRef={tabRef}
                 variant={seam.rendered.variant}
+                contentWidth={seam.rendered.width}
                 layer={seam.rendered.layer}
                 currentLayer={layer}
                 level={seam.level}
@@ -205,6 +299,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
                 bottomPx={bottomPx}
                 setLevel={setLevel}
                 onTab={onSeamTab}
+                openList={openList}
+                panel={panelActions}
             />
         </section>
     );

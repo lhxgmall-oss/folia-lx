@@ -15,6 +15,8 @@ type BravaisWallProps = {
     reflow: ReadonlyMap<string, BravaisTileRect>;
     expandedSlotKey: string | null;
     focusedSlotKey: string | null;
+    /** B7：列表面板里悬停的那一项。 */
+    linkedKey?: string | null;
     pixelScale: number;
     reducedMotion: boolean;
     didDragRef: MutableRefObject<boolean>;
@@ -30,6 +32,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
     reflow,
     expandedSlotKey,
     focusedSlotKey,
+    linkedKey = null,
     pixelScale,
     reducedMotion,
     didDragRef,
@@ -55,6 +58,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
                 expanded={expanded}
                 keyboardFocused={slot.key === focusedSlotKey}
                 queued={expanded && Boolean(item && display?.layer.queuedKeys.has(item.key))}
+                linked={Boolean(item && linkedKey !== null && item.key === linkedKey)}
                 pixelScale={pixelScale}
                 reducedMotion={reducedMotion}
                 didDragRef={didDragRef}

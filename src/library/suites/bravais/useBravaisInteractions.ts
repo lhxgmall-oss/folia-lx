@@ -7,6 +7,8 @@ import { findNearestSlot, resolveSlotItem, type BravaisDisplay } from './bravais
 import { resolveEscapeStep, type BravaisKeyAction } from './bravaisKeyboardModel';
 import { findAdjacentSlot } from './bravaisNavigation';
 import { setBravaisPendingOrigin } from './bravaisStageStore';
+import { closeBravaisPanel } from './bravaisPanelHistory';
+import { setBravaisWallHoverKey, useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisTileHandlers } from './BravaisTile';
 import type { BravaisFrameState } from './useBravaisFrame';
 import type { useBravaisFocus } from './useBravaisFocus';
@@ -22,6 +24,8 @@ export const bravaisSlotFromKey = (key: string | null): WallSlot | null => {
     const address = key ? parseWallSlotKey(key) : null;
     return address ? getWallSlot(address.column, address.row, address.slotIndex, BRAVAIS_METRICS) : null;
 };
+
+const NO_MENU: readonly never[] = [];
 
 const isControlTarget = (target: EventTarget | null) => (
     target instanceof Element && Boolean(target.closest('button, a[href], input, select, textarea'))
@@ -100,6 +104,24 @@ export const useBravaisInteractions = ({
                 openFrom(slotKey, () => layer.onOpenArtist!(item.key, index));
             }
         },
+        // B7：聚焦卡「⋯」。移出歌单先记下这张的 slot（两段翻牌从它开始）、收起聚焦卡，再交给 surface。
+        menuFor: itemKey => displayRef.current?.layer.entries?.menuFor?.(itemKey) ?? NO_MENU,
+        runMenu: (slotKey, actionId) => {
+            const item = itemAt(slotKey);
+            const layer = displayRef.current?.layer;
+            if (!item || !layer?.entries?.onMenuAction) return;
+            if (actionId === 'remove-entry') {
+                useBravaisUiStore.setState({ removalOrigin: { layerKey: layer.key, slotKey } });
+                collapse();
+            }
+            layer.entries.onMenuAction(item.key, actionId);
+        },
+        // 悬停磁贴：列表面板开着时高亮并滚到对应的行（列表 ↔ 墙联动）。
+        hover: slotKey => {
+            const layer = displayRef.current?.layer;
+            if (!layer || useBravaisUiStore.getState().panelFor !== layer.key) return;
+            setBravaisWallHoverKey(slotKey ? itemAt(slotKey)?.key ?? null : null);
+        },
     }), [collapse, displayRef, expand, expandedRef, focusSlot, itemAt, openFrom]);
 
     const hasContent = useCallback((slot: WallSlot) => resolveSlotItem(displayRef.current, slot) !== null, [displayRef]);
@@ -149,12 +171,18 @@ export const useBravaisInteractions = ({
         if (action.type === 'tab') return handleTab(action.backwards, target);
         if (action.type === 'escape') {
             const step = resolveEscapeStep({
+                hasForm: Boolean(layer.entries?.hasForm),
                 hasFocusCard: expandedRef.current !== null,
                 hasKeyboardFocus: focusedRef.current !== null,
+                hasPanel: useBravaisUiStore.getState().panelFor === layer.key,
+                hasQuery: Boolean(layer.entries?.hasQuery),
                 canGoBack: Boolean(layer.onBack),
             });
-            if (step === 'focus-card') collapse();
+            if (step === 'form') layer.entries?.cancelForm?.();
+            else if (step === 'focus-card') collapse();
             else if (step === 'keyboard-focus') focusSlot(null);
+            else if (step === 'panel') closeBravaisPanel();
+            else if (step === 'query') layer.entries?.clearQuery?.();
             else if (step === 'back') layer.onBack!();
             return step !== null;
         }
@@ -173,10 +201,21 @@ export const useBravaisInteractions = ({
                 return true;
             }
             case 'first': {
-                const start = bravaisSlotFromKey(display.startSlotKey) ?? seedSlot();
+                // 有限拼贴（过滤中）：rank 0；无限拼贴：起点磁贴（第 1 项）。
+                const start = display.finite
+                    ? (display.layer.items.length > 0 ? display.finite.order[0] ?? null : null)
+                    : bravaisSlotFromKey(display.startSlotKey) ?? seedSlot();
                 if (!start) return false;
                 focusWall();
                 focusSlot(start, { reveal: true });
+                return true;
+            }
+            case 'last': {
+                // 只有有限拼贴有「最后一项」。
+                const last = display.finite ? display.finite.order[display.layer.items.length - 1] ?? null : null;
+                if (!last) return false;
+                focusWall();
+                focusSlot(last, { reveal: true });
                 return true;
             }
             case 'page': {
@@ -202,5 +241,5 @@ export const useBravaisInteractions = ({
         return true;
     }, [collapse, displayRef, drawnRect, expand, expandedRef, focusSlot, focusWall, focusedRef, frameRef, handleTab, handlers, hasContent, itemAt, seedSlot, tweenTo]);
 
-    return { handlers, handleAction, itemAt, seedSlot };
+    return { handlers, handleAction, itemAt, seedSlot, focusWall };
 };

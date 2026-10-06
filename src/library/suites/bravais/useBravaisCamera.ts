@@ -1,5 +1,5 @@
 import { animate } from 'framer-motion';
-import { useCallback, useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent, type RefObject } from 'react';
 import type { Bounds } from '../../../components/wall/layout';
 import type { LatticeCamera } from '../../../components/wall/useWallCameraPan';
 import { useWallPointerPan } from '../../../components/wall/useWallPointerPan';
@@ -10,7 +10,9 @@ import {
     type WallView,
     type WallViewCenter,
 } from '../../../components/wall/wallView';
+import type { WallCameraRange } from '../../../components/wall/finiteWall';
 import { BRAVAIS_CAMERA_TWEEN_S, BRAVAIS_CULL_EDGE_MARGIN, BRAVAIS_OVERSCAN } from './bravaisConstants';
+import { rubberBand } from './bravaisFiniteWall';
 import type { BravaisFrameState } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisCamera.ts
@@ -131,12 +133,43 @@ export const useBravaisCamera = ({
         });
     }, [frameRef, moveTo, reducedMotion, renderFrame, stopCamera, syncPointerCamera]);
 
+    // B7 有限拼贴的相机范围：拖动中超出范围按阻尼走（弹性），惯性与滚轮硬钳制，松手后补间回范围里。
+    const rangeRef = useRef<WallCameraRange | null>(null);
+    const draggingRef = useRef(false);
+    const constrain = useCallback((center: WallViewCenter): WallViewCenter => {
+        const range = rangeRef.current;
+        if (!range) return center;
+        if (draggingRef.current) {
+            return { x: rubberBand(center.x, range.minX, range.maxX), y: rubberBand(center.y, range.minY, range.maxY) };
+        }
+        return {
+            x: Math.min(range.maxX, Math.max(range.minX, center.x)),
+            y: Math.min(range.maxY, Math.max(range.minY, center.y)),
+        };
+    }, []);
+    /** 落回范围里（松手、进入有限态）。 */
+    const settle = useCallback(() => {
+        const range = rangeRef.current;
+        if (!range) return;
+        const { center } = frameRef.current;
+        const target = {
+            x: Math.min(range.maxX, Math.max(range.minX, center.x)),
+            y: Math.min(range.maxY, Math.max(range.minY, center.y)),
+        };
+        if (Math.abs(target.x - center.x) > 0.5 || Math.abs(target.y - center.y) > 0.5) tweenTo(target);
+    }, [frameRef, tweenTo]);
+    /** 有限态给范围，回到无限态给 null；settle 为真时立即落回范围里。 */
+    const setRange = useCallback((range: WallCameraRange | null, settleNow = false) => {
+        rangeRef.current = range;
+        if (range && settleNow) settle();
+    }, [settle]);
+
     // 拖动与滚轮：wall 的 hook 交回平移相机，换算成视图中心再走同一条 moveTo。
     const applyCamera = useCallback((next: LatticeCamera, updateBounds?: boolean) => {
         const view = frameRef.current.view;
         if (!view) return;
-        moveTo(viewCenterFromCamera(next, view), Boolean(updateBounds));
-    }, [frameRef, moveTo]);
+        moveTo(constrain(viewCenterFromCamera(next, view)), Boolean(updateBounds));
+    }, [constrain, frameRef, moveTo]);
     const getWorldBounds = useCallback((camera: LatticeCamera) => {
         const view = frameRef.current.view;
         if (!view) return { left: 0, right: 0, top: 0, bottom: 0 };
@@ -160,5 +193,27 @@ export const useBravaisCamera = ({
         animationRef.current?.stop();
     }, []);
 
-    return { bounds, moveTo, tweenTo, stopCamera, syncPointerCamera, pointer };
+    // 记下「正在拖」（弹性只在手指 / 鼠标按着时有），松手没有惯性就立即落回范围。
+    const { onPointerDown: panDown, onPointerUp: panUp, onPointerCancel: panCancel, onPointerMove, onClickCapture, didDragRef } = pointer;
+    const pointerWithRange = useMemo(() => ({
+        didDragRef,
+        onPointerMove,
+        onClickCapture,
+        onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
+            draggingRef.current = true;
+            panDown(event);
+        },
+        onPointerUp: (event: PointerEvent<HTMLDivElement>) => {
+            panUp(event);
+            draggingRef.current = false;
+            if (!animationRef.current) settle();
+        },
+        onPointerCancel: (event: PointerEvent<HTMLDivElement>) => {
+            panCancel(event);
+            draggingRef.current = false;
+            settle();
+        },
+    }), [didDragRef, onClickCapture, onPointerMove, panCancel, panDown, panUp, settle]);
+
+    return { bounds, moveTo, tweenTo, stopCamera, syncPointerCamera, pointer: pointerWithRange, setRange, settle };
 };

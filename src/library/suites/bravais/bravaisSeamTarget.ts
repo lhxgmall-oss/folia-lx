@@ -13,7 +13,7 @@ import {
 // - 表单态（改名、删除确认、加入歌单选择）：缝原地翻成表单，宽度按完整信息条；
 // - 列表面板（导航状态）：缝加宽到 min(420, 视口 − 52)，标题横排压在顶部（设计稿 §5「面板」）；
 // - 过滤框开着：书脊 / 折叠的缝临时展开为完整信息条，框收起后回到原等级（设计稿 §7.6）。
-// 优先级：表单 > 面板 > 过滤的临时展开 > 用户选的等级。用户的等级不被改写，只是暂时不生效。
+// 优先级：表单 > 面板（折叠时除外）> 过滤的临时展开 > 用户选的等级。用户的等级不被改写，只是暂时不生效。
 
 /** 列表面板的开口：min(420, 视口 − 52)。 */
 export const BRAVAIS_PANEL_MAX_WIDTH = 420;
@@ -40,12 +40,13 @@ export type BravaisSeamTargetInput = {
 
 /** 这一刻的生效等级：过滤框、面板、表单都要求完整的缝。 */
 export const resolveEffectiveSeamLevel = ({ level, formOpen, panelOpen, filterOpen }: BravaisSeamTargetInput): BravaisSeamLevel => (
-    formOpen || panelOpen || filterOpen ? 'full' : level
+    formOpen || filterOpen || (panelOpen && level !== 'hidden') ? 'full' : level
 );
 
 export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: number; variant: BravaisSeamContentVariant } => {
     if (input.surface === 'collection' && input.formOpen) return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'form' };
-    if (input.surface === 'collection' && input.panelOpen) {
+    // 面板里只有「折叠」：折叠后面板仍算开着，恢复时回到面板（设计稿 §5）。
+    if (input.surface === 'collection' && input.panelOpen && input.level !== 'hidden') {
         return { width: resolvePanelWidth(input.viewportWidth), variant: 'panel' };
     }
     const level = resolveEffectiveSeamLevel(input);
