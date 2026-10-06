@@ -29,8 +29,9 @@
     translate: none;
 }
 
-.bravais-seam-filter-open,
-.bravais-seam-filter-query {
+/* 缝里的按钮都被 bravais.css 的 `.bravais-seam button { font: inherit }` 统一过：这里的字号规则要带上 .bravais-seam。 */
+.bravais-seam .bravais-seam-filter-open,
+.bravais-seam .bravais-seam-filter-query {
     display: inline-flex;
     min-width: 0;
     flex: 1 1 auto;
@@ -78,7 +79,7 @@
 .bravais-seam-star:hover:not(:disabled) { border-color: color-mix(in srgb, currentColor 26%, transparent); }
 .bravais-seam-star:disabled { cursor: default; }
 
-.bravais-seam-sync {
+.bravais-seam .bravais-seam-sync {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -114,7 +115,7 @@
 .bravais-seam-status-line.is-loading,
 .bravais-seam-status-line.is-no-match { color: var(--bravais-seam-ink-soft); }
 
-.bravais-seam-link {
+.bravais-seam .bravais-seam-link {
     padding: 0;
     border: 0;
     color: var(--text-primary, #f7f4ee);
@@ -137,7 +138,7 @@
     background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
-.bravais-seam-menu button,
+.bravais-seam .bravais-seam-menu button,
 .bravais-focus-menu button {
     padding: 8px 10px;
     border: 1px solid transparent;
@@ -209,7 +210,7 @@
     overflow-y: auto;
 }
 
-.bravais-form-row {
+.bravais-seam .bravais-form-row {
     display: flex;
     min-height: 44px;
     flex: none;
@@ -242,6 +243,9 @@
     box-sizing: border-box;
 }
 
+/* 只有列表伸缩，其余各行保持自己的高度（不然标题会被挤扁）。 */
+.bravais-seam-panel > * { flex: none; }
+
 .bravais-panel-title {
     margin: 0;
     overflow: hidden;
@@ -267,7 +271,7 @@
     background: var(--bravais-seam-paper);
 }
 
-.bravais-panel-list { min-height: 0; flex: 1 1 auto; margin: 0 -10px; }
+.bravais-seam-panel > .bravais-panel-list { min-height: 0; flex: 1 1 0; margin: 0 -10px; }
 
 .bravais-list-row {
     display: grid;

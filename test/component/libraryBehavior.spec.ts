@@ -14,6 +14,7 @@ import {
     localSongId,
     ONLINE_FIXTURES,
     onlinePlaybackKey,
+    onlineSearchText,
     onlineSongId,
     PROBE_ALBUM,
     PROBE_FIRST_PAGE,
@@ -1535,5 +1536,138 @@ test.describe('suites', () => {
         await waitForRenderer(page, 'grid');
         await expect.poll(async () => (await surface(page))?.availableActions ?? []).toContain('toggle-subscribe');
         expect(await requests(page, 'subscribePlaylist')).toEqual([]);
+    });
+});
+
+// B7：bravais 集合页自己的交互（双模式、列表面板、表单态、日期步进、过滤框 ↓ 交给墙）。都经语义标记驱动：
+// 磁贴的 data-bravais-slot / data-library-entry、面板的 data-bravais-list(-row)、缝的 data-bravais-seam-action / form。
+test.describe('[bravais-only] collection page', () => {
+    const PUBLIC = fixture['online-public'];
+    const publicScope = () => expectedPlayableIndexes(PUBLIC.rawIndexes).length;
+    const collectionAnchor = (page: Page) => page.locator('[data-library-surface="collection"][data-library-renderer="bravais"]');
+    /** 此刻墙上每个有内容的 slot 显示的条目键（翻牌放完之后读）。 */
+    const wallEntries = (page: Page) => page.evaluate(() => Object.fromEntries(
+        [...document.querySelectorAll<HTMLElement>('.bravais-tile[data-library-entry]')]
+            .map(tile => [tile.dataset.bravaisSlot ?? '', tile.dataset.libraryEntry ?? '']),
+    ));
+    const settleFlips = (page: Page) => page.waitForTimeout(1200);
+    const openPublic = async (mount: (id: string) => Promise<unknown>, page: Page) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'online-public');
+        await waitForScope(page, publicScope());
+        await settleFlips(page);
+    };
+
+    test('filtering degrades to a finite collage without repeats; clearing flips back with the start offset kept', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'infinite');
+        const before = await wallEntries(page);
+        // 无限拼贴：同一条目有好几份。
+        expect(new Set(Object.values(before)).size).toBeLessThan(Object.values(before).length);
+
+        await setQuery(page, 'amber');
+        await waitForScope(page, expectedPlayableIndexes(PUBLIC.rawIndexes, 'amber').length);
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'finite');
+        await settleFlips(page);
+        const filtered = Object.values(await wallEntries(page));
+        expect(new Set(filtered).size).toBe(filtered.length);
+        // 墙上放的是全部匹配项（不可播放的也在，灰显），播放范围才跳过它们。
+        const matchIndexes = PUBLIC.rawIndexes.filter(index => onlineSearchText(index).includes('amber'));
+        const matches = keysOf(PROBE_PROVIDER_A, PUBLIC.prefix, matchIndexes).map(key => `${key}-0`);
+        expect(filtered.every(entry => matches.includes(entry))).toBe(true);
+        await expect(page.locator('[data-bravais-seam-filter="active"]')).toBeVisible();
+
+        await setQuery(page, '');
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'infinite');
+        await settleFlips(page);
+        const after = await wallEntries(page);
+        const shared = Object.keys(before).filter(slot => slot in after);
+        expect(shared.length).toBeGreaterThan(0);
+        expect(shared.filter(slot => before[slot] !== after[slot])).toEqual([]);
+    });
+
+    test('the filter box hands the keyboard to rank 0 on arrow down and keeps the filter', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        await setQuery(page, 'cedar');
+        const matches = keysOf(PROBE_PROVIDER_A, PUBLIC.prefix, expectedPlayableIndexes(PUBLIC.rawIndexes, 'cedar'));
+        await waitForScope(page, matches.length);
+        await settleFlips(page);
+        // 命令面板的过滤框里按 ↓ 走的就是这个注册（CommandFilterAnchor.focusResults）。
+        const handled = await page.evaluate(async () => {
+            const storePath = '/src/stores/useAppViewStore.ts';
+            const { useAppViewStore } = await import(/* @vite-ignore */ storePath);
+            return useAppViewStore.getState().commandFilter?.focusResults?.() ?? false;
+        });
+        expect(handled).toBe(true);
+        await expect(page.locator('.bravais-tile[data-bravais-focused]')).toHaveAttribute('data-library-entry', `${matches[0]}-0`);
+        expect(await getQuery(page)).toBe('cedar');
+        await clearLog(page);
+        await playFocused(page, 'bravais');
+        await expect.poll(async () => (await lastCall(page, 'playSong'))?.ids).toEqual([matches[0]]);
+    });
+
+    test('the list panel is a navigation step: the crumb gains "List", Escape and browser back close it before leaving', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        await openBravaisList(page);
+        await expect(page.locator('[data-bravais-list] .bravais-seam-crumb-trail')).toContainText('List');
+        expect(await page.evaluate(() => (window.history.state as { bravaisPanel?: string } | null)?.bravaisPanel ?? null)).toBe(PUBLIC_SESSION_KEY);
+
+        await pressOnGrid(page, 'Escape');
+        await expect(page.locator('[data-bravais-list]')).toHaveCount(0);
+        expect(await stack(page)).toEqual(['Public Playlist']);
+
+        await openBravaisList(page);
+        await page.goBack();
+        await expect(page.locator('[data-bravais-list]')).toHaveCount(0);
+        expect(await stack(page)).toEqual(['Public Playlist']);
+
+        await pressOnGrid(page, 'Escape');
+        await expect.poll(() => stack(page)).toEqual([]);
+    });
+
+    test('hovering a list row marks its copies on the wall; a click flies to the nearest copy and opens it', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        await openBravaisList(page);
+        const entryKey = `${onlinePlaybackKey(PROBE_PROVIDER_A, `${PUBLIC.prefix}-3`)}-0`;
+        await page.locator(`[data-bravais-list-row="${entryKey}"]`).hover();
+        const linked = page.locator('.bravais-tile[data-bravais-linked]');
+        await expect(linked.first()).toBeAttached();
+        const linkedEntries = await linked.evaluateAll(tiles => tiles.map(tile => (tile as HTMLElement).dataset.libraryEntry));
+        expect(new Set(linkedEntries)).toEqual(new Set([entryKey]));
+
+        await page.locator(`[data-bravais-list-row="${entryKey}"]`).click();
+        const card = page.locator(`.bravais-tile[data-bravais-expanded][data-library-entry="${entryKey}"]`);
+        await expect(card).toBeInViewport();
+        await page.mouse.move(5, 5);
+        await expect(page.locator('.bravais-tile[data-bravais-linked]')).toHaveCount(0);
+    });
+
+    test('rename backs out with Escape and sends nothing; the seam flips back to the strip', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'navi-playlist');
+        await waitForScope(page, 5);
+        await clearLog(page);
+        await page.locator('[data-bravais-seam-action="more"]').click();
+        await page.locator('[data-bravais-seam-menu] [data-bravais-seam-action="rename"]').click();
+        const input = page.locator('[data-bravais-form="rename"] input');
+        await expect(input).toBeFocused();
+        await input.press('Escape');
+        await expect(page.locator('[data-bravais-form]')).toHaveCount(0);
+        await expect(page.locator('[data-bravais-seam-title]')).toHaveText('Navi Playlist');
+        expect(await requests(page, 'updatePlaylist')).toEqual([]);
+        expect(await stack(page)).toEqual(['Navi Playlist']);
+    });
+
+    test('the daily recommendation date steps back through history from the seam', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'online-daily');
+        await waitForScope(page, 10);
+        const date = page.locator('[data-bravais-daily-date]');
+        await expect(date).not.toHaveText('2026-09-30');
+        await clearLog(page);
+        await page.locator('[data-bravais-seam-action="daily-previous"]').click();
+        await expect.poll(() => requests(page, 'historySongs')).not.toEqual([]);
+        await expect(date).toHaveText('2026-09-30');
+        expect(await stack(page)).toEqual(['Daily Picks']);
     });
 });
