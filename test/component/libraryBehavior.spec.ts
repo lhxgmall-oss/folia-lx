@@ -1752,3 +1752,37 @@ test.describe('[bravais-only] collection page, more', () => {
         expect(await requests(page, 'playlistTracks')).toEqual([]);
     });
 });
+
+test.describe('[bravais-only] host dialogs', () => {
+    test('match-song from the focus card and edit-entity from the seam open host dialogs above the wall', async ({ mount, page }) => {
+        const isOnTop = (selector: string) => page.evaluate((dialogSelector) => {
+            const dialog = document.querySelector(dialogSelector);
+            if (!dialog) return false;
+            const rect = dialog.getBoundingClientRect();
+            const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            return Boolean(hit && dialog.contains(hit));
+        }, selector);
+
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'local-all');
+        await waitForScope(page, 8);
+        const card = await focusBravaisEntry(page, localKey(1));
+        await card.locator('[data-bravais-action="more"]').click();
+        await card.locator('[data-bravais-action="match-song"]').click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        expect(await isOnTop('[role="dialog"]')).toBe(true);
+        // 对话框开着时墙不接键盘（hasBlockingWindow）：Esc 不收起聚焦卡。
+        await page.keyboard.press('Escape');
+        await expect(page.locator(`.bravais-tile[data-bravais-expanded][data-library-entry="${localKey(1)}-0"]`)).toHaveCount(1);
+        await page.getByRole('dialog').locator('button:has(svg.lucide-x)').first().click();
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+
+        await backAndSettle(page);
+        await open(page, 'local-album');
+        await waitForScope(page, 4);
+        await page.locator('[data-bravais-seam-action="more"]').click();
+        await page.locator('[data-bravais-seam-menu] [data-bravais-seam-action="edit-entity"]').click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        expect(await isOnTop('[role="dialog"]')).toBe(true);
+    });
+});
