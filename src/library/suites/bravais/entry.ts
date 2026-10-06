@@ -1,5 +1,6 @@
 import React from 'react';
 import type { LibraryActionId, LibraryHomeActionId, LibrarySuiteManifest } from '../../core/contracts/suite';
+import type { LibraryAccountActionId } from '../../core/contracts/account';
 
 // src/library/suites/bravais/entry.ts
 // bravais suite（library v2 的正式新 UI，设计稿 docs/bravais-suite-design.md）：用户始终站在一面墙前，导航与筛选都是
@@ -9,6 +10,7 @@ import type { LibraryActionId, LibraryHomeActionId, LibrarySuiteManifest } from 
 // B6（骨架）只实现首页（「歌单」页签）与集合页的浏览，按「声明以 entry 为准」只声明做到了的 surface 与动作：
 // 歌手页与账户没声明，照常回退 grid；首页的目录 / 导入等动作、集合页的过滤与变更动作在 B7–B10 补齐。
 // B9 起首页五个页签都铺墙，声明 grid 的全部 15 个首页动作（见 HOME_ACTIONS）。
+// B10 起账户也由 bravais 渲染（登录与确认在缝里，见 ACCOUNT_ACTIONS），不再回退 grid 的登录弹窗。
 // 本文件只能静态 import react（test/unit/library/suiteEntries.test.ts）：组件与 stage 一律 React.lazy，
 // 没选 bravais 的人不加载它的任何 chunk。
 
@@ -21,6 +23,7 @@ export const BRAVAIS_LAYOUT_STORAGE_PREFIX = 'folia_bravais_layout:v1:';
 const BravaisStage = React.lazy(() => import('./BravaisStage'));
 const BravaisHome = React.lazy(() => import('./BravaisHome'));
 const BravaisCollection = React.lazy(() => import('./BravaisCollection'));
+const BravaisAccount = React.lazy(() => import('./BravaisAccount'));
 
 // 集合页（B7 齐了 grid 的 23 个，入口见设计稿 §10.2）：聚焦卡主按钮（播放 / 入队）、文字链接（专辑 / 歌手）与「⋯」
 // （移出 / 不喜欢、手动匹配、加入歌单）；缝里的播放全部 / 入队、过滤位（命令面板内联框）、收藏星标、元数据行的续传、
@@ -75,6 +78,22 @@ const HOME_ACTIONS: readonly LibraryHomeActionId[] = [
     'home-refresh-folders',
     'home-import-playlist',
     'home-refresh-navidrome',
+];
+
+// 账户（B10，设计稿 §10.7）：7 个动作全部声明，登录与确认都在缝里完成（account surface = BravaisAccount）。
+// - account-select / account-logout：首页在线页签窄缝的平台切换（provider 列表 + 当前平台 + 登出，规则同 grid 的切换器）。
+// - account-login / account-login-method：选中未登录的平台后缝强制拉到完整宽度、翻成登录态（二维码、状态行、重试 / 关闭）；
+//   QQ 式多方式先在缝里选方式；冷却期间重试禁用并显示秒数。
+// - account-switch-confirm：缝翻成确认态（切换 / 取消），确认后立即翻回。
+// - account-login-diagnostics / account-backend-restart：登录失败后的次级按钮（诊断复制、网易本地后端重启）。
+const ACCOUNT_ACTIONS: readonly LibraryAccountActionId[] = [
+    'account-login',
+    'account-login-method',
+    'account-switch-confirm',
+    'account-select',
+    'account-logout',
+    'account-login-diagnostics',
+    'account-backend-restart',
 ];
 
 // 外观动作（suite-chrome，只出现在命令面板里）：缝的三级开口、在这里裂开缝、定位正在播放。
@@ -157,6 +176,7 @@ const bravais: LibrarySuiteManifest = {
     surfaces: {
         home: { component: BravaisHome, actions: HOME_ACTIONS },
         collection: { component: BravaisCollection, actions: COLLECTION_ACTIONS },
+        account: { component: BravaisAccount, actions: ACCOUNT_ACTIONS },
     },
     chromeActions: CHROME_ACTIONS,
     layout: {
