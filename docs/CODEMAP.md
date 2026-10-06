@@ -15,7 +15,7 @@
 | --- | --- |
 | components | 512+ |
 | test/dev | 512+ |
-| library | 128+ |
+| library | 256+ |
 | services | 128+ |
 | utils | 128+ |
 | backend/electron | 64+ |
@@ -45,7 +45,9 @@
 | 32+ | `src/i18n/config.ts` |
 | 32+ | `src/library/core/contracts/collection.ts` |
 | 32+ | `src/library/core/contracts/directory.ts` |
+| 32+ | `src/library/core/contracts/homeModel.ts` |
 | 32+ | `src/library/core/contracts/suite.ts` |
+| 32+ | `src/library/suites/bravais/bravaisLayer.ts` |
 | 32+ | `src/mods/folium/contract.ts` |
 | 32+ | `src/services/db.ts` |
 | 32+ | `src/services/onlineMusic/omni.ts` |
@@ -73,6 +75,7 @@
 - `dev/probes/automixModelReminder.probe.tsx`
 - `dev/probes/automixModels.probe.tsx`
 - `dev/probes/automixTransitionSwitches.probe.tsx`
+- `dev/probes/bravaisPerf.probe.tsx`
 - `dev/probes/collectionMorph.probe.tsx`
 - `dev/probes/coverSizeAudit.probe.tsx`
 - `dev/probes/fmTab.probe.tsx`
@@ -208,6 +211,7 @@
 
 ### `src/library/registry.ts`
 
+- `src/library/suites/bravais/entry.ts`
 - `src/library/suites/grid/entry.ts`
 - `src/library/suites/tui/entry.ts`
 
