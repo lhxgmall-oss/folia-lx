@@ -12,6 +12,8 @@ import { resolveTileTransition, type BravaisFlipStep } from './bravaisDisplay';
 import type { BravaisItem } from './bravaisLayer';
 import { bravaisFaceKey, type BravaisTileKind } from './bravaisLook';
 import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFocusCardBody';
+import BravaisTileMarks from './BravaisTileMarks';
+import { WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } from './bravaisWallWave';
 
 // src/library/suites/bravais/BravaisTile.tsx
 // 墙上的一张磁贴。分两层（给 B6b③ 的底板留结构）：外框（.bravais-tile）只管位置与尺寸，永远不转；内容层
@@ -21,12 +23,16 @@ import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFoc
 // 透光（B6b③）：窗（kind = window）没有内容，内容层透明、只有一层很淡的光晕底，露出底板挖出的洞下面的 visualizer；
 // 全透明档的内容磁贴（seeThrough）不画封面，只留标题、scrim 与一条封面底条。翻牌比较的是「面」（bravaisFaceKey），
 // 所以换档时开窗、关窗、变透明的磁贴也会翻。
+// B9：换首页页签是整墙出场 → 入场（step.wave）：内容层先抬起淡出，换内容，等到自己的入场时刻再落回；首页卡片右上角
+// 的眼睛按钮与批量选中的勾（BravaisTileMarks），批量模式里没选中的、管理隐藏视图里已隐藏的灰度 + 半透明（is-dimmed）。
 
 export type BravaisTileRect = { x: number; y: number; width: number; height: number };
 
 export type BravaisTileHandlers = BravaisFocusCardActions & {
     /** 点了这张磁贴（拖动后的残余点击已在外面吞掉）。 */
     activate: (slotKey: string) => void;
+    /** B9：首页歌单类卡片的眼睛按钮（directory-toggle-hidden）。 */
+    toggleHidden?: (slotKey: string) => void;
 };
 
 type BravaisTileProps = {
@@ -54,6 +60,9 @@ type BravaisTileProps = {
 };
 
 const rotation = (degrees: number) => `perspective(1400px) rotateY(${degrees}deg)`;
+/** 整墙出场 / 入场（lift wave）里内容层离开时的样子：往上抬、缩小、淡出。 */
+const LIFTED: Keyframe = { transform: `translate3d(0, -${WALL_WAVE_LIFT}px, 0) scale(0.88)`, opacity: 0 };
+const SETTLED: Keyframe = { transform: 'none', opacity: 1 };
 
 const fallbackBackground = (id: string) => {
     const hue = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
@@ -102,8 +111,8 @@ function BravaisTile({
     const latestFaceRef = useRef(target);
     latestFaceRef.current = target;
     const outAnimationRef = useRef<Animation | null>(null);
-    /** 转出段放完、等新内容渲染出来再转进的方向。 */
-    const pendingInRef = useRef<number | null>(null);
+    /** 转出段放完、等新内容渲染出来再转进的方向；整墙入场时是落回前还要等多久（毫秒）。 */
+    const pendingInRef = useRef<{ direction: number; waveGap: number | null } | null>(null);
 
     const targetKey = faceKeyOf(target);
     const shownKey = faceKeyOf(shown);
@@ -119,13 +128,19 @@ function BravaisTile({
             setShown(latestFaceRef.current);
             return;
         }
-        const out = face.animate(
-            [{ transform: rotation(0) }, { transform: rotation(90 * step.direction) }],
-            { duration: BRAVAIS_TILE_FLIP_OUT_MS, delay: step.delay, easing: 'cubic-bezier(.55,0,.9,.45)', fill: 'forwards' },
-        );
+        const wave = step.wave;
+        const out = wave
+            ? face.animate([SETTLED, LIFTED], { duration: WALL_WAVE_OUT_MS, delay: step.delay, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' })
+            : face.animate(
+                [{ transform: rotation(0) }, { transform: rotation(90 * step.direction) }],
+                { duration: BRAVAIS_TILE_FLIP_OUT_MS, delay: step.delay, easing: 'cubic-bezier(.55,0,.9,.45)', fill: 'forwards' },
+            );
         outAnimationRef.current = out;
         out.onfinish = () => {
-            pendingInRef.current = step.direction;
+            pendingInRef.current = {
+                direction: step.direction,
+                waveGap: wave ? Math.max(0, wave.inDelay - step.delay - WALL_WAVE_OUT_MS) : null,
+            };
             setShown(latestFaceRef.current);
         };
         return () => {
@@ -135,17 +150,25 @@ function BravaisTile({
     }, [step, targetKey, transition]);
 
     useLayoutEffect(() => {
-        const direction = pendingInRef.current;
-        if (direction === null) return;
+        const pending = pendingInRef.current;
+        if (pending === null) return;
         pendingInRef.current = null;
         outAnimationRef.current?.cancel();
         outAnimationRef.current = null;
         const face = faceRef.current;
         if (!face) return;
-        const back = face.animate(
-            [{ transform: rotation(-90 * direction) }, { transform: rotation(0) }],
-            { duration: BRAVAIS_TILE_FLIP_IN_MS, easing: 'cubic-bezier(.2,.7,.25,1)' },
-        );
+        // 整墙入场：落回之前保持抬起、看不见（fill backwards 覆盖等待的那一段）。
+        const back = pending.waveGap !== null
+            ? face.animate([LIFTED, SETTLED], {
+                duration: WALL_WAVE_IN_MS,
+                delay: pending.waveGap,
+                easing: 'cubic-bezier(.2,.9,.3,1.04)',
+                fill: 'backwards',
+            })
+            : face.animate(
+                [{ transform: rotation(-90 * pending.direction) }, { transform: rotation(0) }],
+                { duration: BRAVAIS_TILE_FLIP_IN_MS, easing: 'cubic-bezier(.2,.7,.25,1)' },
+            );
         return () => back.cancel();
     }, [shownKey]);
 
@@ -190,12 +213,14 @@ function BravaisTile({
             data-bravais-expanded={isExpanded || undefined}
             data-bravais-current={isCurrent || undefined}
             data-bravais-linked={(linked && Boolean(display)) || undefined}
+            data-bravais-dimmed={display?.dimmed || undefined}
+            data-bravais-hidden={display?.hidden || undefined}
             onMouseEnter={() => handlers.hover(slotKey)}
             onMouseLeave={() => handlers.hover(null)}
         >
             <article
                 ref={faceRef}
-                className={`lattice-poster bravais-tile-face${display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}`}
+                className={`lattice-poster bravais-tile-face${display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}${display?.dimmed ? ' is-dimmed' : ''}${display?.selected ? ' is-selected' : ''}`}
                 style={display && !face.seeThrough ? { backgroundImage: cover } : undefined}
                 role={display ? (isExpanded ? 'group' : 'button') : undefined}
                 aria-label={display ? `${display.title} · ${display.subtitle}` : undefined}
@@ -210,6 +235,12 @@ function BravaisTile({
                             ? <span className="bravais-tile-strip" style={{ backgroundImage: cover }} />
                             : <span className="lattice-poster-tint" />}
                         <span className={`lattice-poster-badge${isCurrent ? ' is-current' : ''}`}>{display.badge}</span>
+                        {(display.hideable || display.selected) && (
+                            <BravaisTileMarks
+                                item={display}
+                                onToggleHidden={handlers.toggleHidden ? () => handlers.toggleHidden?.(slotKey) : undefined}
+                            />
+                        )}
                         {isExpanded ? (
                             <BravaisFocusCardBody
                                 slotKey={slotKey}

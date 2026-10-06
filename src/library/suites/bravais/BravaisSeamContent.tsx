@@ -7,11 +7,16 @@ import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
 import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamFilterSlot, BravaisSeamStatusLine } from './BravaisSeamCollection';
 import BravaisListPanel, { type BravaisPanelActions } from './BravaisListPanel';
 import BravaisSeamFormView from './BravaisSeamFormView';
+import BravaisSeamHome from './BravaisSeamHome';
+import BravaisSeamSearch from './BravaisSeamSearch';
+import BravaisDirectoryPanel from './BravaisDirectoryPanel';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
 // 缝里的四套内容（设计稿 §5）：首页窄缝（竖排「书库」+ 竖排页签）、首页书脊、完整信息条（面包屑行、竖排标题、
 // 元数据、播放全部 / 加入队列）、书脊（返回、竖排标题、计数、播放、展开）。排版宽度由外层按「此刻渲染的这一套」定，
 // 这里只排内容。文案都来自层描述（已翻译）与 libraryBravais 的 key。界面文案：「收起」= 收成书脊，「折叠」= 折到侧边。
+// B9：首页窄缝 / 书脊换成 BravaisSeamHome（页签、二级切换、工具按钮、管理隐藏、账户位），另有全局搜索框（search）；
+// 首页层的面板是目录树（BravaisDirectoryPanel），集合层的面板仍是歌曲列表。
 
 export type BravaisSeamActions = {
     setLevel: (level: BravaisSeamLevel) => void;
@@ -40,43 +45,6 @@ const FoldButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
             aria-label={t('libraryBravais.seamFold')} title={t('libraryBravais.seamFold')}>
             <FoldHorizontal aria-hidden />
         </button>
-    );
-};
-
-const HomeSeam: React.FC<{ layer: BravaisLayer; compact: boolean; actions: BravaisSeamActions }> = ({ layer, compact, actions }) => {
-    const { t } = useTranslation();
-    const { seam } = layer;
-    return (
-        <div className={`bravais-seam-home${compact ? ' is-compact' : ''}`}>
-            <FoldButton onClick={() => actions.setLevel('hidden')} />
-            <div className="bravais-seam-vtitle" style={{ fontSize: compact ? 26 : 40 }}>{seam.title}</div>
-            {seam.tabs && seam.tabs.length > 0 && (
-                <div className="bravais-seam-tabs" role="tablist" aria-label={seam.title}>
-                    {seam.tabs.map(tab => (
-                        <button
-                            key={tab.key}
-                            type="button"
-                            role="tab"
-                            aria-selected={tab.active}
-                            disabled={tab.disabled}
-                            data-bravais-tab={tab.key}
-                            className={tab.active ? 'is-active' : undefined}
-                            onClick={() => seam.onSelectTab?.(tab.key)}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-            <div className="bravais-seam-spacer" />
-            {seam.status && <div className="bravais-seam-vstatus" data-bravais-seam-status>{seam.status}</div>}
-            {compact && (
-                <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={() => actions.setLevel('full')}
-                    aria-label={t('libraryBravais.seamExpand')} title={t('libraryBravais.seamExpand')}>
-                    <Maximize2 aria-hidden />
-                </button>
-            )}
-        </div>
     );
 };
 
@@ -169,11 +137,16 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
 const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer, depth, actions }) => {
     if (!layer) return null;
     switch (variant) {
-        case 'home': return <HomeSeam layer={layer} compact={false} actions={actions} />;
-        case 'home-spine': return <HomeSeam layer={layer} compact actions={actions} />;
+        case 'home': return <BravaisSeamHome layer={layer} compact={false} setLevel={actions.setLevel} />;
+        case 'home-spine': return <BravaisSeamHome layer={layer} compact setLevel={actions.setLevel} />;
+        case 'search': return <BravaisSeamSearch layer={layer} />;
         case 'full': return <FullSeam layer={layer} depth={depth} actions={actions} />;
         case 'spine': return <SpineSeam layer={layer} actions={actions} />;
-        case 'panel': return actions.panel ? <BravaisListPanel layer={layer} depth={depth} actions={actions.panel} /> : null;
+        case 'panel':
+            if (!actions.panel) return null;
+            return layer.home?.panel
+                ? <BravaisDirectoryPanel layer={layer} actions={actions.panel} />
+                : <BravaisListPanel layer={layer} depth={depth} actions={actions.panel} />;
         case 'form': return layer.seam.collection?.form ? <BravaisSeamFormView form={layer.seam.collection.form} /> : null;
         default: return null;
     }

@@ -13,6 +13,7 @@ import {
     pointOrigin,
     resolveSlotFaceKey,
     toFlipSteps,
+    toWaveSteps,
     type BravaisDisplay,
     type BravaisFlipStep,
 } from './bravaisDisplay';
@@ -27,6 +28,7 @@ import { maskRemovedEntries } from './bravaisRemoval';
 import { takeBravaisPendingOrigin } from './bravaisStageStore';
 import { takeBravaisRemovalOrigin } from './bravaisUiStore';
 import type { BravaisFrameState } from './useBravaisFrame';
+import { planWallWave } from './bravaisWallWave';
 
 // src/library/suites/bravais/useBravaisDisplay.ts
 // 换层的编排（设计稿 §7 转场语法）：store 给出的当前层一变，就决定这是 push / back / 原地替换（首页换页签）还是同一层
@@ -39,6 +41,7 @@ import type { BravaisFrameState } from './useBravaisFrame';
 // B6b③：透光换档 / 换窗数也走同一层的数据更新（只翻开窗、关窗与内容因跳过窗位而挪了的 slot）；有限拼贴按同一个
 // 每块窗数规划，换窗数时重新规划。
 // 布局记忆：push 离开一层时、stage 卸载时写 sessionStorage；back 时离开的那一层不写（「完成」刚让宿主忘掉了它）。
+// B9：换首页页签（首页层之间的 replace）不从缝翻牌，而是整墙出场 → 入场（bravaisWallWave，沿用 Lattice 的 lift wave）。
 
 /** 翻牌只排视口外扩这么多（世界单位）以内的磁贴。 */
 const FLIP_OVERSCAN = 160;
@@ -144,6 +147,21 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             metrics: BRAVAIS_METRICS,
         });
         return { steps: toFlipSteps(flipTokenRef.current, plan), durationMs: plan.durationMs };
+    }, []);
+
+    /** 整墙出场 → 入场：从视口左上角量波次（视口加 overscan 以内的磁贴动，其余直接换）。 */
+    const planWaveFor = useCallback((before: BravaisDisplay | null, after: BravaisDisplay) => {
+        const { frameRef, slotsRef } = latestControls.current;
+        const { view, center, openWidth } = frameRef.current;
+        if (!view) return null;
+        flipTokenRef.current += 1;
+        const plan = planWallWave({
+            changes: diffDisplays(before, after, slotsRef.current),
+            viewport: getViewWorldBounds(center, view),
+            visible: getViewWorldBounds(center, view, { seamWidth: openWidth, overscan: FLIP_OVERSCAN }),
+            metrics: BRAVAIS_METRICS,
+        });
+        return { steps: toWaveSteps(flipTokenRef.current, plan), durationMs: plan.durationMs };
     }, []);
 
     /**
@@ -305,12 +323,13 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         }
         controlsNow.setAnchor(frameRef.current.anchorX);
         const draft = { ...createBravaisDisplay(layer, startSlotKey, undefined, wallLook), finite: resolveFinite(layer, null) };
-        const flips = planFlipFor(previous, draft, origin);
+        const isHomeTabSwitch = kind === 'replace' && layer.surface === 'home' && previous.layer.surface === 'home';
+        const flips = isHomeTabSwitch ? planWaveFor(previous, draft) : planFlipFor(previous, draft, origin);
         commit({ ...draft, flips: flips?.steps ?? draft.flips, flipToken: flipTokenRef.current }, depth);
         markSettling(flips?.durationMs);
         controlsNow.tweenTo(center);
         controlsNow.restoreFocus(focusFromSession ? focusSessionEntry(draft) ?? focusKey : focusKey);
-    }, [commit, controls.view, controls.wallLook, focusSessionEntry, holdRelease, layer, markSettling, planFlipFor, remember, resolveFinite]);
+    }, [commit, controls.view, controls.wallLook, focusSessionEntry, holdRelease, layer, markSettling, planFlipFor, planWaveFor, remember, resolveFinite]);
 
     // stage 卸载（离开首页约 350ms 后）：记下当前层，回来时按它恢复；还在按住的移除第一段丢掉。
     useEffect(() => () => {

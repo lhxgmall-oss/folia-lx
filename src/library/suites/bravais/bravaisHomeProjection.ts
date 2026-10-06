@@ -202,6 +202,7 @@ export const projectDirectoryRows = ({
             selectable: selection.itemIds.length > 0,
             expandable: row.expandable,
             expanded: row.expanded,
+            nodeId: node.id,
             ignored,
             ...(row.depth === 0 && !ignored ? { rootPath: node.rootPath } : {}),
             ...(ignored ? { ignoredPath: node.path } : {}),

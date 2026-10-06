@@ -80,7 +80,15 @@ export const useBravaisChromeActions = ({
             list: {
                 isAvailable: () => {
                     const layer = displayRef.current?.layer;
-                    return Boolean(openList && layer?.entries?.hasPanel && useBravaisUiStore.getState().panelFor !== layer.key);
+                    return Boolean(openList && layer?.surface !== 'home' && layer?.entries?.hasPanel && useBravaisUiStore.getState().panelFor !== layer.key);
+                },
+                run: () => openList?.(),
+            },
+            // B9：打开目录树（首页「本地」有批量的那几行；面板 = 批量模式）。
+            directory: {
+                isAvailable: () => {
+                    const layer = displayRef.current?.layer;
+                    return Boolean(openList && layer?.surface === 'home' && layer.entries?.hasPanel && useBravaisUiStore.getState().panelFor !== layer.key);
                 },
                 run: () => openList?.(),
             },

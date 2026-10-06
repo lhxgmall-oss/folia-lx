@@ -5,10 +5,14 @@ import { getWallSlot, parseWallSlotKey, type WallSlot } from '../../../component
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import { findNearestSlot, resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
 import { resolveEscapeStep, type BravaisKeyAction } from './bravaisKeyboardModel';
+import type { BravaisHomeKeyAction } from './bravaisHomeKeys';
 import { findAdjacentSlot } from './bravaisNavigation';
 import { setBravaisPendingOrigin } from './bravaisStageStore';
 import { closeBravaisPanel } from './bravaisPanelHistory';
 import { setBravaisWallHoverKey, useBravaisUiStore } from './bravaisUiStore';
+import { setBravaisSearchOpen } from './bravaisHomeUiStore';
+import { useBravaisSeamStore } from './bravaisSeamLevel';
+import { useAppViewStore } from '../../../stores/useAppViewStore';
 import type { BravaisTileHandlers } from './BravaisTile';
 import type { BravaisFrameState } from './useBravaisFrame';
 import type { useBravaisFocus } from './useBravaisFocus';
@@ -17,8 +21,14 @@ import type { useBravaisFocus } from './useBravaisFocus';
 // 点击与按键 → 动作：点歌曲磁贴就地展开聚焦卡（不播放），点歌单 / 专辑卡 push 下一层（先把被点的 slot 记成新层的
 // 起点）；聚焦卡上的「立即播放」「加入队列」、歌手 / 专辑链接；方向键空间导航、Enter / Shift+Enter / Alt+Enter、
 // Esc 阶梯、Home、PgUp / PgDn、Tab 在墙与缝之间。动作一律经层描述的回调交给 surface，stage 不碰数据。
+// B9 首页：批量模式（目录树面板开着）里点卡片 / Enter 只切换选中、绝不进入文件夹（拖动后的残余点击在磁贴里已吞掉）；
+// 私人 FM 卡直接播放、不记起点；歌单类卡片的眼睛按钮；F6 切页签与批量按键（bravaisHomeKeys）；Esc 阶梯的「视图」一级
+// 退出管理隐藏。
 
 type BravaisFocus = ReturnType<typeof useBravaisFocus>;
+
+/** 墙上的按键动作：通用的（bravaisKeyboardModel）与首页的（bravaisHomeKeys）。 */
+export type BravaisWallKeyAction = BravaisKeyAction | BravaisHomeKeyAction;
 
 export const bravaisSlotFromKey = (key: string | null): WallSlot | null => {
     const address = key ? parseWallSlotKey(key) : null;
@@ -75,12 +85,25 @@ export const useBravaisInteractions = ({
                 return;
             }
             focusSlot(slot);
+            // B9 批量模式：点卡片只切换选中，绝不进入文件夹（GridMap onSelect 里批量模式的提前 return）。
+            const batch = layer.home?.batch;
+            if (batch) {
+                batch.toggle(item.key);
+                return;
+            }
             if (item.kind === 'track') {
                 if (expandedRef.current !== slotKey) expand(slot);
                 return;
             }
             collapse();
-            if (layer.onOpenItem) openFrom(slotKey, () => layer.onOpenItem!(item.key));
+            if (!layer.onOpenItem) return;
+            // 私人 FM：直接播放、不进新层，不记起点（否则下一次换页签会把它当起点）。
+            if (item.direct) layer.onOpenItem(item.key);
+            else openFrom(slotKey, () => layer.onOpenItem!(item.key));
+        },
+        toggleHidden: slotKey => {
+            const item = itemAt(slotKey);
+            if (item?.hideable) displayRef.current?.layer.home?.onToggleHidden?.(item.key);
         },
         play: slotKey => {
             const item = itemAt(slotKey);
@@ -164,7 +187,7 @@ export const useBravaisInteractions = ({
         return true;
     }, [focusSlot, focusWall, focusedRef, hasContent, rootRef, seamFocusables, seamRef, seedSlot]);
 
-    const handleAction = useCallback((action: BravaisKeyAction, target: EventTarget | null): boolean => {
+    const handleAction = useCallback((action: BravaisWallKeyAction, target: EventTarget | null): boolean => {
         const display = displayRef.current;
         const layer = display?.layer;
         if (!layer) return false;
@@ -175,6 +198,7 @@ export const useBravaisInteractions = ({
                 hasFocusCard: expandedRef.current !== null,
                 hasKeyboardFocus: focusedRef.current !== null,
                 hasPanel: useBravaisUiStore.getState().panelFor === layer.key,
+                hasViewMode: Boolean(layer.entries?.hasViewMode),
                 hasQuery: Boolean(layer.entries?.hasQuery),
                 canGoBack: Boolean(layer.onBack),
             });
@@ -182,14 +206,41 @@ export const useBravaisInteractions = ({
             else if (step === 'focus-card') collapse();
             else if (step === 'keyboard-focus') focusSlot(null);
             else if (step === 'panel') closeBravaisPanel();
+            else if (step === 'view') layer.entries?.exitViewMode?.();
             else if (step === 'query') layer.entries?.clearQuery?.();
             else if (step === 'back') layer.onBack!();
             return step !== null;
+        }
+        // B9 首页：F6 切页签；批量模式的 Ctrl+A / Ctrl+Enter / Delete（不在首页、不在批量模式时不接，按键照常放行）。
+        if (action.type === 'cycle-tab') return layer.home?.cycleTab?.(action.delta) ?? false;
+        if (action.type === 'open-search') {
+            // 有过滤框注册着（目录树面板开着）时 `/` 是过滤字符，留给命令面板。
+            if (!layer.seam.home || useAppViewStore.getState().commandFilter) return false;
+            if (useBravaisSeamStore.getState().level === 'hidden') useBravaisSeamStore.getState().restore();
+            setBravaisSearchOpen(true);
+            return true;
+        }
+        const batch = layer.home?.batch;
+        if (action.type === 'batch-select-all' || action.type === 'batch-play' || action.type === 'batch-remove') {
+            if (!batch) return false;
+            if (action.type === 'batch-select-all') batch.selectAll();
+            else if (action.type === 'batch-play') batch.play(action.enqueue);
+            else batch.requestRemove();
+            return true;
         }
         // 缝里的按钮、页面上别的控件保留自己的按键（Enter 激活按钮）。
         if (isControlTarget(target)) return false;
         const focusedKey = focusedRef.current;
         const focused = bravaisSlotFromKey(focusedKey);
+        if (action.type === 'batch-toggle') {
+            // Insert：切换焦点那张的选中，焦点往下走一格（TUI 目录页的「切换并下移」）。
+            const current = focused ? itemAt(focused.key) : null;
+            if (!batch || !focused || !current) return false;
+            batch.toggle(current.key);
+            const next = findAdjacentSlot(focused, 'down', { drawn: drawnRect, hasContent });
+            if (next) focusSlot(next, { reveal: true });
+            return true;
+        }
         switch (action.type) {
             case 'move': {
                 const next = focused && hasContent(focused)

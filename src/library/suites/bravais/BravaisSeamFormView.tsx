@@ -58,7 +58,7 @@ const BravaisSeamFormView: React.FC<{ form: BravaisSeamForm }> = ({ form }) => {
     }, [state.kind]);
 
     return (
-        <div className="bravais-seam-form" data-bravais-form={state.kind} role="group" aria-label={labels.title}>
+        <div className="bravais-seam-form" data-bravais-form={state.kind} data-bravais-form-id={form.formId} role="group" aria-label={labels.title}>
             <h2 className="bravais-form-title">{labels.title}</h2>
             {labels.message && <p className="bravais-form-message">{labels.message}</p>}
             {state.kind === 'rename' && (

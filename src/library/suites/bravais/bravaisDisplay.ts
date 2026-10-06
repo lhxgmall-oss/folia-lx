@@ -5,6 +5,7 @@ import { layoutFocusedBlock, parseWallSlotKey, wallSlotKey, type WallSlot } from
 import type { LibraryWallLook } from '../../../utils/libraryWallLook';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
+import type { WallWavePlan } from './bravaisWallWave';
 import { resolveFiniteRank, type BravaisFiniteState } from './bravaisFiniteWall';
 import {
     bravaisFaceKey,
@@ -22,8 +23,11 @@ import {
 // 条目数变了重新求）；有限拼贴（过滤）在 B7 接 finiteWall 的 rank→slot。
 // 换层 / 数据变化时 stage 对已渲染的 slot 逐个比较前后显示的条目 key，交给 wall 的 planFlip 排翻牌。
 
-/** 一次翻牌在单张磁贴上的安排：转到 90° 时换成 `to`（null = 墙面）。 */
-export type BravaisFlipStep = { token: number; to: string | null; delay: number; direction: -1 | 1 };
+/**
+ * 一次翻牌在单张磁贴上的安排：转到 90° 时换成 `to`（null = 墙面）。B9：`wave` 表示这是整墙出场 → 入场
+ * （bravaisWallWave）——delay 是出场开始的时刻，inDelay 是落回开始的时刻（都从这次转场开始算）。
+ */
+export type BravaisFlipStep = { token: number; to: string | null; delay: number; direction: -1 | 1; wave?: { inDelay: number } };
 
 export type BravaisDisplay = {
     layer: BravaisLayer;
@@ -138,6 +142,12 @@ export const diffDisplays = (
 export const toFlipSteps = (token: number, plan: FlipPlan): ReadonlyMap<string, BravaisFlipStep> => {
     if (plan.flips.length === 0) return NO_FLIPS;
     return new Map(plan.flips.map(step => [step.key, { token, to: step.to, delay: step.delay, direction: step.direction }]));
+};
+
+/** 整墙出场 / 入场的计划 → 每张磁贴的安排（B9：换首页页签）。 */
+export const toWaveSteps = (token: number, plan: WallWavePlan): ReadonlyMap<string, BravaisFlipStep> => {
+    if (plan.steps.length === 0) return NO_FLIPS;
+    return new Map(plan.steps.map(step => [step.key, { token, to: step.to, delay: step.outDelay, direction: 1, wave: { inDelay: step.inDelay } }]));
 };
 
 /** 离一个世界点最近的 slot（没有起点的层用缝点定起点；第一次按方向键落在离缝最近的磁贴）。 */

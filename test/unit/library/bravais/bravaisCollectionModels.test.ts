@@ -267,7 +267,8 @@ describe('seam target', () => {
         expect(resolveSeamTarget({ ...base, filterOpen: true })).toEqual({ width: 300, variant: 'full' });
         expect(resolveSeamTarget({ ...base, level: 'hidden', filterOpen: true })).toEqual({ width: 300, variant: 'full' });
         expect(resolveSeamTarget(base)).toEqual({ width: 64, variant: 'spine' });
-        expect(resolveSeamTarget({ ...base, surface: 'home', panelOpen: true, level: 'full' })).toEqual({ width: 120, variant: 'home' });
+        // B9：首页的目录树面板与列表面板同一种开口。
+        expect(resolveSeamTarget({ ...base, surface: 'home', panelOpen: true, level: 'full' })).toEqual({ width: 420, variant: 'panel' });
         expect(resolvePanelWidth(120)).toBe(160);
     });
 });

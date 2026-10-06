@@ -31,6 +31,7 @@ import { resolveSeamTarget, type BravaisSeamTargetInput } from './bravaisSeamTar
 import { useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisPanelActions } from './BravaisListPanel';
 import { useBravaisWallLook } from './useBravaisWallLook';
+import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import '../../../components/wall/wall.css';
 import './bravais.css';
 
@@ -41,6 +42,8 @@ import './bravais.css';
 // reportPlayerOcclusion）在 B6b③。高频的东西（相机、缝的开合、翻牌）都不经过 React：帧状态 + 直接写 DOM。
 // 透光（B6b③，设计稿 §11）：实色档根节点画墙面并报告遮挡播放页；透明档根节点不画底，墙面交给世界层之下的实色底板
 // （useBravaisPlate，遮罩只在窗位挖洞），缝的纸条换成半透明。
+// B9：首页层的目录树面板与集合层的列表面板同一种开口；首页的全局搜索框开着时窄缝临时展开（search）；管理隐藏视图里
+// 根节点挂 is-managing-hidden（歌单类磁贴的眼睛按钮常驻）。
 
 const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
     left: bounds.left - by,
@@ -82,14 +85,16 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const panelFor = useBravaisUiStore(state => state.panelFor);
     const linkedKey = useBravaisUiStore(state => state.linkedKey);
     const isFilterOpen = useAppViewStore(state => state.isCommandFilterOpen);
+    const isSearchOpen = useBravaisHomeUiStore(state => state.searchOpen);
     const seamInputFor = useCallback((
         target: BravaisLayer,
-        live?: { level: BravaisSeamLevel; panelFor: string | null; filterOpen: boolean },
+        live?: { level: BravaisSeamLevel; panelFor: string | null; filterOpen: boolean; searchOpen: boolean },
     ): BravaisSeamTargetInput => {
         const current = live ?? {
             level: useBravaisSeamStore.getState().level,
             panelFor: useBravaisUiStore.getState().panelFor,
             filterOpen: useAppViewStore.getState().isCommandFilterOpen,
+            searchOpen: useBravaisHomeUiStore.getState().searchOpen,
         };
         return {
             surface: target.surface,
@@ -98,11 +103,12 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
             formOpen: Boolean(target.seam.collection?.form),
             panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
             filterOpen: current.filterOpen && target.surface === 'collection',
+            searchOpen: current.searchOpen,
         };
     }, [frameRef]);
     const seamTarget = layer
         ? resolveSeamTarget({
-            ...seamInputFor(layer, { level: seamLevel, panelFor, filterOpen: isFilterOpen && owned }),
+            ...seamInputFor(layer, { level: seamLevel, panelFor, filterOpen: isFilterOpen && owned, searchOpen: isSearchOpen }),
             viewportWidth: view?.width ?? 0,
         })
         : { width: 0, variant: 'none' as const };
@@ -218,8 +224,17 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         return () => window.removeEventListener('popstate', syncPanelWithHistory);
     }, []);
     useEffect(() => {
-        if (navigation.depth === 0 && useBravaisUiStore.getState().panelFor !== null) useBravaisUiStore.setState({ panelFor: null });
+        // 首页层自己的面板（B9 的目录树）不在此列：它跟着首页层与 history 记录走。
+        const open = useBravaisUiStore.getState().panelFor;
+        if (navigation.depth === 0 && open !== null && open !== useBravaisStageStore.getState().home?.layer.key) {
+            useBravaisUiStore.setState({ panelFor: null });
+        }
     }, [navigation.depth]);
+    // B9 全局搜索框：折叠缝、离开首页层（打开了集合）时关上；stage 卸载（离开首页、换 suite）时也关上。
+    useEffect(() => {
+        if (seamLevel === 'hidden' || navigation.depth > 0) setBravaisSearchOpen(false);
+    }, [navigation.depth, seamLevel]);
+    useEffect(() => () => setBravaisSearchOpen(false), []);
     // 过滤框里按 ↓：收起过滤框（过滤词保留），键盘焦点交给墙上的第 1 项（有限拼贴的 rank 0）。
     const { handleAction, focusWall } = interactions;
     useEffect(() => {
@@ -267,6 +282,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         layer?.wall?.loading ? 'is-loading' : '',
         seeThrough ? 'is-see-through' : '',
         seeThrough && BRAVAIS_SEAM_ACRYLIC_BLUR ? 'has-seam-blur' : '',
+        display?.layer.seam.home?.manage ? 'is-managing-hidden' : '',
+        display?.layer.home?.batch ? 'is-batch' : '',
     ].filter(Boolean).join(' ');
 
     return (

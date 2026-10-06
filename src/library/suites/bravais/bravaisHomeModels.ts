@@ -95,6 +95,8 @@ export type BravaisDirectoryRow = {
     selectable: boolean;
     expandable: boolean;
     expanded: boolean;
+    /** 树节点的 id（展开 / 收起按它记）；平铺的条目没有。 */
+    nodeId?: string;
     ignored: boolean;
     /** 导入根（深度 0、没被忽略）：悬停时有「重新扫描」「移除根」。 */
     rootPath?: string;

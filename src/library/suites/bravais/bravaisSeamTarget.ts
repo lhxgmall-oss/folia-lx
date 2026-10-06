@@ -14,6 +14,8 @@ import {
 // - 列表面板（导航状态）：缝加宽到 min(420, 视口 − 52)，标题横排压在顶部（设计稿 §5「面板」）；
 // - 过滤框开着：书脊 / 折叠的缝临时展开为完整信息条，框收起后回到原等级（设计稿 §7.6）。
 // 优先级：表单 > 面板（折叠时除外）> 过滤的临时展开 > 用户选的等级。用户的等级不被改写，只是暂时不生效。
+// B9 首页：目录树面板与列表面板同一种开口（panel）；全局搜索框开着时首页窄缝临时展开成完整宽度（search，
+// 折叠时除外——搜索态没有书脊这一级，只能折叠）。首页的表单态在面板里（底部翻牌），不占整条缝。
 
 /** 列表面板的开口：min(420, 视口 − 52)。 */
 export const BRAVAIS_PANEL_MAX_WIDTH = 420;
@@ -26,7 +28,7 @@ export const resolvePanelWidth = (viewportWidth: number) => Math.max(
     Math.min(BRAVAIS_PANEL_MAX_WIDTH, viewportWidth - BRAVAIS_PANEL_VIEWPORT_MARGIN),
 );
 
-export type BravaisSeamContentVariant = BravaisSeamVariant | 'panel' | 'form';
+export type BravaisSeamContentVariant = BravaisSeamVariant | 'panel' | 'form' | 'search';
 
 export type BravaisSeamTargetInput = {
     surface: BravaisLayerSurface;
@@ -36,6 +38,8 @@ export type BravaisSeamTargetInput = {
     panelOpen?: boolean;
     /** 命令面板的过滤框正画在缝里。 */
     filterOpen?: boolean;
+    /** B9：首页的全局搜索框开着。 */
+    searchOpen?: boolean;
 };
 
 /** 这一刻的生效等级：过滤框、面板、表单都要求完整的缝。 */
@@ -46,8 +50,11 @@ export const resolveEffectiveSeamLevel = ({ level, formOpen, panelOpen, filterOp
 export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: number; variant: BravaisSeamContentVariant } => {
     if (input.surface === 'collection' && input.formOpen) return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'form' };
     // 面板里只有「折叠」：折叠后面板仍算开着，恢复时回到面板（设计稿 §5）。
-    if (input.surface === 'collection' && input.panelOpen && input.level !== 'hidden') {
+    if (input.panelOpen && input.level !== 'hidden') {
         return { width: resolvePanelWidth(input.viewportWidth), variant: 'panel' };
+    }
+    if (input.surface === 'home' && input.searchOpen && input.level !== 'hidden') {
+        return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'search' };
     }
     const level = resolveEffectiveSeamLevel(input);
     return { width: resolveSeamOpenWidth(input.surface, level), variant: resolveSeamVariant(input.surface, level) };
@@ -55,7 +62,7 @@ export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: numbe
 
 /** 一套内容的排版宽度（翻转不重排：跟着此刻渲染的那一套走）。 */
 export const resolveVariantWidth = (variant: BravaisSeamContentVariant, viewportWidth: number) => {
-    if (variant === 'form') return BRAVAIS_SEAM_FULL_WIDTH;
+    if (variant === 'form' || variant === 'search') return BRAVAIS_SEAM_FULL_WIDTH;
     if (variant === 'panel') return resolvePanelWidth(viewportWidth);
     return seamVariantWidth(variant);
 };

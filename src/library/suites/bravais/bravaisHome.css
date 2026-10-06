@@ -1,0 +1,297 @@
+/* src/library/suites/bravais/bravaisHome.css
+   B9 首页的样式（设计稿 §10.5、§5「目录树」、§7.5）：首页窄缝里的页签、二级切换、管理隐藏开关、元数据行、
+   工具按钮格与「⋯」、全局搜索框；目录树面板的行与三态勾选框；首页磁贴的眼睛按钮、批量选中的勾，以及批量模式
+   里没选中的 / 管理隐藏视图里已隐藏的灰度 + 半透明（沿用 GridMap 的 opacity .35 + grayscale）。
+   单独成文件，不改 bravais.css 与 bravaisCollection.css 的已有块。 */
+
+/* ---------- 首页窄缝 ---------- */
+
+/* 五个一级页签竖排并列，像一排书脊（窄缝只有 120px）。 */
+.bravais-seam-home .bravais-seam-tabs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+}
+
+.bravais-seam-home .bravais-seam-tabs button { padding: 8px 3px; font-size: 13px; letter-spacing: 0.14em; }
+.bravais-seam-home.is-compact .bravais-seam-tabs { flex-direction: column; flex-wrap: nowrap; }
+
+/* 二级切换（本地四行 / Navidrome 的 section）：横排的小号文字按钮，一行一个。 */
+.bravais-seam-sections {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.bravais-seam .bravais-seam-sections button {
+    padding: 5px 6px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam .bravais-seam-sections button:hover { border-color: color-mix(in srgb, currentColor 26%, transparent); }
+.bravais-seam .bravais-seam-sections button.is-active { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 14%, transparent); }
+
+.bravais-seam-home.is-compact .bravais-seam-sections button { padding: 6px 0; font-size: 10px; letter-spacing: 0.08em; writing-mode: vertical-rl; }
+
+/* 管理隐藏视图：标题 +「只看隐藏」开关 +「完成」。 */
+.bravais-seam-manage {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 8px 4px;
+    border-radius: 12px;
+    color: var(--text-accent, currentColor);
+    font-size: 11px;
+    font-weight: 800;
+    text-align: center;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.bravais-seam .bravais-seam-manage button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 5px 4px;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-radius: 9px;
+    color: var(--text-primary, #f7f4ee);
+    font-size: 11px;
+    font-weight: 700;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam .bravais-seam-manage button.is-active { background: color-mix(in srgb, currentColor 16%, transparent); }
+.bravais-seam-manage svg { width: 12px; height: 12px; }
+
+.bravais-seam-scan {
+    width: 100%;
+    overflow: hidden;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 11px;
+    line-height: 1.4;
+    text-align: center;
+    text-overflow: ellipsis;
+}
+
+.bravais-seam-home.is-compact .bravais-seam-scan { display: none; }
+
+/* B10 账户位：B9 只占位（空容器不占高度）。 */
+.bravais-seam-account { width: 100%; }
+.bravais-seam-account:empty { display: none; }
+
+/* 工具按钮：三列一格格（书脊上一列）。 */
+.bravais-seam-tools {
+    display: grid;
+    grid-template-columns: repeat(3, 32px);
+    justify-content: center;
+    gap: 2px;
+}
+
+.bravais-seam-home.is-compact .bravais-seam-tools { grid-template-columns: 32px; }
+.bravais-seam-tools .bravais-seam-icon { width: 32px; height: 32px; border-radius: 10px; }
+.bravais-seam-tools .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
+.bravais-seam-tools .bravais-seam-icon.is-pressed { color: var(--text-accent, currentColor); background: color-mix(in srgb, currentColor 16%, transparent); }
+
+.bravais-seam-menu.is-home { width: 100%; box-sizing: border-box; }
+.bravais-seam .bravais-seam-menu.is-home button { padding: 7px 8px; font-size: 12px; text-align: center; }
+
+/* ---------- 全局搜索框 ---------- */
+
+.bravais-seam-search {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px 22px 0;
+    box-sizing: border-box;
+}
+
+.bravais-search-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.bravais-search-form:focus-within { border-bottom-color: var(--text-accent, currentColor); }
+.bravais-search-form > svg { width: 16px; height: 16px; flex: none; opacity: 0.6; }
+
+.bravais-search-form input {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 12px 0;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    font-size: 16px;
+    background: none;
+    outline: none;
+}
+
+.bravais-search-form input::-webkit-search-cancel-button { display: none; }
+
+/* ---------- 目录树面板 ---------- */
+
+.bravais-seam .bravais-dir-select {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam .bravais-dir-select:disabled { cursor: default; }
+.bravais-seam .bravais-dir-select.is-all { flex: none; min-height: 36px; padding: 0 2px; font-size: 12px; }
+
+.bravais-dir-check {
+    display: grid;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-radius: 6px;
+}
+
+.bravais-dir-check svg { width: 12px; height: 12px; stroke-width: 3; }
+.bravais-dir-check.is-all { border-color: var(--text-primary, #fff); color: var(--bg-color, #070707); background: var(--text-primary, #fff); }
+.bravais-dir-check.is-partial,
+.bravais-dir-check.is-direct { border-color: var(--text-accent, currentColor); color: var(--text-accent, currentColor); background: color-mix(in srgb, var(--text-accent, currentColor) 20%, transparent); }
+.bravais-dir-select:disabled .bravais-dir-check { opacity: 0.25; }
+
+.bravais-dir-text { display: flex; min-width: 0; flex-direction: column; }
+.bravais-dir-text strong,
+.bravais-dir-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bravais-dir-text strong { font-size: 13px; font-weight: 700; }
+.bravais-dir-text small { color: var(--bravais-seam-ink-soft); font-size: 11px; }
+
+.bravais-dir-row {
+    display: flex;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 2px;
+    padding: 0 6px;
+    border-radius: 10px;
+}
+
+.bravais-dir-row:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.bravais-dir-row.is-ignored .bravais-dir-text strong { text-decoration: line-through; opacity: 0.45; }
+
+.bravais-seam .bravais-dir-toggle {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    flex: none;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    opacity: 0.55;
+    cursor: pointer;
+}
+
+.bravais-dir-toggle:disabled { cursor: default; }
+.bravais-dir-toggle svg { width: 14px; height: 14px; }
+
+/* 根节点行的悬停操作：重新扫描、移除根；被忽略的文件夹：恢复。 */
+.bravais-dir-ops { display: flex; flex: none; gap: 2px; opacity: 0; transition: opacity 120ms ease; }
+.bravais-dir-row:hover .bravais-dir-ops,
+.bravais-dir-row:focus-within .bravais-dir-ops { opacity: 1; }
+.bravais-dir-ops .bravais-seam-icon { width: 28px; height: 28px; border-radius: 9px; }
+.bravais-dir-ops .bravais-seam-icon svg { width: 14px; height: 14px; }
+.bravais-dir-ops .bravais-seam-icon.is-danger { color: color-mix(in srgb, #f87171 80%, var(--text-primary, #fff)); }
+.bravais-dir-ops .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
+
+.bravais-seam-actions.is-directory .bravais-chrome-button.is-danger { color: color-mix(in srgb, #f87171 80%, var(--text-primary, #fff)); }
+.bravais-dir-form .bravais-seam-form { padding: 0 0 4px; }
+
+/* ---------- 首页磁贴：眼睛按钮、批量选中的勾、灰度 + 半透明 ---------- */
+
+.bravais-tile-eye {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 3;
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    color: #fff;
+    background: rgb(0 0 0 / 45%);
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 140ms ease, background-color 140ms ease;
+}
+
+.bravais-tile-eye svg { width: 16px; height: 16px; }
+.bravais-tile:hover .bravais-tile-eye,
+.bravais-tile-eye:focus-visible,
+.bravais-root.is-managing-hidden .bravais-tile-eye { opacity: 1; }
+.bravais-tile-eye:hover { background: rgb(0 0 0 / 70%); }
+.bravais-tile-eye.is-hidden { color: var(--text-accent, #fff); }
+
+.bravais-tile-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 3;
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border-radius: 999px;
+    color: var(--bg-color, #070707);
+    background: var(--text-primary, #fff);
+    pointer-events: none;
+}
+
+.bravais-tile-check svg { width: 15px; height: 15px; stroke-width: 3; }
+
+/* 灰度 + 半透明（GridMap 批量模式的未选中、隐藏编辑模式的已隐藏），原地变色不重排。 */
+.lattice-poster.bravais-tile-face.is-dimmed:not(.is-expanded) {
+    filter: grayscale(1);
+    opacity: 0.35;
+    transition: filter 200ms ease, opacity 200ms ease;
+}
+
+/* 批量选中：与键盘焦点同一道环（设计稿 §7.5「列表联动、批量选中 = Lattice 键盘聚焦环」），不染色。 */
+.bravais-tile > .lattice-poster.bravais-tile-face.is-selected:not(.is-focused) {
+    box-shadow:
+        0 0 0 1px rgb(0 0 0 / 62%),
+        0 0 0 4px var(--text-primary, #fff),
+        0 0 0 5px rgb(0 0 0 / 38%);
+}
+
+.lattice-root.is-daylight .bravais-tile > .lattice-poster.bravais-tile-face.is-selected:not(.is-focused) {
+    box-shadow:
+        0 0 0 1px rgb(255 255 255 / 78%),
+        0 0 0 4px var(--text-primary, #111),
+        0 0 0 5px rgb(255 255 255 / 45%);
+}
+
+.bravais-tile > .lattice-poster.bravais-tile-face.is-selected .lattice-poster-tint { opacity: 0; }
+
+:root[data-reduce-motion~='lattice'] .lattice-poster.bravais-tile-face.is-dimmed,
+:root[data-reduce-motion~='lattice'] .bravais-tile-eye { transition: none; }

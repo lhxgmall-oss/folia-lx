@@ -68,6 +68,8 @@ export type BravaisSeamMenuItem = {
 /** 表单态里要渲染的东西（状态在 bravaisFormModel，文案与回调由 surface 给）。 */
 export type BravaisSeamForm = {
     state: BravaisFormState;
+    /** B9：同一种形态的不同表单（首页面板里的建歌单 / 移除所选 / 移除根），挂在 data-bravais-form-id 上。 */
+    formId?: string;
     /** 来源动作进行中：提交按钮禁用、显示进行中。 */
     pending: boolean;
     labels: {

@@ -12,6 +12,7 @@ import {
     toHomeEntry,
 } from '@/library/suites/bravais/bravaisHomeProjection';
 import { resolveBravaisHomeKey } from '@/library/suites/bravais/bravaisHomeKeys';
+import { resolveSeamTarget } from '@/library/suites/bravais/bravaisSeamTarget';
 import { resolveEscapeStep, type BravaisKeyInput } from '@/library/suites/bravais/bravaisKeyboardModel';
 import {
     planWallWave,
@@ -233,5 +234,23 @@ describe('planWallWave', () => {
         expect(plan.steps.map(step => step.key)).toEqual([slots[1].key]);
         expect(plan.swaps.map(swap => swap.key)).toEqual([slots[2].key]);
         expect(planWallWave({ changes: [], viewport, visible: viewport, metrics }).durationMs).toBe(0);
+    });
+});
+
+describe('home seam target', () => {
+    it('widens the narrow home seam into the search box, folded excepted, and opens the directory panel', () => {
+        const base = { surface: 'home' as const, level: 'full' as const, viewportWidth: 1440 };
+        expect(resolveSeamTarget(base)).toEqual({ width: 120, variant: 'home' });
+        expect(resolveSeamTarget({ ...base, searchOpen: true })).toEqual({ width: 300, variant: 'search' });
+        expect(resolveSeamTarget({ ...base, level: 'spine', searchOpen: true })).toEqual({ width: 300, variant: 'search' });
+        expect(resolveSeamTarget({ ...base, level: 'hidden', searchOpen: true })).toEqual({ width: 0, variant: 'none' });
+        expect(resolveSeamTarget({ ...base, panelOpen: true, searchOpen: true })).toEqual({ width: 420, variant: 'panel' });
+        expect(resolveSeamTarget({ ...base, surface: 'collection', searchOpen: true })).toEqual({ width: 300, variant: 'full' });
+    });
+
+    it('opens the search box with a slash', () => {
+        expect(resolveBravaisHomeKey({ key: '/', shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, repeat: false }))
+            .toEqual({ type: 'open-search' });
+        expect(resolveBravaisHomeKey({ key: '/', shiftKey: false, altKey: false, ctrlKey: true, metaKey: false, repeat: false })).toBeNull();
     });
 });
