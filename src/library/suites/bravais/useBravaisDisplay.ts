@@ -318,7 +318,9 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             const memory = readBravaisLayout(layer.sessionKey);
             center = memory?.center ?? center;
             if (memory?.anchorX !== undefined && memory.anchorX !== null) frameRef.current.anchorX = memory.anchorX;
-            startSlotKey = memory?.startSlotKey ?? nearestToSeam();
+            // B8：记忆里的起点是 null（这一层第一次画时没有起点，循环偏移按 0 算）也照记忆恢复，墙回到离开时的样子；
+            // 只有没有记忆时才取离缝最近的 slot（以前一律取最近的，返回到这种层时整面墙换了一种排法）。
+            startSlotKey = memory ? memory.startSlotKey : nearestToSeam();
             origin = pointOrigin(seamPoint());
             focusKey = memory?.focusSlotKey ?? null;
             focusFromSession = !focusKey;

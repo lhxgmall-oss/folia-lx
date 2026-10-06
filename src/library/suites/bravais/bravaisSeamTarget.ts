@@ -48,7 +48,9 @@ export const resolveEffectiveSeamLevel = ({ level, formOpen, panelOpen, filterOp
 );
 
 export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: number; variant: BravaisSeamContentVariant } => {
-    if (input.surface === 'collection' && input.formOpen) return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'form' };
+    // 整条缝翻成表单只在集合层与歌手页（B8）上有；首页的表单在目录树面板底部（B9），不占整条缝。
+    // 面板三层都有：集合 / 歌手是列表面板，首页是目录树（只在有批量的那几行，hasPanel 由 surface 给）。
+    if (input.surface !== 'home' && input.formOpen) return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'form' };
     // 面板里只有「折叠」：折叠后面板仍算开着，恢复时回到面板（设计稿 §5）。
     if (input.panelOpen && input.level !== 'hidden') {
         return { width: resolvePanelWidth(input.viewportWidth), variant: 'panel' };

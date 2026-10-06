@@ -10,6 +10,7 @@ import BravaisSeamFormView from './BravaisSeamFormView';
 import BravaisSeamHome from './BravaisSeamHome';
 import BravaisSeamSearch from './BravaisSeamSearch';
 import BravaisDirectoryPanel from './BravaisDirectoryPanel';
+import BravaisSeamArtist from './BravaisSeamArtist';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
 // 缝里的四套内容（设计稿 §5）：首页窄缝（竖排「书库」+ 竖排页签）、首页书脊、完整信息条（面包屑行、竖排标题、
@@ -81,18 +82,19 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
             <div className="bravais-seam-quote is-closing" aria-hidden>“</div>
             <div className="bravais-seam-rule" />
             <div className="bravais-seam-meta">{seam.meta}</div>
+            {seam.artist && <BravaisSeamArtist artist={seam.artist} />}
             {collection && <BravaisSeamCollectionMeta collection={collection} />}
             {seam.status && <div className="bravais-seam-status" data-bravais-seam-status>{seam.status}</div>}
             {collection?.status && <BravaisSeamStatusLine status={collection.status} />}
             <div className="bravais-seam-actions">
                 {seam.onPlayScope && (
                     <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                        <Play aria-hidden />{t('libraryBravais.playAll')}
+                        <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
                     </button>
                 )}
                 {seam.onEnqueueScope && (
                     <button type="button" className="bravais-chrome-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
-                        <ListPlus aria-hidden />{t('libraryBravais.enqueueAll')}
+                        <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
                     </button>
                 )}
             </div>
@@ -122,7 +124,7 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
             <div className="bravais-seam-spacer" />
             {seam.onPlayScope && (
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}
-                    aria-label={t('libraryBravais.playAll')} title={t('libraryBravais.playAll')}>
+                    aria-label={seam.scopeLabels?.play ?? t('libraryBravais.playAll')} title={seam.scopeLabels?.play ?? t('libraryBravais.playAll')}>
                     <Play aria-hidden />
                 </button>
             )}

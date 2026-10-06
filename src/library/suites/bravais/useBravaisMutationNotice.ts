@@ -68,5 +68,6 @@ export const useBravaisMutationNotice = () => {
         describeMutationResult(result, labelsRef.current, options)?.text
     ), []);
 
-    return { notice, run, describe };
+    // B8：show 也给歌手页「加入热门歌曲」的条数提示用（不走 toast，显示在缝底）。
+    return { notice, run, describe, show };
 };

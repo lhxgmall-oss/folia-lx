@@ -1,4 +1,4 @@
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection } from './bravaisSeamModels';
 import type { BravaisHomeLayer, BravaisHomeSeam } from './bravaisHomeModels';
 
 // src/library/suites/bravais/bravaisLayer.ts
@@ -65,9 +65,13 @@ export type BravaisSeamModel = {
     collection?: BravaisSeamCollection;
     /** B9 首页：二级切换、工具按钮、「⋯」、管理隐藏、扫描进度、搜索、账户位（见 bravaisHomeModels）。 */
     home?: BravaisHomeSeam;
+    /** B8 歌手页：头像、别名、简介与统计（ArtistGridView 的信息）。 */
+    artist?: BravaisSeamArtist;
+    /** B8：播放 / 加入当前范围的按钮文案（歌手页是「播放热门」「加入热门歌曲」）；不给就是「播放全部」「加入队列」。 */
+    scopeLabels?: { play: string; enqueue: string };
 };
 
-export type BravaisLayerSurface = 'home' | 'collection';
+export type BravaisLayerSurface = 'home' | 'collection' | 'artist';
 
 /** 一层墙的描述。 */
 export type BravaisLayer = {

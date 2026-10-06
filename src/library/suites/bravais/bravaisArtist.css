@@ -1,0 +1,89 @@
+/* src/library/suites/bravais/bravaisArtist.css
+ * 歌手页在缝里的信息块（B8）：圆形头像、别名、统计、可展开的简介。颜色只用缝的主题变量（--bravais-seam-ink-soft、
+ * currentColor），跟着明暗主题与透光档的纸条材质走。简介是个按钮：bravais.css 的 `.bravais-seam button { font: inherit }`
+ * 统一过缝里的按钮，这里的规则要带上 .bravais-seam 才压得住。 */
+
+.bravais-seam-artist {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bravais-seam-artist-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.bravais-seam-artist-avatar {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.bravais-seam-artist-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    user-select: none;
+    pointer-events: none;
+}
+
+.bravais-seam-artist-avatar svg { width: 22px; height: 22px; opacity: 0.35; }
+
+.bravais-seam-artist-facts {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--bravais-seam-ink-soft);
+}
+
+.bravais-seam-artist-aliases,
+.bravais-seam-artist-stats {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-seam-artist-stats { font-weight: 650; letter-spacing: 0.02em; }
+
+.bravais-seam .bravais-seam-artist-bio {
+    display: -webkit-box;
+    max-height: 7.2em;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    color: var(--bravais-seam-ink-soft);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: transparent;
+    cursor: pointer;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+}
+
+.bravais-seam .bravais-seam-artist-bio.is-open {
+    display: block;
+    max-height: 14em;
+    overflow-y: auto;
+    -webkit-line-clamp: unset;
+}
+
+.bravais-seam .bravais-seam-artist-bio:focus-visible {
+    outline: 2px solid var(--text-accent, currentColor);
+    outline-offset: 3px;
+}
