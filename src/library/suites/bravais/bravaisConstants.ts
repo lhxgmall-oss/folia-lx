@@ -44,3 +44,15 @@ export const BRAVAIS_REVEAL_PAD_PX = 24;
 export const BRAVAIS_SEAM_SAFE_AREA_EXTRA_PX = 8;
 /** 没有播放条时缝内容的底边距。 */
 export const BRAVAIS_SEAM_BASE_BOTTOM_PX = 20;
+
+/** 聚焦卡块内让位的过渡时长（毫秒），与 bravais.css 里 .bravais-tile.is-reflowing 的 500ms 一致。 */
+export const BRAVAIS_REFLOW_MS = 500;
+
+/** 全透明档：透着的磁贴只画一条封面底条，取最小一档的图就够。 */
+export const BRAVAIS_SEE_THROUGH_STRIP_ARTWORK_PX = 96;
+
+/**
+ * 两个透明档下缝的纸条要不要加 backdrop blur（亚克力）。先不加：纸条宽 300px，blur 是一笔随分辨率增长、
+ * 每帧都要重算的 GPU 成本，要不要加按 B12 的换机实测决定（plan/bravais-transparency-handoff.md）。
+ */
+export const BRAVAIS_SEAM_ACRYLIC_BLUR = false;

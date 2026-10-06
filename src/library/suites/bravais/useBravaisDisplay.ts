@@ -8,14 +8,16 @@ import {
     createBravaisDisplay,
     diffDisplays,
     findNearestSlot,
+    isDisplayedWallLook,
     pointOrigin,
-    resolveSlotItem,
+    resolveSlotFaceKey,
     toFlipSteps,
     type BravaisDisplay,
     type BravaisFlipStep,
 } from './bravaisDisplay';
 import type { BravaisLayer } from './bravaisLayer';
 import { readBravaisLayout, writeBravaisLayout } from './bravaisLayoutMemory';
+import type { BravaisWallLook } from './bravaisLook';
 import { resolveSeamOpenWidth, useBravaisSeamStore } from './bravaisSeamLevel';
 import { takeBravaisPendingOrigin } from './bravaisStageStore';
 import type { BravaisFrameState } from './useBravaisFrame';
@@ -33,6 +35,8 @@ const FLIP_OVERSCAN = 160;
 export type BravaisDisplayControls = {
     frameRef: MutableRefObject<BravaisFrameState>;
     view: WallView | null;
+    /** 透光偏好（B6b③）：换档 / 换窗数走同一层的数据更新，只翻开窗、关窗与内容因跳过窗位而变了的 slot。 */
+    wallLook: BravaisWallLook;
     /** 此刻渲染着的 slot（翻牌只比较它们）。 */
     slotsRef: MutableRefObject<readonly WallSlot[]>;
     depth: number;
@@ -64,7 +68,7 @@ const mergeFlipSteps = (
     for (const slot of slots) {
         if (merged.has(slot.key)) continue;
         const step = previous.flips.get(slot.key);
-        if (step && step.to === (resolveSlotItem(next, slot)?.key ?? null)) merged.set(slot.key, step);
+        if (step && step.to === resolveSlotFaceKey(next, slot)) merged.set(slot.key, step);
     }
     return merged;
 };
@@ -112,8 +116,9 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         const controlsNow = latestControls.current;
         const { frameRef, slotsRef } = controlsNow;
         const previous = displayRef.current;
+        const { wallLook } = controlsNow;
         if (!layer || !controls.view) return;
-        if (previous && previous.layer === layer) return;
+        if (previous && previous.layer === layer && isDisplayedWallLook(previous, wallLook)) return;
         const depth = controlsNow.depth;
         const level = useBravaisSeamStore.getState().level;
         const width = resolveSeamOpenWidth(layer.surface, level);
@@ -128,13 +133,13 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             if (width > 0) center = controlsNow.planOpening(center, width, true).center;
             controlsNow.setAnchor(frameRef.current.anchorX);
             controlsNow.moveTo(center, true);
-            commit(createBravaisDisplay(layer, memory?.startSlotKey ?? null), depth);
+            commit(createBravaisDisplay(layer, memory?.startSlotKey ?? null, undefined, wallLook), depth);
             return;
         }
 
-        // 同一层的数据更新（加载完成、补页、正在播放换了）：只翻内容变了的 slot，从起点磁贴或缝开始。
+        // 同一层的数据更新（加载完成、补页、正在播放换了、透光换档）：只翻内容变了的 slot，从起点磁贴或缝开始。
         if (previous.layer.key === layer.key) {
-            const draft = createBravaisDisplay(layer, previous.startSlotKey);
+            const draft = createBravaisDisplay(layer, previous.startSlotKey, undefined, wallLook);
             const start = slotFromKey(previous.startSlotKey);
             const fresh = planFlipFor(previous, draft, pointOrigin(start ? { x: start.centerX, y: start.centerY } : seamPoint()));
             // 整墙有内容在翻：聚焦卡收起（它所在的块也可能在翻）。
@@ -177,12 +182,12 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             center = plan.center;
         }
         controlsNow.setAnchor(frameRef.current.anchorX);
-        const draft = createBravaisDisplay(layer, startSlotKey);
+        const draft = createBravaisDisplay(layer, startSlotKey, undefined, wallLook);
         const flips = planFlipFor(previous, draft, origin);
         commit({ ...draft, flips: flips ?? draft.flips, flipToken: flipTokenRef.current }, depth);
         controlsNow.tweenTo(center);
         controlsNow.restoreFocus(focusKey);
-    }, [commit, controls.view, layer, planFlipFor, remember]);
+    }, [commit, controls.view, controls.wallLook, layer, planFlipFor, remember]);
 
     // stage 卸载（离开首页约 350ms 后）：记下当前层，回来时按它恢复。
     useEffect(() => () => {

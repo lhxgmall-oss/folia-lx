@@ -1,6 +1,7 @@
 import React, { type MutableRefObject, type RefObject } from 'react';
 import type { WallSlot } from '../../../components/wall/wallSlots';
-import { resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
+import { resolveSlotFace, type BravaisDisplay } from './bravaisDisplay';
+import { isSeeThroughFace } from './bravaisLook';
 import BravaisTile, { type BravaisTileHandlers, type BravaisTileRect } from './BravaisTile';
 
 // src/library/suites/bravais/BravaisWall.tsx
@@ -41,7 +42,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
     const right: React.ReactNode[] = [];
     const nowPlayingKey = display?.layer.nowPlayingKey ?? null;
     for (const slot of slots) {
-        const item = resolveSlotItem(display, slot);
+        const { item, kind } = resolveSlotFace(display, slot);
         const expanded = slot.key === expandedSlotKey;
         const tile = (
             <BravaisTile
@@ -49,6 +50,8 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
                 slotKey={slot.key}
                 rect={reflow.get(slot.key) ?? slot}
                 item={item}
+                kind={kind}
+                seeThrough={isSeeThroughFace(display?.look ?? 'solid', kind, expanded)}
                 step={display?.flips.get(slot.key)}
                 nowPlayingKey={nowPlayingKey}
                 reflowing={reflow.has(slot.key)}

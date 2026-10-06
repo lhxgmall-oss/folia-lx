@@ -6,7 +6,7 @@ import { useDevicePixelRatio } from '../../../hooks/useMediaQuery';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import type { LibrarySuiteStageProps } from '../../core/contracts/suite';
-import { BRAVAIS_METRICS, BRAVAIS_OVERSCAN } from './bravaisConstants';
+import { BRAVAIS_METRICS, BRAVAIS_OVERSCAN, BRAVAIS_SEAM_ACRYLIC_BLUR } from './bravaisConstants';
 import { resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
 import type { BravaisLayer } from './bravaisLayer';
 import { useBravaisSeamStore, type BravaisSeamLevel } from './bravaisSeamLevel';
@@ -20,9 +20,11 @@ import { useBravaisFocus } from './useBravaisFocus';
 import { useBravaisFrame } from './useBravaisFrame';
 import { bravaisSlotFromKey, useBravaisInteractions } from './useBravaisInteractions';
 import { useBravaisKeyboard } from './useBravaisKeyboard';
+import { useBravaisPlate } from './useBravaisPlate';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
+import { useBravaisWallLook } from './useBravaisWallLook';
 import '../../../components/wall/wall.css';
 import './bravais.css';
 
@@ -31,6 +33,8 @@ import './bravais.css';
 // 层描述从 suite 内的 stage store 读（surface 推进来），stage 不碰 core 的资源与控制器。视觉沿用 Lattice
 // （wall.css 的 .lattice-* 类与 --lattice-* 变量，跟随 Lattice 的染色与暗角设置），墙一律实色——透光（底板、窗、
 // reportPlayerOcclusion）在 B6b③。高频的东西（相机、缝的开合、翻牌）都不经过 React：帧状态 + 直接写 DOM。
+// 透光（B6b③，设计稿 §11）：实色档根节点画墙面并报告遮挡播放页；透明档根节点不画底，墙面交给世界层之下的实色底板
+// （useBravaisPlate，遮罩只在窗位挖洞），缝的纸条换成半透明。
 
 const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
     left: bounds.left - by,
@@ -39,7 +43,7 @@ const expandBounds = (bounds: { left: number; right: number; top: number; bottom
     bottom: bounds.bottom + by,
 });
 
-const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDaylight, navigation }) => {
+const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDaylight, navigation, reportPlayerOcclusion }) => {
     const { t } = useTranslation();
     const rootRef = useRef<HTMLElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
@@ -49,7 +53,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const seamContentRef = useRef<HTMLDivElement>(null);
     const tabRef = useRef<HTMLButtonElement>(null);
     const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamContent: seamContentRef, tab: tabRef }), []);
-    const { stateRef: frameRef, renderFrame } = useBravaisFrame(frameRefs);
+    const { stateRef: frameRef, renderFrame, afterFrameRef } = useBravaisFrame(frameRefs);
+    const wallLook = useBravaisWallLook(reportPlayerOcclusion);
     const view = useBravaisViewport(rootRef);
     const reducedMotion = useReducedMotionFor('lattice');
     const devicePixelRatio = useDevicePixelRatio();
@@ -96,6 +101,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const { display, displayRef } = useBravaisDisplay(layer, {
         frameRef,
         view,
+        wallLook,
         slotsRef,
         depth: navigation.depth,
         setAnchor: seam.setAnchor,
@@ -119,6 +125,21 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         fieldRef,
         seamRef,
     });
+    // 透光以墙上此刻显示的档位为准（换档时与翻牌同一次提交）；还没有显示时看偏好。
+    const seeThrough = (display?.look ?? wallLook.look) !== 'solid';
+    const plate = useBravaisPlate({
+        enabled: seeThrough,
+        slots,
+        display,
+        expandedSlotKey: focus.expandedSlotKey,
+        reflow: focus.reflow,
+        anchorX: seam.anchorX,
+        reducedMotion,
+        fieldRef,
+        renderFrame,
+        afterFrameRef,
+    });
+
     const active = isInteractive && owned && Boolean(layer?.isInteractive);
     useBravaisKeyboard(active, interactions.handleAction);
     useBravaisChromeActions({
@@ -149,6 +170,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         vignette ? 'has-vignette' : '',
         tintEnabled ? 'has-poster-tint' : '',
         tintCustom ? 'uses-custom-poster-tint' : '',
+        seeThrough ? 'is-see-through' : '',
+        seeThrough && BRAVAIS_SEAM_ACRYLIC_BLUR ? 'has-seam-blur' : '',
     ].filter(Boolean).join(' ');
 
     return (
@@ -162,8 +185,21 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
             data-library-stage="bravais"
             data-bravais-layer={display?.layer.key}
             data-bravais-active={active || undefined}
+            data-bravais-look={display?.look ?? wallLook.look}
             aria-label={t('libraryBravais.wallLabel')}
         >
+            {seeThrough && (
+                <>
+                    <div ref={plate.plateRef} className="bravais-plate" data-bravais-plate="" aria-hidden="true" />
+                    <div
+                        ref={plate.livePlateRef}
+                        className="bravais-plate is-live"
+                        data-bravais-live-plate={plate.liveBlockKey ?? undefined}
+                        aria-hidden="true"
+                        style={{ display: 'none' }}
+                    />
+                </>
+            )}
             <div
                 ref={fieldRef}
                 className="lattice-field bravais-field"
