@@ -116,7 +116,7 @@ test('steps lyric modes with the arrows and opens the full list from the name', 
     await lyricRow.getByRole('button', { name: '歌词样式', exact: true }).click();
     const list = page.getByRole('listbox', { name: '歌词样式' });
     await expect(list).toBeVisible();
-    await expect(list.getByRole('option')).toHaveCount(13);
+    await expect(list.getByRole('option')).toHaveCount(14);
     await expect(list.getByRole('option', { name: '静止' })).toBeVisible();
     await expect(page.getByText('更多设置', { exact: true })).toBeVisible();
 
