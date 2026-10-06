@@ -335,7 +335,9 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
                 ?? (decision.kind === 'filter'
                     ? { kind: 'seam-edges', x: frameRef.current.anchorX ?? frameRef.current.center.x }
                     : pointOrigin(startPoint));
-            const fresh = planFlipFor(previous, draft, origin);
+            // B11：整墙入场还在放（入场途中数据到达）：不另排翻牌，磁贴在抬起 / 落回途中直接换成新内容。
+            const entering = Boolean(previous.entrance && performance.now() < previous.entrance.until);
+            const fresh = entering ? null : planFlipFor(previous, draft, origin);
             // 整墙有内容在翻：聚焦卡收起（它所在的块也可能在翻）。
             if (fresh && fresh.steps.size > 0) controlsNow.collapseFocusCard();
             const flips = mergeFlipSteps(previous, draft, fresh?.steps ?? new Map(), slotsRef.current, performance.now() < waveUntilRef.current);

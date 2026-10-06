@@ -37,9 +37,12 @@
     outline: none;
 }
 
+/* 展开后往下换行：第一行留在收起时的位置（行高 32px 里居中的那一行），不往上长进窗口顶部的标题栏拖拽区。 */
 .bravais-seam-crumb-trail.is-expanded {
+    align-self: flex-start;
     flex-wrap: wrap;
-    row-gap: 2px;
+    row-gap: 4px;
+    padding-top: 9px;
     white-space: normal;
 }
 
