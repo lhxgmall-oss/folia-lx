@@ -276,6 +276,17 @@ export type LibrarySurfaceDeclaration<Props> = {
     extraActions?: readonly string[];
 };
 
+/**
+ * 导航栈里的一层（面包屑用，B11）：自底向上按位置排列，栈里可以有重复的集合（N1 只折叠紧邻往返）。
+ * key 是那一层的 collectionKey（与浏览会话、层描述的键同一种），name 是打开时描述里的名字（栈顶的名字以 surface
+ * 自己的为准：改名、Navidrome 刷新后的新名字只反映在栈顶）。
+ */
+export type LibraryNavigationCrumb = {
+    readonly key: string;
+    readonly name: string;
+    readonly type: string;
+};
+
 /** 宿主在导航时交给 suite 转场钩子的上下文（导航发生之前读的）。 */
 export type LibraryNavigationContext = {
     /** 导航栈当前深度。 */
@@ -284,6 +295,11 @@ export type LibraryNavigationContext = {
     origin: CollectionNavigationOrigin | null;
     /** 当前顶层集合的类型。 */
     activeType: string | null;
+    /**
+     * 导航栈每一层（B11，面包屑点击跳层用，长度等于 depth）。宿主总会给；缺省（旧的调用方、测试替身）时当作不知道
+     * 中间层的名字。跳层本身走 LibraryCollectionNavigation.onPopTo（depth = 保留的层数，按这里的位置算）。
+     */
+    trail?: readonly LibraryNavigationCrumb[];
 };
 
 /** 背景板单段淡入或淡出的时长（秒）与贝塞尔曲线。 */
