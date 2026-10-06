@@ -89,13 +89,13 @@ const BravaisSeamFormView: React.FC<{ form: BravaisSeamForm }> = ({ form }) => {
                             name="bravais-create-playlist"
                             initial=""
                             placeholder={labels.placeholder}
-                            submitLabel={labels.createLabel ?? labels.submit}
+                            submitLabel={labels.submit}
                             cancelLabel={labels.cancel}
                             pending={pending}
                             onSubmit={form.onSubmit}
                             onCancel={form.onCancel}
                         />
-                    ) : (
+                    ) : form.onStartCreate && labels.createLabel && (
                         <button type="button" className="bravais-form-row is-create" data-bravais-form-action="create" onClick={() => form.onStartCreate?.()}>
                             <Plus aria-hidden />{labels.createLabel}
                         </button>

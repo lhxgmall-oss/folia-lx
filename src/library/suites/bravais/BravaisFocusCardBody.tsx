@@ -54,8 +54,8 @@ const BravaisFocusCardBody: React.FC<BravaisFocusCardBodyProps> = ({ slotKey, it
                     className="bravais-chrome-button bravais-focus-more-toggle"
                     data-bravais-action="more"
                     aria-expanded={isMenuOpen}
-                    aria-label={t('libraryBravais.more')}
-                    title={t('libraryBravais.more')}
+                    aria-label={t('libraryBravaisCollection.more')}
+                    title={t('libraryBravaisCollection.more')}
                     onClick={handled(() => setIsMenuOpen(open => !open))}
                 >
                     <MoreHorizontal aria-hidden />

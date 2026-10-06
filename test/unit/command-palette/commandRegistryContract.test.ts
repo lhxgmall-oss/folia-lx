@@ -54,6 +54,7 @@ describe('command palette registry contract', () => {
             'bravais-seam-spine',
             'bravais-seam-hide',
             'bravais-seam-here',
+            'bravais-list',
             'bravais-locate-playing',
         ]);
         expect(staticCommands).toEqual(expect.arrayContaining(SUITE_CHROME_COMMANDS));

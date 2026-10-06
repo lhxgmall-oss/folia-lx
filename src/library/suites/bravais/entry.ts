@@ -21,12 +21,33 @@ const BravaisStage = React.lazy(() => import('./BravaisStage'));
 const BravaisHome = React.lazy(() => import('./BravaisHome'));
 const BravaisCollection = React.lazy(() => import('./BravaisCollection'));
 
-// 集合页（B6）：聚焦卡上的「立即播放」「加入队列」与歌手 / 专辑链接，缝里的「播放全部」「加入队列」。
+// 集合页（B7 齐了 grid 的 23 个，入口见设计稿 §10.2）：聚焦卡主按钮（播放 / 入队）、文字链接（专辑 / 歌手）与「⋯」
+// （移出 / 不喜欢、手动匹配、加入歌单）；缝里的播放全部 / 入队、过滤位（命令面板内联框）、收藏星标、元数据行的续传、
+// 每日推荐的日期步进、「列表」（面板工具行里的排序）与「⋯ 更多」（重新拉取、改名、删除、重扫、导出、实体信息、
+// 整理歌曲信息、加入歌单）；改名 / 删除确认 / 加入歌单选择与新建是缝的表单态。grid 的三个局部动作不声明：
+// 信息面板 → 缝等级、曲目侧栏 → 列表面板（外观动作 list）、编辑模式 → 改名表单态。
 const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'play',
     'enqueue',
     'play-scope',
     'enqueue-scope',
+    'filter',
+    'sort',
+    'reload',
+    'resume-sync',
+    'remove-entry',
+    'subscribe',
+    'rename',
+    'delete-collection',
+    'resync-folder',
+    'resync-all-folders',
+    'export-playlist',
+    'edit-entity',
+    'organize-song-info',
+    'match-song',
+    'add-to-playlist',
+    'create-playlist',
+    'daily-date',
     'open-album',
     'open-artist',
 ];
@@ -59,6 +80,13 @@ const CHROME_ACTIONS: LibrarySuiteManifest['chromeActions'] = [
         title: 'Split the wall here',
         description: 'Open a new seam in the current view after the old one slid off screen',
         keywords: ['reopen seam', 'split', '裂开', '重新裂开缝'],
+    },
+    // B7：打开列表面板（grid 的 toggle-track-list 的对应）。不给执行键：`l` 被全局循环播放占用。
+    {
+        id: 'list',
+        title: 'Open the track list',
+        description: "Widen the seam on the library wall into this collection's track list",
+        keywords: ['track list', 'list panel', '歌曲列表', '打开列表'],
     },
     {
         id: 'locate-playing',
