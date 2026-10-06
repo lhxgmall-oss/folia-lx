@@ -214,6 +214,14 @@ export type CommandPaletteSettingsContext = {
     /** Which surface pressing play opens; see usePlaybackEntryViewStore. */
     playbackEntryView: PlaybackEntryView;
     setPlaybackEntryView: (view: PlaybackEntryView) => void;
+    /** Library UI suites offered as a choice (registry order, default suite first). */
+    librarySuiteOptions: () => ReadonlyArray<{ id: string; labelKey: string }>;
+    /** The suite actually rendering: the stored choice resolved through the registry, never a suite this build lacks. */
+    activeLibrarySuite: () => string;
+    /** Same predicate the settings section hides itself with: more than one suite is available. */
+    canChooseLibrarySuite: () => boolean;
+    /** Switches suites the way the settings section does (current session key + switchLibrarySuite). */
+    chooseLibrarySuite: (suiteId: string) => void;
     ponderHintVisibility: PonderHintVisibility;
     setPonderHintVisibility: (visibility: PonderHintVisibility) => void;
     /** 触屏上那颗思索按钮显不显示。它是触屏唯一的入口，所以关掉是一个明确的选择。 */

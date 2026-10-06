@@ -327,6 +327,7 @@ export default {
     "previewQueueSearchEmpty": "Ketik nama lagu, artis, album, atau indeks antrean",
     "pickerFilterPlaceholder": "Ketik untuk menyaring, lalu klik atau tekan Enter",
     "pickerCurrent": "Saat ini: {{mode}}",
+    "librarySuitePicker": { "active": "Sedang dipakai", "switch": "Ganti pustaka ke antarmuka ini" },
     "pickerDescription": {
       "visualizer": {
         "still": "Satu baris lirik diam di tengah — tanpa animasi, tanpa latar, paling ringan",
@@ -568,6 +569,8 @@ export default {
       "settings-playback-entry-view": { "title": "Tampilan saat diputar", "description": "Langsung ke pengaturan tampilan yang dibuka saat menekan putar" },
       "playback-entry-view-player": { "title": "Saat diputar: Visualizer", "description": "Menekan putar membuka pemutar dan visualizer-nya" },
       "playback-entry-view-lattice": { "title": "Saat diputar: Lattice", "description": "Menekan putar membuka kolase antrean" },
+      "settings-library-suite": { "title": "Antarmuka pustaka", "description": "Langsung ke pengaturan antarmuka yang dipakai pustaka" },
+      "library-suite-picker": { "title": "Pilih antarmuka pustaka", "description": "Ganti antarmuka untuk menjelajah pustaka" },
       "settings-theme-presets": { "title": "Prasetel tema", "description": "Langsung ke prasetel tema bawaan dan tersimpan" },
       "settings-lyrics-renderer": { "title": "Perender lirik", "description": "Langsung ke pengaturan cara lirik digambar di pemutar" },
       "settings-grid-card-style": { "title": "Gaya kartu kisi", "description": "Langsung ke pengaturan gaya kartu pada kisi beranda" },
@@ -1489,6 +1492,8 @@ export default {
     "appLanguageSystemHint": "Ikuti bahasa browser atau sistem. Saat ini: {{language}}",
     "playbackEntryView": "Tampilan yang dibuka Putar",
     "playbackEntryViewDesc": "Tampilan mana yang dibuka secara default setelah Anda menekan putar.",
+    "librarySuite": "Antarmuka pustaka",
+    "librarySuiteDesc": "Antarmuka yang dipakai untuk beranda, koleksi, dan halaman artis. Saat diganti, filter, pilihan, dan antrean tetap dipertahankan.",
     "homeTabsVisibility": "Entri Top Capsule",
     "rememberHomeCardPosition": "Ingat posisi kartu beranda",
     "rememberHomeCardPositionDesc": "Kembali ke kartu terakhir di setiap bagian saat berpindah tab atau keluar dari pemutar. Posisi disimpan hingga aplikasi ditutup atau dimuat ulang.",

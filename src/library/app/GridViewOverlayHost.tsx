@@ -39,7 +39,8 @@ import { useLibraryBackdrop } from './useLibraryBackdrop';
 import { useLibrarySuiteStore } from '../core/state/useLibrarySuiteStore';
 import { useLibraryBrowseSessionStore } from '../core/state/useLibraryBrowseSessionStore';
 import type { LibraryNavigationContext, LibrarySurfaceId } from '../core/contracts/suite';
-import { forgetLibraryLayouts, listLibrarySuiteOverlays, listLibrarySuites, resolveLibrarySurface } from '../registry';
+import { forgetLibraryLayouts, hasLibrarySuiteChoice, listLibrarySuiteOverlays, resolveLibrarySurface } from '../registry';
+import { LIBRARY_HOME_SESSION_KEY } from './librarySuiteChoice';
 
 // src/library/app/GridViewOverlayHost.tsx
 // Hosts the GridView overlay outside Grid3D so it can be opened/restored independently.
@@ -55,9 +56,9 @@ import { forgetLibraryLayouts, listLibrarySuiteOverlays, listLibrarySuites, reso
 
 // suite 的切换浮层：懒加载、且只在 DEV 下引用，生产包不受影响（生产构建里也只有一套 suite）。
 const DevLibraryRendererSwitch = import.meta.env.DEV ? React.lazy(() => import('./DevLibraryRendererSwitch')) : null;
-const HAS_SUITE_CHOICE = listLibrarySuites().length > 1;
+const HAS_SUITE_CHOICE = hasLibrarySuiteChoice();
 /** 在首页上切 suite 时交给 switchLibrarySuite 的会话 key（首页没有集合浏览会话，冲刷什么都不做）。 */
-const HOME_SUITE_SESSION_KEY = 'home';
+const HOME_SUITE_SESSION_KEY = LIBRARY_HOME_SESSION_KEY;
 // 声明了转场层的 suite：常驻渲染，只有当前负责集合层的那套收到 enabled。
 const SUITE_OVERLAYS = listLibrarySuiteOverlays();
 

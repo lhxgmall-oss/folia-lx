@@ -329,6 +329,7 @@ export default {
     "previewQueueSearchEmpty": "输入歌名、歌手、专辑或队列序号",
     "pickerFilterPlaceholder": "输入以筛选，然后点击或按回车",
     "pickerCurrent": "当前：{{mode}}",
+    "librarySuitePicker": { "active": "正在使用", "switch": "把资料库切换到这套界面" },
     "pickerDescription": {
       "visualizer": {
         "still": "歌词静止在画面中央，不做动画也不渲染背景，最省资源",
@@ -570,6 +571,8 @@ export default {
       "settings-playback-entry-view": { "title": "播放后进入的视图", "description": "直接跳到「播放后进入的视图」设置" },
       "playback-entry-view-player": { "title": "播放后进入：可视化", "description": "点击播放后进入播放器与可视化视图" },
       "playback-entry-view-lattice": { "title": "播放后进入：Lattice", "description": "点击播放后进入队列拼贴视图" },
+      "settings-library-suite": { "title": "资料库界面", "description": "直接跳到「资料库界面」设置" },
+      "library-suite-picker": { "title": "选择资料库界面", "description": "切换浏览资料库所用的界面" },
       "settings-theme-presets": { "title": "预设配色", "description": "直接跳到内置和已保存的预设配色" },
       "settings-lyrics-renderer": { "title": "歌词渲染方式", "description": "直接跳到播放器歌词的绘制方式设置" },
       "settings-grid-card-style": { "title": "网格卡片样式", "description": "直接跳到首页网格卡片的绘制样式" },
@@ -1495,6 +1498,8 @@ export default {
     "appLanguageSystemHint": "跟随浏览器或系统语言。当前生效：{{language}}",
     "playbackEntryView": "播放后进入的视图",
     "playbackEntryViewDesc": "点击播放后默认打开哪个视图。",
+    "librarySuite": "资料库界面",
+    "librarySuiteDesc": "首页、集合与歌手页用哪套界面浏览。切换时保留筛选、选中项和播放队列。",
     "homeTabsVisibility": "顶部胶囊入口",
     "rememberHomeCardPosition": "记住主页卡片位置",
     "rememberHomeCardPositionDesc": "切换顶部入口或从播放界面返回时，回到各入口上次浏览的卡片。位置仅在本次打开应用期间保留。",

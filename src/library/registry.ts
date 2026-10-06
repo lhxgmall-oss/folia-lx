@@ -7,7 +7,7 @@ import type {
     LibrarySurfaceId,
     LibrarySurfacePropsMap,
 } from './core/contracts/suite';
-import { buildLibrarySuiteIndex, DEFAULT_LIBRARY_SUITE_ID } from './core/model/librarySuites';
+import { buildLibrarySuiteIndex, DEFAULT_LIBRARY_SUITE_ID, isLibrarySuiteChoiceAvailable } from './core/model/librarySuites';
 
 // src/library/registry.ts
 // Library 的 suite 注册表：从各 suite 的 `suites/<id>/entry.ts` 自动发现（照 visualizer registry 的做法，
@@ -34,6 +34,15 @@ export const listLibrarySuites = (): readonly LibrarySuiteManifest[] => SUITE_IN
 export const hasLibrarySuite = (suiteId: string): suiteId is LibrarySuiteId => SUITE_INDEX.has(suiteId);
 
 export const getLibrarySuite = (suiteId: string): LibrarySuiteManifest | undefined => SUITE_INDEX.get(suiteId);
+
+/**
+ * 实际生效的 suite：store 里存的选择可能是这个构建里没有的（初始选择、旧版本的记录），那时生效的是默认 suite。
+ * 设置项、命令面板的 picker 与 DEV 浮层展示「当前 suite」都用它，不直接读 store 的值。
+ */
+export const resolveActiveLibrarySuiteId = (suiteId: string): LibrarySuiteId => SUITE_INDEX.resolveId(suiteId);
+
+/** 有没有得选（可用的 suite 不止一套）：设置项与命令面板共用这一个判断。 */
+export const hasLibrarySuiteChoice = (): boolean => isLibrarySuiteChoiceAvailable(SUITE_INDEX.suites);
 
 export type ResolvedLibrarySurface<Surface extends LibrarySurfaceId> = {
     /** 实际渲染这个 surface 的 suite（回退时是默认 suite）。 */
