@@ -1,3 +1,5 @@
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection } from './bravaisSeamModels';
+
 // src/library/suites/bravais/bravaisLayer.ts
 // bravais 的层描述（设计稿 §8.1）：surface 把 core binding 的数据投影成它，推进 bravaisStageStore，stage 只读它画墙。
 // 层描述里只有已投影的展示数据和回调——没有资源对象、没有控制器：stage 不知道数据从哪来，也不直接改任何东西。
@@ -49,6 +51,8 @@ export type BravaisSeamModel = {
     /** 播放 / 加入当前范围；没声明或不可用时不给。 */
     onPlayScope?: () => void;
     onEnqueueScope?: () => void;
+    /** B7 集合页：收藏星标、补页进度、状态与结果提示、过滤位、日期步进、「⋯ 更多」、表单态（见 bravaisSeamModels）。 */
+    collection?: BravaisSeamCollection;
 };
 
 export type BravaisLayerSurface = 'home' | 'collection';
@@ -87,4 +91,9 @@ export type BravaisLayer = {
     onBack?: () => void;
     /** 缝里的返回按钮（完成：宿主清会话、忘布局）。首页没有。 */
     onDone?: () => void;
+    /** B7：墙的内容规则（无限拼贴的循环周期、有限拼贴的规划条目数、过滤身份、加载呼吸）。 */
+    wall?: BravaisLayerWall;
+    /** B7：列表面板与条目动作（聚焦卡「⋯」、Esc 阶梯的过滤词一级）。 */
+    entries?: BravaisLayerEntries;
 };
+

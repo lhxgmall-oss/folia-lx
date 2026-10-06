@@ -1,8 +1,9 @@
 import type { FlipOrigin, FlipPlan, FlipSlotChange } from '../../../components/wall/flipPlan';
 import { getInfiniteSlotItem, getStartWrapOffset } from '../../../components/wall/startTile';
-import { layoutFocusedBlock, parseWallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
+import { layoutFocusedBlock, parseWallSlotKey, wallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
+import { resolveFiniteRank, type BravaisFiniteState } from './bravaisFiniteWall';
 
 // src/library/suites/bravais/bravaisDisplay.ts
 // 墙上此刻显示的是哪一层、每个 slot 显示哪一项（纯计算）。无限拼贴按起点 slot 求循环偏移（起点磁贴是第 1 项，
@@ -20,9 +21,20 @@ export type BravaisDisplay = {
     /** 换层翻牌：slot key → 这张磁贴怎么翻。没有翻牌时为空。 */
     flips: ReadonlyMap<string, BravaisFlipStep>;
     flipToken: number;
+    /** B7：过滤时的有限拼贴（严格 rank）；null / 缺省是无限拼贴。 */
+    finite?: BravaisFiniteState | null;
+    /** B7：remove-entry 的第一段——这些条目先翻成墙面，后面的 rank 再前移（展示层按住旧帧）。 */
+    hiddenKeys?: ReadonlySet<string>;
 };
 
+/** 无限拼贴的循环周期按多少条算（补页期间是上游总数，见 BravaisLayerWall.periodCount）。 */
+export const layerPeriodCount = (layer: BravaisLayer) => Math.max(layer.items.length, layer.wall?.periodCount ?? 0);
+
 const NO_FLIPS: ReadonlyMap<string, BravaisFlipStep> = new Map();
+
+const wallSlotKeyOf = (slot: Pick<WallSlot, 'column' | 'row' | 'slotIndex'> & { key?: string }) => (
+    slot.key ?? wallSlotKey(slot.column, slot.row, slot.slotIndex)
+);
 
 /** 起点 slot 的循环偏移；条目数变了要重新求（B5：层里存起点 slot，不只存偏移）。 */
 export const resolveWrapOffset = (startSlotKey: string | null, itemCount: number) => {
@@ -37,7 +49,7 @@ export const createBravaisDisplay = (
 ): BravaisDisplay => ({
     layer,
     startSlotKey,
-    wrapOffset: resolveWrapOffset(startSlotKey, layer.items.length),
+    wrapOffset: resolveWrapOffset(startSlotKey, layerPeriodCount(layer)),
     flips: flip ? toFlipSteps(flip.token, flip.plan) : NO_FLIPS,
     flipToken: flip?.token ?? 0,
 });
@@ -47,8 +59,12 @@ export const resolveSlotItem = (display: BravaisDisplay | null, slot: Pick<WallS
     if (!display) return null;
     const { items } = display.layer;
     if (items.length === 0) return null;
-    const index = getInfiniteSlotItem(slot, items.length, display.wrapOffset);
-    return index === null ? null : items[index] ?? null;
+    // B7：有限拼贴按 rank 取（rank ≥ 条目数是墙面）；无限拼贴的周期可能大于条目数（补页中），超出的位置是墙面。
+    const index = display.finite
+        ? resolveFiniteRank(display.finite, { key: wallSlotKeyOf(slot) })
+        : getInfiniteSlotItem(slot, layerPeriodCount(display.layer), display.wrapOffset);
+    const item = index === null ? null : items[index] ?? null;
+    return item && display.hiddenKeys?.has(item.key) ? null : item;
 };
 
 export const resolveSlotItemKey = (display: BravaisDisplay | null, slot: WallSlot) => resolveSlotItem(display, slot)?.key ?? null;
