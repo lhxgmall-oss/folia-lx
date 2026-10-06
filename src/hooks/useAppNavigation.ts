@@ -18,6 +18,7 @@ import {
     APP_HISTORY_SESSION,
     createNavigationHistoryJournal,
     findCollectionTraversal,
+    findLayerBaseIndex,
     type NavigationHistoryState,
 } from './navigationHistoryJournal';
 import { useAppViewStore } from '../stores/useAppViewStore';
@@ -545,13 +546,19 @@ export function useAppNavigation() {
      * 应用内返回一层（返回按钮、Escape，以及折叠往返）：当前历史记录带集合就 history.back()，之后与浏览器后退同路
      * （popstate → 弹栈通知 → 恢复）；没有历史记录时手动弹一层，同样先通知再改 store。返回值是走了哪条路。
      */
-    const popCollectionLayer = useCallback((): 'history' | 'local' | 'none' => {
+    const popCollectionLayer = useCallback((options?: { leaveLayer?: boolean }): 'history' | 'local' | 'none' => {
         const snapshot = useCollectionNavigationStore.getState().snapshot;
         if (!snapshot) {
             return 'none';
         }
         if (window.history.state?.collection) {
-            window.history.back();
+            // leaveLayer（折叠往返）：当前层之上若压着 suite 自己的面板记录（同一个栈，例如 bravais 的列表面板），
+            // 连它们一起退，落到上一层；只退一步会只关掉面板、留在这一层。应用内返回不传——返回先关面板。
+            const index = getAppHistoryIndex(window.history.state);
+            if (options?.leaveLayer) historyJournal.observe(window.history.state);
+            const steps = options?.leaveLayer ? index - findLayerBaseIndex(historyJournal, index) + 1 : 1;
+            if (steps > 1) window.history.go(-steps);
+            else window.history.back();
             return 'history';
         }
 
@@ -568,7 +575,7 @@ export function useAppNavigation() {
             setCurrentView('player');
         }
         return 'local';
-    }, [setCurrentView]);
+    }, [historyJournal, setCurrentView]);
 
     const pushCollection = useCallback((collection: GridViewCollectionDescriptor) => {
         if (pendingTraversalRef.current !== null) return;
@@ -576,7 +583,7 @@ export function useAppNavigation() {
         if (decision.kind === 'back') {
             // 要进入的正好是上一层（歌手 ↔ 专辑来回点）：当作一次应用内返回，而不是再压一层（N1 折叠紧邻往返）。
             // beforeBack 由弹栈通知跑一次（宿主在这条路上不跑 beforePush / beforeBack）。
-            if (popCollectionLayer() === 'history') beginCollectionTraversal();
+            if (popCollectionLayer({ leaveLayer: true }) === 'history') beginCollectionTraversal();
             return;
         }
         if (decision.kind !== 'push') {
