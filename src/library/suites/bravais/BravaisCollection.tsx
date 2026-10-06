@@ -22,6 +22,7 @@ import { useBravaisCollectionFilter } from './useBravaisCollectionFilter';
 import { useBravaisCollectionForms } from './useBravaisCollectionForms';
 import { useBravaisCollectionSeam } from './useBravaisCollectionSeam';
 import { useBravaisLayerRegistration } from './useBravaisLayerRegistration';
+import { useBravaisPopTo } from './useBravaisPopTo';
 import { useBravaisMutationNotice } from './useBravaisMutationNotice';
 import { useBravaisPlaybackMarks } from './useBravaisPlaybackMarks';
 import { useBravaisSessionFocus } from './useBravaisSessionFocus';
@@ -48,11 +49,13 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
     onOpenAlbum,
     onOpenArtist,
     declaredActions,
+    onPopTo,
 }) => {
     const { t } = useTranslation();
     const isPresent = useIsPresent();
     const isActive = isInteractive && isPresent;
     const sessionKey = collectionKey(collection);
+    const popTo = useBravaisPopTo(onPopTo);
 
     const { snapshot } = useCollectionResourceState(resource);
     const tracks = useMemo(() => snapshot?.tracks ?? [], [snapshot?.tracks]);
@@ -259,9 +262,10 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         onFocusEntry: callbacks.onFocusEntry,
         onBack: callbacks.onBack,
         onDone: callbacks.onDone,
+        onPopTo: popTo,
         wall,
         entries,
-    }), [callbacks, entries, focus.initialKey, isActive, items, nowPlayingKey, queuedKeys, seam, sessionKey, view.isFilterActive, wall]);
+    }), [callbacks, entries, focus.initialKey, isActive, items, popTo, nowPlayingKey, queuedKeys, seam, sessionKey, view.isFilterActive, wall]);
     useBravaisLayerRegistration('top', layer, isPresent);
 
     // 不可见的锚点：铺满但不接指针，画面全在 stage 里。Ponder 的 none 标记要有尺寸才参与解析。

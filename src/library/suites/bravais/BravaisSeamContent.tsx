@@ -11,6 +11,7 @@ import BravaisSeamHome from './BravaisSeamHome';
 import BravaisSeamSearch from './BravaisSeamSearch';
 import BravaisDirectoryPanel from './BravaisDirectoryPanel';
 import BravaisSeamArtist from './BravaisSeamArtist';
+import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
 // 缝里的四套内容（设计稿 §5）：首页窄缝（竖排「书库」+ 竖排页签）、首页书脊、完整信息条（面包屑行、竖排标题、
@@ -49,7 +50,7 @@ const FoldButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
     );
 };
 
-const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisSeamActions }> = ({ layer, depth, actions }) => {
+const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisSeamActions }> = ({ layer, actions }) => {
     const { t } = useTranslation();
     const { seam } = layer;
     const collection = seam.collection;
@@ -62,11 +63,7 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
                         <ChevronLeft aria-hidden />
                     </button>
                 )}
-                <span className="bravais-seam-crumb-trail">
-                    <span>{t('libraryBravais.homeTitle')}</span>
-                    {depth > 1 && <><i>›</i><span>…</span></>}
-                    <i>›</i><span>{seam.crumb}</span>
-                </span>
+                <BravaisSeamCrumbs layer={layer} />
                 <button type="button" className="bravais-seam-level" data-bravais-seam-action="spine" onClick={() => actions.setLevel('spine')}>
                     {t('libraryBravais.seamCollapse')}
                 </button>

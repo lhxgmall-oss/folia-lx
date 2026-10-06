@@ -7,6 +7,7 @@ import type { BravaisDirectoryActionId, BravaisDirectoryPanel as BravaisDirector
 import type { BravaisPanelActions } from './BravaisListPanel';
 import { BravaisSeamFilterSlot } from './BravaisSeamCollection';
 import BravaisSeamFormView from './BravaisSeamFormView';
+import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 
 // src/library/suites/bravais/BravaisDirectoryPanel.tsx
 // 目录树面板（设计稿 §5「目录树 = GridMap 的批量模式」）：首页「本地」窄缝的 ▤ 打开，缝加宽成面板。顶上面包屑
@@ -106,10 +107,7 @@ const BravaisDirectoryPanel: React.FC<{ layer: BravaisLayer; actions: BravaisPan
                     aria-label={t('libraryBravais.seamBack')} title={t('libraryBravais.seamBack')}>
                     <ChevronLeft aria-hidden />
                 </button>
-                <span className="bravais-seam-crumb-trail">
-                    <span>{layer.seam.title}</span>
-                    <i>›</i><span>{panel.crumb}</span>
-                </span>
+                <BravaisSeamCrumbs layer={layer} panelLabel={panel.crumb} onClosePanel={actions.close} />
                 <button type="button" className="bravais-seam-level" data-bravais-seam-action="hide" onClick={actions.fold}>
                     {t('libraryBravais.seamFold')}
                 </button>

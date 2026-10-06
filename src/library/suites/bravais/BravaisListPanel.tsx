@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
 import { BravaisSeamFilterSlot, BravaisSeamStatusLine } from './BravaisSeamCollection';
 import { setBravaisLinkedKey, useBravaisUiStore } from './bravaisUiStore';
+import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 
 // src/library/suites/bravais/BravaisListPanel.tsx
 // 列表面板（设计稿 §5「面板」「歌曲列表」）：缝加宽到 min(420, 视口 − 52)，标题横排压在顶部，下面是工具行（本地文件夹的
@@ -61,7 +62,7 @@ const ListRow = ({ index, style, items, highlightKey, nowPlayingKey, actions }: 
     );
 };
 
-const BravaisListPanel: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisPanelActions }> = ({ layer, depth, actions }) => {
+const BravaisListPanel: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisPanelActions }> = ({ layer, actions }) => {
     const { t } = useTranslation();
     const listRef = useListRef(null);
     const { seam, entries } = layer;
@@ -99,12 +100,7 @@ const BravaisListPanel: React.FC<{ layer: BravaisLayer; depth: number; actions: 
                     aria-label={t('libraryBravais.seamBack')} title={t('libraryBravais.seamBack')}>
                     <ChevronLeft aria-hidden />
                 </button>
-                <span className="bravais-seam-crumb-trail">
-                    <span>{t('libraryBravais.homeTitle')}</span>
-                    {depth > 1 && <><i>›</i><span>…</span></>}
-                    <i>›</i><span>{seam.crumb}</span>
-                    <i>›</i><span>{entries?.listCrumb}</span>
-                </span>
+                <BravaisSeamCrumbs layer={layer} panelLabel={entries?.listCrumb ?? ''} onClosePanel={actions.close} />
                 <button type="button" className="bravais-seam-level" data-bravais-seam-action="hide" onClick={actions.fold}>
                     {t('libraryBravais.seamFold')}
                 </button>

@@ -107,6 +107,11 @@ export type BravaisLayer = {
     onBack?: () => void;
     /** 缝里的返回按钮（完成：宿主清会话、忘布局）。首页没有。 */
     onDone?: () => void;
+    /**
+     * B11 面包屑点击跳层（宿主的 LibraryCollectionNavigation.onPopTo）：depth = 保留的层数，按导航栈里的位置算。
+     * 调用方不跑 beforeBack、也不先关面板（导航层走浏览器历史，越过面板记录）。首页没有。
+     */
+    onPopTo?: (depth: number) => void;
     /** B7：墙的内容规则（无限拼贴的循环周期、有限拼贴的规划条目数、过滤身份、加载呼吸）。 */
     wall?: BravaisLayerWall;
     /** B7：列表面板与条目动作（聚焦卡「⋯」、Esc 阶梯的过滤词一级）。 */

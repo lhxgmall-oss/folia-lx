@@ -20,6 +20,9 @@ export default {
     "seamExpand": "Bentangkan",
     "seamRestore": "Bentangkan strip info",
     "seamReopenHere": "Belah di sini",
+    "crumbMore": "Tampilkan semua tingkat",
+    "crumbSearch": "Pencarian",
+    "crumbPlayer": "Sedang Diputar",
     "kind": {"track": "Lagu", "playlist": "Playlist", "album": "Album", "artist": "Artis", "folder": "Folder", "feed": "Radio"}
   },
   "libraryBravaisHome": {

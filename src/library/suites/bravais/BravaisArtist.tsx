@@ -17,6 +17,7 @@ import { useBravaisArtistLinks } from './useBravaisArtistLinks';
 import { useBravaisArtistSeam } from './useBravaisArtistSeam';
 import { useBravaisCollectionFilter } from './useBravaisCollectionFilter';
 import { useBravaisLayerRegistration } from './useBravaisLayerRegistration';
+import { useBravaisPopTo } from './useBravaisPopTo';
 import { useBravaisMutationNotice } from './useBravaisMutationNotice';
 import { useBravaisPlaybackMarks } from './useBravaisPlaybackMarks';
 import { useBravaisSessionFocus } from './useBravaisSessionFocus';
@@ -43,6 +44,7 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
     onDone,
     onOpenAlbum,
     onOpenArtist,
+    onPopTo,
 }) => {
     const { t } = useTranslation();
     const isPresent = useIsPresent();
@@ -66,6 +68,7 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
         setStatus,
     });
     const sessionKey = view.sessionKey;
+    const popTo = useBravaisPopTo(onPopTo);
     useLibraryArtistSurfaceRegistration({ isInteractive: isActive, getState: view.surfaceState, run: view.runSurface });
 
     // 过滤：命令面板的内联过滤框（锚点在缝里），墙用防抖、组词按住之后的过滤词，只筛专辑名。
@@ -168,9 +171,10 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
         onFocusEntry: callbacks.onFocusEntry,
         onBack: callbacks.onBack,
         onDone: callbacks.onDone,
+        onPopTo: popTo,
         wall,
         entries,
-    }), [callbacks, entries, focus.initialKey, isActive, items, mode, nowPlayingKey, queuedKeys, seam, sessionKey, wall]);
+    }), [callbacks, entries, focus.initialKey, isActive, items, mode, popTo, nowPlayingKey, queuedKeys, seam, sessionKey, wall]);
     useBravaisLayerRegistration('top', layer, isPresent);
 
     // 不可见的锚点：铺满但不接指针，画面全在 stage 里。Ponder 的 none 标记要有尺寸才参与解析。

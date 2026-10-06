@@ -20,6 +20,9 @@ export default {
     "seamExpand": "展开",
     "seamRestore": "展开信息条",
     "seamReopenHere": "在这里裂开",
+    "crumbMore": "显示全部层级",
+    "crumbSearch": "搜索",
+    "crumbPlayer": "播放页",
     "kind": {"track": "歌曲", "playlist": "歌单", "album": "专辑", "artist": "歌手", "folder": "文件夹", "feed": "电台"}
   },
   "libraryBravaisHome": {

@@ -1,0 +1,46 @@
+/* src/library/suites/bravais/bravaisCrumbs.css
+   缝里可点的面包屑（B11，BravaisSeamCrumbs）：每一项单独截断，当前层占剩下的宽度；「…」展开后整条换行显示全部层。
+   按钮沿用面包屑行的字号与颜色，悬停时变成墨色并加下划线。 */
+
+.bravais-seam-crumb-trail .bravais-seam-crumb {
+    min-width: 0;
+    max-width: 9em;
+    flex: 0 1 auto;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-seam-crumb-trail .bravais-seam-crumb.is-current,
+.bravais-seam-crumb-trail .bravais-seam-crumb.is-panel {
+    max-width: none;
+    flex: 0 1000 auto;
+}
+
+.bravais-seam-crumb-trail .bravais-seam-crumb.is-more { flex: none; }
+
+.bravais-seam-crumb-trail button.bravais-seam-crumb {
+    cursor: pointer;
+    text-underline-offset: 3px;
+}
+
+.bravais-seam-crumb-trail button.bravais-seam-crumb:hover,
+.bravais-seam-crumb-trail button.bravais-seam-crumb:focus-visible {
+    color: var(--text-primary, currentColor);
+    text-decoration: underline;
+    outline: none;
+}
+
+.bravais-seam-crumb-trail.is-expanded {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    white-space: normal;
+}
+
+.bravais-seam-crumb-trail.is-expanded .bravais-seam-crumb { max-width: 100%; }

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, type FormEvent, type KeyboardEvent } from 're
 import { Search, X } from 'lucide-react';
 import type { BravaisLayer } from './bravaisLayer';
 import { setBravaisSearchOpen } from './bravaisHomeUiStore';
+import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 
 // src/library/suites/bravais/BravaisSeamSearch.tsx
 // 首页缝里的全局搜索框（设计稿 §10.5「全局搜索的过渡方案」）：⌕ 或 `/` 把首页窄缝临时展开成完整宽度，输入框拿焦点。
@@ -33,10 +34,7 @@ const BravaisSeamSearch: React.FC<{ layer: BravaisLayer }> = ({ layer }) => {
     return (
         <div className="bravais-seam-search" data-bravais-search>
             <div className="bravais-seam-crumbs">
-                <span className="bravais-seam-crumb-trail">
-                    <span>{layer.seam.title}</span>
-                    <i>›</i><span>{search.title}</span>
-                </span>
+                <BravaisSeamCrumbs layer={layer} panelLabel={search.title} onClosePanel={close} />
                 <button type="button" className="bravais-seam-level" data-bravais-seam-action="close-search" onClick={close}>
                     {search.closeLabel}
                 </button>

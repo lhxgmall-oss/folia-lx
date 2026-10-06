@@ -20,6 +20,9 @@ export default {
     "seamExpand": "Expand",
     "seamRestore": "Expand the info strip",
     "seamReopenHere": "Split here",
+    "crumbMore": "Show every level",
+    "crumbSearch": "Search",
+    "crumbPlayer": "Now Playing",
     "kind": {"track": "Song", "playlist": "Playlist", "album": "Album", "artist": "Artist", "folder": "Folder", "feed": "Radio"}
   },
   "libraryBravaisHome": {
