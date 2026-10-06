@@ -22,6 +22,28 @@ import type {
 /** 默认 suite：任何 suite 没实现的 surface 都由它渲染，所以它必须实现全部 surface。 */
 export const DEFAULT_LIBRARY_SUITE_ID: LibrarySuiteId = 'grid';
 
+/** 没有构建变量覆盖时的初始选择（开发阶段为 bravais，发版前复核）。 */
+const LIBRARY_SUITE_INITIAL_CHOICE_FALLBACK: LibrarySuiteId = 'bravais';
+
+/**
+ * 初始选择的取值：构建变量（VITE_LIBRARY_INITIAL_SUITE）给了非空值就用它，否则用内置的初始选择。
+ * 这里不判断合法性——初始选择可以是当前构建里没有的 suite，渲染时照常经 registry 回退到默认 suite。
+ */
+export const resolveLibrarySuiteInitialChoice = (override: unknown): LibrarySuiteId => (
+    typeof override === 'string' && override.trim() ? override.trim() : LIBRARY_SUITE_INITIAL_CHOICE_FALLBACK
+);
+
+/**
+ * 初始选择：用户从没选过 suite（存储里没有记录）时 store 的初值。与默认 suite（回退 suite）是两回事：
+ * 默认 suite 负责兜底渲染，初始选择只是「没选过的人先看到哪套」。测试配置用 VITE_LIBRARY_INITIAL_SUITE=grid 钉住。
+ */
+export const LIBRARY_SUITE_INITIAL_CHOICE: LibrarySuiteId = resolveLibrarySuiteInitialChoice(
+    import.meta.env.VITE_LIBRARY_INITIAL_SUITE,
+);
+
+/** 可用的 suite 不止一套时才有得选（设置项、命令面板与 DEV 浮层都按它决定出不出现）。 */
+export const isLibrarySuiteChoiceAvailable = (suites: readonly unknown[]): boolean => suites.length > 1;
+
 export const LIBRARY_SURFACE_IDS: readonly LibrarySurfaceId[] = ['home', 'collection', 'artist', 'account'];
 
 /** 集合 surface 的全部动作（与 LibraryActionId 一一对应，单测核对）。 */
@@ -155,6 +177,8 @@ export type LibrarySuiteIndex = {
     defaultSuite: LibrarySuiteManifest;
     has: (suiteId: string) => boolean;
     get: (suiteId: string) => LibrarySuiteManifest | undefined;
+    /** 实际生效的 suite id：可用就是它自己，未知或当前构建不可用时是默认 suite。 */
+    resolveId: (suiteId: string) => LibrarySuiteId;
     /** 选中的 suite 实现了就用它，否则（或 id 未知）回退默认 suite。 */
     resolve: <Surface extends LibrarySurfaceId>(surface: Surface, suiteId: string) => ResolvedLibrarySuiteSurface<Surface>;
 };
@@ -237,6 +261,7 @@ export const buildLibrarySuiteIndex = (
         defaultSuite,
         has: suiteId => byId.has(suiteId),
         get: suiteId => byId.get(suiteId),
+        resolveId: suiteId => (byId.has(suiteId) ? suiteId : defaultSuite.id),
         resolve: <Surface extends LibrarySurfaceId>(surface: Surface, suiteId: string) => (
             (resolved.get(suiteId) ?? resolved.get(defaultSuite.id)!).get(surface) as unknown as ResolvedLibrarySuiteSurface<Surface>
         ),

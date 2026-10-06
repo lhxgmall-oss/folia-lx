@@ -350,16 +350,24 @@ TUI 的账户按键：
 
 账户层的按键在 window 的捕获阶段独占：不带修饰键的按键一律截住，底下的 TUI 页面、命令面板的打字即筛选和全局空格都收不到；带 Ctrl / Alt / Meta 的组合键与 Tab 放过。账户层可交互时挂 `data-folia-keyboard-window`，只在层显示着且首页外壳 `isInteractive` 为真时装监听。
 
-TUI 保留为 Library Core 的第二消费者和开发验证 suite。普通开发默认关闭，只注册 grid，切换浮层也不出现；不增加正式用户设置。要手动验证，显式启用：
+TUI 保留为 Library Core 的第二消费者和开发验证 suite。普通开发默认关闭，只注册 grid，切换浮层与「资料库界面」设置项都不出现。要手动验证，显式启用：
 
 ```sh
 npx cross-env VITE_LIBRARY_TUI=true npm run dev
 npx cross-env VITE_LIBRARY_TUI=true npm run dev:probe
 ```
 
-启用后，开发浮层可以在两套之间切换；切换不重新请求，筛选、选中、焦点与当前播放队列都保留。Vitest 的 `test.env` 和 Playwright 的 `webServer.command` 自动显式启用该 flag，参数化回归继续覆盖两套消费者；跑 Playwright 前应保持 4173 端口空闲，避免复用没有开启 TUI 的手动服务器。
+启用后，开发浮层和界面设置的「资料库界面」都可以在两套之间切换；切换不重新请求，筛选、选中、焦点与当前播放队列都保留。Vitest 的 `test.env` 和 Playwright 的 `webServer.command` 自动显式启用该 flag，参数化回归继续覆盖两套消费者；跑 Playwright 前应保持 4173 端口空闲，避免复用没有开启 TUI 的手动服务器。
 
 entry 用同一个 `import.meta.env.DEV && import.meta.env.VITE_LIBRARY_TUI === 'true'` 条件门控三套 lazy surface 与 `available`。生产构建的 DEV 为 false，即使 flag 误设为 true 仍不可用；关闭或未知 suite id 经真实 registry 回到同一个 grid 解析结果。启用/关闭/生产行为矩阵在 `test/unit/library/tuiAvailability.test.ts`，P5 已用显式 flag=true 的实际 Web 生产构建与浏览器预览确认排除，并核对 App / grid 模块作为正对照；以后修改 entry 时仍应核验实际产物。
+
+## 选哪套：设置项、初始选择与回退
+
+- **回退 suite**（`DEFAULT_LIBRARY_SUITE_ID = 'grid'`）：实现全部 surface，未知 id、缺 surface 时都由它渲染。
+- **初始选择**（`LIBRARY_SUITE_INITIAL_CHOICE`，`core/model/librarySuites.ts`）：用户从没选过时 `useLibrarySuiteStore` 的初值。开发阶段为 `bravais`，构建变量 `VITE_LIBRARY_INITIAL_SUITE` 可覆盖；Vitest 的 `test.env` 与 Playwright 的 `webServer.command` 把它钉在 `grid`。
+- **持久化**：store 只在用户选择时写 localStorage `library_suite`，没有记录就用初始选择，所以改初始选择会带走所有没选过的人。store 不校验 id（state 不 import registry），值可能是这个构建里没有的 suite，渲染照常回退。
+- **展示「当前」用生效的 suite**：`registry.resolveActiveLibrarySuiteId(store.suite)`（React 里用 `app/librarySuiteChoice` 的 `useActiveLibrarySuiteId`）。设置项、命令面板 picker、开发浮层都这样显示；`switchLibrarySuite` 比较的也是生效的 suite，选中已经生效的那套不算一次选择，不写存储。
+- **入口**：界面设置的 `LibrarySuiteSection`、命令面板的 `settings-library-suite`（锚点）与 `library-suite-picker`，都经 `chooseLibrarySuite` → `switchLibrarySuite(resolveCurrentLibrarySessionKey(), id)`；只有一套可用时（`hasLibrarySuiteChoice()` 为假）设置节、侧栏目录项与两条命令都不出现。不进外观配置的导入导出。
 
 ## 相关文件
 
