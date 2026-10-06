@@ -177,6 +177,12 @@ export type HomeProbeApi = {
     /** 与首页上 DEV 浮层的按钮同一条路径（switchLibrarySuite）。 */
     setSuite: (suiteId: string) => void;
 
+    // ---- suite 外观动作（suite-chrome，B6 起 bravais 有） ----
+    /** 此刻注册着外观动作的 suite，与它声明的动作里此刻可用的那些（命令面板列命令时问的是同一个句柄）。 */
+    chrome: () => { suiteId: string; available: string[] } | null;
+    /** 像在命令面板里执行这条外观命令一样执行它；没有注册者或此刻不可用时返回 false。 */
+    runChrome: (actionId: string) => boolean;
+
     // ---- 环境 ----
     /** 重新挂载整个首页（宿主 + Grid3D），模拟重启后回到首页（隐藏 store 先从存储重读）。 */
     remount: () => void;

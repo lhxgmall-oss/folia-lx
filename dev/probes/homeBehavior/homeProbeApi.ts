@@ -20,7 +20,8 @@ import { homeCardToDirectoryItem } from '../../../src/library/core/model/directo
 import { DEFAULT_DIRECTORY_SESSION_ID } from '../../../src/library/core/model/directorySession';
 import { useLibrarySuiteStore } from '../../../src/library/core/state/useLibrarySuiteStore';
 import { switchLibrarySuite } from '../../../src/library/app/switchLibrarySuite';
-import { listLibrarySuites, resolveLibrarySurface } from '../../../src/library/registry';
+import { getLibrarySuite, listLibrarySuites, resolveLibrarySurface } from '../../../src/library/registry';
+import { useLibrarySuiteChromeStore } from '../../../src/library/core/state/useLibrarySuiteChromeStore';
 import LibraryTuiDirectory from '../../../src/library/suites/tui/LibraryTuiDirectory';
 import { getLibraryDirectorySession, useLibraryDirectorySessionStore } from '../../../src/library/core/state/useLibraryDirectorySessionStore';
 import { useLibraryDirectorySurfaceStore } from '../../../src/library/core/state/useLibraryDirectorySurfaceStore';
@@ -243,6 +244,13 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
         suites: () => listLibrarySuites().map(suite => suite.id),
         // 与 DEV 浮层在首页上点到的同一条：switchLibrarySuite（首页没有集合会话要冲刷）。
         setSuite: suiteId => switchLibrarySuite('home', suiteId),
+        chrome: () => {
+            const handle = useLibrarySuiteChromeStore.getState().chrome;
+            if (!handle) return null;
+            const declared = getLibrarySuite(handle.suiteId)?.chromeActions ?? [];
+            return { suiteId: handle.suiteId, available: declared.map(action => action.id).filter(id => handle.isAvailable(id)) };
+        },
+        runChrome: actionId => useLibrarySuiteChromeStore.getState().chrome?.run(actionId) ?? false,
 
         tabs: readTabs,
         tab: () => useSearchNavigationStore.getState().homeViewTab as HomeTabKey,

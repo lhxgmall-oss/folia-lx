@@ -1356,7 +1356,12 @@ test.describe('renderer switch', () => {
 test.describe('suites', () => {
     test("the parameterised suite list is the registry's, and the old renderer names still work", async ({ mount, page }) => {
         await mountProbe(mount, page);
-        expect(await page.evaluate(() => window.__libraryProbe!.suites())).toEqual([...RENDERERS]);
+        // B6：bravais 已进 registry，但集合页的参数化在 B7（那时它声明齐集合页动作、补上探针要的语义标记）；
+        // B7 把它加进 RENDERERS 后删掉这份待参数化清单。
+        const pendingParameterisation = ['bravais'];
+        const suites = await page.evaluate(() => window.__libraryProbe!.suites());
+        expect(suites.filter(id => !pendingParameterisation.includes(id))).toEqual([...RENDERERS]);
+        expect(suites).toEqual(expect.arrayContaining(pendingParameterisation));
         await open(page, 'local-all');
         await waitForRenderer(page, 'grid');
         await page.evaluate(() => window.__libraryProbe!.setRenderer('tui'));
