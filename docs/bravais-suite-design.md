@@ -292,7 +292,7 @@ type BravaisTileKind =
 
 ## 7.5 视觉风格：对齐 Lattice（已定）
 
-bravais 和 Lattice 共用一套视觉语言，样式直接继承 `src/components/app/lattice/Lattice.css` / `LatticeChrome.css` / `LatticeFocusButton.css`，不另起调色板。
+bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不另起调色板：墙面、海报各状态与 `--lattice-*` 派生量在共享的 `src/components/wall/wall.css`（类名保留 `lattice-` 前缀），按钮与工具面板的样式在 `src/components/app/lattice/LatticeChrome.css` / `LatticeFocusButton.css`。
 
 - **主题**：只用 folia 的主题变量（`buildAppStyle` 写入的 `--bg-color` / `--text-primary` / `--text-secondary` / `--text-accent`）。派生量与 `.lattice-root` 相同（`--lattice-poster-background`、`--lattice-shade-rgb` 等），日光模式（`is-daylight`）切换整套派生量。
 - **墙面**：`--bg-color` 底，左上 accent 16%、右下 secondary 20% 两团光晕；soft-light 颗粒噪点（暗色 .13 / 日光 .07）；浅暗角（78% → 52%，日光 16%）。

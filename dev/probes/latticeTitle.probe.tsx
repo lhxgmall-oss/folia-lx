@@ -4,6 +4,7 @@ import { TitleFitterContext } from '../../src/hooks/useSettledTitle';
 import type { TitleMetrics } from '../../src/utils/fitSettledTitle';
 import { fitTitleToWidth } from '../../src/utils/fitSettledTitle';
 import type { ProbeDefinition } from './definition';
+import '../../src/components/wall/wall.css';
 import '../../src/components/app/lattice/Lattice.css';
 import '../../src/components/app/lattice/lyrics/LatticeLyrics.css';
 

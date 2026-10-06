@@ -11,6 +11,7 @@ import { buildLatticeTiles, type LatticeTile } from './latticeModel';
 import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { countRender } from '../../../dev/renderCount';
+import '../../wall/wall.css';
 import './Lattice.css';
 import LatticeLyricsProvider from './lyrics/LatticeLyricsProvider';
 import type { LatticeLyricSource } from './lyrics/types';
