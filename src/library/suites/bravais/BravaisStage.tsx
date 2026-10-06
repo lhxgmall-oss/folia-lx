@@ -191,11 +191,14 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         },
         play: itemKey => displayRef.current?.layer.onPlayItem?.(itemKey),
     }), [displayRef, focus.expand, focus.focusSlot, frameRef]);
-    // 浏览器后退 / 前进：面板开合跟着 history 记录上的标记走。
+    // 浏览器后退 / 前进：面板开合跟着 history 记录上的标记走。回到首页（导航栈空了）时面板一定收起。
     useEffect(() => {
         window.addEventListener('popstate', syncPanelWithHistory);
         return () => window.removeEventListener('popstate', syncPanelWithHistory);
     }, []);
+    useEffect(() => {
+        if (navigation.depth === 0 && useBravaisUiStore.getState().panelFor !== null) useBravaisUiStore.setState({ panelFor: null });
+    }, [navigation.depth]);
     // 过滤框里按 ↓：收起过滤框（过滤词保留），键盘焦点交给墙上的第 1 项（有限拼贴的 rank 0）。
     const { handleAction, focusWall } = interactions;
     useEffect(() => {

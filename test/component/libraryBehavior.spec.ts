@@ -35,6 +35,8 @@ import '../../dev/probes/libraryBehavior/probeApi';
 //
 // 与渲染形态无关的场景对网格和 TUI 各跑一遍（标题前缀 [grid] / [tui]）：两套 UI 共享同一份请求、
 // 结果、筛选和动作，这批用例就是验收。只有网格才有的交互（卡片按钮、侧栏、编辑、嵌套专辑）只跑网格。
+// B7 起 bravais 也在参数化的列表里（[bravais]）：它的墙是虚拟化、无限拼贴（同一条目有好几份副本），用例经列表面板
+// 或键盘焦点把条目带进视口；聚焦卡上第一次 Enter 展开、第二次才播放；Esc 是逐级的阶梯。
 
 const fixture = ONLINE_FIXTURES;
 const keysOf = (providerId: string, prefix: string, indexes: number[]) => (
@@ -56,7 +58,7 @@ const entrySelector = (itemKey: string, occurrence = 0) => (
  * 参数化用的 suite 列表（R3 之前叫 renderer）。Node 侧的用例 import 不了 registry（eager glob + React），
  * 所以写成常量，由下面「suites」里的用例与探针页里真实 registry 的列表核对。
  */
-const RENDERERS = ['grid', 'tui'] as const;
+const RENDERERS = ['grid', 'tui', 'bravais'] as const;
 type Renderer = typeof RENDERERS[number];
 
 const mountProbe = async (mount: (id: string) => Promise<unknown>, page: Page, renderer: Renderer = 'grid') => {
@@ -129,6 +131,48 @@ const waitForFilteredGrid = async (page: Page, hiddenKey: string) => {
 const pressOnGrid = async (page: Page, key: string) => {
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await page.keyboard.press(key);
+};
+
+/**
+ * 播放键盘焦点所在的那一首。网格与 TUI 按一次 Enter；bravais 的歌曲磁贴第一次 Enter 展开成聚焦卡、第二次才播放
+ * （已经展开着就只按一次）。
+ */
+const playFocused = async (page: Page, renderer: Renderer) => {
+    if (renderer !== 'bravais') {
+        await pressOnGrid(page, 'Enter');
+        return;
+    }
+    const focused = page.locator('.bravais-tile[data-bravais-focused]');
+    await expect(focused).toHaveCount(1);
+    if (!(await focused.getAttribute('data-bravais-expanded'))) {
+        await pressOnGrid(page, 'Enter');
+        await expect(page.locator('.bravais-tile[data-bravais-focused][data-bravais-expanded]')).toHaveCount(1);
+    }
+    await pressOnGrid(page, 'Enter');
+};
+
+/** bravais：打开缝里当前这一层的列表面板（已经开着就不动；换层时上一层的面板可能还在翻走，不算）。 */
+const openBravaisList = async (page: Page) => {
+    const layerKey = await page.locator('[data-library-stage="bravais"]').getAttribute('data-bravais-layer');
+    const panel = page.locator(`[data-bravais-list="${layerKey}"]`);
+    if (await panel.count() === 0) await page.locator('[data-bravais-seam-action="list"]').click();
+    await expect(panel).toBeVisible();
+};
+
+/** bravais：经列表面板定位一个条目（相机飞到离缝最近的一份并展开聚焦卡），返回那张聚焦卡所在的磁贴。 */
+const focusBravaisEntry = async (page: Page, itemKey: string, occurrence = 0) => {
+    await openBravaisList(page);
+    const entryKey = `${itemKey}-${occurrence}`;
+    await page.locator(`[data-bravais-list-row="${entryKey}"]`).click();
+    const card = page.locator(`.bravais-tile[data-bravais-expanded][data-library-entry="${entryKey}"]`);
+    await expect(card).toBeVisible();
+    return card;
+};
+
+/** 条目在界面上：网格与 TUI 恰好一份；bravais 的无限拼贴上可能有好几份副本，至少一份。 */
+const expectEntryShown = async (page: Page, renderer: Renderer, itemKey: string, occurrence = 0) => {
+    if (renderer === 'bravais') await expect(page.locator(entrySelector(itemKey, occurrence)).first()).toBeAttached();
+    else await expect(page.locator(entrySelector(itemKey, occurrence))).toHaveCount(1);
 };
 
 for (const renderer of RENDERERS) {
@@ -280,7 +324,9 @@ test.describe(`[${renderer}] filter, play and enqueue`, () => {
         await waitForScope(page, bigKeys('cedar').length);
         await waitForFilteredGrid(page, onlinePlaybackKey(PROBE_PROVIDER_A, 'big-0'));
 
-        await pressOnGrid(page, 'Enter');
+        // bravais 过滤时是有限拼贴：Home 落在 rank 0（第一个匹配项）。
+        if (renderer === 'bravais') await pressOnGrid(page, 'Home');
+        await playFocused(page, renderer);
         await expect.poll(() => calls(page, 'playSong')).toHaveLength(1);
         const played = await lastCall(page, 'playSong');
         expect(played?.ids).toEqual([bigKeys('cedar')[0]]);
@@ -306,10 +352,14 @@ test.describe(`[${renderer}] filter, play and enqueue`, () => {
 
     test('queueing the focused song routes online, local and Navidrome songs to their own enqueue path', async ({ mount, page }) => {
         await mountProbe(mount, page, renderer);
-        // 网格点卡片上的入队按钮；TUI 对焦点行按 Shift+Enter。两者都落到同一个播放端口。
+        // 网格点卡片上的入队按钮；TUI 对焦点行按 Shift+Enter；bravais 经列表面板聚焦它、点聚焦卡上的「加入队列」。
+        // 都落到同一个播放端口。
         const enqueueFocused = async (entryKey: string) => {
             if (renderer === 'grid') {
                 await page.locator(cardSelector(entryKey)).getByTitle('Add to Queue').click();
+            } else if (renderer === 'bravais') {
+                const card = await focusBravaisEntry(page, entryKey);
+                await card.locator('[data-bravais-action="enqueue"]').click();
             } else {
                 await expect(page.locator(entrySelector(entryKey))).toHaveAttribute('aria-selected', 'true');
                 await pressOnGrid(page, 'Shift+Enter');
@@ -392,10 +442,17 @@ test.describe(`[${renderer}] filter, play and enqueue`, () => {
 }
 
 /**
- * 删一个条目：网格进编辑模式点卡片上的删除按钮，TUI 点一下那一行（移动焦点）再按 Delete。
- * 两者都落到同一个变更控制器，所以下面的请求账、结果条数与 play-filtered 断言对两边相同。
+ * 删一个条目：网格进编辑模式点卡片上的删除按钮，TUI 点一下那一行（移动焦点）再按 Delete，bravais 经列表面板聚焦它、
+ * 点聚焦卡右上角「⋯」里的「移出歌单」（每日推荐是「不喜欢」）。
+ * 都落到同一个变更控制器，所以下面的请求账、结果条数与 play-filtered 断言对三边相同。
  */
 const removeEntry = async (page: Page, renderer: Renderer, itemKey: string, occurrence = 0) => {
+    if (renderer === 'bravais') {
+        const card = await focusBravaisEntry(page, itemKey, occurrence);
+        await card.locator('[data-bravais-action="more"]').click();
+        await card.locator('[data-bravais-action="remove-entry"]').click();
+        return;
+    }
     if (renderer === 'grid') {
         if (!(await surface(page))?.isEditMode) {
             await expect.poll(async () => (await surface(page))?.availableActions.includes('toggle-edit-mode')).toBe(true);
@@ -412,24 +469,26 @@ const removeEntry = async (page: Page, renderer: Renderer, itemKey: string, occu
     await pressOnGrid(page, 'Delete');
 };
 
-/** 同一个条目再提交一次（网格再点一次删除按钮，TUI 再按一次 Delete），不等结果。 */
+/** 同一个条目再提交一次（网格再点一次删除按钮，TUI 再按一次 Delete，bravais 再走一遍「⋯ → 移出」），不等结果。 */
 const removeAgain = async (page: Page, renderer: Renderer, itemKey: string, occurrence = 0) => {
-    if (renderer === 'grid') {
+    if (renderer === 'bravais') {
+        await removeEntry(page, renderer, itemKey, occurrence);
+    } else if (renderer === 'grid') {
         await page.locator(cardSelector(itemKey, occurrence)).locator('button.bg-red-500').click();
     } else {
         await pressOnGrid(page, 'Delete');
     }
 };
 
-/** 订阅星标：网格在信息面板的封面上，TUI 在状态栏上；两者的 title 是同一句。 */
+/** 订阅星标：网格在信息面板的封面上，TUI 在状态栏上，bravais 在缝里标题下面；title 是同一句。 */
 const showSubscribeButton = async (page: Page, renderer: Renderer) => {
     if (renderer === 'grid' && !(await surface(page))?.isInfoPanelOpen) {
         expect(await runSurface(page, 'toggle-info-panel')).toBe(true);
     }
 };
-/** 当前 suite 里的那个星标（换 suite 时旧的那一层可能还在退场）。 */
+/** 当前 suite 里的那个星标（换 suite 时旧的那一层可能还在退场）。bravais 的画面在 stage 里，不在 surface 的锚点里。 */
 const subscribeButton = (page: Page, renderer: Renderer, title: 'Subscribe Playlist' | 'Unsubscribe Playlist') => (
-    page.locator(`[data-library-renderer="${renderer}"]`).getByTitle(title)
+    page.locator(renderer === 'bravais' ? '[data-library-stage="bravais"]' : `[data-library-renderer="${renderer}"]`).getByTitle(title)
 );
 
 for (const renderer of RENDERERS) {
@@ -510,7 +569,7 @@ test.describe(`[${renderer}] edits`, () => {
         await mountProbe(mount, page, renderer);
         await open(page, 'online-owned-twice');
         await waitForScope(page, 12);
-        await expect(page.locator(entrySelector(songKey, 1))).toHaveCount(1);
+        await expectEntryShown(page, renderer, songKey, 1);
         await clearLog(page);
 
         await removeEntry(page, renderer, songKey, 1);
@@ -530,7 +589,7 @@ test.describe(`[${renderer}] edits`, () => {
         await expect.poll(() => requests(page, 'updatePlaylist', 'navi-pl-2')).toHaveLength(1);
         expect((await requests(page, 'updatePlaylist', 'navi-pl-2'))[0]?.ids).toEqual(['2']);
         await waitForScope(page, 3);
-        await expect(page.locator(entrySelector('navidrome:navi-song-21', 0))).toHaveCount(1);
+        await expectEntryShown(page, renderer, 'navidrome:navi-song-21', 0);
         await expect(page.locator(entrySelector('navidrome:navi-song-21', 1))).toHaveCount(0);
         expect(await playFilteredIds(page)).toEqual(['navidrome:navi-song-21', 'navidrome:navi-song-22', 'navidrome:navi-song-23']);
     });
@@ -584,9 +643,9 @@ test.describe(`[${renderer}] edits`, () => {
         await removeEntry(page, renderer, removedKey);
         await expect.poll(() => requests(page, 'updatePlaylistTracks:del', target)).toHaveLength(1);
         await page.evaluate(() => window.__libraryProbe!.releasePages('online-owned-dupes'));
-        // 删除还在路上。TUI 立即追加那一页（这首此刻还在上游）；网格发起删除时按住了展示，
-        // 这一页暂存，等删除结束和删除一起提交（最新的赢）。
-        if (renderer === 'tui') {
+        // 删除还在路上。TUI 与 bravais 立即追加那一页（这首此刻还在上游；bravais 只在展示层按住翻牌的旧帧，
+        // core 不等动画）；网格发起删除时按住了展示，这一页暂存，等删除结束和删除一起提交（最新的赢）。
+        if (renderer !== 'grid') {
             await waitForScope(page, expectedPlayableIndexes(expectedLoadedIndexes(rule.rawIndexes)).length);
         } else {
             await page.waitForTimeout(500);
@@ -653,6 +712,11 @@ test.describe(`[${renderer}] edits`, () => {
             await expect.poll(async () => (await surface(page))?.availableActions.includes('toggle-edit-mode')).toBe(true);
             expect(await runSurface(page, 'toggle-edit-mode')).toBe(true);
             input = page.locator('.theme-glass-panel input');
+        } else if (renderer === 'bravais') {
+            // bravais：缝的「⋯ 更多 → 改名」，缝原地翻成表单态。
+            await page.locator('[data-bravais-seam-action="more"]').click();
+            await page.locator('[data-bravais-seam-menu] [data-bravais-seam-action="rename"]').click();
+            input = page.locator('[data-bravais-form="rename"] input');
         } else {
             await page.locator('[data-tui-action="rename"]').click();
             input = page.locator('[data-tui-prompt="rename"] input');
@@ -666,6 +730,9 @@ test.describe(`[${renderer}] edits`, () => {
         if (renderer === 'grid') {
             await expect.poll(async () => (await surface(page))?.isEditMode).toBe(false);
             await expect(page.locator('h2', { hasText: 'Renamed Navi' })).toBeVisible();
+        } else if (renderer === 'bravais') {
+            await expect(page.locator('[data-bravais-form]')).toHaveCount(0);
+            await expect(page.locator('[data-bravais-seam-title]')).toHaveText('Renamed Navi');
         } else {
             await expect(page.locator('[data-tui-prompt]')).toHaveCount(0);
             await expect(page.locator('[data-tui-title]')).toHaveText('Renamed Navi');
@@ -682,6 +749,12 @@ test.describe(`[${renderer}] edits`, () => {
             expect(await runSurface(page, 'toggle-info-panel')).toBe(true);
             // 探针视口里 DEV 的 suite 切换浮层压在信息面板底部的按钮上，直接派发点击。
             await page.getByRole('button', { name: 'Delete Playlist' }).dispatchEvent('click');
+        } else if (renderer === 'bravais') {
+            // bravais：「⋯ 更多 → 删除」，缝翻成确认态，确认按钮拿到焦点（Enter 确认）。
+            await page.locator('[data-bravais-seam-action="more"]').click();
+            await page.locator('[data-bravais-seam-menu] [data-bravais-seam-action="delete-collection"]').click();
+            await expect(page.locator('[data-bravais-form="confirm-delete"] [data-bravais-form-action="confirm"]')).toBeFocused();
+            await page.keyboard.press('Enter');
         } else {
             await page.locator('[data-tui-action="delete-collection"]').click();
             // TUI 先确认（行内提示，Enter 确认）。
@@ -917,18 +990,23 @@ test.describe('navigation', () => {
 // 打开时压入的描述由宿主解析；压栈之前两套都把焦点写回会话，返回之后焦点回到那一项。
 for (const renderer of RENDERERS) {
 test.describe(`[${renderer}] nested opens from collection entries`, () => {
-    /** 一个条目上的歌手 / 专辑链接：网格是卡片上的名字（多位歌手时名字后面带逗号），TUI 是那一行上的按钮。 */
+    /**
+     * 一个条目上的歌手 / 专辑链接：网格是卡片上的名字（多位歌手时名字后面带逗号），TUI 是那一行上的按钮，
+     * bravais 是聚焦卡上的文字链接。
+     */
     const entryLink = (page: Page, entryKey: string, name: string) => (
         renderer === 'grid'
             ? page.locator(cardSelector(entryKey)).getByText(new RegExp(`^${name},?$`)).first()
-            : page.locator(`[data-library-entry="${entryKey}-0"]`).getByRole('button', { name, exact: true })
+            : renderer === 'bravais'
+                ? page.locator(`[data-bravais-focus-card="${entryKey}-0"]`).getByRole('button', { name, exact: true })
+                : page.locator(`[data-library-entry="${entryKey}-0"]`).getByRole('button', { name, exact: true })
     );
     /** 把焦点挪离第一项再播放它：返回这一项的条目键（同时把焦点写进了会话）。 */
     const focusAwayFromFirst = async (page: Page) => {
-        await pressOnGrid(page, renderer === 'grid' ? 'ArrowRight' : 'ArrowDown');
+        await pressOnGrid(page, renderer === 'tui' ? 'ArrowDown' : 'ArrowRight');
         await page.waitForTimeout(400);
         await clearLog(page);
-        await pressOnGrid(page, 'Enter');
+        await playFocused(page, renderer);
         await expect.poll(() => calls(page, 'playSong')).toHaveLength(1);
         return (await lastCall(page, 'playSong'))!.ids[0];
     };
@@ -940,7 +1018,7 @@ test.describe(`[${renderer}] nested opens from collection entries`, () => {
         await waitForScope(page, scope);
         await page.waitForTimeout(400);
         await clearLog(page);
-        await pressOnGrid(page, 'Enter');
+        await playFocused(page, renderer);
         await expect.poll(() => calls(page, 'playSong')).toHaveLength(1);
         expect((await lastCall(page, 'playSong'))?.ids).toEqual([focusedKey]);
     };
@@ -962,7 +1040,9 @@ test.describe(`[${renderer}] nested opens from collection entries`, () => {
         await entryLink(page, focusedKey, 'Probe Artist').dispatchEvent('click');
         await expect.poll(() => stack(page)).toEqual(['Public Playlist', 'Probe Artist']);
         expect(await topDescriptor(page)).toEqual({ source: 'online', providerId: PROBE_PROVIDER_A, type: 'artist', id: 'ar-1', name: 'Probe Artist' });
-        await expect(page.locator(`[data-library-surface="artist"][data-library-renderer="${renderer}"]`)).toHaveCount(1);
+        // bravais 的歌手页在 B8；在那之前歌手页回退给网格渲染。
+        const artistRenderer = renderer === 'bravais' ? 'grid' : renderer;
+        await expect(page.locator(`[data-library-surface="artist"][data-library-renderer="${artistRenderer}"]`)).toHaveCount(1);
         await backToFocus(page, 'Public Playlist', scope, focusedKey);
     });
 
@@ -1074,9 +1154,11 @@ const browseSession = (page: Page, sessionKey = PUBLIC_SESSION_KEY) => (
 const gridLayoutRecord = (page: Page, sessionKey = PUBLIC_SESSION_KEY) => (
     page.evaluate(key => sessionStorage.getItem(`folia_gridview_state:v2:${key}`), sessionKey)
 );
-/** 显式的返回按钮：网格是左上角的圆形按钮，TUI 是状态栏的 [← Back]。 */
+/** 显式的返回按钮：网格是左上角的圆形按钮，TUI 是状态栏的 [← Back]，bravais 是缝面包屑行的 ‹。 */
 const pressBackButton = async (page: Page, renderer: Renderer) => {
-    if (renderer === 'grid') {
+    if (renderer === 'bravais') {
+        await page.locator('[data-library-stage="bravais"] [data-bravais-seam-action="back"]').click();
+    } else if (renderer === 'grid') {
         await page.locator('[data-library-renderer="grid"] button').filter({ has: page.locator('svg.lucide-chevron-left') }).first().click();
     } else {
         await page.locator('[data-library-renderer="tui"] [data-tui-back]').click();
@@ -1094,10 +1176,10 @@ test.describe(`[${renderer}] done and leave`, () => {
             await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes, query).length);
             await page.waitForTimeout(400);
         }
-        await pressOnGrid(page, renderer === 'grid' ? 'ArrowRight' : 'ArrowDown');
+        await pressOnGrid(page, renderer === 'tui' ? 'ArrowDown' : 'ArrowRight');
         await page.waitForTimeout(400);
         await clearLog(page);
-        await pressOnGrid(page, 'Enter');
+        await playFocused(page, renderer);
         await expect.poll(() => calls(page, 'playSong')).toHaveLength(1);
         const focusedKey = (await lastCall(page, 'playSong'))!.ids[0];
         await expect.poll(async () => (await browseSession(page))?.focusedEntryKey).toBe(`${focusedKey}-0`);
@@ -1118,7 +1200,11 @@ test.describe(`[${renderer}] done and leave`, () => {
     test('Escape keeps the focus (the ladder only clears the filter first)', async ({ mount, page }) => {
         await mountProbe(mount, page, renderer);
         const focusedKey = await openFilteredAndFocus(page, null);
-        await pressOnGrid(page, 'Escape');
+        // bravais 的 Esc 是逐级的阶梯（聚焦卡 → 键盘焦点 → 返回），每按一次只处理一级。
+        for (let press = 0; press < (renderer === 'bravais' ? 4 : 1); press += 1) {
+            if ((await stack(page)).length === 0) break;
+            await pressOnGrid(page, 'Escape');
+        }
         await expect.poll(() => stack(page)).toEqual([]);
         await expect(page.locator('[data-library-renderer]')).toHaveCount(0);
         expect((await browseSession(page))?.focusedEntryKey).toBe(`${focusedKey}-0`);
@@ -1356,12 +1442,8 @@ test.describe('renderer switch', () => {
 test.describe('suites', () => {
     test("the parameterised suite list is the registry's, and the old renderer names still work", async ({ mount, page }) => {
         await mountProbe(mount, page);
-        // B6：bravais 已进 registry，但集合页的参数化在 B7（那时它声明齐集合页动作、补上探针要的语义标记）；
-        // B7 把它加进 RENDERERS 后删掉这份待参数化清单。
-        const pendingParameterisation = ['bravais'];
         const suites = await page.evaluate(() => window.__libraryProbe!.suites());
-        expect(suites.filter(id => !pendingParameterisation.includes(id))).toEqual([...RENDERERS]);
-        expect(suites).toEqual(expect.arrayContaining(pendingParameterisation));
+        expect([...suites].sort()).toEqual([...RENDERERS].sort());
         await open(page, 'local-all');
         await waitForRenderer(page, 'grid');
         await page.evaluate(() => window.__libraryProbe!.setRenderer('tui'));
