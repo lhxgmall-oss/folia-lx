@@ -3,6 +3,7 @@ import type {
     LibraryDeclaredActions,
     LibrarySuiteId,
     LibrarySuiteManifest,
+    LibrarySuiteStageProps,
     LibrarySuiteTransitions,
     LibrarySurfaceId,
     LibrarySurfacePropsMap,
@@ -99,6 +100,21 @@ export const listLibrarySuiteOverlays = (): ReadonlyArray<{
         ? [{ suiteId: suite.id, Overlay: suite.transitions.Overlay as unknown as React.ComponentType<{ enabled: boolean }> }]
         : []
 ));
+
+export type ResolvedLibraryStage = {
+    /** stage 所属的 suite（就是生效的 suite）。 */
+    suiteId: LibrarySuiteId;
+    component: React.ComponentType<LibrarySuiteStageProps>;
+};
+
+/**
+ * 生效 suite 的 stage（B1）：宿主只挂这一个。id 未知或不可用时生效的是默认 suite（grid 没有 stage），结果为 null；
+ * 选中的 suite 没声明 stage 也是 null（stage 属于整套 suite，不回退）。同一套 suite 总是同一个对象。
+ */
+export const resolveLibraryStage = (suiteId: string): ResolvedLibraryStage | null => (
+    // 契约里的组件只是结构化的最小类型；entry 里放的是 React 组件（非默认 suite 为 lazy），这里只还原类型。
+    SUITE_INDEX.resolveStage(suiteId) as unknown as ResolvedLibraryStage | null
+);
 
 /**
  * 「完成」（返回按钮）时忘掉这一层的布局记录：问**每一套**可用的 suite，不只是正在渲染它的那套
