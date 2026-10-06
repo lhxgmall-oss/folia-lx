@@ -145,12 +145,12 @@ const BravaisListPanel: React.FC<{ layer: BravaisLayer; depth: number; actions: 
             <div className="bravais-seam-actions">
                 {seam.onPlayScope && (
                     <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                        <Play aria-hidden />{t('libraryBravais.playAll')}
+                        <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
                     </button>
                 )}
                 {seam.onEnqueueScope && (
                     <button type="button" className="bravais-chrome-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
-                        <ListPlus aria-hidden />{t('libraryBravais.enqueueAll')}
+                        <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
                     </button>
                 )}
             </div>

@@ -97,7 +97,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
             viewportWidth: frameRef.current.view?.width ?? window.innerWidth,
             formOpen: Boolean(target.seam.collection?.form),
             panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
-            filterOpen: current.filterOpen && target.surface === 'collection',
+            filterOpen: current.filterOpen && target.surface !== 'home',
         };
     }, [frameRef]);
     const seamTarget = layer
