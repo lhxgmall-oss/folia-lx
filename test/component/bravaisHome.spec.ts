@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import type { ProbeCallKind } from '../../dev/probes/libraryBehavior/probeLog';
-import { HOME_FM_COUNT, HOME_FM_PREFIX, onlinePlaybackKey, onlineSongId, PROBE_PROVIDER_A } from '../../dev/probes/libraryBehavior/fixtureRules';
+import { HOME_FM_COUNT, HOME_FM_PREFIX, onlinePlaybackKey, onlineSongId, PROBE_PROVIDER_A, PROBE_PROVIDER_B } from '../../dev/probes/libraryBehavior/fixtureRules';
 import { HOME_LOCAL_FOLDER_IDS, homeFolderId } from '../../dev/probes/homeBehavior/homeFixtureRules';
 import { buildServiceStubModule, LOCAL_MUSIC_SERVICE_ROUTE } from '../../dev/probes/homeBehavior/serviceStubModule';
 import '../../dev/probes/homeBehavior/probeApi';
@@ -403,5 +403,96 @@ test.describe('[bravais-only] whole-wall entrance and exit from a source', () =>
         const shared = Object.keys(before).filter(slot => slot in after);
         expect(shared.length).toBeGreaterThan(0);
         for (const slot of shared) expect(after[slot], slot).toBe(before[slot]);
+    });
+});
+
+// 合并 B10：账户的登录态 / 确认态不属于任何一层——换层（压栈、返回、来源整墙入场 / 出场，降低动效时的淡入淡出）途中与
+// 之后缝都还是账户变体，面包屑不出现；切 suite 的 reset 不碰账户表单；答复后缝回到当前层自己的开口（面包屑回来）。
+test.describe('[bravais-only] the account seam over layer shifts', () => {
+    const confirmForm = (page: Page) => seam(page).locator('[data-bravais-account-confirm]');
+    const askSwitch = async (page: Page) => {
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        await seam(page).locator(`[data-bravais-account-provider="${PROBE_PROVIDER_B}"] [role="menuitemradio"]`).click();
+        await expect(confirmForm(page)).toHaveAttribute('data-bravais-account-confirm', PROBE_PROVIDER_B);
+    };
+    const expectAccountSeam = async (page: Page) => {
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'confirm');
+        await expect(confirmForm(page)).toBeVisible();
+        await expect(seam(page).locator('[data-bravais-crumbs]')).toHaveCount(0);
+    };
+    const closeAll = (page: Page) => page.evaluate(async () => {
+        const modulePath = '/src/stores/useCollectionNavigationStore.ts';
+        const { notifyCollectionPop, useCollectionNavigationStore } = await import(/* @vite-ignore */ modulePath);
+        notifyCollectionPop(null);
+        useCollectionNavigationStore.getState().clear();
+    });
+    const openFromSearch = (page: Page, descriptor: unknown) => page.evaluate(async collection => {
+        const modulePath = '/src/stores/useCollectionNavigationStore.ts';
+        const { useCollectionNavigationStore } = await import(/* @vite-ignore */ modulePath);
+        useCollectionNavigationStore.getState().openRoot(collection, 'search');
+    }, descriptor);
+    const firstDescriptor = (page: Page) => page.evaluate(async () => {
+        const modulePath = '/src/stores/useCollectionNavigationStore.ts';
+        const { useCollectionNavigationStore } = await import(/* @vite-ignore */ modulePath);
+        return useCollectionNavigationStore.getState().snapshot!.stack[0] as unknown;
+    });
+
+    const walkShifts = async (page: Page) => {
+        await askSwitch(page);
+        await expectAccountSeam(page);
+
+        // 压栈（首页卡片）→ 返回：缝一直是确认态。
+        await card(page, 'card:playlist:owned').locator('article').dispatchEvent('click');
+        await expect.poll(async () => (await stack(page)).length).toBe(1);
+        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'push');
+        await expectAccountSeam(page);
+        await settled(page);
+        await expectAccountSeam(page);
+        const descriptor = await firstDescriptor(page);
+        await closeAll(page);
+        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'back');
+        await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:playlist');
+        await expectAccountSeam(page);
+        await settled(page);
+
+        // 来源是搜索：整墙入场 → 出场，缝同样不动。
+        await openFromSearch(page, descriptor);
+        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'enter');
+        await expectAccountSeam(page);
+        await settled(page);
+        await expectAccountSeam(page);
+        await closeAll(page);
+        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'exit');
+        await expectAccountSeam(page);
+        await settled(page);
+
+        // 切 suite 时宿主调的 reset 只丢起点磁贴，不碰账户表单。
+        await page.evaluate(async () => {
+            const modulePath = '/src/library/suites/bravais/bravaisTransitions.ts';
+            const { resetBravaisTransitions } = await import(/* @vite-ignore */ modulePath);
+            resetBravaisTransitions();
+        });
+        await expectAccountSeam(page);
+
+        // 再从搜索打开、在集合层上答复：缝回到集合层的完整信息条，面包屑回来（根是 Search）。
+        await openFromSearch(page, descriptor);
+        await expectAccountSeam(page);
+        await settled(page);
+        await confirmForm(page).locator('[data-bravais-form-action="cancel"]').click();
+        await expect(confirmForm(page)).toHaveCount(0);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'full');
+        await expect(seam(page).locator('[data-bravais-crumb="root"]')).toHaveText('Search');
+        expect(await page.evaluate(() => window.__homeProbe!.activeProvider())).toBe(PROBE_PROVIDER_A);
+    };
+
+    test('a pending switch keeps the seam through push, back and a whole-wall entrance / exit; crumbs return after the answer', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        await walkShifts(page);
+    });
+
+    test('with reduced motion the fades leave the account seam in place too', async ({ mount, page }) => {
+        await page.addInitScript(() => localStorage.setItem('reduce_motion_lattice', 'true'));
+        await mountBravais(mount, page);
+        await walkShifts(page);
     });
 });
