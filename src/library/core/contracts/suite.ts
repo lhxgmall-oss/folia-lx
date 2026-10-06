@@ -180,6 +180,13 @@ export type LibraryCollectionNavigation = {
     /** album 是界面上已有的专辑摘要（名字、封面、目录引用），track 是触发它的那首歌（在线集合按它解析目录）。 */
     onOpenAlbum: (albumId: number | string, album?: LibraryCatalogLinkHint, track?: SongResult) => void;
     onOpenArtist: (artistId: number | string, artist?: LibraryCatalogLinkHint, track?: SongResult) => void;
+    /**
+     * 跳到导航栈的第 depth 层（面包屑点击）：depth 是保留的层数，与 LibraryNavigationContext.depth 同一种量，
+     * 0 表示整个关掉；不比当前浅时什么都不做；栈里有重复的集合时按位置算。宿主经浏览器历史退回（与浏览器后退同路），
+     * beforeBack 由宿主在弹栈前跑一次，suite 不要自己再跑。打开的专辑 / 歌手（onOpenAlbum / onOpenArtist）正好是上一层时
+     * 同样是一次返回（N1 折叠紧邻往返），更早的层照常压栈。
+     */
+    onPopTo?: (depth: number) => void;
 };
 
 /** 打开专辑 / 歌手时界面上已有的摘要；在线集合的条目原样带着 provider 的字段。 */

@@ -664,6 +664,7 @@ export default function App() {
         closeSearchView,
         navigateToCollection,
         pushCollection,
+        popCollectionTo,
         backCollection,
     } = useAppNavigation();
     const reduceLatticeMotion = useReducedMotionFor('lattice');
@@ -2155,6 +2156,7 @@ export default function App() {
         onStatusMessage: setStatusMsg,
         onOpenCollection: openHomeCollection,
         onPushCollection: pushCollection,
+        onPopCollectionTo: popCollectionTo,
         onBackCollection: backCollection,
     });
     const playerDisplayCatalogIndex = useMemo(() => buildLocalLibraryIndex(
