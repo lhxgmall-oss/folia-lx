@@ -368,3 +368,70 @@
 
 :root[data-reduce-motion~='lattice'] .bravais-tile.is-reflowing,
 :root[data-reduce-motion~='lattice'] .bravais-tile-face { transition: none; }
+
+/* ---------- 透光（B6b③，设计稿 §11）：实色底板、窗、全透明的标题磁贴、半透明的缝 ---------- */
+
+/* 墙面（与 wall.css 的 .lattice-root 同一身：两团主题光晕 + 底色）。实色档画在根节点上；透明档根节点不画底，
+   换成世界层之下的全屏底板（不透明、不 blur），遮罩只在窗位挖洞，露出下面的 visualizer。 */
+.bravais-root {
+    --bravais-wall-surface:
+        radial-gradient(circle at 14% 12%, color-mix(in srgb, var(--text-accent, #fd5c47) 16%, transparent), transparent 29%),
+        radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--text-secondary, #6a48ff) 20%, transparent), transparent 32%),
+        var(--bg-color, #070707);
+    /* 窗里 visualizer 没有画面时（没在播放、静止、暂停）垫的一层很淡的光晕，有画面时被它盖过。 */
+    --bravais-window-glow:
+        radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--text-accent, #fd5c47) 9%, transparent), transparent 70%);
+}
+
+.bravais-root.is-see-through {
+    background: transparent;
+    /* 缝的纸条换成与底板同色的半透明材质（不 blur 时用较浓的一档；blur 由 BRAVAIS_SEAM_ACRYLIC_BLUR 决定，待换机实测）。 */
+    --bravais-seam-paper: color-mix(in srgb, color-mix(in srgb, var(--bg-color, #070707) 90%, var(--text-primary, #f7f4ee)) 80%, transparent);
+}
+
+.bravais-root.has-seam-blur .bravais-seam,
+.bravais-root.has-seam-blur .bravais-seam-tab {
+    backdrop-filter: blur(18px);
+}
+
+/* 主底板与局部底板：遮罩由 stage 写（mask-image 只在洞变了时换，mask-position / -size 每帧跟相机）。
+   mask-composite：第一层底色减去其余各层（洞）的并集。 */
+.bravais-plate {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--bravais-wall-surface);
+    mask-repeat: no-repeat;
+    mask-composite: subtract, add, add, add;
+}
+
+/* 窗：没有内容、不可聚焦、不可点；内容层透明，只垫一层很淡的光晕。 */
+.lattice-poster.bravais-tile-face.is-window {
+    cursor: default;
+    background: var(--bravais-window-glow);
+    box-shadow: none;
+    filter: none;
+}
+
+.lattice-poster.bravais-tile-face.is-window::after { display: none; }
+
+.bravais-root .bravais-tile:hover > .bravais-tile-face.is-window { transform: none; }
+
+/* 全透明：墙上的内容磁贴不画封面，只留 Lattice 的标题排版与 scrim（--lattice-shade-rgb 跟日光翻转），
+   底部一条封面底条保留辨识度；正在播放的强调色描边照常（.is-current::before）。聚焦卡（展开的那张）照常画封面。 */
+.lattice-poster.bravais-tile-face.is-see-through {
+    background: var(--bravais-window-glow);
+}
+
+.bravais-tile-strip {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1;
+    height: 6px;
+    background-color: color-mix(in srgb, var(--text-primary, #f7f4ee) 18%, transparent);
+    background-position: center;
+    background-size: 100% 100%;
+    pointer-events: none;
+}

@@ -111,5 +111,6 @@ export const findDisplayItemSlot = (
         periodCount: layerPeriodCount(display.layer),
         wrapOffset: display.wrapOffset,
         near,
+        reservedPerBlock: display.reservedPerBlock,
     });
 };

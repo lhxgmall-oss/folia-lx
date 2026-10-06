@@ -18,38 +18,46 @@ export type BravaisFiniteState = {
     /** 规划时缝锚点的世界 x 与相机 y（rank 的原点）。 */
     origin: { x: number; y: number };
     capacity: number;
+    /** B6b③：规划时跳过的每块结构窗数（部分透明档的 k，其余为 0）；rank 顺序不含这些窗位。 */
+    reservedPerBlock: number;
     order: readonly WallSlot[];
     rankOfSlot: ReadonlyMap<string, number>;
 };
 
-/** 以缝为中心规划有限拼贴：`count` 是层的全量条目数（过滤前），世界至少铺满当前视口。 */
+/**
+ * 以缝为中心规划有限拼贴：`count` 是层的全量条目数（过滤前），世界至少铺满当前视口。`reservedPerBlock` 是部分透明档
+ * 每块的结构窗数（B6b③）：rank i → 第 i 个非窗 slot，容量相应变小；须与显示的 `reservedPerBlock` 一致。
+ */
 export const planBravaisFinite = ({
     count,
     anchorX,
     center,
     view,
+    reservedPerBlock = 0,
 }: {
     count: number;
     anchorX: number | null;
     center: WallViewCenter;
     view: WallView;
+    reservedPerBlock?: number;
 }): BravaisFiniteState => {
     const origin = { x: anchorX ?? center.x, y: center.y };
-    const plan = planFiniteWall({ itemCount: count, metrics: BRAVAIS_METRICS, view, origin, viewCenter: center });
-    return { origin, capacity: plan.capacity, order: plan.order, rankOfSlot: plan.rankOfSlot };
+    const plan = planFiniteWall({ itemCount: count, metrics: BRAVAIS_METRICS, view, origin, viewCenter: center, reservedPerBlock });
+    return { origin, capacity: plan.capacity, reservedPerBlock, order: plan.order, rankOfSlot: plan.rankOfSlot };
 };
 
 /**
  * 还能不能沿用上一次的规划：缝换了块边界（orderStale，设计稿 §5「在当前视口另开一道缝」）、条目数超出了容量时重新规划；
- * 只是过滤词变了（N 变了）就沿用，严格 rank 的位置因此不变。
+ * 只是过滤词变了（N 变了）就沿用，严格 rank 的位置因此不变。透光换档 / 换窗数（每块窗数变了）也重新规划。
  */
 export const canReuseFinitePlan = (
     previous: BravaisFiniteState | null | undefined,
-    { anchorX, count }: { anchorX: number | null; count: number },
+    { anchorX, count, reservedPerBlock = 0 }: { anchorX: number | null; count: number; reservedPerBlock?: number },
 ): previous is BravaisFiniteState => Boolean(
     previous
     && anchorX !== null
     && previous.origin.x === anchorX
+    && previous.reservedPerBlock === reservedPerBlock
     && count <= previous.capacity,
 );
 

@@ -1,9 +1,21 @@
 import type { FlipOrigin, FlipPlan, FlipSlotChange } from '../../../components/wall/flipPlan';
+import { getBlockReservedMask } from '../../../components/wall/blockReservedSlots';
 import { getInfiniteSlotItem, getStartWrapOffset } from '../../../components/wall/startTile';
 import { layoutFocusedBlock, parseWallSlotKey, wallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
+import type { LibraryWallLook } from '../../../utils/libraryWallLook';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
 import { resolveFiniteRank, type BravaisFiniteState } from './bravaisFiniteWall';
+import {
+    bravaisFaceKey,
+    isSeeThroughFace,
+    resolveEmptySlotKind,
+    resolveReservedPerBlock,
+    resolveStartSlotKey,
+    SOLID_WALL_LOOK,
+    type BravaisTileKind,
+    type BravaisWallLook,
+} from './bravaisLook';
 
 // src/library/suites/bravais/bravaisDisplay.ts
 // 墙上此刻显示的是哪一层、每个 slot 显示哪一项（纯计算）。无限拼贴按起点 slot 求循环偏移（起点磁贴是第 1 项，
@@ -25,6 +37,13 @@ export type BravaisDisplay = {
     finite?: BravaisFiniteState | null;
     /** B7：remove-entry 的第一段——这些条目先翻成墙面，后面的 rank 再前移（展示层按住旧帧）。 */
     hiddenKeys?: ReadonlySet<string>;
+    /** 透光档位（B6b③）：决定空 slot 是窗还是空画框、全透明档的内容磁贴透不透。 */
+    look: LibraryWallLook;
+    /**
+     * 部分透明的结构窗：每块保留几个 slot（rank→slot 跳过它们）；其余档位为 0。无限拼贴的周期 / 偏移、有限拼贴的规划
+     * （`finite` 须用同一个 k 规划，见 planBravaisFinite）与反查 slot 都按它跳过窗位。
+     */
+    reservedPerBlock: number;
 };
 
 /** 无限拼贴的循环周期按多少条算（补页期间是上游总数，见 BravaisLayerWall.periodCount）。 */
@@ -37,22 +56,38 @@ const wallSlotKeyOf = (slot: Pick<WallSlot, 'column' | 'row' | 'slotIndex'> & { 
 );
 
 /** 起点 slot 的循环偏移；条目数变了要重新求（B5：层里存起点 slot，不只存偏移）。 */
-export const resolveWrapOffset = (startSlotKey: string | null, itemCount: number) => {
+export const resolveWrapOffset = (startSlotKey: string | null, itemCount: number, reservedPerBlock = 0) => {
     const address = startSlotKey ? parseWallSlotKey(startSlotKey) : null;
-    return getStartWrapOffset(address, itemCount);
+    return getStartWrapOffset(address, itemCount, reservedPerBlock);
 };
 
+/**
+ * 一层在墙上的显示。`wallLook` 缺省为实色（没有窗）；部分透明时内容跳过每块的结构窗，起点 slot 若恰好是窗就挪到
+ * 同块最近的非窗 slot（起点磁贴不落在窗上）。
+ */
 export const createBravaisDisplay = (
     layer: BravaisLayer,
     startSlotKey: string | null,
     flip?: { token: number; plan: FlipPlan },
-): BravaisDisplay => ({
-    layer,
-    startSlotKey,
-    wrapOffset: resolveWrapOffset(startSlotKey, layerPeriodCount(layer)),
-    flips: flip ? toFlipSteps(flip.token, flip.plan) : NO_FLIPS,
-    flipToken: flip?.token ?? 0,
-});
+    wallLook: BravaisWallLook = SOLID_WALL_LOOK,
+): BravaisDisplay => {
+    const reservedPerBlock = resolveReservedPerBlock(wallLook);
+    const start = resolveStartSlotKey(startSlotKey, reservedPerBlock);
+    return {
+        layer,
+        startSlotKey: start,
+        wrapOffset: resolveWrapOffset(start, layerPeriodCount(layer), reservedPerBlock),
+        flips: flip ? toFlipSteps(flip.token, flip.plan) : NO_FLIPS,
+        flipToken: flip?.token ?? 0,
+        look: wallLook.look,
+        reservedPerBlock,
+    };
+};
+
+/** 显示用的透光偏好是不是已经是这一份（换档 / 换窗数走同一层的数据更新）。 */
+export const isDisplayedWallLook = (display: BravaisDisplay, wallLook: BravaisWallLook) => (
+    display.look === wallLook.look && display.reservedPerBlock === resolveReservedPerBlock(wallLook)
+);
 
 /** 一个 slot 显示的条目；墙面（空画框）为 null。 */
 export const resolveSlotItem = (display: BravaisDisplay | null, slot: Pick<WallSlot, 'column' | 'row' | 'slotIndex'>): BravaisItem | null => {
@@ -60,24 +95,44 @@ export const resolveSlotItem = (display: BravaisDisplay | null, slot: Pick<WallS
     const { items } = display.layer;
     if (items.length === 0) return null;
     // B7：有限拼贴按 rank 取（rank ≥ 条目数是墙面）；无限拼贴的周期可能大于条目数（补页中），超出的位置是墙面。
+    // B6b③：两种拼贴都跳过部分透明的结构窗（有限拼贴的 rank 顺序本身就不含窗位；无限拼贴的窗位是 null）。
     const index = display.finite
         ? resolveFiniteRank(display.finite, { key: wallSlotKeyOf(slot) })
-        : getInfiniteSlotItem(slot, layerPeriodCount(display.layer), display.wrapOffset);
+        : getInfiniteSlotItem(slot, layerPeriodCount(display.layer), display.wrapOffset, display.reservedPerBlock);
     const item = index === null ? null : items[index] ?? null;
     return item && display.hiddenKeys?.has(item.key) ? null : item;
 };
 
 export const resolveSlotItemKey = (display: BravaisDisplay | null, slot: WallSlot) => resolveSlotItem(display, slot)?.key ?? null;
 
-/** 换显示前后，已渲染的 slot 各显示什么（交给 planFlip）。 */
+/** 一个 slot 的内容与种类（透光：没有内容的 slot 是窗还是空画框）。 */
+export const resolveSlotFace = (
+    display: BravaisDisplay | null,
+    slot: Pick<WallSlot, 'column' | 'row' | 'slotIndex'>,
+): { item: BravaisItem | null; kind: BravaisTileKind } => {
+    const item = resolveSlotItem(display, slot);
+    if (item) return { item, kind: 'content' };
+    if (!display) return { item: null, kind: 'wall' };
+    const reserved = display.reservedPerBlock > 0
+        && getBlockReservedMask(slot.column, slot.row, display.reservedPerBlock)[slot.slotIndex] === true;
+    return { item: null, kind: resolveEmptySlotKind(display.look, reserved, display.layer.mode) };
+};
+
+/** 翻牌比较用的「面」的身份（不考虑聚焦卡：换层与换档都会先收起它）。 */
+export const resolveSlotFaceKey = (display: BravaisDisplay | null, slot: WallSlot): string | null => {
+    const { item, kind } = resolveSlotFace(display, slot);
+    return bravaisFaceKey(item?.key ?? null, kind, isSeeThroughFace(display?.look ?? 'solid', kind, false));
+};
+
+/** 换显示前后，已渲染的 slot 各显示什么（交给 planFlip）。比较的是「面」：开窗、关窗、透不透也算变化。 */
 export const diffDisplays = (
     before: BravaisDisplay | null,
     after: BravaisDisplay,
     slots: readonly WallSlot[],
 ): FlipSlotChange[] => slots.map(slot => ({
     slot,
-    from: resolveSlotItemKey(before, slot),
-    to: resolveSlotItemKey(after, slot),
+    from: resolveSlotFaceKey(before, slot),
+    to: resolveSlotFaceKey(after, slot),
 }));
 
 export const toFlipSteps = (token: number, plan: FlipPlan): ReadonlyMap<string, BravaisFlipStep> => {
