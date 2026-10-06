@@ -229,3 +229,92 @@ test.describe('[bravais-only] home', () => {
             .toBeGreaterThan(0);
     });
 });
+
+// 合并 B8 后：从首页打开集合（B7）/ 歌手页（B8）再返回。首页层第一次画时没有起点（布局记忆里的起点是 null），
+// B8 的 stage 修复让返回时照记忆恢复——墙回到离开时的排法，压栈与返回各只翻一次（不走首页之间的整墙出场 / 入场）。
+// 歌单那条是这个修复的守卫（换回「一律取离缝最近的 slot」会失败）；本地页签是换页签（replace）落下的层，起点不是 null，
+// 那条只核对歌手页（bravais）与首页之间的往返。
+test.describe('[bravais-only] home ↔ collection / artist', () => {
+    /** 墙上此刻有内容的磁贴：slot → 卡片键。 */
+    const wallContent = (page: Page) => page.evaluate(() => Object.fromEntries(
+        [...document.querySelectorAll<HTMLElement>('.bravais-tile')]
+            .map(tile => [tile.dataset.bravaisSlot ?? '', tile.dataset.libraryCard ?? tile.dataset.libraryEntry ?? ''])
+            .filter(([, entry]) => entry),
+    ));
+    /** 从现在起数 stage 的翻牌次数（data-bravais-settling 出现一次算一次）与换过的层。 */
+    const watchStage = (page: Page) => page.evaluate(() => {
+        const root = document.querySelector('[data-library-stage="bravais"]')!;
+        const record = { flips: 0, layers: [] as string[] };
+        (window as unknown as { __bravaisStageWatch?: typeof record }).__bravaisStageWatch = record;
+        let settling = root.hasAttribute('data-bravais-settling');
+        let layer = root.getAttribute('data-bravais-layer');
+        new MutationObserver(() => {
+            const nextSettling = root.hasAttribute('data-bravais-settling');
+            if (nextSettling && !settling) record.flips += 1;
+            settling = nextSettling;
+            const nextLayer = root.getAttribute('data-bravais-layer');
+            if (nextLayer !== layer && nextLayer) record.layers.push(nextLayer);
+            layer = nextLayer;
+        }).observe(root, { attributes: true, attributeFilter: ['data-bravais-settling', 'data-bravais-layer'] });
+    });
+    const stageWatch = (page: Page) => page.evaluate(() => (
+        (window as unknown as { __bravaisStageWatch?: { flips: number; layers: string[] } }).__bravaisStageWatch!
+    ));
+    /** 等墙落定，再多等一拍（落定后不该再有数据更新的翻牌）。 */
+    const settle = async (page: Page) => {
+        await settled(page);
+        await page.waitForTimeout(500);
+        await settled(page);
+    };
+    /** 打开一张卡、再用缝里的返回按钮退回：压栈翻一次、返回翻一次，墙的每个 slot 与离开前一致。 */
+    const openAndBack = async (page: Page, cardKey: string, homeLayer: string, surface: 'collection' | 'artist') => {
+        await settle(page);
+        // 先把相机挪开（键盘焦点往下走几行），返回时「离缝最近的 slot」就不是第一次画时的原点。
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+        await page.keyboard.press('ArrowRight');
+        for (let step = 0; step < 8; step += 1) await page.keyboard.press('ArrowDown');
+        await settle(page);
+        const before = await wallContent(page);
+        expect(Object.keys(before).length).toBeGreaterThan(0);
+
+        await watchStage(page);
+        await card(page, cardKey).locator('article').dispatchEvent('click');
+        await expect.poll(async () => (await stack(page)).length).toBe(1);
+        await expect(page.locator(`[data-library-surface="${surface}"][data-library-renderer="bravais"]`)).toHaveCount(1);
+        await expect(stage(page)).not.toHaveAttribute('data-bravais-layer', homeLayer);
+        await settle(page);
+        expect((await stageWatch(page)).flips).toBe(1);
+
+        await watchStage(page);
+        await seam(page).locator('[data-bravais-seam-action="back"]').first().dispatchEvent('click');
+        await expect.poll(() => stack(page)).toEqual([]);
+        await expect(stage(page)).toHaveAttribute('data-bravais-layer', homeLayer);
+        await settle(page);
+        const watch = await stageWatch(page);
+        expect(watch.layers).toEqual([homeLayer]);
+        expect(watch.flips).toBe(1);
+        const after = await wallContent(page);
+        const shared = Object.keys(before).filter(slot => slot in after);
+        expect(shared.length).toBeGreaterThan(0);
+        for (const slot of shared) expect(after[slot], slot).toBe(before[slot]);
+    };
+
+    test.beforeEach(async ({ mount, page }) => {
+        await mountBravais(mount, page);
+    });
+
+    test('a playlist opened from the home wall and closed again: one flip each way, the wall comes back as it was', async ({ page }) => {
+        await openAndBack(page, 'card:playlist:owned', 'home:playlist', 'collection');
+    });
+
+    test('a local artist opened from the home wall and closed again: one flip each way, the wall comes back as it was', async ({ page }) => {
+        await showLocal(page);
+        await seam(page).locator('[data-bravais-section="artists"]').click();
+        await settled(page);
+        const artistCard = page.locator('.bravais-tile[data-library-card^="card:artist:"]').first();
+        await expect(artistCard).toBeAttached();
+        const cardKey = (await artistCard.getAttribute('data-library-card'))!;
+        await openAndBack(page, cardKey, 'home:local', 'artist');
+        await expect(seam(page).locator('[data-bravais-section="artists"]')).toHaveAttribute('aria-selected', 'true');
+    });
+});
