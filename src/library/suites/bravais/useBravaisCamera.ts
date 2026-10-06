@@ -87,6 +87,16 @@ export const useBravaisCamera = ({
         if (visible && (forceRecull || needsRecull(visible, boundsRef.current))) scheduleRecull();
     }, [frameRef, renderFrame, scheduleRecull, syncPointerCamera]);
 
+    /**
+     * 相机没动、可见范围变了（缝开口补间：两半各让出半个开口，可见的世界范围随之变宽）时按此刻的可见范围重新裁剪
+     * （B12a 发现 3：只写开口不裁剪，裁剪范围停在开口变化之前，第一次小幅拖动才补一次）。补间途中只在快到边缘时裁剪；
+     * `force`（开口落定）时无条件按含开口的可见范围裁剪一次，与相机补间落定时同理。真要裁剪才排一帧 setState。
+     */
+    const checkCull = useCallback((force = false) => {
+        const visible = getVisibleWorldBounds(frameRef.current);
+        if (visible && (force || needsRecull(visible, boundsRef.current))) scheduleRecull();
+    }, [frameRef, scheduleRecull]);
+
     const stopCamera = useCallback(() => {
         animationRef.current?.stop();
         animationRef.current = null;
@@ -215,5 +225,5 @@ export const useBravaisCamera = ({
         },
     }), [didDragRef, onClickCapture, onPointerMove, panCancel, panDown, panUp, settle]);
 
-    return { bounds, moveTo, tweenTo, stopCamera, syncPointerCamera, pointer: pointerWithRange, setRange, settle };
+    return { bounds, moveTo, tweenTo, checkCull, stopCamera, syncPointerCamera, pointer: pointerWithRange, setRange, settle };
 };

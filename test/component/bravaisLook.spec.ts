@@ -229,9 +229,10 @@ test.describe('[bravais] see-through wall', () => {
             }
             await page.mouse.up();
         };
-        // 先拖一段让裁剪范围跟上（挂载时的裁剪范围是缝张开之前量的），再拖回来量：这一段在已裁剪的范围里。
-        await drag(x, y, 72, 48);
-        await page.waitForTimeout(300);
+        // 缝开口的补间按含开口的可见范围补裁剪（B12b 修了 B12a 发现 3），挂载落定后的小幅拖动就在已裁剪的范围里，
+        // 不必再先拖一段让裁剪跟上。鼠标先停到起点（进入磁贴的悬停不算拖动的开销）。
+        await page.mouse.move(x, y);
+        await page.waitForTimeout(500);
         await page.evaluate(() => {
             const countWindow = window as CountWindow;
             countWindow.__renderCounts = {};
@@ -252,7 +253,7 @@ test.describe('[bravais] see-through wall', () => {
         const firstTile = page.locator(`.bravais-tile[data-bravais-slot^="${plateKey},"]`).first();
         const boxBefore = await plate.boundingBox();
         const tileBefore = await firstTile.boundingBox();
-        await drag(x + 72, y + 48, -72, -48);
+        await drag(x, y, 72, 48);
         const worldAfter = await page.locator('[data-bravais-half="right"]').evaluate(element => element.style.transform);
         const boxAfter = await plate.boundingBox();
         const tileAfter = await firstTile.boundingBox();

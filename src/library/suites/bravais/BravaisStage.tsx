@@ -136,6 +136,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         contentRef: seamContentRef,
         reducedMotion,
         tweenCamera: camera.tweenTo,
+        checkCull: camera.checkCull,
     });
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
 

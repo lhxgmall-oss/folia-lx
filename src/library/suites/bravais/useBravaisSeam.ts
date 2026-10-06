@@ -32,6 +32,7 @@ export const useBravaisSeam = ({
     contentRef,
     reducedMotion,
     tweenCamera,
+    checkCull,
 }: {
     frameRef: MutableRefObject<BravaisFrameState>;
     renderFrame: () => void;
@@ -42,6 +43,8 @@ export const useBravaisSeam = ({
     contentRef: RefObject<HTMLDivElement | null>;
     reducedMotion: boolean;
     tweenCamera: (center: WallViewCenter) => void;
+    /** 开口变了（可见的世界范围随之变了）：让相机检查要不要重新裁剪；force = 开口落定，按含开口的范围裁剪一次。 */
+    checkCull: (force?: boolean) => void;
 }) => {
     const level = useBravaisSeamStore(state => state.level);
     const [anchorX, setAnchorState] = useState<number | null>(null);
@@ -78,13 +81,15 @@ export const useBravaisSeam = ({
         return { anchorX: plan.x, center: { x: plan.cameraX, y: center.y } };
     }, [frameRef]);
 
-    /** 开口补间到目标宽度（每帧只写帧状态与 DOM）。 */
+    /** 开口补间到目标宽度（每帧只写帧状态与 DOM；途中快到裁剪边缘时补裁剪，落定时按含开口的可见范围裁剪一次）。 */
     const tweenWidth = useCallback((to: number, from = frameRef.current.openWidth) => {
         widthAnimationRef.current?.stop();
         if (reducedMotion || Math.abs(to - from) < 0.5) {
             widthAnimationRef.current = null;
+            const changed = Math.abs(to - frameRef.current.openWidth) >= 0.5;
             frameRef.current.openWidth = to;
             renderFrame();
+            checkCull(changed);
             return;
         }
         frameRef.current.openWidth = from;
@@ -94,10 +99,14 @@ export const useBravaisSeam = ({
             onUpdate: value => {
                 frameRef.current.openWidth = value;
                 renderFrame();
+                checkCull();
             },
-            onComplete: () => { widthAnimationRef.current = null; },
+            onComplete: () => {
+                widthAnimationRef.current = null;
+                checkCull(true);
+            },
         });
-    }, [frameRef, reducedMotion, renderFrame]);
+    }, [checkCull, frameRef, reducedMotion, renderFrame]);
 
     // 目标宽度变了（换层、换等级）就补间过去；折叠等级也写进帧状态（悬浮按钮常驻）。
     const hasLayer = Boolean(layer);

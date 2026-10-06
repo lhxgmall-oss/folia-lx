@@ -7,7 +7,8 @@ import type { PerfDriver, PerfStageCounters } from './PerfStageHost';
 // 一轮测量：挂 stage（首屏）→ 预热 → 运动 → 停稳，分阶段记 rAF 间隔、长动画帧（LoAF）与长任务；运动阶段另记
 // 磁贴渲染（dev 的 countRender，window.__renderCounts）、stage 的 React 提交（Profiler）、新挂进 DOM 的磁贴与块底板、
 // 已挂块底板路径的改写（MutationObserver）与每次触发时内容层在动的磁贴数（document.getAnimations()）。
-// B12b：底板改为按块 SVG 后，「遮罩重建」换成「块底板重画」（<path d> 被改写的次数与块）。
+// B12b：底板改为按块 SVG 后，「遮罩重建」换成「块底板重画」（<path d> 被改写的次数与块）；缝开口补间会补裁剪，
+// drift 不再需要先空走一圈。
 // 帧采样用原生 rAF：设了帧率限制时 utils/frameRateLimiter 会把 window.requestAnimationFrame 换成限流版。
 
 type RenderCountWindow = Window & {
@@ -30,8 +31,6 @@ const FLIP_OVERSCAN_WORLD = 160;
 /** 一次触发之后看几帧的动画：出场 / 转出段在触发那次提交里一起建好（带各自的 delay），几帧内就能数全。 */
 const ANIMATION_SAMPLE_FRAMES = 6;
 /** 各场景的触发间隔（毫秒）：翻牌 360ms + 错开上限 420ms；整墙出场 280 + 错开 340 + 入场 420；放大让位 500ms。 */
-/** drift 的空走一圈。 */
-const PRIME_MS = 1000;
 const TRIGGER_INTERVAL_MS: Partial<Record<PerfJob['scenario'], number>> = { flip: 1500, tab: 1300, expand: 900 };
 
 type LoafSample = { start: number; duration: number; blocking: number };
@@ -136,7 +135,7 @@ export const runPerfJob = (job: PerfJob, { mount, counters, signal, onPhase }: P
     onPhase('mount');
     void mount().then((driver) => {
         if (signal.aborted) return;
-        let phase: 'warmup' | 'prime' | 'motion' | 'settle' = 'warmup';
+        let phase: 'warmup' | 'motion' | 'settle' = 'warmup';
         let phaseStart = mountedAt;
         let last = mountedAt;
         let frames: number[] = [];
@@ -259,18 +258,7 @@ export const runPerfJob = (job: PerfJob, { mount, counters, signal, onPhase }: P
                 if (sampleFramesLeft === 0) closeAnimationSample();
             }
             if (phase === 'warmup' && elapsed >= job.warmupMs && root && firstTileMs >= 0) {
-                // drift 先空走一圈（不计入）：挂载时裁剪范围是缝张开之前量的，第一次小幅移动会按含开口的可见范围补一次裁剪
-                // （bravaisLook 的拖动用例同样先拖一段）。空走一圈回到起点之后再量。
-                if (job.scenario === 'drift') {
-                    phase = 'prime';
-                    phaseStart = now;
-                } else {
-                    startMotion(now, root);
-                }
-            } else if (phase === 'prime') {
-                const progress = Math.min(1, elapsed / PRIME_MS);
-                panTo(progress);
-                if (progress === 1 && root) startMotion(now, root);
+                startMotion(now, root);
             } else if (phase === 'motion') {
                 const progress = Math.min(1, elapsed / (job.seconds * 1000));
                 drive(elapsed, progress);
