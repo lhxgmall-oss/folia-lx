@@ -89,9 +89,17 @@ score(slot) = distanceToSeam(slot.center) − areaWeight × slot.area
 | 竖排主标题 | `writing-mode: vertical-rl` 的 CJK 标题（歌单名 / 歌手名 / 搜索词） |
 | 横排副文 | 英文名、曲目数、时长、来源、简介（歌手页承载 ArtistGridView 的信息） |
 | 操作 | 播放全部、随机、排序、过滤输入、返回 |
-| 面包屑 | 层栈（首页 › 歌手 › 专辑） |
+| 面包屑 | 层栈（首页 › 歌手 › 专辑），每一项可点击跳层，见下方「面包屑」 |
 
 过滤输入就在缝里，同时注册 `LibraryQueryPort`，让 command palette 的输入落到同一个 query 上。
+
+### 面包屑（B11 已实现）
+
+- 结构：「根 › 中间层… › 当前层（› 面板）」。根是「书库」；从搜索页 / 播放页打开的集合，根是「搜索」「播放页」（点它回到来源）。中间层的名字来自宿主给的导航栈投影（`LibraryNavigationContext.trail`），栈顶的名字以 surface 自己的为准（改名后的新名字）。
+- 点击跳层：根与中间层调 `LibraryCollectionNavigation.onPopTo(depth)`，depth 是保留的层数、按导航栈里的**位置**算。导航栈只折叠紧邻往返（N1），栈里可以有重复的集合（A › B › A），点哪一项就退到哪一层。调用方不跑 `beforeBack`、也不先关面板：导航层 `history.go(-k)` 落在目标层的第一条历史记录、越过面板记录，墙按一次返回翻一次。
+- 当前层只在面板开着时可点（= 关面板）；面板名（「列表」「目录」「搜索」）是最后一项，不可点。首页层的目录树面板与搜索框是「书库 › 目录 / 搜索」，点「书库」关掉它。
+- 折叠：中间层多于 1 层时只留紧挨当前层的那一层，其余折成「…」（悬停提示里是被折起的各层）；点「…」原地展开全部层，换层后复位。展开后往下换行，第一行留在原位置（不长进窗口顶部的标题栏拖拽区）。
+- 缝的内容翻转途中（旧内容还在、导航已经换了），导航栈对不上正在画的那一层时，中间层退回一个不可点的「…」。
 
 ### 开合
 
@@ -190,7 +198,7 @@ grid suite 有两个列表型面板需要保留：歌单页右侧展开的歌曲
 **打开面板是一次导航，不是收起链上的一级**（`layer.panelOpen`）：
 
 - 入口：完整信息条的「列表」；首页「本地」tab 窄缝里的 ▤（目录）。
-- 打开时往导航栈推一层，面包屑多一级（「… › 列表」「… › 目录」）。返回（‹ 按钮、Esc、浏览器后退）先关面板，再退层。正式实现时要同时写一条 history 记录（`useAppNavigation`），和 `beforeBack` 只执行一次的约定保持一致。
+- 打开时面包屑多一级（「… › 列表」「… › 目录」），并写一条 history 记录（B7：suite 在当前记录上加 `bravaisPanel` 标记后 `pushState`；宿主的 popstate 在面板记录之间来回时导航栈不变，不触发 `beforeBack`）。导航栈本身不变。返回（‹ 按钮、Esc、浏览器后退）先关面板，再退层；面包屑跳层与 N1 的折叠往返越过面板记录，直接退层。
 - 收起链仍是三级。面板里只有「折叠」；恢复时面板仍处于打开状态。打开面板会把等级拉回 `full`。
 - 只有支持面板的层才有入口（`panelKind`）：歌单 / 专辑 / 文件夹 / 歌手页 → 歌曲列表；首页「本地」→ 目录树。
 
@@ -422,7 +430,7 @@ type BravaisLayer = {
    - 契约：`LibrarySuiteChromeAction = { id, labelKey, keywords, executeShortcut?, isAvailable(): boolean, run(): void }`；`useLibrarySuiteChromeRegistration({ isInteractive, getActions })`，与其他 surface 注册同一套 latest-ref + 按 `isInteractive` 注册 / 注销的模式。
    - palette 侧：新增作用范围 `suite-chrome`，进入 `useCommandPaletteContext` 的 `scope`；命令由一个工厂按注册的动作动态生成（id 加 suite 前缀，如 `bravais-seam-spine`），执行键在同时可用的命令之间保持无前缀冲突。
    - 动作只描述「做什么」，不碰 DOM；挂哪个 suite 由当前激活的 suite 决定，切换 suite 时随组件卸载自动注销。
-5. **集合导航栈去环（已定，在 library-v2 上修，见主仓库 `plan/library-v2-account-plan.md` 插入步骤 N1）**：进入已经在栈里的集合时退回到那一层（浏览器历史同步 `history.go(-k)`），栈里永远没有重复集合，面包屑始终表达位置。bravais 的面包屑以后可点击跳层，复用 N1 顺手提供的 `popCollectionTo(depth)`；面包屑过长时折叠中间层。原型里专辑页点同一张专辑会重复压栈，是原型自身的 bug（主应用已去重栈顶），原型不再单独修。
+5. **集合导航栈只折叠紧邻往返（N1，已合入；2026-10-06 订正了原先的「去环」）**：不再无条件去环（A › B › C › D › E 再点 B 时退回 B 会丢掉 C、D、E，用户接着按返回期待回到 E）。只有要进入的集合正好是上一层（倒数第二层）时当作一次返回（X → Y → X 变回 X，浏览器历史同步退回），其余照常压栈——**栈里可以有重复的集合**，深度不设上限。N1 同时提供 `popCollectionTo(depth)`（suite 契约 `LibraryCollectionNavigation.onPopTo`），depth 按位置算；bravais 的面包屑点击跳层用它，过长时折叠中间层（§5「面包屑」）。原型里专辑页点同一张专辑会重复压栈，是原型自身的 bug（主应用栈顶相同时什么都不做），原型不再单独修。
 
 ### 8.4 性能约束
 
@@ -641,17 +649,17 @@ bravais 声明全部 7 个动作，登录与确认都在**缝里**完成（已�
 
 | 契约 | bravais 做法 |
 |---|---|
-| `onDone` vs `onBack` | 缝的 ‹ 返回按钮 = `onDone`（清会话、忘布局）；Esc 阶梯的最后一步 = `onBack`。Esc 阶梯顺序：表单态 → 聚焦卡 → 面板 → 过滤词 → `onBack` |
-| 浏览器后退 | 不经过 suite。在 `transitions.beforeBack` 里启动反向翻牌（此时界面和导航 store 都还是返回前的样子），一次返回只跑一次 |
-| `beforePush` | 记下起点磁贴（被点卡片的 slot），供新层使用 |
-| `transitions.Overlay` | 即 `BravaisStage`（§8.1），常驻挂载；`enabled=false` 时只做中性淡入淡出 |
-| `transitions.backdrop` | 解析「降低动态效果」设置：开启时翻牌换成 0.18s 淡入淡出，并关闭整墙波次 |
-| `transitions.reset` | 切换 suite 时丢掉还没用掉的起点 / 翻牌计划 |
-| `layout.forget(sessionKey)` | bravais 的布局记录（每层的相机位置、缝等级、无限态的 `wrapOffset`）存在 sessionStorage 里，按会话键丢弃 |
+| `onDone` vs `onBack` | 缝的 ‹ 返回按钮 = `onDone`（清会话、忘布局）；Esc 阶梯的最后一步 = `onBack`。Esc 阶梯顺序：表单态 → 聚焦卡 → 键盘焦点 → 面板 → 视图（管理隐藏）→ 过滤词 → `onBack` |
+| 返回的翻牌（应用内返回、浏览器后退、N1 折回、面包屑跳层） | 不声明 `beforeBack`。stage 观察导航深度：每一种返回都是一次深度变浅，墙从缝开始翻回父层一次（相机、锚点、起点、焦点按父层离开时的布局记忆恢复）。栈里有重复的集合时，「同一个键、深度变了」在它正是导航栈顶时也算换层。根节点的 `data-bravais-shift(-seq)` 记下每次换层的种类，用例据此验证「只翻一次」 |
+| `beforePush` | 宿主真的压栈之前调用。墙上点磁贴、聚焦卡的链接已由 stage 记下起点磁贴；没经过墙的打开（命令面板对焦点那一项执行 open-album / open-artist）用键盘焦点所在的 slot 当起点。entry 只能静态 import react，实现由 stage 的 chunk 装上（`installBravaisTransitionHook`） |
+| `transitions.Overlay` | 不声明。常驻画面是 manifest 的 `stage`（`BravaisStage`，§8.1），只在 bravais 生效时挂载 |
+| `transitions.backdrop` | 不声明：宿主只拿它垫中性背景板（bravais 的层由 stage 画，不垫）与 `enabled` 门控钩子（`beforePush` 记的起点是布局，降级时也要记）。「降低动态效果」由 stage 自己解析（「队列拼贴」或「歌单展开转场」任一降级）：翻牌换成 0.18s 淡出 → 换内容 → 淡入（不错开），整墙波次（换首页页签、回到来源）换成淡入淡出，整墙入场换成 0.18s 淡入。透光、相机与缝的补间不受影响 |
+| `transitions.reset` | 切换 suite 时丢掉还没用掉的起点磁贴与移除的翻牌起点（墙上正在放的翻牌随 stage 卸载） |
+| `layout.forget(sessionKey)` | 每层的布局记录（相机的视图中心、缝的锚点、无限态的起点 slot——`wrapOffset` 由它求、键盘焦点 slot）存在 sessionStorage 的一个键里，按会话键整条删除。缝的开口等级是全局的（§5「开口等级」，跨层沿用），不按层记，也就不在这里 |
 | 会话（筛选词、焦点、选中） | 全部放在 core 会话 store 里，见下方说明 |
-| 打开来源（`origin: 'home' \| 'search' \| 'player'`） | 从搜索页或播放页打开集合时，下面没有首页墙：整墙入场到集合层；`onBack` 回到来源时整墙出场 |
+| 打开来源（`origin: 'home' \| 'search' \| 'player'`） | 从搜索页或播放页打开集合时，下面没有首页墙：整墙入场到集合层（没有起点磁贴，相机直接到这一层上次离开的位置，磁贴从抬起按对角线错开落回；从播放页回来时 stage 随打开重新挂载，同样入场）；`onBack` / `onDone` / 跳到根回到来源时整墙出场（首页层在搜索页 / 淡出的首页之下落回）。面包屑的根显示「搜索」「播放页」 |
 | `isInteractive` | 为 false 时（例如另一层盖在上面，或正在退场）不接键盘、不注册 palette、不响应墙上的点击 |
-| Ponder | 先在各 surface 根上声明 `data-ponder-page-scope="none"`，bravais 自己的教程以后再加 |
+| Ponder | 各 surface 的锚点（首页、集合、歌手页）上声明 `data-ponder-page-scope="none"`，bravais 自己的教程以后再加 |
 
 会话状态的对应：
 
@@ -699,7 +707,7 @@ bravais 是 library v2 的正式新 UI，以后的开发以它为主。它不走
 1. **core / app 前置**：
    - suite 选项持久化与设置项（§10.10）；
    - suite 外观动作注册接口（§8.3 #4）；
-   - 集合导航栈去环 N1（§8.3 #5）。
+   - 集合导航栈只折叠紧邻往返 N1（§8.3 #5）。
 2. **wall 引擎**：从 `components/app/lattice/` 抽出共享 wall 引擎（§8.2），Lattice 改用抽出后的版本。抽出前后 Lattice 的截图基线不变。
 3. **bravais 骨架**：entry（四个 surface 全部 lazy）、`BravaisStage` 与 stage store、缝、rank→slot、双模式、翻牌状态机、键盘焦点。
 4. **按 surface 补齐**：collection → artist → home → account，每补一个就声明对应动作，并接入参数化行为用例。
