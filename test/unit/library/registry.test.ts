@@ -52,6 +52,15 @@ describe('library suite registry', () => {
         expect(resolveLibrarySurface('account', 'tui')).toBe(tui);
     });
 
+    it('renders the bravais account surface itself (B10) and declares all seven account actions', () => {
+        // 登录与确认在缝里（BravaisAccount），不再回退 grid 的登录弹窗。
+        const bravais = resolveLibrarySurface('account', 'bravais');
+        expect(bravais).toMatchObject({ suiteId: 'bravais', isFallback: false });
+        expect(bravais.component).not.toBe(resolveLibrarySurface('account', 'grid').component);
+        expect(bravais.component).toBe(getLibrarySuite('bravais')?.surfaces.account?.component);
+        expect([...bravais.declaredActions.actions].sort()).toEqual([...LIBRARY_ACCOUNT_ACTION_IDS].sort());
+    });
+
     it('still answers a suite without an account surface with the grid one as a whole', () => {
         // TUI 有了 account surface 之后，真实注册表里没有回退的例子：用真实的网格清单加一套只有首页的假 suite 验证。
         const grid = getLibrarySuite('grid')!;

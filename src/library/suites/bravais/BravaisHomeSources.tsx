@@ -13,6 +13,7 @@ import type {
     LibraryNavidromeHomeResource,
 } from '../../core/contracts/homeModel';
 import type { LibraryDeclaredActions, LibraryHomeActionId } from '../../core/contracts/suite';
+import type { LibraryAccountController } from '../../core/contracts/account';
 import { isPersonalFmCard } from '../../core/model/homeCards';
 import { resolveLocalHomeActions, type LocalHomeRow } from '../../core/model/localHomeModel';
 import { isNavidromeHomeSection, resolveNavidromeCollectionType } from '../../core/model/navidromeHomeModel';
@@ -25,6 +26,7 @@ import type { BravaisHomeTool } from './bravaisHomeModels';
 import type { BravaisSeamMenuItem } from './bravaisSeamModels';
 import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import BravaisHomeDirectory from './BravaisHomeDirectory';
+import { useBravaisHomeAccount } from './useBravaisHomeAccount';
 
 // src/library/suites/bravais/BravaisHomeSources.tsx
 // bravais 首页三个来源的墙（设计稿 §10.5）：在线（账户歌单 / 电台 / 收藏专辑）、本地（文件夹 / 专辑 / 歌手 / 歌单
@@ -53,7 +55,9 @@ export const BravaisHomeOnline: React.FC<BravaisHomeSourceCommonProps & {
     tab: LibraryHomeTabKey;
     online: LibraryHomeOnlineSource;
     list: LibraryHomeOnlineList;
-}> = ({ tab, online, list, homeActions, onOpenGridView, ...common }) => {
+    /** B10：账户 controller（窄缝里的平台切换与登出）。 */
+    account: LibraryAccountController;
+}> = ({ tab, online, list, account: accountController, homeActions, onOpenGridView, ...common }) => {
     const { t } = useTranslation();
     const showList = online.accountView === 'authenticated';
     useLibraryHomeListRegistration({
@@ -75,7 +79,8 @@ export const BravaisHomeOnline: React.FC<BravaisHomeSourceCommonProps & {
     const emptyMessage = online.accountView === 'guest'
         ? (online.needsRelogin ? t('status.loginExpired') : t('home.guestTitle'))
         : online.accountView === 'resolving' ? t('home.loadingLibrary') : list.emptyMessage;
-    const account = useMemo(() => ({ providerId: online.providerId, providerLabel: online.providerLabel }), [online.providerId, online.providerLabel]);
+    // B10：账户位里的平台切换（account-select / account-logout）。
+    const account = useBravaisHomeAccount(accountController, online);
     const latest = useRef({ homeActions, providerId: online.providerId, onOpenGridView });
     latest.current = { homeActions, providerId: online.providerId, onOpenGridView };
     const onOpen = useMemo(() => (card: Parameters<LibraryHomeActionsController['openOnlineCard']>[0]) => {

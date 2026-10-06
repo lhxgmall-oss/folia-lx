@@ -144,6 +144,14 @@ export default {
     "actionStale": "这一项已经不在原处，请再试一次",
     "actionUnsupported": "这个集合不支持这个操作"
   },
+  "libraryBravaisAccount": {
+    "confirmSwitch": "切换",
+    "cancel": "取消",
+    "cooldown": "· {{seconds}} 秒",
+    "notSignedIn": "未登录",
+    "notConfigured": "未配置",
+    "loggingOut": "正在登出…"
+  },
   "notifications": {
     "coverColorAdded": "添加封面色彩",
     "coverColorDefault": "使用默认色彩",

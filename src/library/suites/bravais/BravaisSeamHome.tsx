@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisHomeAccount, BravaisHomeToolId } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
+import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
 import './bravaisHome.css';
 
 // src/library/suites/bravais/BravaisSeamHome.tsx
@@ -39,9 +40,12 @@ const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?
 /**
  * B10 账户位：首页在线页签窄缝里的平台切换（account-select / account-logout）放在这里。B9 只给一个空容器，挂着
  * `data-bravais-account-slot=<providerId>`；B10 按 BravaisHomeAccount（扩展它）在里面渲染平台列表与登出。
+ * B10：容器里是 BravaisSeamAccountSwitcher（书脊上是一个展开缝的图标按钮）。
  */
-export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount }> = ({ account }) => (
-    <div className="bravais-seam-account" data-bravais-account-slot={account.providerId} aria-label={account.providerLabel} />
+export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount; compact: boolean; onExpand: () => void }> = ({ account, compact, onExpand }) => (
+    <div className="bravais-seam-account" data-bravais-account-slot={account.providerId} aria-label={account.providerLabel}>
+        <BravaisSeamAccountSwitcher account={account} compact={compact} onExpand={onExpand} />
+    </div>
 );
 
 const BravaisSeamHome: React.FC<{
@@ -109,7 +113,7 @@ const BravaisSeamHome: React.FC<{
             {home?.scan
                 ? <div className="bravais-seam-scan" data-bravais-scan>{home.scan}</div>
                 : seam.meta && <div className="bravais-seam-scan">{seam.meta}</div>}
-            {home?.account && <BravaisSeamAccountSlot account={home.account} />}
+            {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} onExpand={() => setLevel('full')} />}
             <div className="bravais-seam-spacer" />
             {seam.status && <div className="bravais-seam-vstatus" data-bravais-seam-status>{seam.status}</div>}
             {home && (

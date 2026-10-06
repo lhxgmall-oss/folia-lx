@@ -144,6 +144,14 @@ export default {
     "actionStale": "Item itu sudah berpindah; coba lagi",
     "actionUnsupported": "Koleksi ini tidak mendukung itu"
   },
+  "libraryBravaisAccount": {
+    "confirmSwitch": "Beralih",
+    "cancel": "Batal",
+    "cooldown": "· {{seconds}} dtk",
+    "notSignedIn": "Belum masuk",
+    "notConfigured": "Belum dikonfigurasi",
+    "loggingOut": "Sedang keluar…"
+  },
   "notifications": {
     "coverColorAdded": "Warna sampul ditambahkan",
     "coverColorDefault": "Menggunakan warna bawaan",
