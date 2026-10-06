@@ -55,8 +55,10 @@ test.describe('[bravais] wall performance guard rails', () => {
         expect(large.mount.tiles).toBeLessThanOrEqual(400);
         expect(large.mount.tiles).toBeLessThan(small.mount.tiles * 1.2 + 10);
         // 首屏主线程块：只比两档的差（机器忙时两边一起慢），再兜一个宽天花板。
-        // 本机实测（1440×1100）：单 worker 两档 90–130ms，5 个 worker 并行 120–240ms（先跑的 500 首反而更高），差在 ±120ms 内。
-        expect(mountBlock(large) - mountBlock(small)).toBeLessThan(150);
+        // 本机实测（1440×1100）：单 worker 两档 90–130ms；5 个 worker 并行 0–240ms，同一次里出现过 500 首 0ms、5000 首 157ms
+        // （机器忙时某一边恰好没碰上长任务），所以差的余量给到 250ms。回归成整表重算（每次挂载对 5000 项做重活）时
+        // 5000 首会远超 400ms 的天花板。
+        expect(mountBlock(large) - mountBlock(small)).toBeLessThan(250);
         expect(mountBlock(large)).toBeLessThan(400);
 
         for (const result of [small, large]) {
