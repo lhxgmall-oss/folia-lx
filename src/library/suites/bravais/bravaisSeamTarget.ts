@@ -28,7 +28,10 @@ export const resolvePanelWidth = (viewportWidth: number) => Math.max(
     Math.min(BRAVAIS_PANEL_MAX_WIDTH, viewportWidth - BRAVAIS_PANEL_VIEWPORT_MARGIN),
 );
 
-export type BravaisSeamContentVariant = BravaisSeamVariant | 'panel' | 'form' | 'search';
+export type BravaisSeamContentVariant = BravaisSeamVariant | 'panel' | 'form' | 'search' | BravaisAccountSeamVariant;
+
+/** B10：账户的登录态 / 确认态（不属于任何一层，见 bravaisAccountStore）。 */
+export type BravaisAccountSeamVariant = 'login' | 'confirm';
 
 export type BravaisSeamTargetInput = {
     surface: BravaisLayerSurface;
@@ -62,7 +65,18 @@ export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: numbe
 
 /** 一套内容的排版宽度（翻转不重排：跟着此刻渲染的那一套走）。 */
 export const resolveVariantWidth = (variant: BravaisSeamContentVariant, viewportWidth: number) => {
-    if (variant === 'form' || variant === 'search') return BRAVAIS_SEAM_FULL_WIDTH;
+    if (variant === 'form' || variant === 'search' || variant === 'login' || variant === 'confirm') return BRAVAIS_SEAM_FULL_WIDTH;
     if (variant === 'panel') return resolvePanelWidth(viewportWidth);
     return seamVariantWidth(variant);
 };
+
+/**
+ * B10：stage 用的开口——账户的登录态 / 确认态压过层上的一切（表单、面板、搜索、过滤、等级，折叠也一样）：选中未登录的
+ * 平台后缝强制拉到完整宽度（300px，放得下 200px 的二维码），关掉或答复后回到原来的开口（用户的等级不被改写）。
+ */
+export const resolveStageSeamTarget = (
+    input: BravaisSeamTargetInput,
+    account: BravaisAccountSeamVariant | null,
+): { width: number; variant: BravaisSeamContentVariant } => (
+    account ? { width: BRAVAIS_SEAM_FULL_WIDTH, variant: account } : resolveSeamTarget(input)
+);
