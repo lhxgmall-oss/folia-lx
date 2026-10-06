@@ -76,9 +76,9 @@ export const toBounds = (tile: Omit<ReflowTile, 'instanceId'>): Bounds => ({
 const FIELD_ASPECT = 2.2;
 
 // Ceiling on posters built for one viewport, so an extreme zoom-out cannot stall a frame.
-const MAX_RENDERED_INSTANCES = 400;
+export const MAX_RENDERED_INSTANCES = 400;
 
-const getPitch = (metrics: WallMetrics) => metrics.cellSize + metrics.gap;
+export const getPitch = (metrics: WallMetrics) => metrics.cellSize + metrics.gap;
 
 export const getLatticeGeometry = (totalEntries: number, metrics: WallMetrics): LatticeGeometry => {
     const pitch = getPitch(metrics);
