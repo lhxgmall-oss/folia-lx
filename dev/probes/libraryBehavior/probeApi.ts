@@ -77,6 +77,11 @@ export type LibraryProbeApi = {
     resolveSurface: (surface: LibrarySurfaceId) => { suiteId: LibrarySuiteId; isFallback: boolean; declaredActions: LibraryDeclaredActions };
     /** 从当前集合压入一个歌手页（本地 fixture 的第一个歌手，需要沙盒）；返回是否压入。 */
     pushArtist: () => boolean;
+    /**
+     * 从当前集合压入一个 fixture 集合（与宿主收到 onPushCollection 之后同一条路：N1 的规则，正好是上一层时折成一次返回）；
+     * 没有打开的集合、fixture 不可用时返回 false。用来在两个集合页之间构造紧邻往返（曲目链接只通向专辑 / 歌手）。
+     */
+    push: (fixtureId: ProbeFixtureId) => boolean;
     /** 按住这个在线集合的后台分页应答（页面按请求那一刻的上游数据生成），releasePages 时送达。 */
     holdPages: (fixtureId: OnlineFixtureId) => void;
     releasePages: (fixtureId: OnlineFixtureId) => void;

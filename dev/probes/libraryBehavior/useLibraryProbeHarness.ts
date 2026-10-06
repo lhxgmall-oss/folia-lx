@@ -292,6 +292,15 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
         onOpenCollection(collection);
     }, [onOpenCollection, resolveFixture, sandbox]);
 
+    // 从当前集合压入一个 fixture 集合（经 onPushCollection，N1 的规则与真实宿主一致）。
+    const push = useCallback((fixtureId: ProbeFixtureId): boolean => {
+        if (SANDBOX_ONLY.has(fixtureId) && !sandbox) return false;
+        const collection = resolveFixture(fixtureId);
+        if (!collection || !useCollectionNavigationStore.getState().snapshot) return false;
+        onPushCollection(collection);
+        return true;
+    }, [onPushCollection, resolveFixture, sandbox]);
+
     // 从当前集合压入一个本地歌手页（首页同款的分组描述）。用来验证没实现歌手页的 suite 回退到网格；
     // 直接写导航 store，与真实界面里点歌手名之后宿主做的压栈是同一个动作（只是没有转场）。
     const pushArtist = useCallback((): boolean => {
@@ -324,14 +333,15 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
         return true;
     }, [localLibraryCatalog, localPlaylists, localSongs, onOpenCollection, sandbox, t]);
 
-    const latestRef = useRef({ open, ready, pushArtist, openArtist, refreshLocal });
-    latestRef.current = { open, ready, pushArtist, openArtist, refreshLocal };
+    const latestRef = useRef({ open, ready, push, pushArtist, openArtist, refreshLocal });
+    latestRef.current = { open, ready, push, pushArtist, openArtist, refreshLocal };
     useEffect(() => installLibraryProbeApi({
         sandbox,
         fixtures: () => ALL_FIXTURES,
         ready: () => latestRef.current.ready,
         open: fixtureId => latestRef.current.open(fixtureId),
         back: popNavigation,
+        push: fixtureId => latestRef.current.push(fixtureId),
         pushArtist: () => latestRef.current.pushArtist(),
         openArtist: fixtureId => latestRef.current.openArtist(fixtureId),
         refreshLocal: () => latestRef.current.refreshLocal(),

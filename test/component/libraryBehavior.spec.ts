@@ -1834,3 +1834,142 @@ test.describe('[bravais-only] host dialogs', () => {
         expect(await isOnTop('[role="dialog"]')).toBe(true);
     });
 });
+
+// N1（折叠紧邻往返）在 bravais 上：stage 按导航深度判断换层种类，所以「要进入的正好是上一层」经宿主走返回之后，
+// 墙看到的是深度变浅——按返回翻一次（相机 / 起点从布局记忆恢复、离开的那一层不写记忆），不是再 push 一次，也不翻两次；
+// 打开时记下的起点（pendingOrigin）在这次换层里被取走丢掉，不留给以后。曲目链接只通向专辑 / 歌手（歌手页在 B8 前
+// 回退给网格），两个集合页之间的往返用探针的 push 构造（与宿主收到 onPushCollection 之后同一条路）。
+test.describe('[bravais-only] N1 fold', () => {
+    const stageRoot = (page: Page) => page.locator('[data-library-stage="bravais"]');
+    const layerKey = (page: Page) => stageRoot(page).getAttribute('data-bravais-layer');
+    const layoutMemory = (page: Page, key: string) => page.evaluate(
+        sessionKey => window.sessionStorage.getItem(`folia_bravais_layout:v1:${sessionKey}`),
+        key,
+    );
+    /** 从现在起数 stage 的翻牌次数（data-bravais-settling 出现一次算一次）与换过的层。 */
+    const watchStage = (page: Page) => page.evaluate(() => {
+        const root = document.querySelector('[data-library-stage="bravais"]')!;
+        const record = { flips: 0, layers: [] as string[] };
+        (window as unknown as { __bravaisStageWatch?: typeof record }).__bravaisStageWatch = record;
+        let settling = root.hasAttribute('data-bravais-settling');
+        let layer = root.getAttribute('data-bravais-layer');
+        new MutationObserver(() => {
+            const nextSettling = root.hasAttribute('data-bravais-settling');
+            if (nextSettling && !settling) record.flips += 1;
+            settling = nextSettling;
+            const nextLayer = root.getAttribute('data-bravais-layer');
+            if (nextLayer !== layer && nextLayer) record.layers.push(nextLayer);
+            layer = nextLayer;
+        }).observe(root, { attributes: true, attributeFilter: ['data-bravais-settling', 'data-bravais-layer'] });
+    });
+    const stageWatch = (page: Page) => page.evaluate(() => (
+        (window as unknown as { __bravaisStageWatch?: { flips: number; layers: string[] } }).__bravaisStageWatch!
+    ));
+    const pendingOrigin = (page: Page) => page.evaluate(async () => {
+        const modulePath = '/src/library/suites/bravais/bravaisStageStore.ts';
+        const { useBravaisStageStore } = await import(/* @vite-ignore */ modulePath);
+        return useBravaisStageStore.getState().pendingOrigin as unknown;
+    });
+    const push = (page: Page, id: ProbeFixtureId) => page.evaluate(fixtureId => window.__libraryProbe!.push(fixtureId), id);
+
+    test('entering the collection right below folds into one back: one reverse flip, no push, no origin left over', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'online-public');
+        await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes).length);
+        await waitForBravaisWall(page);
+        const playlist = (await layerKey(page))!;
+
+        expect(await push(page, 'online-owned')).toBe(true);
+        await expect.poll(() => stack(page)).toEqual(['Public Playlist', fixture['online-owned'].name]);
+        await waitForScope(page, expectedPlayableIndexes(fixture['online-owned'].rawIndexes).length);
+        await expect.poll(() => layerKey(page)).not.toBe(playlist);
+        await waitForBravaisWall(page);
+        const owned = (await layerKey(page))!;
+        // push 离开歌单时记下了它的布局；歌单之上的这一层还没离开过。
+        expect(await layoutMemory(page, playlist)).not.toBeNull();
+        expect(await layoutMemory(page, owned)).toBeNull();
+        // 在这一层上「打开」时 stage 会先记起点（这里模拟那一步）：折叠成返回时它要被取走丢掉。
+        await page.evaluate(async key => {
+            const modulePath = '/src/library/suites/bravais/bravaisStageStore.ts';
+            const { setBravaisPendingOrigin } = await import(/* @vite-ignore */ modulePath);
+            setBravaisPendingOrigin({ fromLayerKey: key, slotKey: '0,0,0' });
+        }, owned);
+
+        await watchStage(page);
+        expect(await push(page, 'online-public')).toBe(true);
+        await expect.poll(() => stack(page)).toEqual(['Public Playlist']);
+        await expect.poll(() => layerKey(page)).toBe(playlist);
+        await waitForBravaisWall(page);
+        await page.waitForTimeout(400);
+
+        const watch = await stageWatch(page);
+        expect(watch.layers).toEqual([playlist]);
+        expect(watch.flips).toBe(1);
+        // 返回不给离开的那一层写布局记忆（push 才写）。
+        expect(await layoutMemory(page, owned)).toBeNull();
+        expect(await pendingOrigin(page)).toBeNull();
+
+        // 之后照常压栈：再进去是一次 push（这次离开歌单又写一遍记忆），翻一次。
+        await watchStage(page);
+        expect(await push(page, 'online-owned')).toBe(true);
+        await expect.poll(() => stack(page)).toEqual(['Public Playlist', fixture['online-owned'].name]);
+        await expect.poll(() => layerKey(page)).toBe(owned);
+        await waitForBravaisWall(page);
+        await page.waitForTimeout(400);
+        expect((await stageWatch(page)).flips).toBe(1);
+    });
+
+    test('folding back from a grid-rendered artist page lands on the album the wall kept, the same as a back', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'online-public');
+        await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes).length);
+        const focusCardLink = (itemKey: string, name: string) => page
+            .locator(`[data-bravais-focus-card="${itemKey}-0"]`)
+            .getByRole('button', { name, exact: true });
+        const artistAlbumLink = page.locator('[data-library-surface="artist"][data-library-renderer="grid"]').last()
+            .locator(`[data-folia-grid-item-id="${onlineSongId('artop', 21)}"]`)
+            .getByText(new RegExp(`^${PROBE_ALBUM.name},?$`)).first();
+        const albumKey = onlinePlaybackKey(PROBE_PROVIDER_A, onlineSongId(PROBE_ALBUM.prefix, 1));
+        /** 专辑（bravais）→ 歌手（聚焦卡上的歌手链接，回退给网格）。网格的歌手页盖在上面时墙沿用专辑那一层。 */
+        const openArtist = async (album: string) => {
+            await focusBravaisEntry(page, albumKey);
+            await focusCardLink(albumKey, 'Probe Artist').click();
+            await expect.poll(() => stack(page)).toEqual(['Public Playlist', PROBE_ALBUM.name, 'Probe Artist']);
+            await expect(artistAlbumLink).toBeVisible();
+            expect(await layerKey(page)).toBe(album);
+            await page.waitForTimeout(600);
+        };
+        const expectAlbumBack = async (album: string) => {
+            await expect.poll(() => stack(page)).toEqual(['Public Playlist', PROBE_ALBUM.name]);
+            await expect(page.locator('[data-library-surface="collection"][data-library-renderer="bravais"]')).toHaveCount(1);
+            await waitForScope(page, PROBE_ALBUM.rawIndexes.length);
+            await waitForBravaisWall(page);
+            await page.waitForTimeout(400);
+            expect(await layerKey(page)).toBe(album);
+            return stageWatch(page);
+        };
+
+        // 歌单 → 专辑（聚焦卡上的专辑链接）。
+        const publicKey = onlinePlaybackKey(PROBE_PROVIDER_A, onlineSongId('public', 1));
+        await focusBravaisEntry(page, publicKey);
+        await focusCardLink(publicKey, PROBE_ALBUM.name).click();
+        await expect.poll(() => stack(page)).toEqual(['Public Playlist', PROBE_ALBUM.name]);
+        await waitForScope(page, PROBE_ALBUM.rawIndexes.length);
+        await waitForBravaisWall(page);
+        const album = (await layerKey(page))!;
+
+        // 参照：歌手页上普通返回一次。墙一直是专辑那一层，专辑 surface 重新挂载后只走同一层的数据更新。
+        await openArtist(album);
+        await watchStage(page);
+        await back(page);
+        const backWatch = await expectAlbumBack(album);
+        expect(backWatch.layers).toEqual([]);
+
+        // 歌手页上点这张专辑（正好是上一层）：折成一次返回，与上面的返回一样——不换层、不按 push 翻。
+        await openArtist(album);
+        await watchStage(page);
+        await artistAlbumLink.dispatchEvent('click');
+        const foldWatch = await expectAlbumBack(album);
+        expect(foldWatch).toEqual(backWatch);
+    });
+});
