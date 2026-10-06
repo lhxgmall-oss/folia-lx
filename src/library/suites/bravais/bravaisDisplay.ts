@@ -1,0 +1,145 @@
+import type { FlipOrigin, FlipPlan, FlipSlotChange } from '../../../components/wall/flipPlan';
+import { getInfiniteSlotItem, getStartWrapOffset } from '../../../components/wall/startTile';
+import { layoutFocusedBlock, parseWallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
+import { BRAVAIS_METRICS } from './bravaisConstants';
+import type { BravaisItem, BravaisLayer } from './bravaisLayer';
+
+// src/library/suites/bravais/bravaisDisplay.ts
+// 墙上此刻显示的是哪一层、每个 slot 显示哪一项（纯计算）。无限拼贴按起点 slot 求循环偏移（起点磁贴是第 1 项，
+// 条目数变了重新求）；有限拼贴（过滤）在 B7 接 finiteWall 的 rank→slot。
+// 换层 / 数据变化时 stage 对已渲染的 slot 逐个比较前后显示的条目 key，交给 wall 的 planFlip 排翻牌。
+
+/** 一次翻牌在单张磁贴上的安排：转到 90° 时换成 `to`（null = 墙面）。 */
+export type BravaisFlipStep = { token: number; to: string | null; delay: number; direction: -1 | 1 };
+
+export type BravaisDisplay = {
+    layer: BravaisLayer;
+    /** 无限拼贴的起点 slot（显示第 1 项）；没有就以 0 为偏移。 */
+    startSlotKey: string | null;
+    wrapOffset: number;
+    /** 换层翻牌：slot key → 这张磁贴怎么翻。没有翻牌时为空。 */
+    flips: ReadonlyMap<string, BravaisFlipStep>;
+    flipToken: number;
+};
+
+const NO_FLIPS: ReadonlyMap<string, BravaisFlipStep> = new Map();
+
+/** 起点 slot 的循环偏移；条目数变了要重新求（B5：层里存起点 slot，不只存偏移）。 */
+export const resolveWrapOffset = (startSlotKey: string | null, itemCount: number) => {
+    const address = startSlotKey ? parseWallSlotKey(startSlotKey) : null;
+    return getStartWrapOffset(address, itemCount);
+};
+
+export const createBravaisDisplay = (
+    layer: BravaisLayer,
+    startSlotKey: string | null,
+    flip?: { token: number; plan: FlipPlan },
+): BravaisDisplay => ({
+    layer,
+    startSlotKey,
+    wrapOffset: resolveWrapOffset(startSlotKey, layer.items.length),
+    flips: flip ? toFlipSteps(flip.token, flip.plan) : NO_FLIPS,
+    flipToken: flip?.token ?? 0,
+});
+
+/** 一个 slot 显示的条目；墙面（空画框）为 null。 */
+export const resolveSlotItem = (display: BravaisDisplay | null, slot: Pick<WallSlot, 'column' | 'row' | 'slotIndex'>): BravaisItem | null => {
+    if (!display) return null;
+    const { items } = display.layer;
+    if (items.length === 0) return null;
+    const index = getInfiniteSlotItem(slot, items.length, display.wrapOffset);
+    return index === null ? null : items[index] ?? null;
+};
+
+export const resolveSlotItemKey = (display: BravaisDisplay | null, slot: WallSlot) => resolveSlotItem(display, slot)?.key ?? null;
+
+/** 换显示前后，已渲染的 slot 各显示什么（交给 planFlip）。 */
+export const diffDisplays = (
+    before: BravaisDisplay | null,
+    after: BravaisDisplay,
+    slots: readonly WallSlot[],
+): FlipSlotChange[] => slots.map(slot => ({
+    slot,
+    from: resolveSlotItemKey(before, slot),
+    to: resolveSlotItemKey(after, slot),
+}));
+
+export const toFlipSteps = (token: number, plan: FlipPlan): ReadonlyMap<string, BravaisFlipStep> => {
+    if (plan.flips.length === 0) return NO_FLIPS;
+    return new Map(plan.flips.map(step => [step.key, { token, to: step.to, delay: step.delay, direction: step.direction }]));
+};
+
+/** 离一个世界点最近的 slot（没有起点的层用缝点定起点；第一次按方向键落在离缝最近的磁贴）。 */
+export const findNearestSlot = <T extends Pick<WallSlot, 'centerX' | 'centerY'>>(
+    slots: readonly T[],
+    point: { x: number; y: number },
+    accept: (slot: T) => boolean = () => true,
+): T | null => {
+    let best: T | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const slot of slots) {
+        if (!accept(slot)) continue;
+        const distance = (slot.centerX - point.x) ** 2 + (slot.centerY - point.y) ** 2;
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            best = slot;
+        }
+    }
+    return best;
+};
+
+/** 翻牌的起点：push 是被点的磁贴（起点磁贴），其余（back、换页签、数据到达）是缝点。 */
+export const pointOrigin = (point: { x: number; y: number }): FlipOrigin => ({ kind: 'point', x: point.x, y: point.y });
+
+/**
+ * 单张磁贴怎么从「正在显示的」换到「该显示的」（翻牌状态机的纯部分）：
+ * - none：内容没变（同一 key 的数据更新就地刷新）；
+ * - flip：这次翻牌安排了它、目标正是现在该显示的那一项、而且没有降低动效——转到 90° 时换；
+ * - swap：其余（屏外、超出 400 张上限、降低动效、目标又变了）直接换。
+ */
+export const resolveTileTransition = (
+    shownKey: string | null,
+    targetKey: string | null,
+    step: BravaisFlipStep | undefined,
+    reducedMotion: boolean,
+): 'none' | 'flip' | 'swap' => {
+    if (shownKey === targetKey) return 'none';
+    if (step && step.to === targetKey && !reducedMotion) return 'flip';
+    return 'swap';
+};
+
+/**
+ * 离一个世界点最近、显示着某一项的 slot（无限拼贴上同一项有好几份）：只在周围 `radius` 圈块里找（原型的 locateNowPlaying），
+ * 找不到就是 null（那一项不在这一层，或离得太远）。
+ */
+export const findItemSlotNear = (
+    display: BravaisDisplay | null,
+    itemKey: string,
+    point: { x: number; y: number },
+    blockSize: { width: number; height: number },
+    collectBlock: (column: number, row: number) => readonly WallSlot[],
+    radius = 4,
+): WallSlot | null => {
+    if (!display) return null;
+    const column = Math.floor(point.x / blockSize.width);
+    const row = Math.floor(point.y / blockSize.height);
+    const candidates: WallSlot[] = [];
+    for (let y = row - radius; y <= row + radius; y += 1) {
+        for (let x = column - radius; x <= column + radius; x += 1) {
+            for (const slot of collectBlock(x, y)) {
+                if (resolveSlotItem(display, slot)?.key === itemKey) candidates.push(slot);
+            }
+        }
+    }
+    return findNearestSlot(candidates, point);
+};
+
+const NO_REFLOW: ReadonlyMap<string, WallSlot> = new Map();
+
+/** 聚焦卡展开时它所在块的 12 个新矩形（slot key → 矩形）。 */
+export const resolveFocusReflow = (expandedSlotKey: string | null): ReadonlyMap<string, WallSlot> => {
+    const address = expandedSlotKey ? parseWallSlotKey(expandedSlotKey) : null;
+    if (!address) return NO_REFLOW;
+    const slots = layoutFocusedBlock(address.column, address.row, address.slotIndex, BRAVAIS_METRICS);
+    return slots ? new Map(slots.map(slot => [slot.key, slot])) : NO_REFLOW;
+};
