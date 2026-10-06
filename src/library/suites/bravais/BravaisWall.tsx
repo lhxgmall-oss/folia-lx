@@ -1,0 +1,74 @@
+import React, { type MutableRefObject, type RefObject } from 'react';
+import type { WallSlot } from '../../../components/wall/wallSlots';
+import { resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
+import BravaisTile, { type BravaisTileHandlers, type BravaisTileRect } from './BravaisTile';
+
+// src/library/suites/bravais/BravaisWall.tsx
+// 墙的两半：缝锚点左边的 slot 进左边的世界层，右边的进右边的（缝只开在块边界上，没有 slot 跨过它）。两个世界层的
+// transform 由 stage 每帧直接写（bravaisFrame），这里只在裁剪范围、显示的层、聚焦 / 焦点变化时渲染。
+
+type BravaisWallProps = {
+    slots: readonly WallSlot[];
+    display: BravaisDisplay | null;
+    anchorX: number | null;
+    /** 聚焦卡所在块的让位矩形（slot key → 新矩形）。 */
+    reflow: ReadonlyMap<string, BravaisTileRect>;
+    expandedSlotKey: string | null;
+    focusedSlotKey: string | null;
+    pixelScale: number;
+    reducedMotion: boolean;
+    didDragRef: MutableRefObject<boolean>;
+    handlers: BravaisTileHandlers;
+    leftRef: RefObject<HTMLDivElement | null>;
+    rightRef: RefObject<HTMLDivElement | null>;
+};
+
+const BravaisWall: React.FC<BravaisWallProps> = ({
+    slots,
+    display,
+    anchorX,
+    reflow,
+    expandedSlotKey,
+    focusedSlotKey,
+    pixelScale,
+    reducedMotion,
+    didDragRef,
+    handlers,
+    leftRef,
+    rightRef,
+}) => {
+    const left: React.ReactNode[] = [];
+    const right: React.ReactNode[] = [];
+    const nowPlayingKey = display?.layer.nowPlayingKey ?? null;
+    for (const slot of slots) {
+        const item = resolveSlotItem(display, slot);
+        const expanded = slot.key === expandedSlotKey;
+        const tile = (
+            <BravaisTile
+                key={slot.key}
+                slotKey={slot.key}
+                rect={reflow.get(slot.key) ?? slot}
+                item={item}
+                step={display?.flips.get(slot.key)}
+                nowPlayingKey={nowPlayingKey}
+                reflowing={reflow.has(slot.key)}
+                expanded={expanded}
+                keyboardFocused={slot.key === focusedSlotKey}
+                queued={expanded && Boolean(item && display?.layer.queuedKeys.has(item.key))}
+                pixelScale={pixelScale}
+                reducedMotion={reducedMotion}
+                didDragRef={didDragRef}
+                handlers={handlers}
+            />
+        );
+        (anchorX !== null && slot.x < anchorX ? left : right).push(tile);
+    }
+    return (
+        <>
+            <div ref={leftRef} className="lattice-world" data-bravais-half="left">{left}</div>
+            <div ref={rightRef} className="lattice-world" data-bravais-half="right">{right}</div>
+        </>
+    );
+};
+
+export default BravaisWall;
