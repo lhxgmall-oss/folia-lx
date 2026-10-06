@@ -47,6 +47,7 @@ import {
     resolveLibrarySurface,
 } from '../registry';
 import { resolveLibraryLayerPresentation } from '../core/model/libraryStage';
+import { resolveCollectionPush } from '../core/model/collectionNavigation';
 import { LIBRARY_HOME_SESSION_KEY } from './librarySuiteChoice';
 import LibrarySuiteStageSlot from './LibrarySuiteStageSlot';
 
@@ -63,6 +64,8 @@ import LibrarySuiteStageSlot from './LibrarySuiteStageSlot';
 // - Escape 与浏览器后退 = 离开但保留（onBack / popstate）。
 // 两条返回路径都只让渲染这一层的 suite 跑一次 beforeBack：应用内返回在这里先跑，再走历史后退；浏览器后退
 // 不经过这里，由导航 store 在 popstate 弹栈之前通知（subscribeCollectionPop），界面那时还是返回前的样子。
+// N1 起「进入的正好是上一层」（歌手 ↔ 专辑来回点，折成一次返回）与面包屑跳层（onPopTo）也是弹栈：导航层走浏览器
+// 历史退回，beforeBack 同样由弹栈通知跑一次；这两条路径在宿主这里都不跑 beforePush / beforeBack。
 
 // suite 的切换浮层：懒加载、且只在 DEV 下引用，生产包不受影响（生产构建里也只有一套 suite）。
 const DevLibraryRendererSwitch = import.meta.env.DEV ? React.lazy(() => import('./DevLibraryRendererSwitch')) : null;
@@ -91,6 +94,8 @@ type GridViewOverlayHostProps = {
     surfaceProps: HomeSurfaceProps;
     onOpenCollection: (collection: GridViewCollectionDescriptor) => void;
     onPushCollection: (collection: GridViewCollectionDescriptor) => void;
+    /** 跳到导航栈第 depth 层（保留的层数，0 为整个关掉）；交给 surface 的 onPopTo。 */
+    onPopCollectionTo: (depth: number) => void;
     onBackCollection: () => void;
     isInteractive?: boolean;
     children: (
@@ -168,6 +173,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     surfaceProps,
     onOpenCollection,
     onPushCollection,
+    onPopCollectionTo,
     onBackCollection,
     isInteractive = true,
     children,
@@ -280,8 +286,13 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
 
     // 压栈 / 返回之前先让负责集合层的 suite 安排转场（网格：级联入场计划、反向移形换影，原先写在这里的
     // 两段逻辑原样搬进了 suites/grid/transitions/gridHostTransitions）。
+    // 只有真的压栈才安排入场：要进入的正好是上一层时（N1 折叠紧邻往返）是一次返回，反向转场由弹栈通知跑；
+    // 就是当前这一层时什么都不发生，也不该留下一个没人用的入场计划。
     const handlePushCollection = useCallback((col: GridViewCollectionDescriptor) => {
-        activeTransitions?.beforePush?.(readNavigationContext());
+        const decision = resolveCollectionPush(useCollectionNavigationStore.getState().snapshot, col);
+        if (decision.kind === 'push') {
+            activeTransitions?.beforePush?.(readNavigationContext());
+        }
         onPushCollection(col);
     }, [activeTransitions, onPushCollection]);
 
@@ -662,6 +673,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                                 onDone={handleDoneCollection}
                                 onOpenAlbum={handlePushAlbumCollection}
                                 onOpenArtist={handlePushArtistCollection}
+                                onPopTo={onPopCollectionTo}
                             />
                         </React.Suspense>
                     ) : (
@@ -682,6 +694,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                                 onDone={handleDoneCollection}
                                 onOpenAlbum={handlePushAlbumCollection}
                                 onOpenArtist={handlePushArtistCollection}
+                                onPopTo={onPopCollectionTo}
                             />
                         </React.Suspense>
                     )
