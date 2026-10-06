@@ -43,7 +43,7 @@ function LatticeTitleProbe() {
         return fitTitleToWidth(text, metrics);
     }, []);
     return <TitleFitterContext.Provider value={fitter}>
-        <div className="lattice-root" data-fits={fits} style={{ color: 'white', background: '#243748', padding: 40 }}>
+        <div className="lattice-root lattice-queue-root" data-fits={fits} style={{ color: 'white', background: '#243748', padding: 40 }}>
             <button type="button" onClick={() => setGeneration(value => value + 1)}>Remount titles</button>
             <label>Expanded poster width <input type="number" step={1} value={expandedWidth}
                 onChange={event => setExpandedWidth(Number(event.target.value) || 0)} /></label>
