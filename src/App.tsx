@@ -36,6 +36,7 @@ import { createOnlineGridViewCollection, type GridViewCollectionDescriptor } fro
 import { buildAppStyle } from './components/app/presentation/buildAppStyle';
 import { buildDebugSnapshot } from './components/app/presentation/buildDebugSnapshot';
 import { buildHomeSurfacePresentation } from './components/app/presentation/buildHomeSurfacePresentation';
+import { shouldMountPlayerVisualizer } from './components/app/presentation/playerVisualizerMount';
 import { buildPlayerViewFlags } from './components/app/presentation/buildPlayerViewFlags';
 import { buildVisualizerTheme } from './components/app/presentation/buildVisualizerTheme';
 import { createCoverUrlResolver } from './components/app/playback/createCoverUrlResolver';
@@ -133,6 +134,8 @@ import { useAppChromeStore } from './stores/useAppChromeStore';
 import { useAppViewStore } from './stores/useAppViewStore';
 import { selectDisplayCoverUrl, selectDisplayDuration, selectDisplayLyrics, selectDisplayPlayerState, selectDisplaySong, selectIsShowingTail, usePlaybackStore } from './stores/usePlaybackStore';
 import { useLibraryStore } from './stores/useLibraryStore';
+import { selectLibraryOccludesPlayer, useLibraryPlayerOcclusionStore } from './stores/useLibraryPlayerOcclusionStore';
+import { useLibraryOcclusionSettled } from './hooks/useLibraryOcclusionSettled';
 import { countRender } from './dev/renderCount';
 import { resolveSongLiked } from './utils/resolveSongLiked';
 import StageSessionEmptyState from './components/app/stage/StageSessionEmptyState';
@@ -2336,6 +2339,17 @@ export default function App() {
             return () => clearTimeout(timer);
         }
     }, [shouldKeepHomeMounted]);
+    // 资料库 stage 完全遮挡播放页时（bravais 实色档，stage 自己报告）也卸载 visualizer：首页淡入结束后才卸载，
+    // 首页一被盖住 / 离开就立即重挂。App 只认报告，不认识 suite。
+    const libraryOccludesPlayer = useLibraryPlayerOcclusionStore(selectLibraryOccludesPlayer);
+    const hasLibraryOcclusionSettled = useLibraryOcclusionSettled(shouldShowHomeSurface && libraryOccludesPlayer);
+    const shouldMountVisualizer = shouldMountPlayerVisualizer({
+        currentView,
+        hasLatticeExited,
+        shouldShowHomeSurface,
+        libraryOccludesPlayer,
+        hasLibraryOcclusionSettled,
+    });
 
     // The two automix decks are identical and interchangeable. Every handler below ignores the
     // deck that is not currently active, so a track fading out in the background can never drive
@@ -2706,7 +2720,7 @@ export default function App() {
                 onClick={handleContainerClick}
             >
                 <PlayerBottomBarLayoutContext.Provider value={currentView === 'player'}>
-                    {currentView !== 'lattice' && hasLatticeExited && <VisualizerRenderer {...visualizerRendererModel} />}
+                    {shouldMountVisualizer && <VisualizerRenderer {...visualizerRendererModel} />}
                 </PlayerBottomBarLayoutContext.Provider>
             </div>
 
