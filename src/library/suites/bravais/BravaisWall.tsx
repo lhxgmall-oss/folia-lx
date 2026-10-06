@@ -64,6 +64,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
                 linked={Boolean(item && linkedKey !== null && item.key === linkedKey)}
                 pixelScale={pixelScale}
                 reducedMotion={reducedMotion}
+                entrance={display?.entrance ?? null}
                 didDragRef={didDragRef}
                 handlers={handlers}
             />

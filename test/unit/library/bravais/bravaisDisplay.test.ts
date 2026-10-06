@@ -99,9 +99,11 @@ describe('tile transition (the pure half of the flip state machine)', () => {
         expect(resolveTileTransition(null, null, undefined, false)).toBe('none');
     });
 
-    it('flips only for the planned target, without reduced motion', () => {
+    it('flips only for the planned target; reduced motion fades the same planned tiles (B11)', () => {
         expect(resolveTileTransition('a', 'b', step, false)).toBe('flip');
-        expect(resolveTileTransition('a', 'b', step, true)).toBe('swap');
+        expect(resolveTileTransition('a', 'b', step, true)).toBe('fade');
+        expect(resolveTileTransition('a', 'c', step, true)).toBe('swap');
+        expect(resolveTileTransition('a', 'b', undefined, true)).toBe('swap');
         expect(resolveTileTransition('a', 'c', step, false)).toBe('swap');
         expect(resolveTileTransition('a', 'b', undefined, false)).toBe('swap');
         expect(resolveTileTransition('a', null, { ...step, to: null }, false)).toBe('flip');

@@ -32,6 +32,8 @@ import { useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisPanelActions } from './BravaisListPanel';
 import { useBravaisWallLook } from './useBravaisWallLook';
 import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStore';
+import { useBravaisReducedTransitions } from './bravaisMotion';
+import { useBravaisBeforePush } from './bravaisTransitions';
 import '../../../components/wall/wall.css';
 import './bravais.css';
 
@@ -66,6 +68,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const wallLook = useBravaisWallLook(reportPlayerOcclusion);
     const view = useBravaisViewport(rootRef);
     const reducedMotion = useReducedMotionFor('lattice');
+    // B11：换层的翻牌 / 波次按「降低动态效果」降级成淡入淡出（lattice 或 collectionMorph，见 bravaisMotion）。
+    const reducedTransitions = useBravaisReducedTransitions();
     const devicePixelRatio = useDevicePixelRatio();
     const vignette = useLatticeSettingsStore(state => state.latticeVignette);
     const tintEnabled = useLatticeSettingsStore(state => state.latticePosterTintEnabled);
@@ -155,7 +159,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         view,
         wallLook,
         slotsRef,
-        depth: navigation.depth,
+        navigation,
+        reducedTransitions,
         openWidthFor,
         setCameraRange: camera.setRange,
         setAnchor: seam.setAnchor,
@@ -168,6 +173,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         restoreFocus: key => focus.focusSlot(bravaisSlotFromKey(key)),
     });
     displayBridgeRef.current = displayRef.current;
+    // B11 transitions.beforePush：宿主压栈之前，没经过墙上磁贴的打开用键盘焦点所在的 slot 当起点磁贴。
+    const getFocusedSlotKey = useCallback(() => focus.focusedRef.current, [focus.focusedRef]);
+    useBravaisBeforePush(displayRef, getFocusedSlotKey);
 
     const interactions = useBravaisInteractions({
         displayRef,
@@ -298,6 +306,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
             data-bravais-layer={display?.layer.key}
             data-bravais-active={active || undefined}
             data-bravais-settling={isSettling || undefined}
+            data-bravais-shift={display?.shift?.kind}
+            data-bravais-shift-seq={display?.shift?.seq}
             data-bravais-look={display?.look ?? wallLook.look}
             aria-label={t('libraryBravais.wallLabel')}
         >
@@ -336,7 +346,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
                     focusedSlotKey={focus.focusedSlotKey}
                     linkedKey={panelFor !== null && panelFor === display?.layer.key ? linkedKey : null}
                     pixelScale={(view?.scale ?? 1) * devicePixelRatio}
-                    reducedMotion={reducedMotion}
+                    reducedMotion={reducedTransitions}
                     didDragRef={camera.pointer.didDragRef}
                     handlers={interactions.handlers}
                     leftRef={leftRef}

@@ -4,16 +4,17 @@ import { useWallPosterArtwork } from '../../../components/wall/useWallPosterArtw
 import { countRender } from '../../../dev/renderCount';
 import {
     BRAVAIS_METRICS,
+    BRAVAIS_REDUCED_FADE_MS,
     BRAVAIS_SEE_THROUGH_STRIP_ARTWORK_PX,
     BRAVAIS_TILE_FLIP_IN_MS,
     BRAVAIS_TILE_FLIP_OUT_MS,
 } from './bravaisConstants';
-import { resolveTileTransition, type BravaisFlipStep } from './bravaisDisplay';
+import { resolveTileTransition, type BravaisEntrance, type BravaisFlipStep } from './bravaisDisplay';
 import type { BravaisItem } from './bravaisLayer';
 import { bravaisFaceKey, type BravaisTileKind } from './bravaisLook';
 import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFocusCardBody';
 import BravaisTileMarks from './BravaisTileMarks';
-import { WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } from './bravaisWallWave';
+import { getWaveStagger, WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } from './bravaisWallWave';
 
 // src/library/suites/bravais/BravaisTile.tsx
 // 墙上的一张磁贴。分两层（给 B6b③ 的底板留结构）：外框（.bravais-tile）只管位置与尺寸，永远不转；内容层
@@ -25,6 +26,8 @@ import { WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } from './bravaisWall
 // 所以换档时开窗、关窗、变透明的磁贴也会翻。
 // B9：换首页页签是整墙出场 → 入场（step.wave）：内容层先抬起淡出，换内容，等到自己的入场时刻再落回；首页卡片右上角
 // 的眼睛按钮与批量选中的勾（BravaisTileMarks），批量模式里没选中的、管理隐藏视图里已隐藏的灰度 + 半透明（is-dimmed）。
+// B11：降低动态效果时翻牌（含整墙波次）换成淡出 → 换内容 → 淡入（合计 0.18s，不错开）；从搜索 / 播放页打开集合的
+// 整墙入场（entrance）没有出场段，磁贴立刻换成新内容、保持抬起，按离视口左上角的距离错开落回（刚挂载的同样）。
 
 export type BravaisTileRect = { x: number; y: number; width: number; height: number };
 
@@ -54,7 +57,10 @@ type BravaisTileProps = {
     /** B7：列表面板里悬停的那一项（墙上它的所有可见副本高亮，is-linked）。 */
     linked?: boolean;
     pixelScale: number;
+    /** 换层转场降级成淡入淡出（bravaisMotion）。 */
     reducedMotion: boolean;
+    /** B11：整墙入场（来源是搜索 / 播放页）；没有时为 null。 */
+    entrance?: BravaisEntrance | null;
     didDragRef: MutableRefObject<boolean>;
     handlers: BravaisTileHandlers;
 };
@@ -63,6 +69,10 @@ const rotation = (degrees: number) => `perspective(1400px) rotateY(${degrees}deg
 /** 整墙出场 / 入场（lift wave）里内容层离开时的样子：往上抬、缩小、淡出。 */
 const LIFTED: Keyframe = { transform: `translate3d(0, -${WALL_WAVE_LIFT}px, 0) scale(0.88)`, opacity: 0 };
 const SETTLED: Keyframe = { transform: 'none', opacity: 1 };
+/** 降低动态效果的淡出 / 淡入（各占一半时长）。 */
+const FADED: Keyframe = { opacity: 0 };
+const SHOWN: Keyframe = { opacity: 1 };
+const FADE_HALF_MS = BRAVAIS_REDUCED_FADE_MS / 2;
 
 const fallbackBackground = (id: string) => {
     const hue = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
@@ -101,6 +111,7 @@ function BravaisTile({
     linked = false,
     pixelScale,
     reducedMotion,
+    entrance = null,
     didDragRef,
     handlers,
 }: BravaisTileProps) {
@@ -113,7 +124,7 @@ function BravaisTile({
     const outAnimationRef = useRef<Animation | null>(null);
     const inAnimationRef = useRef<Animation | null>(null);
     /** 转出段放完、等新内容渲染出来再转进的方向；整墙入场时是落回前还要等多久（毫秒）。 */
-    const pendingInRef = useRef<{ direction: number; waveGap: number | null } | null>(null);
+    const pendingInRef = useRef<{ direction: number; waveGap: number | null; fade: boolean } | null>(null);
     /** 整墙出场已经放完的那一次（token）：之后同一次里目标又变了，只换内容，不打断正在等着落回的入场。 */
     const waveOutDoneRef = useRef<number | null>(null);
 
@@ -141,8 +152,12 @@ function BravaisTile({
         }
         inAnimationRef.current?.cancel();
         inAnimationRef.current = null;
-        const wave = step.wave;
-        const out = wave
+        // 降低动态效果：不错开、不抬起，原地淡出（整墙波次同样）。
+        const fade = transition === 'fade';
+        const wave = fade ? undefined : step.wave;
+        const out = fade
+            ? face.animate([SHOWN, FADED], { duration: FADE_HALF_MS, easing: 'ease-in', fill: 'forwards' })
+            : wave
             ? face.animate([SETTLED, LIFTED], { duration: WALL_WAVE_OUT_MS, delay: step.delay, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' })
             : face.animate(
                 [{ transform: rotation(0) }, { transform: rotation(90 * step.direction) }],
@@ -153,6 +168,7 @@ function BravaisTile({
             pendingInRef.current = {
                 direction: step.direction,
                 waveGap: wave ? Math.max(0, wave.inDelay - step.delay - WALL_WAVE_OUT_MS) : null,
+                fade,
             };
             if (wave) waveOutDoneRef.current = step.token;
             setShown(latestFaceRef.current);
@@ -176,7 +192,9 @@ function BravaisTile({
         // 整墙入场：落回之前保持抬起、看不见（fill backwards 覆盖等待的那一段）。入场不随内容再换而取消
         // （由下一次出场 / 翻牌或卸载取消）。
         inAnimationRef.current?.cancel();
-        const back = pending.waveGap !== null
+        const back = pending.fade
+            ? face.animate([FADED, SHOWN], { duration: FADE_HALF_MS, easing: 'ease-out' })
+            : pending.waveGap !== null
             ? face.animate([LIFTED, SETTLED], {
                 duration: WALL_WAVE_IN_MS,
                 delay: pending.waveGap,
@@ -192,6 +210,30 @@ function BravaisTile({
             if (inAnimationRef.current === back) inAnimationRef.current = null;
         };
     }, [shownKey]);
+    // B11 整墙入场：只按 token 认（入场途中的数据更新沿用同一个 entrance，不重启）。已经在放的翻牌 / 波次让给它；
+    // 落回之前保持抬起（fill backwards），刚挂载的磁贴也一样落回。入场窗口过了才挂载的不动。
+    const entranceToken = entrance?.token ?? null;
+    useLayoutEffect(() => {
+        const face = faceRef.current;
+        if (!entrance || !face) return;
+        const now = performance.now();
+        if (now >= entrance.until) return;
+        const stagger = entrance.reduced ? 0 : getWaveStagger(rect, entrance.corner, BRAVAIS_METRICS);
+        const delay = Math.max(0, entrance.startedAt + stagger - now);
+        outAnimationRef.current?.cancel();
+        outAnimationRef.current = null;
+        pendingInRef.current = null;
+        inAnimationRef.current?.cancel();
+        const land = entrance.reduced
+            ? face.animate([FADED, SHOWN], { duration: BRAVAIS_REDUCED_FADE_MS, delay, easing: 'ease-out', fill: 'backwards' })
+            : face.animate([LIFTED, SETTLED], { duration: WALL_WAVE_IN_MS, delay, easing: 'cubic-bezier(.2,.9,.3,1.04)', fill: 'backwards' });
+        inAnimationRef.current = land;
+        land.onfinish = () => {
+            if (inAnimationRef.current === land) inAnimationRef.current = null;
+        };
+    // 只在新的一次入场时跑（rect 取那一刻的）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [entranceToken]);
     useLayoutEffect(() => () => {
         inAnimationRef.current?.cancel();
         outAnimationRef.current?.cancel();

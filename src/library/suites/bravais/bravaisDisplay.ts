@@ -6,6 +6,7 @@ import type { LibraryWallLook } from '../../../utils/libraryWallLook';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
 import type { WallWavePlan } from './bravaisWallWave';
+import type { BravaisShiftKind } from './bravaisShift';
 import { resolveFiniteRank, type BravaisFiniteState } from './bravaisFiniteWall';
 import {
     bravaisFaceKey,
@@ -29,6 +30,23 @@ import {
  */
 export type BravaisFlipStep = { token: number; to: string | null; delay: number; direction: -1 | 1; wave?: { inDelay: number } };
 
+/**
+ * B11 整墙入场（从搜索页 / 播放页打开集合，下面没有首页墙）：没有出场段——磁贴立刻换成新内容、保持抬起，按离视口
+ * 左上角（corner，世界坐标）的对角线距离错开落回（bravaisWallWave 的 getWaveStagger）。刚挂载的磁贴同样按它落回，
+ * 所以不依赖换层那一刻渲染着哪些 slot（stage 刚挂载时还没有）。reduced：降低动态效果时换成 0.18s 淡入、不错开。
+ */
+export type BravaisEntrance = {
+    token: number;
+    corner: { left: number; top: number };
+    /** performance.now() 时刻；until 之后挂载的磁贴不再入场。 */
+    startedAt: number;
+    until: number;
+    reduced: boolean;
+};
+
+/** 墙上最近一次换层（B11）：种类与序号，stage 根节点据此标记（探针数「返回只翻一次」）。first 是 stage 挂载时直接画出。 */
+export type BravaisShift = { kind: BravaisShiftKind | 'first'; seq: number };
+
 export type BravaisDisplay = {
     layer: BravaisLayer;
     /** 无限拼贴的起点 slot（显示第 1 项）；没有就以 0 为偏移。 */
@@ -48,6 +66,10 @@ export type BravaisDisplay = {
      * （`finite` 须用同一个 k 规划，见 planBravaisFinite）与反查 slot 都按它跳过窗位。
      */
     reservedPerBlock: number;
+    /** B11：这一层是整墙入场进来的（数据更新沿用到入场放完）。 */
+    entrance?: BravaisEntrance | null;
+    /** B11：最近一次换层（数据更新沿用）。 */
+    shift?: BravaisShift | null;
 };
 
 /** 无限拼贴的循环周期按多少条算（补页期间是上游总数，见 BravaisLayerWall.periodCount）。 */
@@ -175,17 +197,18 @@ export const pointOrigin = (point: { x: number; y: number }): FlipOrigin => ({ k
 /**
  * 单张磁贴怎么从「正在显示的」换到「该显示的」（翻牌状态机的纯部分）：
  * - none：内容没变（同一 key 的数据更新就地刷新）；
- * - flip：这次翻牌安排了它、目标正是现在该显示的那一项、而且没有降低动效——转到 90° 时换；
- * - swap：其余（屏外、超出 400 张上限、降低动效、目标又变了）直接换。
+ * - flip：这次翻牌安排了它、目标正是现在该显示的那一项——转到 90° 时换（整墙波次是抬起 → 落回）；
+ * - fade：同上，但降低了动态效果（B11）：淡出 → 换内容 → 淡入，合计 0.18s，不错开；
+ * - swap：其余（屏外、超出 400 张上限、目标又变了）直接换。
  */
 export const resolveTileTransition = (
     shownKey: string | null,
     targetKey: string | null,
     step: BravaisFlipStep | undefined,
     reducedMotion: boolean,
-): 'none' | 'flip' | 'swap' => {
+): 'none' | 'flip' | 'fade' | 'swap' => {
     if (shownKey === targetKey) return 'none';
-    if (step && step.to === targetKey && !reducedMotion) return 'flip';
+    if (step && step.to === targetKey) return reducedMotion ? 'fade' : 'flip';
     return 'swap';
 };
 

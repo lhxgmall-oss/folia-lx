@@ -1,5 +1,6 @@
 import React from 'react';
 import type { LibraryActionId, LibraryArtistActionId, LibraryHomeActionId, LibrarySuiteManifest } from '../../core/contracts/suite';
+import type { LibraryNavigationContext } from '../../core/contracts/suite';
 
 // src/library/suites/bravais/entry.ts
 // bravais suite（library v2 的正式新 UI，设计稿 docs/bravais-suite-design.md）：用户始终站在一面墙前，导航与筛选都是
@@ -18,6 +19,32 @@ import type { LibraryActionId, LibraryArtistActionId, LibraryHomeActionId, Libra
  * 定义在这里是因为 layout.forget 就在这里按它删记录（entry 不能静态 import bravaisLayoutMemory）。
  */
 export const BRAVAIS_LAYOUT_STORAGE_PREFIX = 'folia_bravais_layout:v1:';
+
+/**
+ * B11 转场钩子的接线：manifest 的 transitions 声明在这里，实现却在 stage 的 chunk 里（本文件只能静态 import react）。
+ * 那边的模块加载后经 installBravaisTransitionHook 装上；没选过 bravais 的人从不加载那个 chunk，钩子就是空操作——
+ * 宿主切 suite 时对每一套都调 reset，不能为它去加载 bravais。
+ */
+export type BravaisTransitionHooks = {
+    beforePush: (context: LibraryNavigationContext) => void;
+    reset: () => void;
+};
+
+const transitionHooks: { [Name in keyof BravaisTransitionHooks]: BravaisTransitionHooks[Name] | null } = {
+    beforePush: null,
+    reset: null,
+};
+
+/** 装上一个钩子，返回卸下的函数（只卸自己装的那一个）。 */
+export const installBravaisTransitionHook = <Name extends keyof BravaisTransitionHooks>(
+    name: Name,
+    hook: BravaisTransitionHooks[Name],
+): (() => void) => {
+    transitionHooks[name] = hook;
+    return () => {
+        if (transitionHooks[name] === hook) transitionHooks[name] = null;
+    };
+};
 
 const BravaisStage = React.lazy(() => import('./BravaisStage'));
 const BravaisHome = React.lazy(() => import('./BravaisHome'));
@@ -178,6 +205,14 @@ const bravais: LibrarySuiteManifest = {
         artist: { component: BravaisArtist, actions: ARTIST_ACTIONS },
     },
     chromeActions: CHROME_ACTIONS,
+    // B11（设计稿 §10.8）：换层的翻牌由 stage 观察导航深度驱动（应用内返回、浏览器后退、N1 折回、面包屑跳层都是一次
+    // 深度变化，各翻一次），所以不声明 beforeBack，也不声明 Overlay 与 backdrop（「降低动态效果」由 stage 自己解析，
+    // 见 bravaisMotion）。beforePush 只在宿主真的压栈时跑：没经过墙上磁贴的打开（命令面板对焦点那一项的 open-album /
+    // open-artist）用键盘焦点所在的 slot 当起点磁贴；reset 在切 suite 时丢掉还没用掉的起点。
+    transitions: {
+        beforePush: context => transitionHooks.beforePush?.(context),
+        reset: () => transitionHooks.reset?.(),
+    },
     layout: {
         forget: sessionKey => {
             try {
