@@ -145,4 +145,7 @@ export type BravaisLayerEntries = {
     /** 表单态开着：Esc 先撤销它。 */
     hasForm: boolean;
     cancelForm?: () => void;
+    /** B9 首页：管理隐藏视图开着（视图模式，不是导航）：Esc 在面板之后、过滤词之前退出它。 */
+    hasViewMode?: boolean;
+    exitViewMode?: () => void;
 };

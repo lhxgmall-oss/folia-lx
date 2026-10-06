@@ -54,14 +54,18 @@ export const resolveBravaisKey = (input: BravaisKeyInput): BravaisKeyAction | nu
     return null;
 };
 
-/** Esc 阶梯的一级（设计稿 §10.8：表单态 → 聚焦卡 → 键盘焦点 → 面板 → 过滤词 → onBack）。没有的级别跳过。 */
-export type BravaisEscapeStep = 'form' | 'focus-card' | 'keyboard-focus' | 'panel' | 'query' | 'back';
+/**
+ * Esc 阶梯的一级（设计稿 §10.8：表单态 → 聚焦卡 → 键盘焦点 → 面板 → 过滤词 → onBack）。没有的级别跳过。
+ * B9：首页的管理隐藏视图（view）排在面板之后、过滤词之前（两者互斥：有批量的目录没有可隐藏的条目）。
+ */
+export type BravaisEscapeStep = 'form' | 'focus-card' | 'keyboard-focus' | 'panel' | 'view' | 'query' | 'back';
 
 export const resolveEscapeStep = ({
     hasForm = false,
     hasFocusCard,
     hasKeyboardFocus,
     hasPanel = false,
+    hasViewMode = false,
     hasQuery = false,
     canGoBack,
 }: {
@@ -69,6 +73,7 @@ export const resolveEscapeStep = ({
     hasFocusCard: boolean;
     hasKeyboardFocus: boolean;
     hasPanel?: boolean;
+    hasViewMode?: boolean;
     hasQuery?: boolean;
     canGoBack: boolean;
 }): BravaisEscapeStep | null => {
@@ -76,6 +81,7 @@ export const resolveEscapeStep = ({
     if (hasFocusCard) return 'focus-card';
     if (hasKeyboardFocus) return 'keyboard-focus';
     if (hasPanel) return 'panel';
+    if (hasViewMode) return 'view';
     if (hasQuery) return 'query';
     return canGoBack ? 'back' : null;
 };

@@ -1,4 +1,5 @@
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection } from './bravaisSeamModels';
+import type { BravaisHomeLayer, BravaisHomeSeam } from './bravaisHomeModels';
 
 // src/library/suites/bravais/bravaisLayer.ts
 // bravais 的层描述（设计稿 §8.1）：surface 把 core binding 的数据投影成它，推进 bravaisStageStore，stage 只读它画墙。
@@ -26,6 +27,15 @@ export type BravaisItem = {
     durationLabel?: string;
     /** 不可播放（灰显）。 */
     unavailable?: boolean;
+    /** B9 首页：歌单类卡片可隐藏（右上角眼睛按钮）；hidden 是它此刻在隐藏表里（管理隐藏视图里显示）。 */
+    hideable?: boolean;
+    hidden?: boolean;
+    /** B9 首页：批量模式里被选中（带勾、不灰）。 */
+    selected?: boolean;
+    /** B9 首页：灰度 + 半透明（批量模式里没选中的、管理隐藏视图里已隐藏的）。 */
+    dimmed?: boolean;
+    /** B9 首页：点了直接播放、不进新层（私人 FM）：stage 不记起点。 */
+    direct?: boolean;
 };
 
 /** 首页缝里的页签（只有首页层有）。 */
@@ -53,6 +63,8 @@ export type BravaisSeamModel = {
     onEnqueueScope?: () => void;
     /** B7 集合页：收藏星标、补页进度、状态与结果提示、过滤位、日期步进、「⋯ 更多」、表单态（见 bravaisSeamModels）。 */
     collection?: BravaisSeamCollection;
+    /** B9 首页：二级切换、工具按钮、「⋯」、管理隐藏、扫描进度、搜索、账户位（见 bravaisHomeModels）。 */
+    home?: BravaisHomeSeam;
 };
 
 export type BravaisLayerSurface = 'home' | 'collection';
@@ -95,5 +107,7 @@ export type BravaisLayer = {
     wall?: BravaisLayerWall;
     /** B7：列表面板与条目动作（聚焦卡「⋯」、Esc 阶梯的过滤词一级）。 */
     entries?: BravaisLayerEntries;
+    /** B9：首页的目录树面板、批量模式、眼睛按钮与 F6 切页签（见 bravaisHomeModels）。 */
+    home?: BravaisHomeLayer;
 };
 
