@@ -3197,6 +3197,22 @@ export default {
     "nowPlayingStageDescription": "Now Playing is being controlled by an external player. Folia is only responsible for displaying lyrics and visual effects.",
     "stageLocalInputDescription": "Stage is in local single-input mode. External devices can push lyrics or media, but playback and display are controlled by Folia itself.",
   },
+  "libraryBravaisArtist": {
+    "playTopSongs": "Play top songs",
+    "wallCounts": "{{songs}} top songs · {{albums}} albums",
+    "songCount_one": "{{count}} song",
+    "songCount_other": "{{count}} songs",
+    "albumCount_one": "{{count}} album",
+    "albumCount_other": "{{count}} albums",
+    "aliases": "Also known as {{names}}",
+    "filterPlaceholder": "Filter albums",
+    "albumMatchCount": "{{matches}} / {{total}} albums",
+    "noMatchingAlbums": "No matching albums",
+    "albumsSyncing": "Loading albums {{loaded}} / {{total}}",
+    "albumsSyncingOpen": "Loading albums… {{loaded}}",
+    "albumsInterrupted": "Albums stopped at {{loaded}}",
+    "panelTitle": "Top songs and albums"
+  },
   "artistGrid": {
     "localArtist": "Local Artist: {{artistName}}",
     "popularSongs": "Popular / POPULAR",

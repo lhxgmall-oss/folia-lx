@@ -3196,6 +3196,22 @@ export default {
     "nowPlayingStageDescription": "Now Playing 正由外部播放器控制，Folia 只负责展示歌词和视觉效果。",
     "stageLocalInputDescription": "Stage 现在是本地单项输入模式。外部可以推送一份完整歌词对象或一段媒体，播放与展示仍由 Folia 自己控制。",
   },
+  "libraryBravaisArtist": {
+    "playTopSongs": "播放热门",
+    "wallCounts": "{{songs}} 首热门 · {{albums}} 张专辑",
+    "songCount_one": "{{count}} 首歌",
+    "songCount_other": "{{count}} 首歌",
+    "albumCount_one": "{{count}} 张专辑",
+    "albumCount_other": "{{count}} 张专辑",
+    "aliases": "又名 {{names}}",
+    "filterPlaceholder": "过滤专辑",
+    "albumMatchCount": "专辑 {{matches}} / {{total}}",
+    "noMatchingAlbums": "没有匹配的专辑",
+    "albumsSyncing": "专辑加载中 {{loaded}} / {{total}}",
+    "albumsSyncingOpen": "专辑加载中… {{loaded}}",
+    "albumsInterrupted": "专辑停在第 {{loaded}} 张",
+    "panelTitle": "热门歌曲与专辑"
+  },
   "artistGrid": {
     "localArtist": "本地歌手: {{artistName}}",
     "popularSongs": "时下流行 / POPULAR",

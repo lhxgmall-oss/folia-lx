@@ -3082,6 +3082,22 @@ export default {
     "nowPlayingStageDescription": "Now Playing dikendalikan oleh pemutar eksternal. Folia hanya bertanggung jawab menampilkan lirik dan efek visual.",
     "stageLocalInputDescription": "Stage dalam mode input tunggal lokal. Perangkat eksternal dapat mengirim lirik atau media, tetapi pemutaran dan tampilan dikendalikan oleh Folia itu sendiri."
   },
+  "libraryBravaisArtist": {
+    "playTopSongs": "Putar lagu populer",
+    "wallCounts": "{{songs}} lagu populer · {{albums}} album",
+    "songCount_one": "{{count}} lagu",
+    "songCount_other": "{{count}} lagu",
+    "albumCount_one": "{{count}} album",
+    "albumCount_other": "{{count}} album",
+    "aliases": "Dikenal juga sebagai {{names}}",
+    "filterPlaceholder": "Saring album",
+    "albumMatchCount": "{{matches}} / {{total}} album",
+    "noMatchingAlbums": "Tidak ada album yang cocok",
+    "albumsSyncing": "Memuat album {{loaded}} / {{total}}",
+    "albumsSyncingOpen": "Memuat album… {{loaded}}",
+    "albumsInterrupted": "Album berhenti di {{loaded}}",
+    "panelTitle": "Lagu populer dan album"
+  },
   "artistGrid": {
     "localArtist": "Artis Lokal: {{artistName}}",
     "popularSongs": "Populer / POPULER",
