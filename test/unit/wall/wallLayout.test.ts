@@ -6,7 +6,7 @@ import {
     layoutLattice,
     locateInstanceAt,
     locateNearestInstance,
-} from '../../../src/components/app/lattice/layout';
+} from '../../../src/components/wall/layout';
 import {
     BLOCK_COLS,
     BLOCK_ROWS,
@@ -14,7 +14,7 @@ import {
     SLOTS_PER_BLOCK,
     getBlockReflow,
     getBlockTemplate,
-} from '../../../src/components/app/lattice/blockTemplates';
+} from '../../../src/components/wall/blockTemplates';
 
 // Covers the anchored expansion contract and the infinite lattice, without the browser UI.
 

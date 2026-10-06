@@ -9,11 +9,11 @@ import {
     type Bounds,
     type ReflowTile,
     type WallMetrics,
-} from './layout';
-import { useWallCameraPan, type LatticeCamera } from './useWallCameraPan';
+} from '../../wall/layout';
+import { useWallCameraPan, type LatticeCamera } from '../../wall/useWallCameraPan';
 import { useLatticePosterSelection } from './useLatticePosterSelection';
 import { useWallKeyboardFocus } from './useWallKeyboardFocus';
-import { useWallPointerPan } from './useWallPointerPan';
+import { useWallPointerPan } from '../../wall/useWallPointerPan';
 import type { LatticeTile } from './latticeModel';
 import LatticePoster from './LatticePoster';
 import { countRender } from '../../../dev/renderCount';
@@ -24,7 +24,7 @@ import { setLatticeCurrentSongPosterVisible } from '../../../stores/useLatticeCo
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { useDevicePixelRatio } from '../../../hooks/useMediaQuery';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
-import { EXPANSION_SPAN } from './blockTemplates';
+import { EXPANSION_SPAN } from '../../wall/blockTemplates';
 
 // Draggable poster field: one greedily packed block template repeats over the queue.
 

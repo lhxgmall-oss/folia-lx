@@ -1,15 +1,15 @@
-import { LatticeTitle } from './LatticeTitle';
+import { WallTitle } from '../../wall/WallTitle';
 import { lazy, memo, Suspense } from 'react';
 import { motion, type Variants } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useRef, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from 'react';
-import type { ReflowTile } from './layout';
+import type { ReflowTile } from '../../wall/layout';
 import type { LatticeTile } from './latticeModel';
 import { useLatticeChromeDisclosure } from './useLatticeChromeDisclosure';
 import LatticePlaybackControls from './LatticePlaybackControls';
 import { useLatticeExpansionSettled } from './useLatticeExpansionSettled';
 import { prewarmLatticeLyrics } from './lyrics/prewarmLatticeLyrics';
-import { prewarmLatticePosterArtwork, useLatticePosterArtwork } from './useLatticePosterArtwork';
+import { prewarmWallPosterArtwork, useWallPosterArtwork } from '../../wall/useWallPosterArtwork';
 import { countRender } from '../../../dev/renderCount';
 
 // Renders one poster and its expanded Player Chrome controls.
@@ -128,13 +128,13 @@ function LatticePoster({
     // The artwork only has to cover the card's own box, and a square cover is scaled to the longer
     // edge. Both inputs are discrete - gears are integer spans and the camera only rescales on a
     // breakpoint - so this is not a per-frame value even while the card animates towards the size.
-    const coverUrl = useLatticePosterArtwork(tile.coverUrl, Math.max(rect.width, rect.height) * pixelScale);
+    const coverUrl = useWallPosterArtwork(tile.coverUrl, Math.max(rect.width, rect.height) * pixelScale);
     // Hover and press are the last moments before the open: warming here keeps the lyric chunk,
     // the Pixi module and the first shader compile off the click path.
     const warmLyrics = () => { if (isCurrent) prewarmLatticeLyrics(); };
     // Deliberately not on hover: a pointer sweeping the wall would pull a full-size cover per card,
     // which costs more than the swap it saves. A press is already an open in all but name.
-    const warmExpandedArtwork = () => prewarmLatticePosterArtwork(tile.coverUrl, expandedSize * pixelScale);
+    const warmExpandedArtwork = () => prewarmWallPosterArtwork(tile.coverUrl, expandedSize * pixelScale);
     // Frozen at mount: the wave's own delay must not follow later camera moves.
     const landingDelay = useRef(entranceDelay).current;
     const landing = entranceDelay === null ? null : landingDelay;
@@ -235,13 +235,13 @@ function LatticePoster({
                 {String(tile.queueIndex + 1).padStart(2, '0')}
             </span>
             {expanded && expansionSettled && isCurrent ? (
-                <Suspense fallback={<span className="lattice-poster-copy"><LatticeTitle title={tile.title} expanded={expanded} targetPosterWidth={rect.width} /><small>{tile.artist}</small></span>}>
+                <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded={expanded} targetPosterWidth={rect.width} /><small>{tile.artist}</small></span>}>
                     <LatticeLyrics key={tile.id} tile={tile} reducedMotion={Boolean(reducedMotion)} />
                 </Suspense>
             ) : <span className="lattice-poster-copy">
                 {/* `rect` is the slot the card is heading for, in world units, so the title is fitted
                     against its final column before the spring has moved it there. */}
-                <LatticeTitle title={tile.title} expanded={expanded} targetPosterWidth={rect.width} />
+                <WallTitle title={tile.title} expanded={expanded} targetPosterWidth={rect.width} />
                 <small>{tile.artist}</small>
             </span>}
             {expanded && (

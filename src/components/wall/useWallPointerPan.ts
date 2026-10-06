@@ -1,4 +1,4 @@
-// src/components/app/lattice/useWallPointerPan.ts
+// src/components/wall/useWallPointerPan.ts
 
 import { animate } from 'framer-motion';
 import { useCallback, useEffect, useRef, type MutableRefObject, type PointerEvent, type MouseEvent, type RefObject } from 'react';

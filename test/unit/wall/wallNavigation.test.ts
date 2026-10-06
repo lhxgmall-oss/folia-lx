@@ -5,12 +5,12 @@ import {
     layoutLattice,
     locateInstanceAt,
     type QueueInstance,
-} from '../../../src/components/app/lattice/layout';
+} from '../../../src/components/wall/layout';
 import {
     findAdjacentInstance,
     findNearestInstance,
     type WallDirection,
-} from '../../../src/components/app/lattice/wallNavigation';
+} from '../../../src/components/wall/wallNavigation';
 
 // The lattice has no edge, so directional focus must always find somewhere to go.
 

@@ -1,4 +1,4 @@
-// src/components/app/lattice/blockTemplates.ts
+// src/components/wall/blockTemplates.ts
 
 import { BLOCK_REFLOWS } from './blockReflows';
 

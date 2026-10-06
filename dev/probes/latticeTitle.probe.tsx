@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { LatticeTitle } from '../../src/components/app/lattice/LatticeTitle';
+import { WallTitle } from '../../src/components/wall/WallTitle';
 import { TitleFitterContext } from '../../src/hooks/useSettledTitle';
 import type { TitleMetrics } from '../../src/utils/fitSettledTitle';
 import { fitTitleToWidth } from '../../src/utils/fitSettledTitle';
@@ -22,7 +22,7 @@ function Poster({ title, expanded, metadata, width }: { title: string; expanded:
         style={{ position: 'relative', width, height: expanded ? 440 : 300, background: '#243748' }}
     >
         <span className={`lattice-poster-copy${metadata ? ' lattice-lyric-metadata' : ''}`}>
-            {metadata ? <strong>{title}</strong> : <LatticeTitle title={title} expanded={expanded} targetPosterWidth={width} />}<small>HOYO-MiX</small>
+            {metadata ? <strong>{title}</strong> : <WallTitle title={title} expanded={expanded} targetPosterWidth={width} />}<small>HOYO-MiX</small>
         </span>
     </div>;
 }

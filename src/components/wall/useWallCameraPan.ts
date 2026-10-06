@@ -1,4 +1,4 @@
-// src/components/app/lattice/useWallCameraPan.ts
+// src/components/wall/useWallCameraPan.ts
 
 import { animate } from 'framer-motion';
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';

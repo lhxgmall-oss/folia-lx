@@ -1,4 +1,4 @@
-// src/components/app/lattice/titleLayoutWidth.ts — the column a poster's title will occupy.
+// src/components/wall/titleLayoutWidth.ts — the column a poster's title will occupy.
 
 /**
  * The layout width the title box will settle at when its poster reaches `posterWidth`.

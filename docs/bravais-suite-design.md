@@ -399,7 +399,7 @@ type BravaisLayer = {
 
 ### 8.2 wall 引擎共享
 
-**已定：Lattice 队列墙保持独立的 app 视图**（`AppView = 'lattice'`），不并入 bravais 的层栈。两者共享同一个 wall 引擎组件：把 `src/components/app/lattice/` 里和内容无关的部分抽成共享的 wall 引擎：`layout.ts` / `blockTemplates.ts` / `blockReflows.ts`、相机（`useWallCameraPan` / `useWallPointerPan`）、`useLatticePosterArtwork`、`LatticeTitle`。
+**已定：Lattice 队列墙保持独立的 app 视图**（`AppView = 'lattice'`），不并入 bravais 的层栈。两者共享同一个 wall 引擎组件：把 `src/components/app/lattice/` 里和内容无关的部分抽成共享的 wall 引擎，现在位于 `src/components/wall/`：`layout.ts` / `blockTemplates.ts` / `blockReflows.ts` / `wallNavigation.ts`、相机（`useWallCameraPan` / `useWallPointerPan`）、`useWallPosterArtwork`（原 `useLatticePosterArtwork`）、`WallTitle` + `titleLayoutWidth`（原 `LatticeTitle`）。Lattice 的 `PosterWall`、键盘焦点（`useWallKeyboardFocus`，与队列模型耦合）、播放展开和 chrome 仍在 `components/app/lattice/`。
 
 需要新增：
 
@@ -665,7 +665,7 @@ bravais 声明全部 7 个动作，登录与确认都在**缝里**完成（已�
 - **参数化行为用例**：把 bravais 加进 `libraryBehavior` / `homeBehavior` / `artistBehavior` / `accountBehavior`。
   - 这些用例按语义驱动（探针），所以 bravais 要给磁贴、缝、聚焦卡、面板和表单态加上探针能定位的语义标记（role / data 属性），不靠坐标。
 - **虚拟化**：墙只渲染视口内的磁贴加 overscan。用例里「找到某一首」要经键盘焦点或列表面板定位，不能假设所有条目都在 DOM 里。
-- **分层**：`layerBoundaries.test.ts` 会自动覆盖新 suite。如果 wall 引擎从 `components/app/lattice/` 抽出来（§8.2），要放在 suite 能 import 的位置：不能 import 别的 suite，也不能让 Lattice 反向依赖 bravais。
+- **分层**：`layerBoundaries.test.ts` 会自动覆盖新 suite。wall 引擎已从 `components/app/lattice/` 抽到 `src/components/wall/`（§8.2），suite 可以 import 它；它不 import `components/app/`（Lattice）与 `src/library/`（`test/unit/wall/wallBoundaries.test.ts`），Lattice 也不反向依赖 bravais。
 - **加载方式**：entry 用 `React.lazy`（非默认 suite 都要这样）。不用开发 flag 门控，经设置项正式接入（10.10）。
 
 ### 10.10 正式接入：设置里的 UI suite 选项（已定）

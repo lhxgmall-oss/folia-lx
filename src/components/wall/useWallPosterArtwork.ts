@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { COVER_SIZE_STEPS, getOriginalCoverUrl, getSizedCoverUrl, resolveCoverSizeStep } from '../../../utils/coverUrl';
+import { COVER_SIZE_STEPS, getOriginalCoverUrl, getSizedCoverUrl, resolveCoverSizeStep } from '../../utils/coverUrl';
 
-// src/components/app/lattice/useLatticePosterArtwork.ts
+// src/components/wall/useWallPosterArtwork.ts
 // Picks which variant of a cover one poster paints. The wall draws the same queue at four gears and
 // repeats it across the plane, so handing every card the provider's original meant a full-size
 // decode per instance; a card asks for the step its own box needs instead.
@@ -96,7 +96,7 @@ const pickDisplay = (cover: string, targetStep: number): PosterArtwork => {
 };
 
 /** Fetches the variant a box of `sizePx` will need, off the path of the interaction that opens it. */
-export const prewarmLatticePosterArtwork = (cover: string | undefined, sizePx: number): void => {
+export const prewarmWallPosterArtwork = (cover: string | undefined, sizePx: number): void => {
     if (!cover) return;
     const url = variantUrl(cover, resolveCoverSizeStep(sizePx));
     if (!url || decodedVariants.has(url) || failedVariants.has(url)) return;
@@ -111,7 +111,7 @@ export const prewarmLatticePosterArtwork = (cover: string | undefined, sizePx: n
  * instead of blanking. It never trades back down either: a collapsed card holding a sharper copy
  * costs nothing to keep, while dropping to a smaller variant would buy a refetch and a second swap.
  */
-export const useLatticePosterArtwork = (cover: string | undefined, sizePx: number): string => {
+export const useWallPosterArtwork = (cover: string | undefined, sizePx: number): string => {
     const source = cover ?? '';
     const targetStep = resolveCoverSizeStep(sizePx);
     const [ready, setReady] = useState<PosterArtwork>(() => pickDisplay(source, targetStep));

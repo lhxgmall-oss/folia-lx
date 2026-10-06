@@ -1,4 +1,4 @@
-// src/components/app/lattice/blockReflows.ts
+// src/components/wall/blockReflows.ts
 
 import type { BlockSlot } from './blockTemplates';
 

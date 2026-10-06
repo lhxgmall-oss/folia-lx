@@ -1,4 +1,4 @@
-// src/components/app/lattice/wallNavigation.ts
+// src/components/wall/wallNavigation.ts
 
 import { SLOTS_PER_BLOCK } from './blockTemplates';
 import {
