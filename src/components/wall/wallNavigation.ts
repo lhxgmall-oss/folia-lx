@@ -29,13 +29,16 @@ const AXES: Record<WallDirection, Axis> = {
     up: { along: 'y', cross: 'x', alongSize: 'height', crossSize: 'width', sign: -1 },
 };
 
-const centerOf = (instance: QueueInstance, axis: 'x' | 'y', size: 'width' | 'height') => (
-    instance[axis] + instance[size] / 2
+/** Anything with a drawn rect: Lattice instances and bravais slots both qualify. */
+export type WallRect = { x: number; y: number; width: number; height: number };
+
+const centerOf = (rect: WallRect, axis: 'x' | 'y', size: 'width' | 'height') => (
+    rect[axis] + rect[size] / 2
 );
 
 // Positive when the two spans truly share a band, zero when they merely touch, negative by the
 // size of the gap when they miss entirely.
-const crossOverlap = (a: QueueInstance, b: QueueInstance, axis: Axis) => {
+const crossOverlap = (a: WallRect, b: WallRect, axis: Axis) => {
     const aStart = a[axis.cross];
     const bStart = b[axis.cross];
     return Math.min(aStart + a[axis.crossSize], bStart + b[axis.crossSize]) - Math.max(aStart, bStart);
@@ -43,11 +46,49 @@ const crossOverlap = (a: QueueInstance, b: QueueInstance, axis: Axis) => {
 
 // Gap between the trailing edge of `from` and the leading edge of `candidate` along the travel
 // axis; negative whenever the candidate is not wholly ahead, which disqualifies it.
-const alongGap = (from: QueueInstance, candidate: QueueInstance, axis: Axis) => (
+const alongGap = (from: WallRect, candidate: WallRect, axis: Axis) => (
     axis.sign === 1
         ? candidate[axis.along] - (from[axis.along] + from[axis.alongSize])
         : from[axis.along] - (candidate[axis.along] + candidate[axis.alongSize])
 );
+
+/**
+ * The scoring behind every directional step, over already-drawn rects. A candidate has to sit
+ * wholly ahead on the travel axis; the score prefers a short step and penalises both sideways drift
+ * and failing to share a band with the rect being left. On a full tie the earlier candidate wins,
+ * so callers control tie order through the order they list candidates in.
+ */
+export const pickAdjacentRect = <T>(
+    source: WallRect,
+    candidates: Iterable<{ value: T; rect: WallRect }>,
+    direction: WallDirection,
+    metrics: WallMetrics,
+): T | null => {
+    const axis = AXES[direction];
+    const missPenalty = metrics.cellSize + metrics.gap;
+    let best: T | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    let bestCross = Number.POSITIVE_INFINITY;
+
+    for (const { value, rect } of candidates) {
+        const step = alongGap(source, rect, axis);
+        if (step < 0) continue;
+
+        const overlap = crossOverlap(source, rect, axis);
+        const score = step + (overlap > 0 ? 0 : -overlap * 2 + missPenalty);
+        const crossDelta = Math.abs(
+            centerOf(rect, axis.cross, axis.crossSize)
+            - centerOf(source, axis.cross, axis.crossSize),
+        );
+        if (score < bestScore || (score === bestScore && crossDelta < bestCross)) {
+            bestScore = score;
+            bestCross = crossDelta;
+            best = value;
+        }
+    }
+
+    return best;
+};
 
 /**
  * Picks the poster a directional key should move to, scanning the blocks around the current one.
@@ -72,49 +113,31 @@ export const findAdjacentInstance = (
         return override ? { ...instance, ...override } : instance;
     };
 
-    const axis = AXES[direction];
-    const missPenalty = metrics.cellSize + metrics.gap;
     const source = drawn(from);
     const origin = getInstanceBlock(geometry, from);
 
-    let best: QueueInstance | null = null;
-    let bestScore = Number.POSITIVE_INFINITY;
-    let bestCross = Number.POSITIVE_INFINITY;
-
-    for (let row = origin.row - 1; row <= origin.row + 1; row += 1) {
-        for (let column = origin.column - 1; column <= origin.column + 1; column += 1) {
-            for (let slotIndex = 0; slotIndex < SLOTS_PER_BLOCK; slotIndex += 1) {
-                const base = locateInstanceAt(geometry, totalEntries, column, row, slotIndex, metrics);
-                if (!base || base.instanceId === from.instanceId) continue;
-                const candidate = drawn(base);
-
-                const step = alongGap(source, candidate, axis);
-                if (step < 0) continue;
-
-                const overlap = crossOverlap(source, candidate, axis);
-                const score = step + (overlap > 0 ? 0 : -overlap * 2 + missPenalty);
-                const crossDelta = Math.abs(
-                    centerOf(candidate, axis.cross, axis.crossSize)
-                    - centerOf(source, axis.cross, axis.crossSize),
-                );
-                if (score < bestScore || (score === bestScore && crossDelta < bestCross)) {
-                    bestScore = score;
-                    bestCross = crossDelta;
-                    best = base;
+    // Row, column, slot order: the same order the scan always used, so ties resolve as before.
+    function* candidates() {
+        for (let row = origin.row - 1; row <= origin.row + 1; row += 1) {
+            for (let column = origin.column - 1; column <= origin.column + 1; column += 1) {
+                for (let slotIndex = 0; slotIndex < SLOTS_PER_BLOCK; slotIndex += 1) {
+                    const base = locateInstanceAt(geometry, totalEntries, column, row, slotIndex, metrics);
+                    if (!base || base.instanceId === from.instanceId) continue;
+                    yield { value: base, rect: drawn(base) };
                 }
             }
         }
     }
 
-    return best;
+    return pickAdjacentRect(source, candidates(), direction, metrics);
 };
 
 // Seeds keyboard focus from whatever is already on screen when nothing is focused yet.
-export const findNearestInstance = (
-    instances: QueueInstance[],
+export const findNearestInstance = <T extends WallRect>(
+    instances: readonly T[],
     point: { x: number; y: number },
-): QueueInstance | null => {
-    let best: QueueInstance | null = null;
+): T | null => {
+    let best: T | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
 
     for (const instance of instances) {

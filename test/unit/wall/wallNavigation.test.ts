@@ -9,6 +9,7 @@ import {
 import {
     findAdjacentInstance,
     findNearestInstance,
+    pickAdjacentRect,
     type WallDirection,
 } from '../../../src/components/wall/wallNavigation';
 
@@ -172,5 +173,38 @@ describe('findNearestInstance', () => {
 
     it('returns null when nothing is on screen', () => {
         expect(findNearestInstance([], { x: 0, y: 0 })).toBeNull();
+    });
+});
+
+describe('pickAdjacentRect', () => {
+    const rect = (x: number, y: number, width = 100, height = 100) => ({ x, y, width, height });
+
+    it('only accepts candidates wholly ahead and prefers the shortest step in the same band', () => {
+        const source = rect(0, 0);
+        const picked = pickAdjacentRect(source, [
+            { value: 'behind', rect: rect(-150, 0) },
+            { value: 'overlapping', rect: rect(50, 0) },
+            { value: 'far', rect: rect(400, 0) },
+            { value: 'near', rect: rect(120, 0) },
+        ], 'right', metrics);
+        expect(picked).toBe('near');
+    });
+
+    it('penalises a candidate that does not share a band with the source', () => {
+        const source = rect(0, 0);
+        const picked = pickAdjacentRect(source, [
+            { value: 'diagonal', rect: rect(110, 300) },
+            { value: 'same-row', rect: rect(260, 0) },
+        ], 'right', metrics);
+        expect(picked).toBe('same-row');
+    });
+
+    it('keeps the first listed candidate on a full tie', () => {
+        const source = rect(0, 0);
+        const picked = pickAdjacentRect(source, [
+            { value: 'first', rect: rect(0, 120) },
+            { value: 'second', rect: rect(0, 120) },
+        ], 'down', metrics);
+        expect(picked).toBe('first');
     });
 });
