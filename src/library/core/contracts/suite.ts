@@ -333,6 +333,14 @@ export type LibrarySuiteStageProps = {
     isDaylight: boolean;
     /** 当前集合导航快照（只读）：stage 据此知道「现在是哪一层」，用于转场方向与层栈。首页时 depth 为 0。 */
     navigation: LibraryNavigationContext;
+    /**
+     * 报告 stage 此刻是否**完全**盖住了下面的播放页（B6b）。报 true 时，首页完全显示（淡入结束）之后宿主卸载
+     * visualizer，不再在墙下面全速渲染；首页被设置弹窗 / 面板盖住、回到播放页或改报 false 时立即重新挂载。
+     * 只有画面完全不透光时才报 true（bravais 的「实色」档）；有任何透光处（窗、半透明材质）必须报 false。
+     * 缺省视为 false。stage 卸载、换 suite 时宿主自动复位为 false，不需要 stage 在卸载时报 false。
+     * 引用在同一次挂载内稳定；值不变时重复报告没有开销。
+     */
+    reportPlayerOcclusion: (occludes: boolean) => void;
 };
 
 /**
