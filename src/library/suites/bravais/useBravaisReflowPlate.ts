@@ -51,7 +51,10 @@ export const useBravaisReflowPlate = ({
         if (channels.size === 0) return undefined;
         const allChannels = Array.from(channels.values()).flat();
 
-        let written = path.getAttribute('d') ?? '';
+        // 与 DOM 上此刻的路径比较（不记自己上次写的）：让位途中 React 换了这一块的路径（窗集合变了）时，下一帧照样改写。
+        const write = (d: string) => {
+            if (path.getAttribute('d') !== d) path.setAttribute('d', d);
+        };
         const draw = () => {
             const latest = platesRef.current.get(blockKey);
             if (!latest) return;
@@ -59,13 +62,12 @@ export const useBravaisReflowPlate = ({
                 const tracks = channels.get(hole.key);
                 return tracks ? sampleReflowRect(tracks, hole.rect) : hole.rect;
             });
-            const d = buildPlatePath(latest, rects);
-            if (d !== written) path.setAttribute('d', (written = d));
+            write(buildPlatePath(latest, rects));
         };
         /** 写回落定的路径（与 React 渲染的那份相同）。 */
         const settle = () => {
             const latest = platesRef.current.get(blockKey);
-            if (latest && latest.d !== written) path.setAttribute('d', (written = latest.d));
+            if (latest) write(latest.d);
             svg.removeAttribute('data-bravais-plate-live');
         };
 
