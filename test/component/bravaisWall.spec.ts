@@ -149,7 +149,11 @@ test.describe('[bravais] skeleton wall', () => {
     });
 
     test('chrome actions fold, spine and restore the seam', async ({ page }) => {
-        const chrome = () => page.evaluate(() => window.__homeProbe!.chrome());
+        // 只看缝的开口动作（透光等其它外观动作在各自的用例里，B6b③ 起默认的部分透明档还会多出三条）。
+        const chrome = () => page.evaluate(() => {
+            const current = window.__homeProbe!.chrome();
+            return current && { ...current, available: current.available.filter(id => id.startsWith('seam-')) };
+        });
         await expect.poll(chrome).toEqual({ suiteId: 'bravais', available: ['seam-spine', 'seam-hide'] });
 
         expect(await page.evaluate(() => window.__homeProbe!.runChrome('seam-spine'))).toBe(true);

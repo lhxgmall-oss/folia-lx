@@ -55,6 +55,10 @@ describe('command palette registry contract', () => {
             'bravais-seam-hide',
             'bravais-seam-here',
             'bravais-locate-playing',
+            // B6b③ 透光：循环档位、每块多开 / 少开一个窗。
+            'bravais-wall-look',
+            'bravais-more-windows',
+            'bravais-fewer-windows',
         ]);
         expect(staticCommands).toEqual(expect.arrayContaining(SUITE_CHROME_COMMANDS));
     });

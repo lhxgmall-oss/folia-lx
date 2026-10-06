@@ -67,6 +67,27 @@ const CHROME_ACTIONS: LibrarySuiteManifest['chromeActions'] = [
         keywords: ['now playing', 'current song', '定位正在播放', '当前歌曲'],
         executeShortcut: 'c',
     },
+    // 透光（B6b③，设计稿 §11）：循环三档（执行键 `p`），部分透明时每块多开 / 少开一个窗（不给执行键）。
+    // 与设置页、命令面板里的两个 picker 写同一个 app 层偏好（useLibraryWallLookStore）。
+    {
+        id: 'wall-look',
+        title: 'Cycle wall see-through',
+        description: 'Switch the library wall between solid, partly see-through and see-through',
+        keywords: ['see-through', 'transparency', 'windows', '透光', '透明', '实色'],
+        executeShortcut: 'p',
+    },
+    {
+        id: 'more-windows',
+        title: 'Open more wall windows',
+        description: 'Add one see-through window to every block of the library wall',
+        keywords: ['more windows', 'window count', '多开窗', '窗数'],
+    },
+    {
+        id: 'fewer-windows',
+        title: 'Open fewer wall windows',
+        description: 'Close one see-through window in every block of the library wall',
+        keywords: ['fewer windows', 'window count', '少开窗', '窗数'],
+    },
 ];
 
 const bravais: LibrarySuiteManifest = {

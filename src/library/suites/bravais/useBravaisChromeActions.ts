@@ -3,15 +3,35 @@ import { useLibrarySuiteChromeRegistration } from '../../core/bindings/useLibrar
 import { getBlockSize, getBlockSlots, type WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import { findItemSlotNear, type BravaisDisplay } from './bravaisDisplay';
+import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
+import { nextWallLook, stepWindowsPerBlock } from './bravaisLook';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import type { BravaisFrameState } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisChromeActions.ts
 // bravais 的外观动作（B2 的 suite-chrome）：缝的三级开口（展开 / 收起成书脊 / 折叠）、在这里裂开缝、定位正在播放。
+// B6b③ 追加透光的循环档位与每块窗数的步进。
 // 元数据（文案、关键词、执行键）静态声明在 entry.ts 的 chromeActions；这里只注册「此刻能不能做」与「怎么做」，
 // 只在 stage 此刻可交互（当前层归 bravais）时注册。isAvailable 在命令面板列命令时现读帧状态与 store，不进 React。
 
 export const BRAVAIS_SUITE_ID = 'bravais';
+
+/** 透光的三条外观动作：循环档位；部分透明且没到边界时多开 / 少开一个窗。 */
+const wallLookHandlers = (hasLayer: () => boolean) => {
+    const wallLook = () => useLibraryWallLookStore.getState();
+    const step = (delta: 1 | -1) => ({
+        isAvailable: () => hasLayer() && stepWindowsPerBlock(wallLook(), delta) !== null,
+        run: () => {
+            const next = stepWindowsPerBlock(wallLook(), delta);
+            if (next !== null) wallLook().setWindowsPerBlock(next);
+        },
+    });
+    return {
+        'wall-look': { isAvailable: hasLayer, run: () => wallLook().setLook(nextWallLook(wallLook().look)) },
+        'more-windows': step(1),
+        'fewer-windows': step(-1),
+    };
+};
 
 export const useBravaisChromeActions = ({
     active,
@@ -59,6 +79,8 @@ export const useBravaisChromeActions = ({
                     if (slot) focusSlot(slot, { reveal: true });
                 },
             },
+            // 透光（B6b③）：写 app 层偏好，stage 读它换档（同一层的数据更新，只翻开窗 / 关窗与内容挪了的 slot）。
+            ...wallLookHandlers(hasLayer),
         };
     }, [displayRef, focusSlot, frameRef, isCollapsed, reopenHere]);
 
