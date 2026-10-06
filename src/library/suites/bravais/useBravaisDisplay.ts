@@ -76,15 +76,25 @@ const slotFromKey = (key: string | null): WallSlot | null => {
     return address ? getWallSlot(address.column, address.row, address.slotIndex, BRAVAIS_METRICS) : null;
 };
 
-/** 同一层的数据更新：还在翻的磁贴（目标没变、这次又没安排它）保留原来的安排，不被打断。 */
+/**
+ * 同一层的数据更新：还在翻的磁贴（目标没变、这次又没安排它）保留原来的安排，不被打断。B9：整墙入场还在进行时
+ * （换到一个还在加载的页签，数据随后到达），这一次的磁贴仍走整墙的那一步，只把目标换成新内容（不改成从起点翻牌）。
+ */
 const mergeFlipSteps = (
     previous: BravaisDisplay,
     next: BravaisDisplay,
     fresh: ReadonlyMap<string, BravaisFlipStep>,
     slots: readonly WallSlot[],
+    waveRunning = false,
 ): ReadonlyMap<string, BravaisFlipStep> => {
     if (previous.flips.size === 0) return fresh;
     const merged = new Map(fresh);
+    if (waveRunning) {
+        for (const [key, step] of fresh) {
+            const running = previous.flips.get(key);
+            if (running?.wave) merged.set(key, { ...running, to: step.to });
+        }
+    }
     for (const slot of slots) {
         if (merged.has(slot.key)) continue;
         const step = previous.flips.get(slot.key);
@@ -108,14 +118,21 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
     // 只在一次翻牌开始与结束时各 setState 一次（离散）。
     const [isSettling, setIsSettling] = useState(false);
     const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** B9：整墙出场 / 入场放到什么时候（这之前同一层的数据更新沿用整墙的那一步，只换目标）。 */
+    const waveUntilRef = useRef(0);
+    // B9：一次翻牌还没放完又来一次（整墙入场途中数据到达）时，落定时刻取两者里晚的那个，不被短的那次提前撤掉。
+    const settleUntilRef = useRef(0);
     const markSettling = useCallback((durationMs: number | undefined) => {
         if (!durationMs || durationMs <= 0) return;
         setIsSettling(true);
+        const now = performance.now();
+        const until = Math.max(settleUntilRef.current, now + durationMs + REMOVAL_SETTLE_MS * 2);
+        settleUntilRef.current = until;
         if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
         settleTimerRef.current = setTimeout(() => {
             settleTimerRef.current = null;
             if (!holdRef.current) setIsSettling(false);
-        }, durationMs + REMOVAL_SETTLE_MS * 2);
+        }, until - now);
     }, []);
 
     const commit = useCallback((next: BravaisDisplay, depth: number) => {
@@ -273,7 +290,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             const fresh = planFlipFor(previous, draft, origin);
             // 整墙有内容在翻：聚焦卡收起（它所在的块也可能在翻）。
             if (fresh && fresh.steps.size > 0) controlsNow.collapseFocusCard();
-            const flips = mergeFlipSteps(previous, draft, fresh?.steps ?? new Map(), slotsRef.current);
+            const flips = mergeFlipSteps(previous, draft, fresh?.steps ?? new Map(), slotsRef.current, performance.now() < waveUntilRef.current);
             commit({ ...draft, flips, flipToken: flipTokenRef.current }, displayedDepthRef.current);
             markSettling(fresh?.durationMs);
             return;
@@ -325,6 +342,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         const draft = { ...createBravaisDisplay(layer, startSlotKey, undefined, wallLook), finite: resolveFinite(layer, null) };
         const isHomeTabSwitch = kind === 'replace' && layer.surface === 'home' && previous.layer.surface === 'home';
         const flips = isHomeTabSwitch ? planWaveFor(previous, draft) : planFlipFor(previous, draft, origin);
+        waveUntilRef.current = isHomeTabSwitch && flips ? performance.now() + flips.durationMs : 0;
         commit({ ...draft, flips: flips?.steps ?? draft.flips, flipToken: flipTokenRef.current }, depth);
         markSettling(flips?.durationMs);
         controlsNow.tweenTo(center);

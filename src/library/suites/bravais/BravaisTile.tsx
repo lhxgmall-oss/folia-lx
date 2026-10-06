@@ -111,8 +111,11 @@ function BravaisTile({
     const latestFaceRef = useRef(target);
     latestFaceRef.current = target;
     const outAnimationRef = useRef<Animation | null>(null);
+    const inAnimationRef = useRef<Animation | null>(null);
     /** 转出段放完、等新内容渲染出来再转进的方向；整墙入场时是落回前还要等多久（毫秒）。 */
     const pendingInRef = useRef<{ direction: number; waveGap: number | null } | null>(null);
+    /** 整墙出场已经放完的那一次（token）：之后同一次里目标又变了，只换内容，不打断正在等着落回的入场。 */
+    const waveOutDoneRef = useRef<number | null>(null);
 
     const targetKey = faceKeyOf(target);
     const shownKey = faceKeyOf(shown);
@@ -121,6 +124,9 @@ function BravaisTile({
     const face = transition === 'flip' ? shown : target;
     const display = face.item;
 
+    // 整墙出场 / 入场的那一次只按 token 认（stage 在入场途中数据到达时只改它的 `to`，见 useBravaisDisplay）：
+    // 目标换了不重启动画，出场放完时取的是最新的内容。普通翻牌仍按「这一步 + 目标」认。
+    const animationKey = step?.wave ? `wave:${step.token}` : `${step?.token ?? ''}|${step?.delay ?? ''}|${targetKey}`;
     useLayoutEffect(() => {
         if (transition === 'none') return;
         const face = faceRef.current;
@@ -128,6 +134,13 @@ function BravaisTile({
             setShown(latestFaceRef.current);
             return;
         }
+        // 这一次整墙出场已经放完、正等着落回：只换内容（入场动画照常进行，看不见的那一段里换掉）。
+        if (step.wave && waveOutDoneRef.current === step.token) {
+            setShown(latestFaceRef.current);
+            return;
+        }
+        inAnimationRef.current?.cancel();
+        inAnimationRef.current = null;
         const wave = step.wave;
         const out = wave
             ? face.animate([SETTLED, LIFTED], { duration: WALL_WAVE_OUT_MS, delay: step.delay, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' })
@@ -141,13 +154,16 @@ function BravaisTile({
                 direction: step.direction,
                 waveGap: wave ? Math.max(0, wave.inDelay - step.delay - WALL_WAVE_OUT_MS) : null,
             };
+            if (wave) waveOutDoneRef.current = step.token;
             setShown(latestFaceRef.current);
         };
         return () => {
             // 转出段放完后由转进段接手取消；还没放完（目标又变了、卸载）就地取消，内容回正。
-            if (pendingInRef.current === null) out.cancel();
+            if (pendingInRef.current === null && waveOutDoneRef.current !== step.token) out.cancel();
         };
-    }, [step, targetKey, transition]);
+    // animationKey 已经包含 step 与目标（整墙入场时故意不含目标）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [animationKey, transition]);
 
     useLayoutEffect(() => {
         const pending = pendingInRef.current;
@@ -157,7 +173,9 @@ function BravaisTile({
         outAnimationRef.current = null;
         const face = faceRef.current;
         if (!face) return;
-        // 整墙入场：落回之前保持抬起、看不见（fill backwards 覆盖等待的那一段）。
+        // 整墙入场：落回之前保持抬起、看不见（fill backwards 覆盖等待的那一段）。入场不随内容再换而取消
+        // （由下一次出场 / 翻牌或卸载取消）。
+        inAnimationRef.current?.cancel();
         const back = pending.waveGap !== null
             ? face.animate([LIFTED, SETTLED], {
                 duration: WALL_WAVE_IN_MS,
@@ -169,8 +187,15 @@ function BravaisTile({
                 [{ transform: rotation(-90 * pending.direction) }, { transform: rotation(0) }],
                 { duration: BRAVAIS_TILE_FLIP_IN_MS, easing: 'cubic-bezier(.2,.7,.25,1)' },
             );
-        return () => back.cancel();
+        inAnimationRef.current = back;
+        back.onfinish = () => {
+            if (inAnimationRef.current === back) inAnimationRef.current = null;
+        };
     }, [shownKey]);
+    useLayoutEffect(() => () => {
+        inAnimationRef.current?.cancel();
+        outAnimationRef.current?.cancel();
+    }, []);
 
     // 透着的磁贴只画一条封面底条（小图就够）；聚焦卡与普通磁贴按自己的尺寸取图。
     const coverUrl = useWallPosterArtwork(
