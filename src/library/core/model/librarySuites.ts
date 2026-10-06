@@ -7,6 +7,8 @@ import type {
     LibraryHomeActionId,
     LibrarySuiteId,
     LibrarySuiteManifest,
+    LibrarySuiteStageProps,
+    LibrarySurfaceComponent,
     LibrarySurfaceDeclaration,
     LibrarySurfaceId,
     LibrarySurfacePropsMap,
@@ -171,6 +173,12 @@ export type ResolvedLibrarySuiteSurface<Surface extends LibrarySurfaceId> = {
     isFallback: boolean;
 };
 
+/** 生效 suite 的 stage（B1）。同一套 suite 总是同一个对象。 */
+export type ResolvedLibrarySuiteStage = {
+    suiteId: LibrarySuiteId;
+    component: LibrarySurfaceComponent<LibrarySuiteStageProps>;
+};
+
 export type LibrarySuiteIndex = {
     /** 可用的 suite，默认 suite 在最前，其余按 id。 */
     suites: readonly LibrarySuiteManifest[];
@@ -181,6 +189,11 @@ export type LibrarySuiteIndex = {
     resolveId: (suiteId: string) => LibrarySuiteId;
     /** 选中的 suite 实现了就用它，否则（或 id 未知）回退默认 suite。 */
     resolve: <Surface extends LibrarySurfaceId>(surface: Surface, suiteId: string) => ResolvedLibrarySuiteSurface<Surface>;
+    /**
+     * 生效 suite 的 stage：先经 resolveId（未知或不可用的 id 是默认 suite），再看它有没有声明 stage；没有就是 null。
+     * stage 不按 surface 回退——它属于整套 suite，选中的 suite 没有 stage 时不会借用默认 suite 的。
+     */
+    resolveStage: (suiteId: string) => ResolvedLibrarySuiteStage | null;
 };
 
 const toDeclaredActions = (declaration: LibrarySurfaceDeclaration<unknown>): LibraryDeclaredActions => Object.freeze({
@@ -255,16 +268,22 @@ export const buildLibrarySuiteIndex = (
         }
         resolved.set(suite.id, perSurface);
     }
+    const stages = new Map<string, ResolvedLibrarySuiteStage>();
+    for (const suite of suites) {
+        if (suite.stage) stages.set(suite.id, Object.freeze({ suiteId: suite.id, component: suite.stage }));
+    }
+    const resolveId = (suiteId: string): LibrarySuiteId => (byId.has(suiteId) ? suiteId : defaultSuite.id);
 
     return {
         suites,
         defaultSuite,
         has: suiteId => byId.has(suiteId),
         get: suiteId => byId.get(suiteId),
-        resolveId: suiteId => (byId.has(suiteId) ? suiteId : defaultSuite.id),
+        resolveId,
         resolve: <Surface extends LibrarySurfaceId>(surface: Surface, suiteId: string) => (
             (resolved.get(suiteId) ?? resolved.get(defaultSuite.id)!).get(surface) as unknown as ResolvedLibrarySuiteSurface<Surface>
         ),
+        resolveStage: suiteId => stages.get(resolveId(suiteId)) ?? null,
     };
 };
 

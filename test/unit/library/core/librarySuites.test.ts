@@ -222,3 +222,35 @@ describe('initial choice and the effective suite (B0)', () => {
         expect(isLibrarySuiteChoiceAvailable(buildLibrarySuiteIndex([gridLike(), listLike()]).suites)).toBe(true);
     });
 });
+
+describe('suite stage (B1)', () => {
+    it('resolves the stage of the effective suite only', () => {
+        const stage = component('list-stage');
+        const index = buildLibrarySuiteIndex([gridLike(), listLike({ stage })]);
+        const resolved = index.resolveStage('list');
+        expect(resolved).toEqual({ suiteId: 'list', component: stage });
+        // 同一套 suite 总是同一个对象（宿主把它当 props 传给 memo 的挂载位）。
+        expect(index.resolveStage('list')).toBe(resolved);
+        // 默认 suite 没有 stage；未知 id 回退到它，也就没有 stage。
+        expect(index.resolveStage('grid')).toBeNull();
+        expect(index.resolveStage('nope')).toBeNull();
+    });
+
+    it('does not borrow a stage: a suite without one gets none, an unavailable one counts as absent', () => {
+        const stage = component('list-stage');
+        expect(buildLibrarySuiteIndex([gridLike(), listLike()]).resolveStage('list')).toBeNull();
+        expect(buildLibrarySuiteIndex([gridLike(), listLike({ stage, available: false })]).resolveStage('list')).toBeNull();
+        // 默认 suite 若声明了 stage，未知 id 回退时生效的就是它的；选中的 suite 没声明时不借默认 suite 的。
+        const gridStage = component('grid-stage');
+        const index = buildLibrarySuiteIndex([{ ...gridLike(), stage: gridStage }, listLike()]);
+        expect(index.resolveStage('nope')).toEqual({ suiteId: 'grid', component: gridStage });
+        expect(index.resolveStage('list')).toBeNull();
+    });
+
+    it('keeps surface resolution unchanged when a suite brings a stage', () => {
+        const index = buildLibrarySuiteIndex([gridLike(), listLike({ stage: component('list-stage') })]);
+        expect(index.resolve('collection', 'list').suite.id).toBe('list');
+        expect(index.resolve('artist', 'list')).toMatchObject({ isFallback: true });
+        expect(index.resolve('artist', 'list').suite.id).toBe('grid');
+    });
+});

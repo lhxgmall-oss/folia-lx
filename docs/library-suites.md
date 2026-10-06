@@ -151,6 +151,17 @@ suite 还可以有自己的「局部动作」（`extraActions`），它们不属
 
 网格在 `suites/grid/transitions/gridBackdrop.ts` 解析「降低动态效果」的 `collectionMorph` 设置：正常入场 0.62 秒、退场 0.28 秒；降低动效时使用 0.18 秒中性背景板，并关闭移形换影。TUI 没有声明转场，使用中性背景板。应用内返回与浏览器后退仍走同一套 `beforeBack`，一次返回只调用一次。
 
+## 常驻舞台（stage）
+
+有的 suite 不是「首页一张图、集合层盖一张图」，而是一块横跨首页与集合层的画面（bravais 的整面墙：换层时墙上的磁贴原地翻牌，不能因为换 surface 而重挂）。这种 suite 在 manifest 上声明可选的 `stage`（类型 `LibrarySuiteStageProps`，在 `core/contracts/suite.ts`）：
+
+- **输入**：`isInteractive`（首页外壳层的值，集合层打开时仍为真；上面盖了别的层时为假）、`theme`、`isDaylight`、`navigation`（集合导航快照：`depth` / `origin` / `activeType`，首页时 `depth` 为 0）。
+- **分工**：stage 负责画面；这套 suite 的首页 / 集合 / 歌手 surface 不画画面，只把自己的数据投影成层描述交给 suite 内部的 store，并照常注册命令面板。
+- **宿主怎么挂**：`GridViewOverlayHost` 经 `registry.resolveLibraryStage(store 的 suite)` 只挂**生效 suite** 的 stage（未知 id 生效的是 grid，grid 与 TUI 都没有 stage），位置在首页容器之后、中性背景板与集合层之前，包 `Suspense`（fallback 为 null）。打开 / 关闭集合只换 props，不重挂；换 suite 时卸载（换成另一套带 stage 的 suite 时重挂）。首页外壳整个卸载时（播放页全屏约 350ms 后 `Home` 返回 null）stage 也卸载，跨卸载要保留的布局放进 sessionStorage 或 store，并在 `layout.forget` 里能丢掉。
+- **背景板与首页**：渲染当前层（集合或歌手页）的 suite 正是挂着 stage 的那套时，宿主不渲染中性背景板，首页容器也不加 `visibility: hidden`（`aria-hidden` 与 `pointer-events: none` 照旧）；当前层回退到 grid 时与没有 stage 一样。规则是 `core/model/libraryStage.ts` 的 `resolveLibraryLayerPresentation`。
+- **和 `transitions.Overlay` 的区别**：Overlay 是**每一套** suite 都常驻挂载的转场层，只拿到 `enabled`，`enabled=false`（降低动效、或当前层不归它）表示「不做转场」，承载不了常驻画面；stage 只在这套 suite 生效时挂载，是画面本身。网格的移形换影继续用 Overlay；有 stage 的 suite 一般不需要 Overlay。
+- **按需加载**：非默认 suite 的 stage 必须是 `React.lazy`（`test/unit/library/suiteEntries.test.ts` 按源码检查），没选它的用户不加载它的 chunk。
+
 ## 页面教程（Ponder）
 
 页面教程跟实际渲染的页面走，按可见的 `data-ponder-page-scope` 解析。网格首页、集合 / 歌手页和目录保留各自的教程标记；TUI 的 `home` / `collection` / `artist` 都显式声明 `data-ponder-page-scope="none"`，表示当前页面没有教程。某套 suite 回退到网格时，由网格页面的标记提供教程。
@@ -314,7 +325,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 
 ## 写一套新 suite 的步骤
 
-1. 新建 `src/library/suites/<id>/entry.ts`，默认导出一个 `LibrarySuiteManifest`：`id`、显示名（`labelKey`）、`surfaces`（每个页面的组件 + 声明的动作），可选的 `transitions`（转场钩子与背景板订阅）与 `layout`（「完成」时忘掉布局记录）。组件必须用 `React.lazy` 引入（只有默认 suite 例外）。registry 会自动发现它，不需要在别处登记。
+1. 新建 `src/library/suites/<id>/entry.ts`，默认导出一个 `LibrarySuiteManifest`：`id`、显示名（`labelKey`）、`surfaces`（每个页面的组件 + 声明的动作），可选的 `transitions`（转场钩子与背景板订阅）、`layout`（「完成」时忘掉布局记录）与 `stage`（横跨首页与集合层的常驻舞台，见上面「常驻舞台」一节）。组件必须用 `React.lazy` 引入（只有默认 suite 例外）。registry 会自动发现它，不需要在别处登记。
 2. 先实现 `collection`。用 core 的 hooks 拿数据和动作：`useCollectionResourceState`（订阅资源）、`useCollectionView`（筛选与范围）、`useCollectionActions`（播放、入队、重拉）、`useCollectionMutationSnapshot`（变更能力与状态）、`useLibrarySessionQuery`（筛选词）。
 3. 向命令面板注册：集合页用 `useGridSurfaceRegistration` + `buildCoreSurfaceParams`（它会按你的声明过滤）；目录用 `useLibraryDirectorySurfaceRegistration`；歌手页用 `useLibraryArtistSurfaceRegistration`。只在 `isInteractive` 为真时注册。
 4. 键盘：可打印字符留给命令面板（它是筛选框），空格是全局的播放 / 暂停。你的页面只用方向键、Enter（可带修饰键）、Delete、Insert、Esc、功能键这类不可打印的键。
@@ -378,6 +389,7 @@ entry 用同一个 `import.meta.env.DEV && import.meta.env.VITE_LIBRARY_TUI === 
 - 账户：契约 `src/library/core/contracts/account.ts`；规则 `core/model/accountRules.ts`；服务 `core/services/providerAccountController.ts`、`providerLoginSession.ts`、`providerAccountDeps.ts`；绑定 `core/bindings/useLibraryAccount.ts`；宿主 `src/library/app/useLibraryAccountController.ts`、`createLibraryAccountPort.ts`、`libraryAccountLayer.ts`、`LibraryAccountHost.tsx`；grid `suites/grid/account/`；TUI `suites/tui/LibraryTuiAccount*.tsx`、`useLibraryTuiAccountKeys.ts`
 - 账户回归：探针 `dev/probes/accountBehavior*` + `test/component/accountBehavior.spec.ts`（`window.__accountProbe`，按 suite 参数化，另有 `[grid-only]`、`[switch]` 与 AccountTab 用例）；单测 `test/unit/library/core/accountRules.test.ts`、`providerLoginSession.test.ts`、`providerAccountController.test.ts`、`useLibraryAccount.test.ts`，`test/unit/library/app/useLibraryAccountController.test.ts`、`libraryAccountPort.test.ts`；account surface 的回退与基础动作校验在 `test/unit/library/core/librarySuites.test.ts`、`test/unit/library/registry.test.ts`
 - 背景板订阅与网格设置解析：`src/library/app/useLibraryBackdrop.ts`、`src/library/suites/grid/transitions/gridBackdrop.ts`
+- 常驻舞台：契约 `LibrarySuiteStageProps`（`core/contracts/suite.ts`）；解析 `registry.resolveLibraryStage`；挂载位 `src/library/app/LibrarySuiteStageSlot.tsx`；背景板 / 首页隐藏规则 `core/model/libraryStage.ts`；单测 `test/unit/library/app/librarySuiteStageSlot.test.ts`（假 suite 的挂载、卸载与 lazy）、`test/unit/library/core/libraryStage.test.ts`
 - 页面教程解析与回归：`src/services/ponder/pagePonderTarget.ts`、`test/component/pagePonder.spec.ts`
 - 导航栈与弹栈通知：`src/stores/useCollectionNavigationStore.ts`（`notifyCollectionPop` / `subscribeCollectionPop`）、`src/hooks/useAppNavigation.ts`（popstate）
 - 分层规则：`skills/codebase-navigation/SKILL.md` 的 Boundaries 段、`test/unit/library/layerBoundaries.test.ts`
