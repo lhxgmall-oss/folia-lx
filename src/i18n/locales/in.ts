@@ -1,6 +1,28 @@
 
 
 export default {
+  "libraryBravais": {
+    "suiteName": "Dinding Bravais",
+    "homeTitle": "Pustaka",
+    "wallLabel": "Dinding pustaka",
+    "seamLabel": "Strip info",
+    "tabPending": "Dinding untuk tab ini masih dibuat; jelajahi tab Playlist dulu.",
+    "emptyCollection": "Belum ada isi di sini",
+    "trackCount_one": "{{count}} lagu",
+    "trackCount_other": "{{count}} lagu",
+    "playNow": "Putar sekarang",
+    "addToQueue": "Tambah ke antrean",
+    "inQueue": "Sudah di antrean",
+    "playAll": "Putar semua",
+    "enqueueAll": "Tambah ke antrean",
+    "seamBack": "Kembali",
+    "seamCollapse": "Ciutkan",
+    "seamFold": "Lipat",
+    "seamExpand": "Bentangkan",
+    "seamRestore": "Bentangkan strip info",
+    "seamReopenHere": "Belah di sini",
+    "kind": {"track": "Lagu", "playlist": "Playlist", "album": "Album", "artist": "Artis", "folder": "Folder", "feed": "Radio"}
+  },
   "libraryTui": {
     "back": "Kembali",
     "sourceOnline": "online · {{provider}}",

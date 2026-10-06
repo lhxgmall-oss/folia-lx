@@ -1,6 +1,28 @@
 
 
 export default {
+  "libraryBravais": {
+    "suiteName": "Bravais wall",
+    "homeTitle": "Library",
+    "wallLabel": "Library wall",
+    "seamLabel": "Info strip",
+    "tabPending": "This tab's wall is still being built; browse the Playlists tab for now.",
+    "emptyCollection": "Nothing here yet",
+    "trackCount_one": "{{count}} track",
+    "trackCount_other": "{{count}} tracks",
+    "playNow": "Play now",
+    "addToQueue": "Add to queue",
+    "inQueue": "In queue",
+    "playAll": "Play all",
+    "enqueueAll": "Add to queue",
+    "seamBack": "Back",
+    "seamCollapse": "Collapse",
+    "seamFold": "Fold",
+    "seamExpand": "Expand",
+    "seamRestore": "Expand the info strip",
+    "seamReopenHere": "Split here",
+    "kind": {"track": "Song", "playlist": "Playlist", "album": "Album", "artist": "Artist", "folder": "Folder", "feed": "Radio"}
+  },
   "libraryTui": {
     "back": "Back",
     "sourceOnline": "online · {{provider}}",

@@ -1,0 +1,204 @@
+import React, { useCallback, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { collectWallSlots, type WallSlot } from '../../../components/wall/wallSlots';
+import { FLIP_MAX_TILES } from '../../../components/wall/flipPlan';
+import { useDevicePixelRatio } from '../../../hooks/useMediaQuery';
+import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
+import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
+import type { LibrarySuiteStageProps } from '../../core/contracts/suite';
+import { BRAVAIS_METRICS, BRAVAIS_OVERSCAN } from './bravaisConstants';
+import { resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
+import type { BravaisLayer } from './bravaisLayer';
+import { useBravaisSeamStore, type BravaisSeamLevel } from './bravaisSeamLevel';
+import { resolveCurrentLayer, useBravaisStageStore } from './bravaisStageStore';
+import BravaisSeam from './BravaisSeam';
+import BravaisWall from './BravaisWall';
+import { useBravaisCamera } from './useBravaisCamera';
+import { useBravaisDisplay } from './useBravaisDisplay';
+import { useBravaisFocus } from './useBravaisFocus';
+import { useBravaisFrame } from './useBravaisFrame';
+import { bravaisSlotFromKey, useBravaisInteractions } from './useBravaisInteractions';
+import { useBravaisKeyboard } from './useBravaisKeyboard';
+import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
+import { useBravaisSeam } from './useBravaisSeam';
+import { useBravaisViewport } from './useBravaisViewport';
+import '../../../components/wall/wall.css';
+import './bravais.css';
+
+// src/library/suites/bravais/BravaisStage.tsx
+// bravais 的常驻舞台（B1 的 stage 契约）：一面横跨首页与集合层的墙、相机、缝、翻牌、聚焦卡与键盘焦点。
+// 层描述从 suite 内的 stage store 读（surface 推进来），stage 不碰 core 的资源与控制器。视觉沿用 Lattice
+// （wall.css 的 .lattice-* 类与 --lattice-* 变量，跟随 Lattice 的染色与暗角设置），墙一律实色——透光（底板、窗、
+// reportPlayerOcclusion）在 B6b③。高频的东西（相机、缝的开合、翻牌）都不经过 React：帧状态 + 直接写 DOM。
+
+const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
+    left: bounds.left - by,
+    right: bounds.right + by,
+    top: bounds.top - by,
+    bottom: bounds.bottom + by,
+});
+
+const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDaylight, navigation }) => {
+    const { t } = useTranslation();
+    const rootRef = useRef<HTMLElement>(null);
+    const fieldRef = useRef<HTMLDivElement>(null);
+    const leftRef = useRef<HTMLDivElement>(null);
+    const rightRef = useRef<HTMLDivElement>(null);
+    const seamRef = useRef<HTMLDivElement>(null);
+    const seamContentRef = useRef<HTMLDivElement>(null);
+    const tabRef = useRef<HTMLButtonElement>(null);
+    const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamContent: seamContentRef, tab: tabRef }), []);
+    const { stateRef: frameRef, renderFrame } = useBravaisFrame(frameRefs);
+    const view = useBravaisViewport(rootRef);
+    const reducedMotion = useReducedMotionFor('lattice');
+    const devicePixelRatio = useDevicePixelRatio();
+    const vignette = useLatticeSettingsStore(state => state.latticeVignette);
+    const tintEnabled = useLatticeSettingsStore(state => state.latticePosterTintEnabled);
+    const tintCustom = useLatticeSettingsStore(state => state.latticePosterTintUseCustomColor);
+    const tintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
+    const tintIntensity = useLatticeSettingsStore(state => state.latticePosterTintIntensity);
+
+    // 当前层：首页时是首页层，集合层打开时是顶层；顶层还没到（lazy、交接、回退给 grid）时沿用上一次画的层。
+    const home = useBravaisStageStore(state => state.home);
+    const top = useBravaisStageStore(state => state.top);
+    const previousLayerRef = useRef<BravaisLayer | null>(null);
+    const { layer, owned } = resolveCurrentLayer({ depth: navigation.depth, home, top, previous: previousLayerRef.current });
+    previousLayerRef.current = layer;
+
+    const camera = useBravaisCamera({ frameRef, renderFrame, fieldRef, reducedMotion });
+    const seam = useBravaisSeam({ frameRef, renderFrame, layer, contentRef: seamContentRef, reducedMotion, tweenCamera: camera.tweenTo });
+    const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
+
+    // 量到视口（或尺寸变了）：写进帧状态，相机保持视图中心不动，重新裁剪；跨过窄屏阈值时缝回到新宽度的默认等级。
+    useLayoutEffect(() => {
+        if (!view) return;
+        frameRef.current.view = view;
+        useBravaisSeamStore.getState().syncViewport(view.width);
+        camera.moveTo(frameRef.current.center, true);
+    }, [camera.moveTo, frameRef, view]);
+
+    const slots = useMemo<readonly WallSlot[]>(() => (
+        camera.bounds ? collectWallSlots(expandBounds(camera.bounds, BRAVAIS_OVERSCAN), BRAVAIS_METRICS, FLIP_MAX_TILES) : []
+    ), [camera.bounds]);
+    const slotsRef = useRef(slots);
+    slotsRef.current = slots;
+
+    // 键盘焦点换了：把 slot 换成条目 key 交给层描述（集合页据此写回浏览会话）。
+    const displayBridgeRef = useRef<BravaisDisplay | null>(null);
+    const onFocusEntry = useCallback((slotKey: string | null) => {
+        const current = displayBridgeRef.current;
+        const slot = bravaisSlotFromKey(slotKey);
+        current?.layer.onFocusEntry?.(slot ? resolveSlotItem(current, slot)?.key ?? null : null);
+    }, []);
+    const focus = useBravaisFocus({ frameRef, tweenTo: camera.tweenTo, getBottomInset, onFocusEntry });
+
+    const { display, displayRef } = useBravaisDisplay(layer, {
+        frameRef,
+        view,
+        slotsRef,
+        depth: navigation.depth,
+        setAnchor: seam.setAnchor,
+        planOpening: seam.planOpening,
+        isAnchorOnScreen: seam.isAnchorOnScreen,
+        moveTo: camera.moveTo,
+        tweenTo: camera.tweenTo,
+        collapseFocusCard: focus.collapse,
+        getFocusedSlotKey: () => focus.focusedRef.current,
+        restoreFocus: key => focus.focusSlot(bravaisSlotFromKey(key)),
+    });
+    displayBridgeRef.current = displayRef.current;
+
+    const interactions = useBravaisInteractions({
+        displayRef,
+        focus,
+        slotsRef,
+        frameRef,
+        tweenTo: camera.tweenTo,
+        rootRef,
+        fieldRef,
+        seamRef,
+    });
+    const active = isInteractive && owned && Boolean(layer?.isInteractive);
+    useBravaisKeyboard(active, interactions.handleAction);
+
+    const setLevel = useCallback((level: BravaisSeamLevel) => useBravaisSeamStore.getState().setLevel(level), []);
+    const onSeamTab = useCallback(() => {
+        if (useBravaisSeamStore.getState().level === 'hidden') useBravaisSeamStore.getState().restore();
+        else seam.reopenHere();
+    }, [seam.reopenHere]);
+
+    // 点墙面空白处（不是磁贴）收起聚焦卡；拖动后的残余点击已被 onClickCapture 吞掉。
+    const onFieldClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+        if (event.target instanceof Element && event.target.closest('.bravais-tile')) return;
+        focus.collapse();
+    }, [focus.collapse]);
+
+    const rootClassName = [
+        'lattice-root',
+        'bravais-root',
+        isDaylight ? 'is-daylight' : '',
+        vignette ? 'has-vignette' : '',
+        tintEnabled ? 'has-poster-tint' : '',
+        tintCustom ? 'uses-custom-poster-tint' : '',
+    ].filter(Boolean).join(' ');
+
+    return (
+        <section
+            ref={rootRef}
+            className={rootClassName}
+            style={{
+                '--lattice-poster-tint-color': tintColor,
+                '--lattice-poster-tint-intensity': tintIntensity,
+            } as CSSProperties}
+            data-library-stage="bravais"
+            data-bravais-layer={display?.layer.key}
+            data-bravais-active={active || undefined}
+            aria-label={t('libraryBravais.wallLabel')}
+        >
+            <div
+                ref={fieldRef}
+                className="lattice-field bravais-field"
+                tabIndex={-1}
+                onPointerDown={camera.pointer.onPointerDown}
+                onPointerMove={camera.pointer.onPointerMove}
+                onPointerUp={camera.pointer.onPointerUp}
+                onPointerCancel={camera.pointer.onPointerCancel}
+                onLostPointerCapture={event => {
+                    if (event.target === event.currentTarget) camera.pointer.onPointerCancel(event);
+                }}
+                onClickCapture={camera.pointer.onClickCapture}
+                onClick={onFieldClick}
+            >
+                <BravaisWall
+                    slots={view ? slots : []}
+                    display={display}
+                    anchorX={seam.anchorX}
+                    reflow={focus.reflow}
+                    expandedSlotKey={focus.expandedSlotKey}
+                    focusedSlotKey={focus.focusedSlotKey}
+                    pixelScale={(view?.scale ?? 1) * devicePixelRatio}
+                    reducedMotion={reducedMotion}
+                    didDragRef={camera.pointer.didDragRef}
+                    handlers={interactions.handlers}
+                    leftRef={leftRef}
+                    rightRef={rightRef}
+                />
+            </div>
+            <BravaisSeam
+                seamRef={seamRef}
+                contentRef={seamContentRef}
+                tabRef={tabRef}
+                variant={seam.rendered.variant}
+                layer={seam.rendered.layer}
+                currentLayer={layer}
+                level={seam.level}
+                depth={navigation.depth}
+                bottomPx={bottomPx}
+                setLevel={setLevel}
+                onTab={onSeamTab}
+            />
+        </section>
+    );
+};
+
+export default BravaisStage;

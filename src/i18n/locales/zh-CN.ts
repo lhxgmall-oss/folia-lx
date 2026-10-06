@@ -1,6 +1,28 @@
 
 
 export default {
+  "libraryBravais": {
+    "suiteName": "Bravais 墙面",
+    "homeTitle": "书库",
+    "wallLabel": "资料库墙面",
+    "seamLabel": "信息条",
+    "tabPending": "这个页签的墙面还在做，先在歌单页签里浏览。",
+    "emptyCollection": "这里还没有内容",
+    "trackCount_one": "{{count}} 首",
+    "trackCount_other": "{{count}} 首",
+    "playNow": "立即播放",
+    "addToQueue": "加入队列",
+    "inQueue": "已在队列",
+    "playAll": "播放全部",
+    "enqueueAll": "加入队列",
+    "seamBack": "返回",
+    "seamCollapse": "收起",
+    "seamFold": "折叠",
+    "seamExpand": "展开",
+    "seamRestore": "展开信息条",
+    "seamReopenHere": "在这里裂开",
+    "kind": {"track": "歌曲", "playlist": "歌单", "album": "专辑", "artist": "歌手", "folder": "文件夹", "feed": "电台"}
+  },
   "libraryTui": {
     "back": "返回",
     "sourceOnline": "在线 · {{provider}}",

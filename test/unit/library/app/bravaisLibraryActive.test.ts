@@ -11,8 +11,8 @@ import type { LibrarySuiteManifest } from '@/library/core/contracts/suite';
 
 // test/unit/library/app/bravaisLibraryActive.test.ts
 // 「当前是 bravais」的共享谓词（B6b②）：透光设置分区与两条命令都用它。比较的是生效 suite，不是 store 原值——
-// 真实 registry 里还没有 bravais（测试配置有 grid 与 TUI），store 存着 bravais 时生效的是 grid，谓词为假；
-// 用替身 registry 让 bravais 可用时才为真。另钉住结构前提：bravais 能生效时一定「有得选」，
+// B6 之前真实 registry 里还没有 bravais，store 存着 bravais 时生效的是 grid，谓词为假；B6 起 bravais 进了 registry，
+// 存着 bravais 就生效、谓词为真（替身 registry 的用例仍钉住「跟着生效 suite 走」）。另钉住结构前提：bravais 能生效时一定「有得选」，
 // 所以 LibrarySuiteSection 的 hasLibrarySuiteChoice 门控不会把透光设置一起藏掉。
 
 afterEach(() => {
@@ -31,9 +31,11 @@ describe('isBravaisLibrarySuite', () => {
     });
 });
 
-describe('isBravaisLibraryActive with the real registry (bravais not shipped yet)', () => {
-    it('is false while a stored bravais choice resolves to grid', () => {
+describe('isBravaisLibraryActive with the real registry (bravais shipped in B6)', () => {
+    it('is true while bravais is the stored choice, and false for an unknown id that resolves to grid', () => {
         useLibrarySuiteStore.setState({ suite: 'bravais' });
+        expect(isBravaisLibraryActive()).toBe(true);
+        useLibrarySuiteStore.setState({ suite: 'retired' });
         expect(isBravaisLibraryActive()).toBe(false);
     });
 
