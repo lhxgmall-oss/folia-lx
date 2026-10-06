@@ -260,6 +260,81 @@ test('[grid] browser back from a nested album plays the reverse transition', asy
     await expect(grid(page).getByText('Midnight Train').first()).toBeVisible();
 });
 
+// N1（折叠紧邻往返）：在歌手页和专辑页之间来回点，栈和浏览器历史都不再变长——要进入的歌手正好是上一层时当作一次
+// 应用内返回（history.back()），栈深保持 2–3。返回（应用内或浏览器后退）落到上一个不同的集合，网格的反向转场每次
+// 返回只跑一次（折回也算一次返回）。要打开歌单展开转场才有反向转场可数。
+test('[grid] bouncing between an artist and an album keeps the depth at 2–3, and each back reverses once', async ({ page }) => {
+    await openLocalHome(page, { collectionMorph: true });
+    await page.getByRole('heading', { name: 'All Songs' }).first().click();
+    await expect(grid(page)).toHaveCount(1);
+    await expect(grid(page).getByText('Midnight Train').first()).toBeVisible();
+
+    // 转场期间退场的那一层还在 DOM 里：只看当前那一层（网格给它或它的卡片容器打 data-folia-active-grid）。
+    const active = (surface: 'artist' | 'collection') => page.locator(
+        `[data-library-renderer="grid"][data-library-surface="${surface}"]:is([data-folia-active-grid], :has([data-folia-active-grid]))`,
+    );
+    const openArtist = async () => {
+        // 曲目卡片上的歌手名（专辑页头的歌手名不是链接）。
+        await active('collection').locator('[data-folia-grid-item-id]').getByText('Test Artist', { exact: true }).first().dispatchEvent('click');
+        await expect(active('artist')).toHaveCount(1);
+        await expect(active('artist').getByRole('heading', { name: 'Test Artist' })).toBeVisible();
+    };
+    const openAlbum = async () => {
+        await active('artist').getByText('Fixture Album', { exact: true }).first().dispatchEvent('click');
+        await expect(active('collection')).toHaveCount(1);
+        await expect(active('collection').getByText('Midnight Train').first()).toBeVisible();
+    };
+    const historyLength = () => page.evaluate(() => window.history.length);
+    // 反向转场的次数：网格的 beforeBack 每次都经转场 store 的 armExit / armNestedExit 武装，包一层计数。
+    const reverseRuns = () => page.evaluate(() => (window as unknown as { __reverseRuns?: number }).__reverseRuns ?? 0);
+    await page.evaluate(async () => {
+        const modulePath = '/src/library/suites/grid/transitions/collectionMorphStore.ts';
+        const { useCollectionMorphStore } = await import(/* @vite-ignore */ modulePath);
+        const flag = window as unknown as { __reverseRuns?: number };
+        flag.__reverseRuns = 0;
+        const { armExit, armNestedExit } = useCollectionMorphStore.getState();
+        useCollectionMorphStore.setState({
+            armExit: (...args: unknown[]) => { flag.__reverseRuns! += 1; return armExit(...args); },
+            armNestedExit: (...args: unknown[]) => { flag.__reverseRuns! += 1; return armNestedExit(...args); },
+        });
+    });
+
+    await openArtist();
+    await openAlbum();
+    expect(await historyState(page)).toMatchObject({ stack: ['All Songs', 'Test Artist', 'Fixture Album'] });
+    const deepestLength = await historyLength();
+
+    for (let round = 1; round <= 4; round += 1) {
+        await page.waitForTimeout(600);
+        await openArtist();
+        await expect.poll(async () => (await historyState(page)).stack).toEqual(['All Songs', 'Test Artist']);
+        await expect.poll(reverseRuns).toBe(round);
+        await page.waitForTimeout(600);
+        await openAlbum();
+        await expect.poll(async () => (await historyState(page)).stack).toEqual(['All Songs', 'Test Artist', 'Fixture Album']);
+        expect(await historyLength()).toBe(deepestLength);
+    }
+    expect(await reverseRuns()).toBe(4);
+
+    // 浏览器后退：落到上一个不同的集合（歌手页），反向转场一次。
+    await page.waitForTimeout(600);
+    await page.goBack();
+    await expect.poll(async () => (await historyState(page)).stack).toEqual(['All Songs', 'Test Artist']);
+    await expect(active('artist')).toHaveCount(1);
+    await expect.poll(reverseRuns).toBe(5);
+
+    // 前进回到专辑，再用应用内返回：落在同一层，反向转场同样只一次。
+    await page.goForward();
+    await expect.poll(async () => (await historyState(page)).stack).toEqual(['All Songs', 'Test Artist', 'Fixture Album']);
+    await expect(active('collection')).toHaveCount(1);
+    await page.waitForTimeout(600);
+    await active('collection').locator('button').filter({ has: page.locator('svg.lucide-chevron-left') }).first().click();
+    await expect.poll(async () => (await historyState(page)).stack).toEqual(['All Songs', 'Test Artist']);
+    await expect(active('artist')).toHaveCount(1);
+    await page.waitForTimeout(600);
+    expect(await reverseRuns()).toBe(6);
+});
+
 /**
  * 切换 suite。搜索页盖住了开发版浮层（浮层在首页之上、搜索页之下），所以直接调浮层按钮背后的同一个函数
  * （switchLibrarySuite：先冲刷会话、清网格转场，再写 suite store）。
