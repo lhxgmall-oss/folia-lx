@@ -354,6 +354,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
                 contentRef={seamContentRef}
                 tabRef={tabRef}
                 variant={seam.rendered.variant}
+                targetVariant={seamTarget.variant}
                 contentWidth={seam.rendered.width}
                 layer={seam.rendered.layer}
                 currentLayer={layer}

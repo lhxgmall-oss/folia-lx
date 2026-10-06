@@ -490,6 +490,39 @@ test.describe('[bravais-only] the account seam over layer shifts', () => {
         await walkShifts(page);
     });
 
+    test('the half-turn towards the account form leaves the old content inert', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        await settled(page);
+        // 记下缝每次变化时「此刻渲染的内容」与内容层是否 inert（翻转的半圈很短，轮询抓不稳）。
+        await page.evaluate(() => {
+            const seamElement = document.querySelector<HTMLElement>('[data-bravais-seam]')!;
+            const log: { variant: string | null; inert: boolean; hidden: string | null }[] = [];
+            const snap = () => {
+                const body = seamElement.querySelector<HTMLElement>('.bravais-seam-body')!;
+                const entry = { variant: seamElement.dataset.bravaisSeam ?? null, inert: body.inert, hidden: body.getAttribute('aria-hidden') };
+                const last = log.at(-1);
+                if (!last || last.variant !== entry.variant || last.inert !== entry.inert || last.hidden !== entry.hidden) log.push(entry);
+            };
+            snap();
+            new MutationObserver(snap).observe(seamElement, { attributes: true, subtree: true, attributeFilter: ['inert', 'aria-hidden', 'data-bravais-seam'] });
+            (window as Window & { __seamLog?: typeof log }).__seamLog = log;
+        });
+        await askSwitch(page);
+        await expectAccountSeam(page);
+        const log = await page.evaluate(() => (window as Window & { __seamLog?: unknown[] }).__seamLog);
+        // 翻出去的半圈：渲染的还是首页窄缝，内容层已经 inert / aria-hidden；翻到确认态后解除。
+        expect(log).toContainEqual({ variant: 'home', inert: true, hidden: 'true' });
+        expect(log?.at(-1)).toEqual({ variant: 'confirm', inert: false, hidden: null });
+        expect(log?.at(0)).toEqual({ variant: 'home', inert: false, hidden: null });
+
+        // 答复后翻回首页窄缝：外层不 inert（翻出去的确认表单自己 inert），翻完窄缝可点。
+        await confirmForm(page).locator('[data-bravais-form-action="cancel"]').click();
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect(seam(page).locator('.bravais-seam-body')).not.toHaveAttribute('inert', /.*/);
+        await expect(seam(page).locator('.bravais-seam-body')).not.toHaveAttribute('aria-hidden', /.*/);
+        await expect(seam(page).locator('[data-bravais-account-toggle="strip"]')).toBeEnabled();
+    });
+
     test('with reduced motion the fades leave the account seam in place too', async ({ mount, page }) => {
         await page.addInitScript(() => localStorage.setItem('reduce_motion_lattice', 'true'));
         await mountBravais(mount, page);

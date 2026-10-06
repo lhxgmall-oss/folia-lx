@@ -17,12 +17,18 @@ import { selectBravaisAccountKeyboardWindow, useBravaisAccountStore } from './br
 // 绑在播放条安全区的 MotionValue 上。标签：自动出屏收起时点它在当前视口裂开新缝，手动折叠时点它恢复。
 // B10：账户的登录态 / 确认态显示着（且首页外壳可交互）时缝挂 data-folia-keyboard-window——墙、全局热键与命令面板的
 // 打字即筛选都让路，不带修饰键的按键归 account surface 的独占监听（Esc 先撤销表单态）。
+// B12b：缝正翻向账户表单（目标是 login / confirm、此刻渲染的还是别的内容）时，翻出去的半圈里旧内容（面包屑、按钮）
+// 挂 inert + aria-hidden：不可点、不可聚焦、不进无障碍树（反方向——账户表单翻出去——由表单自己的 live 处理）。
+
+const isAccountVariant = (variant: BravaisSeamContentVariant) => variant === 'login' || variant === 'confirm';
 
 type BravaisSeamProps = {
     seamRef: RefObject<HTMLDivElement | null>;
     contentRef: RefObject<HTMLDivElement | null>;
     tabRef: RefObject<HTMLButtonElement | null>;
     variant: BravaisSeamContentVariant;
+    /** 缝要翻向的内容（stage 算的目标）；与 variant 不同时内容正在翻转。 */
+    targetVariant: BravaisSeamContentVariant;
     /** 此刻渲染的那一套内容的排版宽度（翻转不重排）。 */
     contentWidth: number;
     layer: BravaisLayer | null;
@@ -44,6 +50,7 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     contentRef,
     tabRef,
     variant,
+    targetVariant,
     contentWidth,
     layer,
     currentLayer,
@@ -59,6 +66,7 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     const width = contentWidth;
     const tabLabel = currentLayer?.seam.title ?? '';
     const keyboardWindow = useBravaisAccountStore(selectBravaisAccountKeyboardWindow);
+    const leavingForAccount = isAccountVariant(targetVariant) && !isAccountVariant(variant);
     return (
         <>
             <div
@@ -71,7 +79,13 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
                 role="region"
             >
                 <div ref={contentRef} className="bravais-seam-content" style={{ width, marginLeft: -width / 2 }}>
-                    <motion.div className="bravais-seam-body" style={{ paddingBottom: bottomPx }}>
+                    <motion.div
+                        className="bravais-seam-body"
+                        style={{ paddingBottom: bottomPx }}
+                        inert={leavingForAccount}
+                        aria-hidden={leavingForAccount || undefined}
+                        data-bravais-seam-leaving={leavingForAccount || undefined}
+                    >
                         <BravaisSeamNavigation.Provider value={navigation}>
                             <BravaisSeamContent variant={variant} layer={layer} depth={navigation.depth} actions={{ setLevel, openList, panel }} />
                         </BravaisSeamNavigation.Provider>
