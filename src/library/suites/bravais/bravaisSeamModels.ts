@@ -146,3 +146,15 @@ export type BravaisLayerEntries = {
     hasForm: boolean;
     cancelForm?: () => void;
 };
+
+/** B8 歌手页在缝里的信息块（设计稿 §10.4「缝承载 ArtistGridView 的信息」）：都是已翻译的展示文字。 */
+export type BravaisSeamArtist = {
+    coverUrl?: string;
+    /** 别名（「又名 …」已拼好）；没有就不显示。 */
+    aliases?: string;
+    description?: string;
+    /** 「N 首 · M 张专辑」。 */
+    stats?: string;
+    /** 头像的替代文字（歌手名）。 */
+    name: string;
+};

@@ -1,4 +1,4 @@
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection } from './bravaisSeamModels';
 
 // src/library/suites/bravais/bravaisLayer.ts
 // bravais 的层描述（设计稿 §8.1）：surface 把 core binding 的数据投影成它，推进 bravaisStageStore，stage 只读它画墙。
@@ -53,9 +53,13 @@ export type BravaisSeamModel = {
     onEnqueueScope?: () => void;
     /** B7 集合页：收藏星标、补页进度、状态与结果提示、过滤位、日期步进、「⋯ 更多」、表单态（见 bravaisSeamModels）。 */
     collection?: BravaisSeamCollection;
+    /** B8 歌手页：头像、别名、简介与统计（ArtistGridView 的信息）。 */
+    artist?: BravaisSeamArtist;
+    /** B8：播放 / 加入当前范围的按钮文案（歌手页是「播放热门」「加入热门歌曲」）；不给就是「播放全部」「加入队列」。 */
+    scopeLabels?: { play: string; enqueue: string };
 };
 
-export type BravaisLayerSurface = 'home' | 'collection';
+export type BravaisLayerSurface = 'home' | 'collection' | 'artist';
 
 /** 一层墙的描述。 */
 export type BravaisLayer = {
