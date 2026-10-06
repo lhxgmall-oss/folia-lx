@@ -1671,3 +1671,78 @@ test.describe('[bravais-only] collection page', () => {
         expect(await stack(page)).toEqual(['Daily Picks']);
     });
 });
+
+test.describe('[bravais-only] collection page, more', () => {
+    const collectionAnchor = (page: Page) => page.locator('[data-library-surface="collection"][data-library-renderer="bravais"]');
+
+    test('an input method composition holds the wall until it ends', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'online-public');
+        await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes).length);
+        const host = page.locator('[data-bravais-filter-host]');
+        await host.dispatchEvent('compositionstart');
+        await setQuery(page, 'amber');
+        await page.waitForTimeout(500);
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'infinite');
+        await host.dispatchEvent('compositionend');
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'finite');
+    });
+
+    test('sorting from the list panel reorders the wall and stays on the infinite collage', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'local-all');
+        await waitForScope(page, 8);
+        await openBravaisList(page);
+        await page.locator('[data-bravais-list-sort-field]').selectOption('fileLastModified');
+        await expect.poll(() => playFilteredIds(page)).toEqual(LOCAL_SORT_ORDERS.modifiedAsc.map(localKey));
+        await expect(page.locator('[data-bravais-list-row]').first()).toHaveAttribute('data-bravais-list-row', `${localKey(8)}-0`);
+        await page.locator('[data-bravais-list-sort-direction]').click();
+        await expect.poll(() => playFilteredIds(page)).toEqual(LOCAL_SORT_ORDERS.modifiedDesc.map(localKey));
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'infinite');
+    });
+
+    test('add to playlist flips the seam into a picker of Navidrome playlists; a new one is created from the same form', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'navi-album');
+        await waitForScope(page, 6);
+        const openPicker = async () => {
+            await page.locator('[data-bravais-seam-action="more"]').click();
+            await page.locator('[data-bravais-seam-menu] [data-bravais-seam-action="add-to-playlist"]').click();
+            await expect(page.locator('[data-bravais-form="pick-playlist"]')).toBeVisible();
+        };
+        await clearLog(page);
+        await openPicker();
+        await page.locator('[data-bravais-form-playlist="navi-pl-1"]').click();
+        await expect.poll(() => requests(page, 'updatePlaylist', 'navi-pl-1')).toHaveLength(1);
+        await expect(page.locator('[data-bravais-form]')).toHaveCount(0);
+
+        await openPicker();
+        await page.locator('[data-bravais-form-action="create"]').click();
+        const input = page.locator('[data-bravais-form="pick-playlist"] input');
+        await expect(input).toBeFocused();
+        await input.fill('Fresh Picks');
+        await input.press('Enter');
+        await expect.poll(() => requests(page, 'createPlaylist')).toHaveLength(1);
+        await expect(page.locator('[data-bravais-form]')).toHaveCount(0);
+        expect(await stack(page)).toEqual(['Navi Album']);
+    });
+
+    test('switching from the grid keeps the focused song: the wall puts the keyboard focus on it', async ({ mount, page }) => {
+        await mountProbe(mount, page);
+        await open(page, 'online-public');
+        await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes).length);
+        await pressOnGrid(page, 'ArrowRight');
+        await page.waitForTimeout(400);
+        await pressOnGrid(page, 'Enter');
+        await expect.poll(() => calls(page, 'playSong')).toHaveLength(1);
+        const focusedKey = (await lastCall(page, 'playSong'))!.ids[0];
+
+        await setRenderer(page, 'bravais');
+        await waitForRenderer(page, 'bravais');
+        await expect(page.locator('.bravais-tile[data-bravais-focused]')).toHaveAttribute('data-library-entry', `${focusedKey}-0`);
+        await clearLog(page);
+        await playFocused(page, 'bravais');
+        await expect.poll(async () => (await lastCall(page, 'playSong'))?.ids).toEqual([focusedKey]);
+        expect(await requests(page, 'playlistTracks')).toEqual([]);
+    });
+});
