@@ -9,6 +9,7 @@ import type { LibraryHomeResources } from './homeModel';
 import type { CollectionMutationController } from './mutations';
 import type { LibraryPlaybackPort } from './ports';
 import type { CollectionResource } from './resource';
+import type { LibrarySuiteChromeActionMeta } from './suiteChrome';
 
 // src/library/core/contracts/suite.ts
 // UI suite 的能力契约：core 定义有哪些 surface、每个 surface 上有哪些动作、宿主交给任何一套 suite 的输入；
@@ -360,4 +361,10 @@ export type LibrarySuiteManifest = {
      * 非默认 suite 必须用 React.lazy（没选中它的用户不加载它的 chunk）。
      */
     stage?: LibrarySurfaceComponent<LibrarySuiteStageProps>;
+    /**
+     * 外观动作（B2，见 ./suiteChrome）：只出现在命令面板里的 suite 自有操作。这里静态声明元数据，命令由命令面板按它
+     * 生成（id 为 `<suiteId>-<动作 id>`）；运行时由 suite 用 useLibrarySuiteChromeRegistration 注册实现，只有注册着的
+     * 那套 suite 的动作可用。不声明则没有外观动作（grid 与 TUI 都不声明：网格的局部动作走 grid surface）。
+     */
+    chromeActions?: readonly LibrarySuiteChromeActionMeta[];
 };

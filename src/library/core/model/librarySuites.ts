@@ -13,6 +13,7 @@ import type {
     LibrarySurfaceId,
     LibrarySurfacePropsMap,
 } from '../contracts/suite';
+import { assertLibrarySuiteChromeActions } from './suiteChrome';
 
 // src/library/core/model/librarySuites.ts
 // suite 清单的纯规则：建索引（去重、默认 suite 必须实现全部 surface、丢掉不可用的）、按 surface 解析
@@ -204,7 +205,8 @@ const toDeclaredActions = (declaration: LibrarySurfaceDeclaration<unknown>): Lib
 /**
  * 建 suite 索引。清单有问题就在启动时抛错（而不是等到某个 surface 渲染时才发现）：重复 id、
  * 默认 suite 缺失或没实现全部 surface、声明了清单之外的动作。available === false 的 suite 被丢掉。
- * account surface 另要列全基础动作（LIBRARY_ACCOUNT_REQUIRED_ACTION_IDS）。
+ * account surface 另要列全基础动作（LIBRARY_ACCOUNT_REQUIRED_ACTION_IDS）；外观动作（chromeActions）按
+ * ./suiteChrome 的 assertLibrarySuiteChromeActions 校验。
  */
 export const buildLibrarySuiteIndex = (
     manifests: readonly LibrarySuiteManifest[],
@@ -232,6 +234,7 @@ export const buildLibrarySuiteIndex = (
                 throw new Error(`[LibrarySuites] Suite "${manifest.id}" declares the account surface without the required action(s) ${missingRequired.join(', ')}`);
             }
         }
+        assertLibrarySuiteChromeActions(manifest.id, manifest.chromeActions);
         if (manifest.available !== false) byId.set(manifest.id, manifest);
     }
 
