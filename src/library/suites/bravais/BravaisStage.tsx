@@ -14,6 +14,7 @@ import { resolveCurrentLayer, useBravaisStageStore } from './bravaisStageStore';
 import BravaisSeam from './BravaisSeam';
 import BravaisWall from './BravaisWall';
 import { useBravaisCamera } from './useBravaisCamera';
+import { useBravaisChromeActions } from './useBravaisChromeActions';
 import { useBravaisDisplay } from './useBravaisDisplay';
 import { useBravaisFocus } from './useBravaisFocus';
 import { useBravaisFrame } from './useBravaisFrame';
@@ -120,6 +121,14 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     });
     const active = isInteractive && owned && Boolean(layer?.isInteractive);
     useBravaisKeyboard(active, interactions.handleAction);
+    useBravaisChromeActions({
+        active,
+        displayRef,
+        frameRef,
+        isCollapsed: seam.isCollapsed,
+        reopenHere: seam.reopenHere,
+        focusSlot: focus.focusSlot,
+    });
 
     const setLevel = useCallback((level: BravaisSeamLevel) => useBravaisSeamStore.getState().setLevel(level), []);
     const onSeamTab = useCallback(() => {

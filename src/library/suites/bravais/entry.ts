@@ -31,6 +31,44 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'open-artist',
 ];
 
+// 外观动作（suite-chrome，只出现在命令面板里）：缝的三级开口、在这里裂开缝、定位正在播放。
+// 正式文案在三份 locale 的 commandPalette.commands.bravais-<id>；这里的 title / description 只是缺译时的英文回退。
+// 关键词只写英文与中文（拼音由构建期插件从这里的中文生成）。执行键：只有「定位正在播放」给 `c`（与 Lattice 的
+// 「聚焦当前歌曲」同键，两者的作用范围不会同时成立）；`l` 已被全局「循环播放」占用，B6 没有「打开列表」。
+const CHROME_ACTIONS: LibrarySuiteManifest['chromeActions'] = [
+    {
+        id: 'seam-full',
+        title: 'Expand the info strip',
+        description: 'Open the seam on the library wall to its full info strip',
+        keywords: ['seam', 'wall strip', '展开信息条', '缝'],
+    },
+    {
+        id: 'seam-spine',
+        title: 'Collapse the info strip',
+        description: 'Narrow the seam on the library wall to a book spine',
+        keywords: ['spine', 'narrow seam', '书脊', '收起信息条'],
+    },
+    {
+        id: 'seam-hide',
+        title: 'Fold the info strip',
+        description: 'Close the seam and keep only a tab at the screen edge',
+        keywords: ['fold seam', 'hide strip', '折叠信息条', '隐藏缝'],
+    },
+    {
+        id: 'seam-here',
+        title: 'Split the wall here',
+        description: 'Open a new seam in the current view after the old one slid off screen',
+        keywords: ['reopen seam', 'split', '裂开', '重新裂开缝'],
+    },
+    {
+        id: 'locate-playing',
+        title: 'Locate the playing song',
+        description: 'Move the wall focus to the song that is playing now',
+        keywords: ['now playing', 'current song', '定位正在播放', '当前歌曲'],
+        executeShortcut: 'c',
+    },
+];
+
 const bravais: LibrarySuiteManifest = {
     id: 'bravais',
     labelKey: 'libraryBravais.suiteName',
@@ -40,6 +78,7 @@ const bravais: LibrarySuiteManifest = {
         home: { component: BravaisHome, actions: [] },
         collection: { component: BravaisCollection, actions: COLLECTION_ACTIONS },
     },
+    chromeActions: CHROME_ACTIONS,
     layout: {
         forget: sessionKey => {
             try {
