@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import en from '@/i18n/locales/en';
 import type { LibraryLoginPhase, LibraryNeteaseBackendHealth } from '@/library/core/contracts/account';
 import {
+    LOGIN_FAILURE_TIPS,
     LOGIN_METHOD_STEP_COPY,
     canLogoutProvider,
     canRetryLogin,
@@ -241,6 +242,18 @@ describe('login copy', () => {
         expectKey(LOGIN_METHOD_STEP_COPY.pending.key);
         expectKey(resolveLoginDiagnosticsPrompt('expired-after-scan').key);
         expectKey(resolveLoginDiagnosticsPrompt('check-error').key);
+        expectKey(LOGIN_FAILURE_TIPS.title.key);
+        for (const tip of LOGIN_FAILURE_TIPS.items) expectKey(tip.key);
+        expectKey(LOGIN_FAILURE_TIPS.escalation.key);
+    });
+
+    // 失败后先给简单办法：重启应用；换个网络再重启应用。诊断与反馈收在后面。
+    it('offers restarting and switching networks before any diagnostics', () => {
+        expect(LOGIN_FAILURE_TIPS).toEqual({
+            title: { key: 'home.qrTipsTitle' },
+            items: [{ key: 'home.qrTipRestart' }, { key: 'home.qrTipSwitchNetwork' }],
+            escalation: { key: 'home.qrDiagnosticsToggle' },
+        });
     });
 
     it('hides the status line while choosing a method or when the backend is down', () => {

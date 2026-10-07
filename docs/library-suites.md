@@ -317,7 +317,7 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 | `account-switch-confirm` | 确认 / 取消待确认切换 | 基础 | `useLibraryAccountPendingSwitch`；`confirmSwitch` / `cancelSwitch` |
 | `account-select` | 首页上的平台列表，选平台 | 推荐 | `useLibraryAccountProviders`；`selectProvider` |
 | `account-logout` | 首页上的登出入口 | 推荐 | `canLogoutProvider`；`logout` |
-| `account-login-diagnostics` | 失败后的自检结论与诊断报告（后端没拉起来时也给） | 可选 | 视图的 `diagnosticsPrompt` 与 `selfCheck`；`buildLoginDiagnosticReport` |
+| `account-login-diagnostics` | 失败后在二维码旁边的帮助：先是简单办法（重启；换网络再重启），再是自检结论，诊断报告与反馈收在最后（后端没拉起来时也给） | 可选 | 视图的 `failureTips`、`selfCheck` 与 `diagnosticsPrompt`；`buildLoginDiagnosticReport` |
 | `account-backend-restart` | 网易本地后端故障时重启 | 可选 | 视图的 `backendFailure`；`restartLoginBackend` |
 
 `account-select` / `account-logout` 画在 home surface 上，但和其余账户动作一起声明在 entry 的 `surfaces.account` 里。
@@ -334,6 +334,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 - 确认框按下确认后立即收起：`confirmSwitch` 同步清掉 `pendingSwitch`，不要 `await confirmSwitch` 再关框（它要等清理与刷新走完）。
 - 登出入口的可用性用 `core/model/accountRules` 的 `canLogoutProvider`，且 `logout.status` 不是 `pending`；与 controller 的判定、网格切换器、AccountTab 一致。
 - 诊断入口（区块、按键、提示行）只看视图的 `diagnosticsPrompt` / `canShowDiagnostics`，不要自己按 provider 判断；什么时候给入口由 core 的 `canShowLoginDiagnostics` 决定。
+- 失败帮助放在二维码旁边，按 `failureTips`（简单办法）→ `selfCheck`（自检结论）→ 诊断与反馈的顺序排；诊断与反馈不要一上来就摆在最显眼的位置（网格收在「还是不行？」下面）。
 - 键盘只在 `isInteractive` 为真且界面显示着时接。`isInteractive` 是首页外壳层的值，集合层打开时可能仍为真；登录与确认在最上层时，挂 `data-folia-keyboard-window` 让底下的页面按键与全局热键让路。
 
 ## 写一套新 suite 的步骤

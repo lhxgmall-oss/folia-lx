@@ -14,6 +14,7 @@ import {
     canRetryLogin,
     canShowLoginDiagnostics,
     isLoginDialogVisible,
+    LOGIN_FAILURE_TIPS,
     LOGIN_METHOD_STEP_COPY,
     resolveLoginDiagnosticsPrompt,
     resolveProviderSwitchCopy,
@@ -93,6 +94,11 @@ export type LibraryLoginView = {
     } | null;
     /** 诊断入口的提示语；不该给诊断时为 null。 */
     diagnosticsPrompt: string | null;
+    /**
+     * 失败后先给的简单办法（与诊断入口同时出现）：标题、几条办法、以及收起诊断与反馈的那一项的文案。
+     * suite 先显示办法，诊断与反馈放在后面。
+     */
+    failureTips: { title: string; items: string[]; escalation: string } | null;
     /** 后端故障界面的文案（只有 backend.failed 时非空）。 */
     backendFailure: { title: string; restartLabel: string; restartingLabel: string } | null;
     /** 失败后的自检；没有时为 null。 */
@@ -172,6 +178,13 @@ export const translateLoginSession = (
             : null,
         diagnosticsPrompt: session.failure && canShowLoginDiagnostics(session)
             ? translateHomeMessage(t, resolveLoginDiagnosticsPrompt(session.failure))
+            : null,
+        failureTips: session.failure && canShowLoginDiagnostics(session)
+            ? {
+                title: translateHomeMessage(t, LOGIN_FAILURE_TIPS.title),
+                items: LOGIN_FAILURE_TIPS.items.map(item => translateHomeMessage(t, item)),
+                escalation: translateHomeMessage(t, LOGIN_FAILURE_TIPS.escalation),
+            }
             : null,
         backendFailure: session.backend.failed
             ? {

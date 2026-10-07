@@ -13,7 +13,7 @@ const STATE_ICON = {
 } as const;
 
 const QrLoginSelfCheckSummary = ({ selfCheck }: { selfCheck: LibraryLoginSelfCheckView }) => (
-    <div className="mb-3" data-qr-self-check={selfCheck.running ? 'running' : selfCheck.error ? 'failed' : 'done'}>
+    <div data-qr-self-check={selfCheck.running ? 'running' : selfCheck.error ? 'failed' : 'done'}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] opacity-45 mb-1" style={{ color: 'var(--text-secondary)' }}>
             {selfCheck.title}
         </p>

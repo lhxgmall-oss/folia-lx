@@ -130,7 +130,17 @@ export const LOGIN_METHOD_STEP_COPY: Readonly<{ title: LibraryHomeMessage; hint:
     pending: { key: 'home.qqLoginMethodPending' },
 };
 
-/** 诊断入口的提示语：扫过码却过期（多半是手机端拒绝）单独一句（buildQrLoginDiagnosticsProps）。 */
+/**
+ * 登录失败后先给的简单办法：重启应用；换个网络再重启应用。诊断报告与反馈收在后面（escalation），
+ * 用户试过这些还不行才去点，不一上来就让人发 issue。
+ */
+export const LOGIN_FAILURE_TIPS: Readonly<{ title: LibraryHomeMessage; items: readonly LibraryHomeMessage[]; escalation: LibraryHomeMessage }> = {
+    title: { key: 'home.qrTipsTitle' },
+    items: [{ key: 'home.qrTipRestart' }, { key: 'home.qrTipSwitchNetwork' }],
+    escalation: { key: 'home.qrDiagnosticsToggle' },
+};
+
+/** 诊断入口的提示语：扫过码却过期（多半是手机端拒绝）单独一句（buildQrLoginFailureHelpProps）。 */
 export const resolveLoginDiagnosticsPrompt = (failure: QrLoginFailureKind): LibraryHomeMessage => ({
     key: failure === 'expired-after-scan' ? 'home.qrDiagnosticsPromptScanned' : 'home.qrDiagnosticsPrompt',
 });
