@@ -44,11 +44,15 @@ import './bravaisHome.css';
 //   一个字。选中态与页签区分：页签是填色的块，二级切换是强调色 + 侧边一道细线。
 // - 工具格固定四格（搜索、设置、队列、「⋯」），其余进「⋯」；书脊上「⋯」先展开缝再开菜单（BravaisSeamHomeTools）。
 // - 未登录时账户位只是一个「连接在线平台」入口（BravaisSeamAccountSwitcher）；「先搜几首喜欢的歌」那行不再显示。
+// fb4（用户实测）：账户入口（已登录的切换按钮、未登录的「连接在线平台」、书脊上的图标）不在中段了，挪到导航区与
+// 工具格之间、贴着工具格（自然高度，导航区照旧是唯一可伸缩的一段）。平台列表从入口往上弹出、绝对定位盖在导航区上，
+// 不推挤页签，所以页签的缩减级别与列表开合无关。中段只剩扫描进度、二级切换、管理隐藏、状态，仍按 fb3 竖直居中。
 
 /**
  * B10 账户位：首页在线页签窄缝里的平台切换（account-select / account-logout）放在这里。B9 只给一个空容器，挂着
  * `data-bravais-account-slot=<providerId>`；B10 按 BravaisHomeAccount（扩展它）在里面渲染平台列表与登出。
  * B10：容器里是 BravaisSeamAccountSwitcher（书脊上是一个展开缝的图标按钮）。
+ * fb4：容器是首页窄缝的直接子级，排在工具格正上方。
  */
 export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount; compact: boolean; onExpand: () => void }> = ({ account, compact, onExpand }) => (
     <div className="bravais-seam-account" data-bravais-account-slot={account.providerId} aria-label={account.providerLabel}>
@@ -229,7 +233,6 @@ const BravaisSeamHome: React.FC<{
                                 </div>
                             )}
                             {seam.status && <div className="bravais-seam-vstatus" data-bravais-seam-status>{seam.status}</div>}
-                            {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} onExpand={expand} />}
                         </div>
                     </div>
                 </div>
@@ -247,6 +250,8 @@ const BravaisSeamHome: React.FC<{
             <div ref={fullSectionsRef} className="bravais-seam-home-measure" aria-hidden>
                 {sections && <HomeSeamSections sections={sections} short={false} measure />}
             </div>
+            {/* fb4：账户入口贴在工具格正上方（不在中段），平台列表从它往上弹出、盖在导航区上。 */}
+            {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} onExpand={expand} />}
             {home && <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand} />}
             {compact && (
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={expand}

@@ -14,6 +14,8 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
 // 「全名二级切换」的测量副本（fullSectionsRef；没有二级切换时是空的）。
 // 放得下 = 页头副本高 + 中段内边距 + （中段内层高 − 此刻二级切换高 + 全名二级切换高）≤ 导航区高——与此刻是哪一级
 // 无关，所以不会来回跳。
+// fb4：账户入口挪出中段、贴在工具格上方（导航区之外的自然高度一段），平台列表往上弹出、绝对定位盖在导航区上，
+// 所以列表开合不再改变任何被量的东西——页签的级别与它无关。
 
 /** 页头的缩减级别：带标题 + 全名 → 不带标题 + 全名 → 不带标题 + 一个字（页签与激活的二级切换一起缩）。 */
 export type BravaisSeamHeadLevel = 'titled' | 'untitled' | 'short';

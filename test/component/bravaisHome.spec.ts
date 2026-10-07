@@ -555,6 +555,8 @@ test.describe('[bravais-only] the account seam over layer shifts', () => {
 // fb3：工具格固定四格（搜索、设置、队列、「⋯」；探针没有队列入口，只有三格），其余（本页签的管理隐藏、目录…，
 // app 级的回到播放页…）在「⋯」里，本页签的在前、分隔线、app 级的在后。中段（二级切换、账户入口、状态）在页头与
 // 工具格之间竖直居中；二级切换只有激活项有竖排文字，short 时与页签一起缩成一个字。书脊上一列图标，「⋯」先展开缝再开菜单。
+// fb4：账户入口不在中段了——贴在工具格正上方（书脊上是工具列上面的一个图标）；平台列表从入口往上弹出、盖在导航区上，
+// 不推挤页签、不改变页签的缩减级别。中段（二级切换、状态）在页头与账户入口（没有入口时是工具格）之间竖直居中。
 test.describe('[bravais-only] the narrow home seam layout', () => {
     type Box = { left: number; top: number; right: number; bottom: number };
     const root = (page: Page) => page.locator('[data-bravais-home-seam]');
@@ -578,6 +580,8 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             head: box(root.querySelector('.bravais-seam-home-nav .bravais-seam-home-head')),
             middle: box(root.querySelector('[data-bravais-home-body]')),
             dock: box(root.querySelector('.bravais-seam-dock')),
+            account: box(root.querySelector(':scope > [data-bravais-account-slot]')),
+            accountInMiddle: root.querySelector('[data-bravais-home-body] [data-bravais-account-slot]') !== null,
             fit: root.getAttribute('data-bravais-home-fit'),
             title: (() => {
                 const title = root.querySelector<HTMLElement>('[data-bravais-home-title]')!;
@@ -626,14 +630,24 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect.poll(async () => (await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action]').first().boundingBox())?.width ?? 0)
             .toBeGreaterThanOrEqual(toolSize - 0.5);
         const layout = await seamLayout(page);
-        const parts = [layout.head!, layout.middle!, layout.dock!];
+        // fb4：账户入口不在中段，在工具格正上方（与工具格之间只留一小段，书脊上 6px、窄缝 8px）。
+        expect(layout.accountInMiddle).toBe(false);
+        const account = layout.account;
+        if (account) {
+            const gap = layout.dock!.top - account.bottom;
+            expect(gap).toBeGreaterThanOrEqual(4);
+            expect(gap).toBeLessThanOrEqual(10);
+            expect(overlaps(layout.nav!, account)).toBe(false);
+        }
+        const lower = account ?? layout.dock!;
+        const parts = [layout.head!, layout.middle!, ...(account ? [account] : []), layout.dock!];
         if (!layout.overflowing) {
             for (let i = 0; i < parts.length; i += 1) {
                 for (let j = i + 1; j < parts.length; j += 1) expect(overlaps(parts[i], parts[j])).toBe(false);
             }
-            // 中段在页头与工具格之间竖直居中（上下留白相等），不贴着页签。
+            // 中段在页头与下面那一段（账户入口，没有时是工具格）之间竖直居中（上下留白相等），不贴着页签。
             const above = layout.middle!.top - layout.head!.bottom;
-            const below = layout.dock!.top - layout.middle!.bottom;
+            const below = lower.top - layout.middle!.bottom;
             expect(above).toBeGreaterThanOrEqual(10);
             expect(Math.abs(above - below)).toBeLessThanOrEqual(2);
         }
@@ -783,6 +797,149 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(await menuItems(page)).toEqual(['manage-hidden', 'rule', 'player']);
         await page.keyboard.press('Escape');
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+    });
+
+    // fb4：账户入口贴在工具格正上方；点开后平台列表从入口往上弹出（scale + 位移，从底边长出来），盖在导航区上，
+    // 页签的缩减级别与页头的位置都不变；再点入口、Esc、点别处都收起。登出是当前那一行右侧的小图标。
+    const accountList = (page: Page) => seam(page).locator('[data-bravais-account-list]');
+    const headSnapshot = (page: Page) => root(page).evaluate(element => ({
+        fit: element.getAttribute('data-bravais-home-fit'),
+        tabs: [...element.querySelectorAll<HTMLElement>('[data-bravais-tab]')].map(tab => {
+            const rect = tab.getBoundingClientRect();
+            return [tab.textContent, Math.round(rect.top), Math.round(rect.height)];
+        }),
+    }));
+    type ListFrame = { scale: number; opacity: number };
+    /** 点开之前装一个逐帧记录：列表每一帧的 transform 缩放与不透明度。 */
+    const watchListFrames = (page: Page) => page.evaluate(() => {
+        const frames: { scale: number; opacity: number }[] = [];
+        (window as Window & { __accountFrames?: typeof frames }).__accountFrames = frames;
+        const started = performance.now();
+        const tick = () => {
+            const list = document.querySelector<HTMLElement>('[data-bravais-account-list]');
+            if (list) {
+                const style = getComputedStyle(list);
+                const matrix = new DOMMatrixReadOnly(style.transform === 'none' ? undefined : style.transform);
+                frames.push({ scale: Math.hypot(matrix.a, matrix.b), opacity: Number(style.opacity) });
+            }
+            if (performance.now() - started < 1500) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
+    const listFrames = (page: Page) => page.evaluate(() => (window as Window & { __accountFrames?: ListFrame[] }).__accountFrames ?? []);
+
+    /** 列表在入口上方、在缝里、盖在导航区上（等弹出动画放完再量）。 */
+    const expectListAbove = async (page: Page) => {
+        await expect.poll(async () => {
+            const frames = await listFrames(page);
+            const last = frames.at(-1);
+            return last ? Math.abs(last.scale - 1) < 0.001 && last.opacity > 0.999 : false;
+        }).toBe(true);
+        const toggle = (await seam(page).locator('[data-bravais-account-slot] [data-bravais-account-toggle]').boundingBox())!;
+        const nav = (await root(page).locator('.bravais-seam-home-nav').boundingBox())!;
+        const seamBox = (await seam(page).boundingBox())!;
+        const list = (await accountList(page).boundingBox())!;
+        expect(list.y + list.height).toBeLessThanOrEqual(toggle.y + 0.5);
+        expect(list.y).toBeGreaterThanOrEqual(seamBox.y - 0.5);
+        expect(list.x).toBeGreaterThanOrEqual(seamBox.x - 0.5);
+        expect(list.x + list.width).toBeLessThanOrEqual(seamBox.x + seamBox.width + 0.5);
+        // 盖在导航区上（与它重叠），而不是把导航区推开。
+        expect(list.y).toBeLessThan(nav.y + nav.height);
+    };
+
+    test('the account entry sits right above the tools and its list pops upwards over the tabs without changing their fit', async ({ page }) => {
+        const layout = await expectTidy(page);
+        expect(layout.account).not.toBeNull();
+        const before = await headSnapshot(page);
+        expect(before.fit).toBe('titled');
+
+        await watchListFrames(page);
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        await expect(seam(page).locator('[data-bravais-account-slot] [data-bravais-account]')).toHaveAttribute('data-bravais-account', 'panel');
+        await expect(accountList(page)).toBeVisible();
+        await expectListAbove(page);
+        // 弹出：开头几帧缩小、半透明，最后落到原尺寸。
+        const frames = await listFrames(page);
+        expect(frames.some(frame => frame.scale < 0.97)).toBe(true);
+        expect(frames.some(frame => frame.opacity < 0.9)).toBe(true);
+        // 列表开着：页签的级别、位置、尺寸都没变。
+        expect(await headSnapshot(page)).toEqual(before);
+        await expectTidy(page);
+
+        // 登出是当前那一行右侧的图标按钮（可访问名是登出文案），行本身仍是选平台的 menuitemradio。
+        const current = accountList(page).locator(`[data-bravais-account-provider="${PROBE_PROVIDER_A}"]`);
+        const logout = current.getByRole('button', { name: 'Logout', exact: true });
+        await expect(logout).toHaveCount(1);
+        await expect(logout).toHaveText('');
+        await expect(logout).toHaveAttribute('title', 'Logout');
+        const rowBox = (await current.getByRole('menuitemradio').boundingBox())!;
+        const logoutBox = (await logout.boundingBox())!;
+        expect(logoutBox.x).toBeGreaterThanOrEqual(rowBox.x + rowBox.width - 0.5);
+        expect(Math.abs((logoutBox.y + logoutBox.height / 2) - (rowBox.y + rowBox.height / 2))).toBeLessThanOrEqual(4);
+        await expect(accountList(page).locator('[data-bravais-account-logout]')).toHaveCount(1);
+
+        // 再点入口收起；Esc 收起；点别处收起。
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        await expect(accountList(page)).toHaveCount(0);
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        await expect(accountList(page)).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(accountList(page)).toHaveCount(0);
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        await expect(accountList(page)).toBeVisible();
+        const title = (await root(page).locator('[data-bravais-home-title]').boundingBox())!;
+        await page.mouse.click(title.x + title.width / 2, title.y + title.height / 2);
+        await expect(accountList(page)).toHaveCount(0);
+        expect(await headSnapshot(page)).toEqual(before);
+    });
+
+    test('at a short height the open list scrolls inside the seam and the one-letter tabs stay as they were', async ({ page }) => {
+        await resize(page, 520);
+        await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'short');
+        await expectTidy(page);
+        const before = await headSnapshot(page);
+        await watchListFrames(page);
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        await expect(accountList(page)).toBeVisible();
+        await expectListAbove(page);
+        expect(await headSnapshot(page)).toEqual(before);
+        // 每一行都还够得着（列表在里面滚）。
+        const rows = accountList(page).locator('[data-bravais-account-provider]');
+        await rows.last().scrollIntoViewIfNeeded();
+        await expect(rows.last()).toBeInViewport();
+    });
+
+    test('with reduced motion the list only fades in', async ({ page }) => {
+        await page.evaluate(async () => {
+            const modulePath = '/src/stores/useMotionSettingsStore.ts';
+            const { useMotionSettingsStore } = await import(/* @vite-ignore */ modulePath);
+            useMotionSettingsStore.getState().handleToggleReducedMotionSurface('uiMicroMotion', true);
+        });
+        await watchListFrames(page);
+        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
+        await expect(accountList(page)).toBeVisible();
+        await expectListAbove(page);
+        const frames = await listFrames(page);
+        expect(frames.length).toBeGreaterThan(0);
+        expect(frames.every(frame => Math.abs(frame.scale - 1) < 0.001)).toBe(true);
+    });
+
+    test('on the spine the account icon sits above the tools and opens the narrow seam with the list popped upwards', async ({ page }) => {
+        await resize(page, 900, 820);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home-spine');
+        const layout = await expectTidy(page, 64);
+        expect(layout.account).not.toBeNull();
+        await expect(seam(page).locator('[data-bravais-account-slot] [data-bravais-account-toggle="compact"]')).toBeVisible();
+
+        await watchListFrames(page);
+        await seam(page).locator('[data-bravais-account-toggle="compact"]').click();
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
+        await expect(accountList(page)).toBeVisible();
+        await expectListAbove(page);
+        await page.keyboard.press('Escape');
+        await expect(accountList(page)).toHaveCount(0);
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
     });
 });
