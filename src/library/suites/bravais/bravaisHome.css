@@ -6,16 +6,92 @@
 
 /* ---------- 首页窄缝 ---------- */
 
-/* 五个一级页签竖排并列，像一排书脊（窄缝只有 120px）。 */
-.bravais-seam-home .bravais-seam-tabs {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 2px;
+/* 五个一级页签竖排并列，像一排书脊（窄缝只有 120px）。
+   fb2 重排：从上到下是导航区（页头 + 二级切换 + 管理隐藏；唯一可伸缩的一段，放不下时在里面滚，滚动条不画）
+   → 扫描进度 → 账户位 → 状态 → 工具格，各段自然高度、互不重叠。页签一列一个、竖排；窄缝里折叠按钮与页签那一列
+   排在竖排标题左边（竖排从右往左读），书脊上依次是折叠、标题、页签。纵向放不下全名时缩成一个字（.is-short，
+   量的是 .bravais-seam-home-measure）。 */
+.bravais-seam-home {
+    --bravais-home-pad-x: 10px;
+    position: relative;
+    gap: 10px;
+    padding: 16px var(--bravais-home-pad-x) 0;
 }
 
-.bravais-seam-home .bravais-seam-tabs button { padding: 8px 3px; font-size: 13px; letter-spacing: 0.14em; }
-.bravais-seam-home.is-compact .bravais-seam-tabs { flex-direction: column; flex-wrap: nowrap; }
+.bravais-seam-home.is-compact { --bravais-home-pad-x: 8px; gap: 10px; padding: 14px var(--bravais-home-pad-x) 0; }
+.bravais-seam-home > * { flex: none; }
+
+.bravais-seam-home > .bravais-seam-home-nav {
+    width: 100%;
+    min-height: 0;
+    flex: 1 100 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+
+/* 缩成一个字也放不下、在里面滚：底边淡出一小段，提示下面还有。 */
+.bravais-seam-home-nav.is-overflowing { mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); }
+.bravais-seam-home-nav.is-overflowing > .bravais-seam-home-nav-content { padding-bottom: 16px; }
+
+.bravais-seam-home-nav::-webkit-scrollbar { display: none; }
+
+.bravais-seam-home-nav-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.bravais-seam-home-head {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 10px;
+}
+
+.bravais-seam-home-head .bravais-seam-vtitle { flex: none; max-height: none; }
+.bravais-seam-home-side { display: flex; flex: none; flex-direction: column; align-items: center; gap: 8px; }
+
+/* 书脊：页头竖着排，依次是折叠、标题、页签（页签那一列拆开，折叠按钮排到最前）。 */
+.bravais-seam-home.is-compact .bravais-seam-home-head { flex-direction: column; align-items: center; }
+.bravais-seam-home.is-compact .bravais-seam-home-side { display: contents; }
+.bravais-seam-home.is-compact .bravais-seam-home-side > .bravais-seam-icon { order: -1; }
+
+/* 全名页头的测量副本：与导航区同宽，绝对定位、看不见、不占位。 */
+.bravais-seam-home > .bravais-seam-home-measure {
+    position: absolute;
+    top: 0;
+    right: var(--bravais-home-pad-x);
+    left: var(--bravais-home-pad-x);
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.bravais-seam-home .bravais-seam-tabs { flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 4px; }
+
+.bravais-seam-home .bravais-seam-home-tab {
+    display: block;
+    padding: 9px 4px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: 0.18em;
+    white-space: nowrap;
+    background: none;
+    writing-mode: vertical-rl;
+}
+
+.bravais-seam-home.is-compact .bravais-seam-tabs .bravais-seam-home-tab { padding: 7px 3px; font-size: 12px; letter-spacing: 0.1em; }
+.bravais-seam-home .bravais-seam-tabs.is-short { gap: 2px; }
+.bravais-seam-home .bravais-seam-tabs.is-short .bravais-seam-home-tab { padding: 5px 4px; letter-spacing: 0; text-orientation: upright; }
+.bravais-seam-home .bravais-seam-tabs .bravais-seam-home-tab.is-active { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 14%, transparent); }
+.bravais-seam-home .bravais-seam-tabs .bravais-seam-home-tab:disabled { opacity: 0.35; cursor: default; }
 
 /* 二级切换（本地四行 / Navidrome 的 section）：横排的小号文字按钮，一行一个。 */
 .bravais-seam-sections {
@@ -26,7 +102,7 @@
 }
 
 .bravais-seam .bravais-seam-sections button {
-    padding: 5px 6px;
+    padding: 4px 6px;
     border: 1px solid transparent;
     border-radius: 9px;
     color: var(--bravais-seam-ink-soft);
@@ -93,21 +169,53 @@
 .bravais-seam-account { width: 100%; }
 .bravais-seam-account:empty { display: none; }
 
-/* 工具按钮：三列一格格（书脊上一列）。 */
+/* fb2：导航区先让（flex-shrink 100），导航区让到底了账户列表与状态才缩、在自己里面滚，不会压到工具格。 */
+.bravais-seam-home > .bravais-seam-account { min-height: 0; flex: 0 1 auto; overflow-y: auto; scrollbar-width: none; }
+.bravais-seam-home > .bravais-seam-vstatus { min-height: 0; flex: 0 1 auto; }
+
+/* 工具按钮：三列一格格（书脊上一列）。
+   fb2：两列 40px、间距 8px（书脊上一列 36px），只放常驻的几个；次要的在「⋯」里，菜单从工具格上方弹出。 */
+.bravais-seam-dock { position: relative; display: flex; width: 100%; flex-direction: column; align-items: center; }
+
 .bravais-seam-tools {
     display: grid;
-    grid-template-columns: repeat(3, 32px);
+    grid-template-columns: repeat(2, 40px);
     justify-content: center;
-    gap: 2px;
+    gap: 8px;
 }
 
-.bravais-seam-home.is-compact .bravais-seam-tools { grid-template-columns: 32px; }
-.bravais-seam-tools .bravais-seam-icon { width: 32px; height: 32px; border-radius: 10px; }
+.bravais-seam-home.is-compact .bravais-seam-tools { grid-template-columns: 36px; gap: 6px; }
+.bravais-seam-tools .bravais-seam-icon { width: 40px; height: 40px; border-radius: 12px; }
+.bravais-seam-tools .bravais-seam-icon svg { width: 18px; height: 18px; }
+.bravais-seam-home.is-compact .bravais-seam-tools .bravais-seam-icon { width: 36px; height: 36px; }
 .bravais-seam-tools .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
 .bravais-seam-tools .bravais-seam-icon.is-pressed { color: var(--text-accent, currentColor); background: color-mix(in srgb, currentColor 16%, transparent); }
 
-.bravais-seam-menu.is-home { width: 100%; box-sizing: border-box; }
-.bravais-seam .bravais-seam-menu.is-home button { padding: 7px 8px; font-size: 12px; text-align: center; }
+.bravais-seam-menu.is-home {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 2;
+    box-sizing: border-box;
+    color: var(--text-primary, #f7f4ee);
+    background: color-mix(in srgb, var(--bg-color, #070707) 92%, var(--text-primary, #f7f4ee));
+    box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), 0 12px 32px rgb(0 0 0 / 34%);
+}
+
+.bravais-seam .bravais-seam-menu.is-home button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 6px;
+    font-size: 12px;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.bravais-seam-menu.is-home button svg { width: 14px; height: 14px; flex: none; opacity: 0.75; }
+.bravais-seam-menu-rule { height: 1px; margin: 3px 6px; background: color-mix(in srgb, currentColor 14%, transparent); }
 
 /* ---------- 全局搜索框 ---------- */
 

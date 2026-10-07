@@ -529,3 +529,101 @@ test.describe('[bravais-only] the account seam over layer shifts', () => {
         await walkShifts(page);
     });
 });
+
+// fb2：首页窄缝（120px）重排。页签竖排、一列一个；纵向放不下全名时（按测量，不按断点）缩成一个字，全名留在
+// title / aria-label；工具格两列 40px，常驻的只有搜索、本页签的入口与「回到播放页」，app 级的次要入口（设置等）
+// 收进「⋯」；导航区、账户位、工具格互不重叠，整体在播放条安全区之上。
+test.describe('[bravais-only] the narrow home seam layout', () => {
+    type Box = { left: number; top: number; right: number; bottom: number };
+    const overlaps = (a: Box, b: Box) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+
+    /** 窄缝里各段的矩形、页签的文字与全名、工具格的按钮。 */
+    const seamLayout = (page: Page) => page.evaluate(() => {
+        const box = (element: Element | null) => {
+            if (!element) return null;
+            const rect = element.getBoundingClientRect();
+            return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+        };
+        const root = document.querySelector('[data-bravais-home-seam]')!;
+        const body = root.closest('.bravais-seam-body')!;
+        const bodyRect = body.getBoundingClientRect();
+        return {
+            seam: box(document.querySelector('[data-bravais-seam]')),
+            safeBottom: bodyRect.bottom - parseFloat(getComputedStyle(body).paddingBottom),
+            nav: box(root.querySelector('.bravais-seam-home-nav')),
+            account: box(root.querySelector('[data-bravais-account-slot]')),
+            dock: box(root.querySelector('.bravais-seam-dock')),
+            tabs: [...root.querySelectorAll<HTMLElement>('[data-bravais-tab]')].map(tab => ({
+                key: tab.dataset.bravaisTab!,
+                text: tab.textContent,
+                name: tab.getAttribute('aria-label') ?? tab.textContent,
+                title: tab.title,
+                short: tab.dataset.bravaisTabShort === 'true',
+                writingMode: getComputedStyle(tab).writingMode,
+            })),
+            tools: [...root.querySelectorAll<HTMLElement>('.bravais-seam-tools [data-bravais-seam-action]')].map(tool => ({
+                id: tool.dataset.bravaisSeamAction!,
+                ...box(tool)!,
+            })),
+        };
+    });
+
+    const expectTidy = async (page: Page) => {
+        // 缝开到 120px 宽（开合补间放完）再量。
+        await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
+        const layout = await seamLayout(page);
+        const sections = [layout.nav!, layout.account, layout.dock!].filter((value): value is Box => value !== null);
+        for (let i = 0; i < sections.length; i += 1) {
+            for (let j = i + 1; j < sections.length; j += 1) expect(overlaps(sections[i], sections[j])).toBe(false);
+        }
+        for (const tool of layout.tools) {
+            expect(tool.right - tool.left).toBeGreaterThanOrEqual(40);
+            expect(tool.bottom - tool.top).toBeGreaterThanOrEqual(40);
+            expect(tool.left).toBeGreaterThanOrEqual(layout.seam!.left);
+            expect(tool.right).toBeLessThanOrEqual(layout.seam!.right);
+        }
+        for (let i = 0; i < layout.tools.length; i += 1) {
+            for (let j = i + 1; j < layout.tools.length; j += 1) expect(overlaps(layout.tools[i], layout.tools[j])).toBe(false);
+        }
+        expect(layout.dock!.bottom).toBeLessThanOrEqual(layout.safeBottom + 0.5);
+        return layout;
+    };
+
+    test.beforeEach(async ({ mount, page }) => {
+        await mountBravais(mount, page);
+    });
+
+    test('vertical tabs shrink to one letter when the height runs out, and the tools never crowd', async ({ page }) => {
+        // 1440×1100：全名放得下。
+        let layout = await expectTidy(page);
+        expect(layout.tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'albums', 'local', 'navidrome']);
+        expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
+        // 次要的 app 入口不在常驻格里，在「⋯」里。
+        expect(layout.tools.map(tool => tool.id)).not.toContain('settings');
+        await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
+        await expect(seam(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="settings"]')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
+
+        // 矮窗口：缩成一个字，全名留在 aria-label / title。
+        await page.setViewportSize({ width: 1440, height: 560 });
+        await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short="true"]')).toHaveCount(5);
+        layout = await expectTidy(page);
+        expect(layout.tabs.map(tab => [tab.text, tab.name, tab.title])).toEqual([
+            ['P', 'Playlists', 'Playlists'],
+            ['R', 'Radio', 'Radio'],
+            ['A', 'Albums', 'Albums'],
+            ['F', 'Folder', 'Folder'],
+            ['N', 'Navi', 'Navi'],
+        ]);
+        await seam(page).getByRole('tab', { name: 'Folder' }).click();
+        await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:local');
+        await settled(page);
+        await expectTidy(page);
+
+        // 再拉高：回到全名。
+        await page.setViewportSize({ width: 1440, height: 1100 });
+        await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short]')).toHaveCount(0);
+        await expectTidy(page);
+    });
+});
