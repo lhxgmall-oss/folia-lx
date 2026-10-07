@@ -33,6 +33,16 @@ const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page)
     await settled(page);
 };
 
+/** fb3：二级切换（本地四行、Navidrome 的 section）只有激活项有文字，按 role / 可访问名（全名）找；只在中段里找，
+ * 免得撞上同名的一级页签（Albums）。 */
+const section = (page: Page, name: string) => seam(page).locator('[data-bravais-home-body]').getByRole('tab', { name, exact: true });
+
+/** fb3：工具格固定四格，目录、管理隐藏、Navidrome 刷新等都在「⋯」菜单里：打开菜单、点那一项。 */
+const runMenuItem = async (page: Page, id: string) => {
+    await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
+    await seam(page).locator(`[data-bravais-seam-menu] [data-bravais-seam-action="${id}"]`).click();
+};
+
 const showLocal = async (page: Page) => {
     await seam(page).locator('[data-bravais-tab="local"]').click();
     await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:local');
@@ -92,9 +102,15 @@ test.describe('[bravais-only] home', () => {
 
     test('the four local rows switch inside the seam without changing the layer', async ({ page }) => {
         await showLocal(page);
-        await expect(seam(page).locator('[data-bravais-section="folders"]')).toHaveAttribute('aria-selected', 'true');
-        await seam(page).locator('[data-bravais-section="albums"]').click();
-        await expect(seam(page).locator('[data-bravais-section="albums"]')).toHaveAttribute('aria-selected', 'true');
+        await expect(section(page, 'Folders & Playlists')).toHaveAttribute('aria-selected', 'true');
+        // fb3：只有激活项显示竖排文字，其余只有图标（全名在 aria-label / title）。
+        await expect(section(page, 'Folders & Playlists').locator('.is-label')).toHaveText('Folders & Playlists');
+        await expect(section(page, 'Albums').locator('.is-label')).toHaveCount(0);
+        await expect(section(page, 'Albums')).toHaveAttribute('title', 'Albums');
+        await section(page, 'Albums').click();
+        await expect(section(page, 'Albums')).toHaveAttribute('aria-selected', 'true');
+        await expect(section(page, 'Albums').locator('.is-label')).toHaveText('Albums');
+        await expect(section(page, 'Folders & Playlists').locator('.is-label')).toHaveCount(0);
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:local');
         await settled(page);
         await expect(page.locator('.bravais-tile[data-library-card^="card:album:"]').first()).toBeAttached();
@@ -103,7 +119,7 @@ test.describe('[bravais-only] home', () => {
 
     test('the directory panel is batch mode: cards only toggle, batch keys work, and closing drops the selection', async ({ page }) => {
         await showLocal(page);
-        await seam(page).locator('[data-bravais-seam-action="directory"]').click();
+        await runMenuItem(page, 'directory');
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'panel');
         await expect(seam(page).locator('[data-bravais-directory="home:local"]')).toBeVisible();
         await settled(page);
@@ -152,7 +168,7 @@ test.describe('[bravais-only] home', () => {
 
     test('creating a playlist from the panel turns its foot into a form and keeps it open until it works', async ({ page }) => {
         await showLocal(page);
-        await seam(page).locator('[data-bravais-seam-action="directory"]').click();
+        await runMenuItem(page, 'directory');
         await settled(page);
         await page.evaluate(id => window.__homeProbe!.batchSelect([id]), homeFolderId('Extra'));
         await seam(page).locator('[data-bravais-dir-action="create-playlist"]').click();
@@ -171,7 +187,7 @@ test.describe('[bravais-only] home', () => {
         await settled(page);
         await expect(page.locator('.bravais-tile[data-library-card="card:playlist:owned"]')).toHaveCount(0);
 
-        await seam(page).locator('[data-bravais-seam-action="manage-hidden"]').click();
+        await runMenuItem(page, 'manage-hidden');
         await expect(seam(page).locator('[data-bravais-manage]')).toHaveAttribute('data-bravais-manage', 'manage');
         await expect(stage(page)).toHaveClass(/is-managing-hidden/);
         await settled(page);
@@ -221,10 +237,11 @@ test.describe('[bravais-only] home', () => {
 
         await seam(page).locator('[data-bravais-tab="navidrome"]').click();
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:navidrome');
-        await expect(seam(page).locator('[data-bravais-section="albums"]')).toHaveAttribute('aria-selected', 'true');
-        await expect(seam(page).locator('[data-bravais-seam-action="refresh-navidrome"]')).toBeEnabled();
+        await expect(section(page, 'Albums')).toHaveAttribute('aria-selected', 'true');
+        await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
+        await expect(seam(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="refresh-navidrome"]')).toBeEnabled();
         await page.evaluate(() => window.__homeProbe!.clearLog());
-        await seam(page).locator('[data-bravais-seam-action="refresh-navidrome"]').click();
+        await seam(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="refresh-navidrome"]').click();
         await expect.poll(async () => (await page.evaluate(() => window.__homeProbe!.requests())).filter(request => request.op === 'getAlbumList2').length)
             .toBeGreaterThan(0);
     });
@@ -309,13 +326,13 @@ test.describe('[bravais-only] home ↔ collection / artist', () => {
 
     test('a local artist opened from the home wall and closed again: one flip each way, the wall comes back as it was', async ({ page }) => {
         await showLocal(page);
-        await seam(page).locator('[data-bravais-section="artists"]').click();
+        await section(page, 'Artists').click();
         await settled(page);
         const artistCard = page.locator('.bravais-tile[data-library-card^="card:artist:"]').first();
         await expect(artistCard).toBeAttached();
         const cardKey = (await artistCard.getAttribute('data-library-card'))!;
         await openAndBack(page, cardKey, 'home:local', 'artist');
-        await expect(seam(page).locator('[data-bravais-section="artists"]')).toHaveAttribute('aria-selected', 'true');
+        await expect(section(page, 'Artists')).toHaveAttribute('aria-selected', 'true');
     });
 });
 
@@ -531,11 +548,13 @@ test.describe('[bravais-only] the account seam over layer shifts', () => {
 });
 
 // fb2：首页窄缝（120px）重排。页签竖排、一列一个；纵向放不下全名时（按测量，不按断点）缩成一个字，全名留在
-// title / aria-label；工具格两列 40px，常驻的只有搜索、本页签的入口与「回到播放页」，app 级的次要入口（设置等）
-// 收进「⋯」；导航区、账户位、工具格互不重叠，整体在播放条安全区之上。
+// title / aria-label；导航区与工具格互不重叠，整体在播放条安全区之上。
 // fb2 第二轮：「书库」是页头最上面一行小字。缩减顺序（都按测量）：先隐藏标题（视觉隐藏，读屏仍有）→ 再缩页签
 // → 再不够导航区内部滚动。大高度：标题 + 全名；中等：无标题 + 全名；小：无标题 + 一个字。
 // 第三轮：折叠按钮单独一行，在标题之下、页签列之上，三级下都看得见、点得到。
+// fb3：工具格固定四格（搜索、设置、队列、「⋯」；探针没有队列入口，只有三格），其余（本页签的管理隐藏、目录…，
+// app 级的回到播放页…）在「⋯」里，本页签的在前、分隔线、app 级的在后。中段（二级切换、账户入口、状态）在页头与
+// 工具格之间竖直居中；二级切换只有激活项有竖排文字，short 时与页签一起缩成一个字。书脊上一列图标，「⋯」先展开缝再开菜单。
 test.describe('[bravais-only] the narrow home seam layout', () => {
     type Box = { left: number; top: number; right: number; bottom: number };
     const root = (page: Page) => page.locator('[data-bravais-home-seam]');
@@ -555,7 +574,9 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             seam: box(document.querySelector('[data-bravais-seam]')),
             safeBottom: bodyRect.bottom - parseFloat(getComputedStyle(body).paddingBottom),
             nav: box(root.querySelector('.bravais-seam-home-nav')),
-            account: box(root.querySelector('[data-bravais-account-slot]')),
+            overflowing: root.querySelector('.bravais-seam-home-nav')!.classList.contains('is-overflowing'),
+            head: box(root.querySelector('.bravais-seam-home-nav .bravais-seam-home-head')),
+            middle: box(root.querySelector('[data-bravais-home-body]')),
             dock: box(root.querySelector('.bravais-seam-dock')),
             fit: root.getAttribute('data-bravais-home-fit'),
             title: (() => {
@@ -563,9 +584,9 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
                 const rect = title.getBoundingClientRect();
                 return { state: title.dataset.bravaisHomeTitle, text: title.textContent, width: rect.width, height: rect.height, bottom: rect.bottom };
             })(),
-            tablistName: root.querySelector('[role="tablist"]')?.getAttribute('aria-label') ?? null,
+            tablistName: root.querySelector('.bravais-seam-tabs[role="tablist"]')?.getAttribute('aria-label') ?? null,
             fold: box(root.querySelector('[data-bravais-seam-action="hide"]')),
-            tabsBox: box(root.querySelector('[role="tablist"]')),
+            tabsBox: box(root.querySelector('.bravais-seam-tabs[role="tablist"]')),
             tabs: [...root.querySelectorAll<HTMLElement>('[data-bravais-tab]')].map(tab => ({
                 key: tab.dataset.bravaisTab!,
                 text: tab.textContent,
@@ -574,6 +595,17 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
                 short: tab.dataset.bravaisTabShort === 'true',
                 writingMode: getComputedStyle(tab).writingMode,
             })),
+            sections: [...root.querySelectorAll<HTMLElement>('[data-bravais-section]')].map(section => {
+                const label = section.querySelector<HTMLElement>('.is-label');
+                return {
+                    name: section.getAttribute('aria-label'),
+                    active: section.getAttribute('aria-selected') === 'true',
+                    label: label?.textContent ?? null,
+                    writingMode: label ? getComputedStyle(label).writingMode : null,
+                    icon: section.querySelector('svg') !== null,
+                    ...box(section)!,
+                };
+            }),
             tools: [...root.querySelectorAll<HTMLElement>('.bravais-seam-tools [data-bravais-seam-action]')].map(tool => ({
                 id: tool.dataset.bravaisSeamAction!,
                 ...box(tool)!,
@@ -581,17 +613,34 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         };
     });
 
-    const expectTidy = async (page: Page) => {
-        // 缝开到 120px 宽（开合补间放完）再量。
-        await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
+    /** 菜单里的东西（按钮的 id，分隔线记作 rule）。 */
+    const menuItems = (page: Page) => seam(page).locator('[data-bravais-seam-menu] > *').evaluateAll(elements => elements.map(
+        element => (element as HTMLElement).dataset.bravaisSeamAction ?? (element.getAttribute('role') === 'separator' ? 'rule' : '?'),
+    ));
+
+    const expectTidy = async (page: Page, width = 120) => {
+        // 缝开到目标宽度（开合补间放完）再量。
+        await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(width);
+        const toolSize = width === 120 ? 40 : 36;
+        // 内容翻转（换成书脊 / 窄缝那一套）放完：工具按钮回到原尺寸。
+        await expect.poll(async () => (await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action]').first().boundingBox())?.width ?? 0)
+            .toBeGreaterThanOrEqual(toolSize - 0.5);
         const layout = await seamLayout(page);
-        const sections = [layout.nav!, layout.account, layout.dock!].filter((value): value is Box => value !== null);
-        for (let i = 0; i < sections.length; i += 1) {
-            for (let j = i + 1; j < sections.length; j += 1) expect(overlaps(sections[i], sections[j])).toBe(false);
+        const parts = [layout.head!, layout.middle!, layout.dock!];
+        if (!layout.overflowing) {
+            for (let i = 0; i < parts.length; i += 1) {
+                for (let j = i + 1; j < parts.length; j += 1) expect(overlaps(parts[i], parts[j])).toBe(false);
+            }
+            // 中段在页头与工具格之间竖直居中（上下留白相等），不贴着页签。
+            const above = layout.middle!.top - layout.head!.bottom;
+            const below = layout.dock!.top - layout.middle!.bottom;
+            expect(above).toBeGreaterThanOrEqual(10);
+            expect(Math.abs(above - below)).toBeLessThanOrEqual(2);
         }
+        expect(overlaps(layout.nav!, layout.dock!)).toBe(false);
         for (const tool of layout.tools) {
-            expect(tool.right - tool.left).toBeGreaterThanOrEqual(40);
-            expect(tool.bottom - tool.top).toBeGreaterThanOrEqual(40);
+            expect(tool.right - tool.left).toBeGreaterThanOrEqual(toolSize - 0.5);
+            expect(tool.bottom - tool.top).toBeGreaterThanOrEqual(toolSize - 0.5);
             expect(tool.left).toBeGreaterThanOrEqual(layout.seam!.left);
             expect(tool.right).toBeLessThanOrEqual(layout.seam!.right);
         }
@@ -612,9 +661,9 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await mountBravais(mount, page);
     });
 
-    /** 改窗口高度，等两帧（ResizeObserver 量完、React 提交）。 */
-    const resize = async (page: Page, height: number) => {
-        await page.setViewportSize({ width: 1440, height });
+    /** 改窗口大小，等两帧（ResizeObserver 量完、React 提交）。 */
+    const resize = async (page: Page, height: number, width = 1440) => {
+        await page.setViewportSize({ width, height });
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     };
 
@@ -628,10 +677,11 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(layout.title.height).toBeLessThan(30);
         expect(layout.tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'albums', 'local', 'navidrome']);
         expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
-        // 次要的 app 入口不在常驻格里，在「⋯」里。
-        expect(layout.tools.map(tool => tool.id)).not.toContain('settings');
+        // 工具格固定的几格（探针没有队列入口）；本页签的与 app 级的入口都在「⋯」里，本页签的在前、分隔线、app 级的在后。
+        expect(layout.tools.map(tool => tool.id)).toEqual(['search', 'settings', 'more']);
         await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
-        await expect(seam(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="settings"]')).toBeVisible();
+        await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
+        expect(await menuItems(page)).toEqual(['manage-hidden', 'rule', 'player']);
         await page.keyboard.press('Escape');
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
 
@@ -670,11 +720,15 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             ['F', 'Folder', 'Folder'],
             ['N', 'Navi', 'Navi'],
         ]);
+        // 本地页签：二级切换在中段，激活项的文字与页签同级退让（short 时也是一个字）。
         await resize(page, 560);
         await seam(page).getByRole('tab', { name: 'Folder' }).click();
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:local');
         await settled(page);
-        await expectTidy(page);
+        layout = await expectTidy(page);
+        const active = layout.sections.find(entry => entry.active)!;
+        expect(active.name).toBe('Folders & Playlists');
+        expect(active.label).toBe(layout.fit === 'short' ? 'F' : 'Folders & Playlists');
 
         // 再拉高：回到标题 + 全名。
         await resize(page, 1100);
@@ -687,5 +741,48 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'short');
         await seam(page).locator('[data-bravais-home-seam] [data-bravais-seam-action="hide"]').click();
         await expect(seam(page)).toHaveAttribute('data-bravais-seam-level', 'hidden');
+    });
+
+    test('the local rows sit centred between the tabs and the tools: one vertical label on the active row, icons on the rest', async ({ page }) => {
+        await showLocal(page);
+        const layout = await expectTidy(page);
+        expect(layout.fit).toBe('titled');
+        expect(layout.sections.map(entry => [entry.name, entry.active, entry.label])).toEqual([
+            ['Folders & Playlists', true, 'Folders & Playlists'],
+            ['Albums', false, null],
+            ['Artists', false, null],
+            ['Playlists', false, null],
+        ]);
+        expect(layout.sections.every(entry => entry.icon)).toBe(true);
+        expect(layout.sections.find(entry => entry.active)!.writingMode).toBe('vertical-rl');
+        // 纵向一项一行：同一列、自上而下。
+        for (let i = 1; i < layout.sections.length; i += 1) {
+            expect(layout.sections[i].top).toBeGreaterThanOrEqual(layout.sections[i - 1].bottom - 0.5);
+            expect(Math.abs((layout.sections[i].left + layout.sections[i].right) - (layout.sections[0].left + layout.sections[0].right))).toBeLessThanOrEqual(2);
+        }
+        // 本地页签的「⋯」：目录与导入等在分隔线前，app 级的在后。
+        await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
+        const items = await menuItems(page);
+        expect(items.indexOf('directory')).toBeGreaterThanOrEqual(0);
+        expect(items.indexOf('home-import-folder')).toBeGreaterThan(items.indexOf('directory'));
+        expect(items.slice(items.indexOf('rule'))).toEqual(['rule', 'player']);
+        await expect(seam(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="directory"]')).toHaveAttribute('role', 'menuitemcheckbox');
+    });
+
+    test('on the spine the tools are one column, and the more button opens the narrow seam with its menu', async ({ page }) => {
+        await resize(page, 900, 820);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home-spine');
+        const layout = await expectTidy(page, 64);
+        expect(layout.tools.map(tool => tool.id)).toEqual(['search', 'settings', 'more']);
+        expect(new Set(layout.tools.map(tool => Math.round(tool.left))).size).toBe(1);
+
+        await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
+        await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
+        expect(await menuItems(page)).toEqual(['manage-hidden', 'rule', 'player']);
+        await page.keyboard.press('Escape');
+        await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
     });
 });

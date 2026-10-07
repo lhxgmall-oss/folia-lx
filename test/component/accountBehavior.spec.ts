@@ -145,14 +145,18 @@ const tuiFocusProvider = async (page: Page, providerId: string) => {
 const bravaisStage = (page: Page) => page.locator('[data-library-stage="bravais"]');
 const bravaisSwitcher = (page: Page) => page.locator('[data-bravais-account-slot] [data-bravais-account]');
 const bravaisToggle = (page: Page) => page.locator('[data-bravais-account-toggle="strip"]');
-const bravaisAccountList = (page: Page) => page.locator('[data-bravais-account="panel"], [data-bravais-account="guest"]');
+/** fb3：未登录时只有一个「连接在线平台」入口，点了才展开平台列表（guest → guest-panel）。 */
+const bravaisConnect = (page: Page) => page.locator('[data-bravais-account-toggle="connect"]');
+const bravaisAccountList = (page: Page) => page.locator('[data-bravais-account="panel"], [data-bravais-account="guest-panel"]');
 const bravaisAccountRow = (page: Page, providerId: string) => bravaisAccountList(page).locator(`[data-bravais-account-provider="${providerId}"]`);
 const bravaisLogoutButtons = (page: Page) => bravaisAccountList(page).locator('[data-bravais-account-logout]');
 const bravaisConfirm = (page: Page) => page.locator('[data-bravais-account-confirm]:not([aria-hidden="true"])');
-/** 打开平台列表：未登录时它常开（guest），已登录时点账户位的按钮。 */
+/** 打开平台列表：已登录时点账户位的按钮，未登录时点「连接在线平台」入口。 */
 const bravaisOpenAccounts = async (page: Page) => {
     await expect(bravaisSwitcher(page)).toBeVisible();
-    if (await bravaisSwitcher(page).getAttribute('data-bravais-account') === 'closed') await bravaisToggle(page).click();
+    const state = await bravaisSwitcher(page).getAttribute('data-bravais-account');
+    if (state === 'closed') await bravaisToggle(page).click();
+    else if (state === 'guest') await bravaisConnect(page).click();
     await expect(bravaisAccountList(page)).toBeVisible();
 };
 
@@ -320,9 +324,11 @@ const BRAVAIS_DRIVER: AccountDriver = {
         await bravaisOpenAccounts(page);
         await bravaisAccountRow(page, providerId).getByRole('menuitemradio').click();
     },
-    guestPicker: page => page.locator('[data-bravais-account="guest"]'),
+    guestPicker: page => bravaisConnect(page),
     selectFromGuestPicker: async (page, providerId) => {
-        await expect(page.locator('[data-bravais-account="guest"]')).toBeVisible();
+        // fb3：先点「连接在线平台」展开平台列表，再点那一行。
+        await expect(bravaisConnect(page)).toBeVisible();
+        if (await bravaisConnect(page).getAttribute('aria-expanded') !== 'true') await bravaisConnect(page).click();
         await bravaisAccountRow(page, providerId).getByRole('menuitemradio').click();
     },
     expectCurrent: async (page, providerId) => {
@@ -342,11 +348,11 @@ const BRAVAIS_DRIVER: AccountDriver = {
         await bravaisAccountRow(page, providerId).locator('[data-bravais-account-logout]').click();
     },
     closePicker: async page => {
-        // 未登录时列表常开（guest，没有开合按钮），留着。
-        if (await bravaisToggle(page).count() > 0 && await bravaisToggle(page).getAttribute('aria-expanded') === 'true') {
-            await bravaisToggle(page).click();
+        // 已登录点账户位的按钮收起，未登录点「连接在线平台」入口收起。
+        for (const toggle of [bravaisToggle(page), bravaisConnect(page)]) {
+            if (await toggle.count() > 0 && await toggle.getAttribute('aria-expanded') === 'true') await toggle.click();
         }
-        await expect(page.locator('[data-bravais-account="panel"]')).toHaveCount(0);
+        await expect(bravaisAccountList(page)).toHaveCount(0);
     },
     chooseMethod: async (page, label) => {
         await methodButton(page, label).click();
@@ -1152,6 +1158,31 @@ test.describe('[switch] bravais shares the account flows', () => {
         await TUI_DRIVER.answerConfirm(page, 'Confirm');
         await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_BETA);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_BETA]);
+    });
+
+    // fb3：未登录时首页窄缝里只有一个「连接在线平台」入口，平台列表点了才展开；再点入口或 Esc 收起。
+    // 「先搜几首喜欢的歌试试看」那行在 bravais 里不再显示。
+    test('[switch] signed out, the bravais seam shows one connect entry that opens and closes the platform list', async ({ page }) => {
+        await setSuite(page, 'bravais');
+        await setActive(page, ACCOUNT_GAMMA);
+        await expect(bravaisSwitcher(page)).toHaveAttribute('data-bravais-account', 'guest');
+        await expect(bravaisConnect(page)).toHaveText('Connect a streaming service');
+        await expect(bravaisConnect(page)).toHaveAttribute('aria-expanded', 'false');
+        await expect(page.locator('[data-bravais-account-provider]')).toHaveCount(0);
+        await expect(seam(page).getByText('Try searching a few songs first')).toHaveCount(0);
+
+        await bravaisConnect(page).click();
+        await expect(bravaisSwitcher(page)).toHaveAttribute('data-bravais-account', 'guest-panel');
+        await expect(bravaisAccountRow(page, ACCOUNT_GAMMA)).toHaveAttribute('data-current', 'true');
+        await expect(bravaisAccountRow(page, ACCOUNT_BETA)).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(bravaisSwitcher(page)).toHaveAttribute('data-bravais-account', 'guest');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+
+        await bravaisConnect(page).click();
+        await expect(bravaisAccountList(page)).toBeVisible();
+        await bravaisConnect(page).click();
+        await expect(bravaisAccountList(page)).toHaveCount(0);
     });
 });
 
