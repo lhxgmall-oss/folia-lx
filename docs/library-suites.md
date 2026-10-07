@@ -256,7 +256,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `enqueue` | 某一首加入队列 | 基础 | `.enqueueTrack` |
 | `play-scope` | 播放当前筛选范围 | 基础 | `.playScope` |
 | `enqueue-scope` | 当前筛选范围加入队列 | 基础 | `.enqueueScope` |
-| `filter` | 按关键词筛选 | 基础 | `useLibrarySessionQuery` + 命令面板筛选框（`useGridCommandFilter`） |
+| `filter` | 按关键词筛选 | 基础 | `useLibrarySessionQuery` + 命令面板筛选框（`useGridCommandFilter`）；自己画输入框的 suite 在注册里给 `ownInput`（见第 4 步，bravais） |
 | `reload` | 跳过缓存重新拉取在线集合 | 推荐 | `.reload`，能力 `capabilities.reload` |
 | `resume-sync` | 后台补页中断后续传 | 推荐 | `.resumeSync`；快照的 `sync.status === 'interrupted'` |
 | `remove-entry` | 删一首（每日推荐里是「不喜欢」） | 推荐 | `mutations.removeEntry`；能力 `capabilities.removeEntry` |
@@ -400,7 +400,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 1. 新建 `src/library/suites/<id>/entry.ts`，默认导出一个 `LibrarySuiteManifest`：`id`、显示名（`labelKey`）、`surfaces`（每个页面的组件 + 声明的动作），可选的 `transitions`（转场钩子与背景板订阅）、`layout`（「完成」时忘掉布局记录）、`stage`（横跨首页与集合层的常驻舞台，见「常驻舞台」一节）与 `chromeActions`（只出现在命令面板里的外观动作，见「外观动作」一节）。组件与 stage 必须用 `React.lazy` 引入（只有默认 suite 例外）。registry 会自动发现它，不需要在别处登记。
 2. 先实现 `collection`。用 core 的 hooks 拿数据和动作：`useCollectionResourceState`（订阅资源）、`useCollectionView`（筛选与范围）、`useCollectionActions`（播放、入队、重拉）、`useCollectionMutationSnapshot`（变更能力与状态）、`useLibrarySessionQuery`（筛选词）。
 3. 向命令面板注册：集合页用 `useGridSurfaceRegistration` + `buildCoreSurfaceParams`（它会按你的声明过滤）；目录用 `useLibraryDirectorySurfaceRegistration`；歌手页用 `useLibraryArtistSurfaceRegistration`；suite 自己的外观动作用 `useLibrarySuiteChromeRegistration`。只在 `isInteractive` 为真时注册。
-4. 键盘：可打印字符留给命令面板（它是筛选框），空格是全局的播放 / 暂停。你的页面只用方向键、Enter（可带修饰键）、Delete、Insert、Esc、功能键这类不可打印的键。
+4. 键盘：可打印字符留给命令面板分发（它先留下自己的 `:` 执行模式与可选的 `s`），空格是全局的播放 / 暂停。你的页面只用方向键、Enter（可带修饰键）、Delete、Insert、Esc、功能键这类不可打印的键。筛选框默认是命令面板的内联框（`useGridCommandFilter`）；要用自己画的输入框（bravais 的缝），直接 `registerCommandFilter` 并给 `ownInput: { takeKey, open }`（`CommandFilterAnchor`，`src/stores/useAppViewStore.ts`）：命令面板把墙上的打字交给 `takeKey`、把「打开筛选框」的请求交给 `open`，`filter-view` 命令（列表里选、Ctrl/Cmd+F）照常打开它自己的框（没有锚点时是浮层），读写同一个 query。
 5. 在 `entry.ts` 里如实声明你做了哪些动作。没把握的先别声明：它会自动在命令面板里消失，用户切回网格就能做。
 6. 账户：不做 `account` surface 时登录与确认由网格答复；要做就列全三个基础动作，按上面「账户」一节的规则写。
 7. 测试：`test/component/libraryBehavior.spec.ts`、`homeBehavior.spec.ts`、`artistBehavior.spec.ts`、`accountBehavior.spec.ts` 里的语义用例按 suite 参数化。把你的 suite 加进去，同一批场景会对它再跑一遍；e2e 的 `test/ui/libraryNavigation.spec.ts` 与 `libraryRendererSwitch.spec.ts` 覆盖真实应用里的导航与切换。
@@ -418,7 +418,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 
 | 页面 | grid（默认、回退） | bravais（正式新 UI） | tui（开发验证） |
 | --- | --- | --- | --- |
-| home | 全部 15 个动作；在线平台切换器与连接面板 | 全部 15 个动作；五个页签各是一面墙（F6 整墙出场 / 入场），本地四行与 Navidrome 分区是缝里的二级切换；目录树面板（= 批量模式）、管理隐藏视图、导入 / 刷新与 app 入口在首页窄缝里 | 全部；在线页签是可操作的平台列表（未登录时即页签内容，已登录时 F2 打开） |
+| home | 全部 15 个动作；在线平台切换器与连接面板 | 全部 15 个动作；五个页签各是一面墙（F6 整墙出场 / 入场），本地四行与 Navidrome 分区是缝里的二级切换；每个页签都有当前页过滤（墙上打字进窄缝里的输入位，目录会话的 query）；目录树面板（= 批量模式）、管理隐藏视图、导入 / 刷新与 app 入口在首页窄缝里 | 全部；在线页签是可操作的平台列表（未登录时即页签内容，已登录时 F2 打开） |
 | collection | 全部 23 个，另有信息面板、曲目侧栏、编辑模式三个局部动作 | 全部 23 个；三个局部动作改为外观动作（缝等级、`list`）与改名表单态 | 除 `add-to-playlist` / `create-playlist` 外全部（行上的歌手 / 专辑可打开，Alt+Enter / Alt+Shift+Enter） |
 | artist | 全部 10 个 | 全部 10 个；热门歌曲与专辑混排在一面墙上，信息在缝里 | 全部 |
 | account | 全部 7 个动作：登录弹窗（portal 进首页账户层）、通用确认框（portal 到 body） | 全部 7 个动作：首页在线页签窄缝里的平台切换；登录与确认是缝的表单态 | 全部 7 个动作：fixed 全屏层里的登录方框与确认方框；诊断只复制到剪贴板，没有反馈入口 |
@@ -434,7 +434,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 **stage 与 surface 的分工**
 
 - `BravaisStage`（manifest 的 `stage`）拥有画面：墙（虚拟化的磁贴，最多约 400 张）、相机、缝（信息条 / 书脊 / 折叠三级开口，只开在 12×8 块的边界上）、翻牌、聚焦卡、键盘焦点、列表 / 目录树面板、表单态，以及外观动作的注册。
-- `BravaisHome` / `BravaisCollection` / `BravaisArtist` 订阅 core 的 binding，把数据投影成**层描述**（`BravaisLayer`：已投影的展示数据 + 身份稳定的回调，不放资源对象），经 `useBravaisLayerRegistration` 推进 suite 内的 `bravaisStageStore`（首页一个位、顶层一个位）；照常注册命令面板；自己只渲染不接指针的锚点（命令面板内联过滤框的 anchor、`data-ponder-page-scope="none"`）。
+- `BravaisHome` / `BravaisCollection` / `BravaisArtist` 订阅 core 的 binding，把数据投影成**层描述**（`BravaisLayer`：已投影的展示数据 + 身份稳定的回调，不放资源对象），经 `useBravaisLayerRegistration` 推进 suite 内的 `bravaisStageStore`（首页一个位、顶层一个位）；照常注册命令面板；自己只渲染不接指针的锚点（`data-ponder-page-scope="none"`）。
 - `BravaisAccount` 渲染 null，把登录 / 确认表单的投影写进 `bravaisAccountStore`，stage 让缝翻成登录态 / 确认态（压过其他一切开口），挂 `data-folia-keyboard-window`。
 - stage 按导航快照的 `depth` 与上次显示时记下的深度决定换层种类：变深 = push（被点的磁贴成为起点，排序从它向外展开）、变浅 = back（按布局记忆恢复相机、缝的锚点、起点与焦点）、同深度换层 = replace（首页换页签，整墙出场 / 入场）、`origin` 为 search / player 时 0 ↔ ≥1 是整墙 enter / exit。栈里有重复的集合时，「同键不同深度且正是栈顶」也算换层。stage 根节点的 `data-bravais-shift` / `-seq` 记下每次换层。
 
@@ -445,6 +445,14 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 - 面板 history：列表面板与目录树面板是导航状态，`bravaisPanelHistory` 按「suite 自己的 history 记录」的规则 `pushState`（标记 `bravaisPanel`）；应用内返回先关面板，折叠往返与跳层越过它。
 - 「降低动态效果」：stage 自己解析（`bravaisMotion`：「队列拼贴」或「歌单展开转场」任一降级）——翻牌换成 0.18 秒淡出淡入、整墙波次换成淡入淡出；相机、缝与悬停的补间只看 `lattice` 动效面。
 - 唯一的离墙路径：首页缝里的全局搜索提交走 `onSearchCommitted`，去 `SearchWorkspace`（core 的 search surface 落地后再进墙）。从搜索页 / 播放页打开集合时整墙入场，回到来源时整墙出场。
+
+**当前页过滤**（设计稿 §7.6，2026-10-08 起取代「palette 内联框 + 首页不注册过滤」）
+
+- 每一面墙都有：首页各页签（歌单 / 电台 / 专辑 / 本地四行 / Navidrome 各 section）、集合页、歌手页、目录面板。过滤词在 core 的会话里、与 grid / TUI 同一个 port：集合 / 歌手页是浏览会话（`useLibrarySessionQuery`），首页各页签是目录会话（`useLibraryDirectoryQuery(directoryKey)`，`directoryKey` 来自 `useLibraryHomeDirectory`；寿命沿用目录的开关规则：换页签 / section 换目录，离开首页关掉；关目录树面板只丢选择、过滤词留着）。
+- 注册：`useBravaisSeamFilter` 向命令面板注册同一个 query（`registerCommandFilter`，`getAnchor` 为 null）并给 `ownInput`。墙上的可打印字符由命令面板分发：先留下 `:`（与打开了交互设置时的 `s`），其余交给 `ownInput.takeKey`——缝里的输入位挂着就把焦点挪进去、这一下按键落进输入框；没挂（书脊、折叠、翻牌途中、首页窄缝里还没出现）就让缝临时展开、字符先追加进 query。Space 不算；首页非批量模式时 `/` 是保留键（搜索在线平台）。所以 bravais 上 `s` 只是过滤字符，Ctrl/Cmd+K 照常打开命令面板。
+- 输入位是缝自己的（`BravaisSeamFilterField`：漏斗 + 下划线 +「过滤当前页」+ 匹配数 / 清除）：完整信息条、列表 / 目录面板里一直在；首页窄缝里只在正在输入或有过滤词时出现；书脊上过滤中只有一个过滤图标。Esc 先清空再结束输入，↓ / Enter 把键盘焦点交给墙上 rank 0（过滤词保留），组词期间不处理也不过滤（输入位报告组词，墙用的过滤词停在组词开始前）。「正在输入」（`bravaisUiStore.filterEditing`）决定书脊 / 折叠的临时展开（`bravaisSeamTarget` 的 `filterOpen`），结束输入后缩回原等级。过滤时墙退化为有限拼贴。
+- 命令面板路径保留：`filter-view`（列表里选、Ctrl/Cmd+F）在 bravais 上是命令面板自己的浮层，读写同一个 query；`--play` / `--add` 只在那里（缝里的输入位不解析 `--` 参数）。
+- 与搜索明确区分：搜索在线平台只经首页工具格的 ⌕ 与 `/` 进入，整条缝换成搜索态（放大镜、带框的输入框、「搜索在线平台」、一行说明、「搜索」按钮），提交才发 provider 请求、切到搜索结果；过滤不发请求，只收窄当前墙。搜索结果还在 `SearchWorkspace`（不在墙上），墙内的搜索层落地后同样注册当前页过滤。
 
 **外观动作**（命令 id `bravais-<id>`）
 
@@ -471,6 +479,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 
 - 参数化：`libraryBehavior` / `homeBehavior` / `artistBehavior` / `accountBehavior` 的 suite 列表含 bravais（含 `[switch]`）；另有 `[bravais-only]` 用例。墙是虚拟化的，用例经列表面板或键盘焦点定位条目，翻牌期间 stage 根节点挂 `data-bravais-settling`，要等它消失再点。
 - bravais 自己的组件用例：`test/component/bravaisWall.spec.ts`、`bravaisLook.spec.ts`、`bravaisHome.spec.ts`、`bravaisPerf.spec.ts`（性能护栏：计数为主）。e2e：`test/ui/bravaisCollectionFilter.spec.ts`、`bravaisVisualizerMount.spec.ts`、`bravaisPanelFold.spec.ts`，以及 `libraryNavigation` / `libraryRendererSwitch` 里的 bravais 用例。单测在 `test/unit/library/bravais/`，wall 引擎的在 `test/unit/wall/`。
+- 当前页过滤：组件探针里没有命令面板，`libraryBehavior` / `homeBehavior` 探针挂了 `dev/probes/paletteTypingStandIn.ts`（只照搬命令面板把打字交给 `ownInput` 的那一支），组件用例因此能在墙上直接打字（`libraryBehavior` 的 `[bravais-only] collection page`、`artistBehavior` 的 `[bravais-only] artist page wall`、`bravaisHome` 的首页过滤 / 搜索与过滤的区分 / 书脊下打字）；真实命令面板的那一支、`filter-view` 浮层与 `--play`、首页 `s` 与 `/` 在 e2e `bravaisCollectionFilter.spec.ts`。
 - 性能探针：`dev-probe.html?probe=bravaisPerf`（`npm run dev:probe`），整套矩阵 `npm run manual:bravais-perf`；用法与换机实测清单在 `dev/probes/bravais-perf/README.md`。
 - 探针标记统一用 `data-bravais-*`（磁贴 `data-bravais-slot` / `-kind`、聚焦卡 `data-bravais-focus-card`、缝 `data-bravais-seam` / `-seam-level` / `-seam-action`、面板 `data-bravais-list`、表单 `data-bravais-form` 等）；集合曲目磁贴另有通用的 `data-library-entry`。
 
@@ -518,6 +527,7 @@ entry 用同一个 `import.meta.env.DEV && import.meta.env.VITE_LIBRARY_TUI === 
 - 背景板订阅与网格设置解析：`src/library/app/useLibraryBackdrop.ts`、`src/library/suites/grid/transitions/gridBackdrop.ts`
 - 常驻舞台：契约 `LibrarySuiteStageProps`（`core/contracts/suite.ts`）；解析 `registry.resolveLibraryStage`；挂载位 `src/library/app/LibrarySuiteStageSlot.tsx`；背景板 / 首页隐藏规则 `core/model/libraryStage.ts`；单测 `test/unit/library/app/librarySuiteStageSlot.test.ts`（假 suite 的挂载、卸载与 lazy）、`test/unit/library/core/libraryStage.test.ts`
 - 遮挡播放页：store `src/stores/useLibraryPlayerOcclusionStore.ts`、接线 `src/library/app/useLibraryPlayerOcclusionReporter.ts`、挂载条件 `src/components/app/presentation/playerVisualizerMount.ts`、时序 `src/hooks/useLibraryOcclusionSettled.ts`，单测 `test/unit/library/app/libraryPlayerOcclusion.test.ts`（假 suite）、`test/unit/navigation/playerVisualizerMount.test.ts`、`test/unit/hooks/useLibraryOcclusionSettled.test.ts`
+- 自带输入框的筛选（bravais 的当前页过滤）：契约 `CommandFilterAnchor.ownInput`（`src/stores/useAppViewStore.ts`）；分发 `src/components/command-palette/useCommandPalette.ts`；bravais `suites/bravais/useBravaisSeamFilter.ts`、`BravaisSeamFilterField.tsx`、`useBravaisCollectionFilter.ts`；按键规则 `bravaisKeyboardModel.resolveBravaisTypingKey`；探针替身 `dev/probes/paletteTypingStandIn.ts`
 - 外观动作：契约 `src/library/core/contracts/suiteChrome.ts`；规则 `core/model/suiteChrome.ts`；store `core/state/useLibrarySuiteChromeStore.ts`；绑定 `core/bindings/useLibrarySuiteChromeRegistration.ts`；命令 `src/components/command-palette/commands/suiteChromeCommands.ts`、`commandFactories.createSuiteChromeCommand`、`commandRegistry.setSuiteChromeCommands`；装入 `src/library/app/installLibrarySuiteChromeCommands.ts`（bootstrap 调用）；单测 `test/unit/command-palette/suiteChromeCommands.test.ts`、`test/unit/library/core/useLibrarySuiteChromeRegistration.test.ts`、`suiteChrome.test.ts`
 - suite 选项与透光偏好：`src/library/app/librarySuiteChoice.ts`、`bravaisLibraryActive.ts`、`switchLibrarySuite.ts`；设置 `src/components/modal/settings/LibrarySuiteSection.tsx`、`LibraryWallLookSettings.tsx`；store `src/library/core/state/useLibrarySuiteStore.ts`、`src/stores/useLibraryWallLookStore.ts`（取值规则 `src/utils/libraryWallLook.ts`）；命令 `settingsCommands.ts`（`settings-library-suite` / `library-suite-picker`）、`libraryWallLookCommands.ts`
 - 共享 wall 引擎：`src/components/wall/`（几何、相机、标题、海报样式 `wall.css`）；边界测试 `test/unit/wall/wallBoundaries.test.ts`
