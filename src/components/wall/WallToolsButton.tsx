@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CircleHelp, Command, Settings2, X, type LucideIcon } from 'lucide-react';
+import { CircleHelp, Command, Layers3, Settings2, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLatticeSettingsStore } from '../../stores/useLatticeSettingsStore';
 import { openCommandPalette } from '../../stores/useAppViewStore';
@@ -11,10 +11,10 @@ import './WallToolsButton.css';
 
 // src/components/wall/WallToolsButton.tsx
 // 海报墙右下角的工具按钮（Lattice 与 bravais 共用）：点按打开锚定的玻璃面板，向左滑打开命令面板。
-// 面板里与内容无关的部分在这里：底距（避开播放胶囊）、点外部 / Esc 关闭、开灯 / 关灯、帮助的展开；
+// 面板里与内容无关的部分在这里：底距（避开播放胶囊）、点外部 / Esc 关闭、海报叠色开关、开灯 / 关灯、帮助的展开；
 // 上面那几行条目与帮助的内容由使用方传入（Lattice：聚焦当前歌曲、切歌自动聚焦、队列命令；bravais：定位正在播放、透光）。
-// 灯光读写 useLatticeSettingsStore——一套墙面外观设置同时作用于 Lattice 与资料库墙。
-// 从 LatticeFocusButton 抽出（实测反馈 1），Lattice 的 DOM 与样式不变。
+// 叠色与灯光读写同一个 useLatticeSettingsStore——一套墙面外观设置同时作用于 Lattice 与资料库墙。
+// 从 LatticeFocusButton 抽出（实测反馈 1），Lattice 的 DOM 与样式不变，只多了叠色那一行。
 
 /** 面板里的一行：动作（点了默认收起面板）或开关（menuitemcheckbox，点了不收起）。 */
 export type WallToolsEntry =
@@ -101,6 +101,8 @@ export default function WallToolsButton({ idPrefix, label, isDaylight, entries, 
     const rootRef = useRef<HTMLDivElement>(null);
     const lightsOn = useLatticeSettingsStore(state => state.latticeLightsOn);
     const handleToggleLatticeLights = useLatticeSettingsStore(state => state.handleToggleLatticeLights);
+    const tintEnabled = useLatticeSettingsStore(state => state.latticePosterTintEnabled);
+    const handleToggleLatticePosterTint = useLatticeSettingsStore(state => state.handleToggleLatticePosterTint);
     const isWideLayout = useMediaQuery('(min-width: 640px)');
     const bottomPx = usePlayerBottomBarBottomPx(isWideLayout ? 24 : 16);
 
@@ -143,6 +145,15 @@ export default function WallToolsButton({ idPrefix, label, isDaylight, entries, 
     const panelId = `${idPrefix}-panel`;
     const helpId = `${idPrefix}-help`;
     const rows = isOpen ? (typeof entries === 'function' ? entries() : entries) : [];
+    // 叠色开关两边都有（颜色与强度的细调仍在设置页与命令面板）。
+    const tintRow: WallToolsEntry = {
+        kind: 'toggle',
+        id: 'poster-tint',
+        icon: Layers3,
+        label: t('options.latticePosterTint'),
+        checked: tintEnabled,
+        onToggle: handleToggleLatticePosterTint,
+    };
 
     return (
         <motion.div ref={rootRef} style={{ bottom: bottomPx }} className={`lattice-tools group ${isDaylight ? 'is-daylight' : ''}`}>
@@ -159,6 +170,7 @@ export default function WallToolsButton({ idPrefix, label, isDaylight, entries, 
                         className="lattice-tools-panel"
                     >
                         {rows.map(entry => <WallToolsRow key={entry.id} entry={entry} onDone={close} />)}
+                        <WallToolsRow entry={tintRow} onDone={close} />
                         <div className="lattice-tools-help-section" role="none">
                             <button
                                 type="button"
