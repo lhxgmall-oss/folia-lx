@@ -12,6 +12,7 @@ export default {
     "playNow": "Putar sekarang",
     "addToQueue": "Tambah ke antrean",
     "inQueue": "Sudah di antrean",
+    "insertIntoQueue": "Sisipkan ke antrean",
     "playAll": "Putar semua",
     "enqueueAll": "Tambah ke antrean",
     "seamBack": "Kembali",

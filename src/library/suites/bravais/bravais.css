@@ -131,6 +131,32 @@
 .bravais-chrome-button:disabled { opacity: 0.3; cursor: default; }
 .bravais-chrome-button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 2px; }
 
+/* 聚焦卡的「立即播放」（实测反馈 1）：与 Lattice 展开海报上的播放键同一种——44px 方格、只有实心图标、静止时无底无框。 */
+.bravais-chrome-button.is-icon {
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+    opacity: 1;
+}
+
+.bravais-chrome-button.is-icon svg { width: 20px; height: 20px; }
+
+/* 「已在队列」悬停 / 键盘聚焦时换成「插入队列」：两份文案叠在同一格（按较宽的那份占位，换显示时按钮不变宽），
+   藏着的那份 visibility:hidden，不进可访问名。 */
+.bravais-enqueue-labels { display: inline-grid; }
+
+.bravais-enqueue-labels > span {
+    display: inline-flex;
+    grid-area: 1 / 1;
+    align-items: center;
+    gap: 8px;
+}
+
+.bravais-enqueue-hover,
+.bravais-chrome-button.has-hover-label:is(:hover, :focus-visible):not(:disabled) .bravais-enqueue-rest { visibility: hidden; }
+
+.bravais-chrome-button.has-hover-label:is(:hover, :focus-visible):not(:disabled) .bravais-enqueue-hover { visibility: visible; }
+
 /* ---------- 缝：Lattice 主题材质，位置与宽度由 stage 每帧写 ---------- */
 
 .bravais-seam {

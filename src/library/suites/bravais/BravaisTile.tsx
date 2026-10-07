@@ -315,6 +315,7 @@ function BravaisTile({
                                 slotKey={slotKey}
                                 item={display}
                                 queued={queued}
+                                current={isCurrent}
                                 titleWidth={rect.width}
                                 actions={handlers}
                             />

@@ -12,6 +12,7 @@ export default {
     "playNow": "Play now",
     "addToQueue": "Add to queue",
     "inQueue": "In queue",
+    "insertIntoQueue": "Insert into queue",
     "playAll": "Play all",
     "enqueueAll": "Add to queue",
     "seamBack": "Back",

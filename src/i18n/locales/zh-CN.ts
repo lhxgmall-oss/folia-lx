@@ -12,6 +12,7 @@ export default {
     "playNow": "立即播放",
     "addToQueue": "加入队列",
     "inQueue": "已在队列",
+    "insertIntoQueue": "插入队列",
     "playAll": "播放全部",
     "enqueueAll": "加入队列",
     "seamBack": "返回",
