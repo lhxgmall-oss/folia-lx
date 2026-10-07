@@ -44,6 +44,31 @@ describe('QR login diagnostic report', () => {
         );
     });
 
+    it('reports when the process started and how often the login identity was rotated', () => {
+        const at = (minutes: number) => AT + minutes * 60_000;
+        // 重置 3 次：两次已在之后的要码前轮换，最后一次还在等下一次要码。
+        expect(formatNeteaseLoginDiagnostics(
+            {
+                ...snapshot,
+                identity: {
+                    processStartedAt: at(-30), connectionResets: 3, rotations: 2,
+                    lastRotatedAt: at(5), lastTokenRenewed: false, pendingRotation: true,
+                },
+            },
+            { hasLoginCookie: false, hasAnonymousCookie: true },
+        )).toContain('identity: process started 2026-09-26T11:30:00.000Z, qr connection resets=3, device rotations=2 (last 12:05:00.000, new anonymous token=no), rotation pending=yes');
+        expect(formatNeteaseLoginDiagnostics(
+            {
+                ...snapshot,
+                identity: {
+                    processStartedAt: AT, connectionResets: 0, rotations: 0,
+                    lastRotatedAt: null, lastTokenRenewed: null, pendingRotation: false,
+                },
+            },
+            { hasLoginCookie: false, hasAnonymousCookie: true },
+        )).toContain('identity: process started 2026-09-26T12:00:00.000Z, qr connection resets=0, device rotations=0, rotation pending=no');
+    });
+
     it('says plainly when there is no main process to ask', () => {
         expect(formatNeteaseLoginDiagnostics(null, { hasLoginCookie: false, hasAnonymousCookie: false })[0])
             .toBe('runtime: web (remote API, no main-process record)');

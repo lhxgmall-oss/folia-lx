@@ -1,9 +1,11 @@
 const os = require('os');
+const { redactIpAddresses } = require('../shared/networkErrorText.cjs');
 
 // electron/neteaseLoginDiagnostics.cjs
 // 扫码登录只在少数用户、少数时候失败，开发机上复现不了，只能让用户把现场带回来。
 // 必须记在主进程的请求层：上游 login_qr_check 出错时会把网易的真实返回码（风控 8821 等）吞成
-// 一个 404，渲染进程拿到的永远只是「Not Found」。这里只记登录相关的请求，而且只记能公开贴出来的
+// 一个 404，渲染进程拿到的永远只是「Not Found」（现已由 neteaseApiStartup 的 createLoginQrCheck 替换修正，
+// 请求记录仍保留，用来看整段时间线）。这里只记登录相关的请求，而且只记能公开贴出来的
 // 东西：返回码、耗时、带没带来源 IP 头、cookie 里有没有凭据——不记 cookie、token 和 IP 本身。
 
 const LOGIN_URI_PATTERN = /^\/api\/(login\/|register\/anonimous|w\/nuser\/account\/get|nuser\/account\/get)/;
@@ -12,8 +14,9 @@ const MAX_MESSAGE_LENGTH = 200;
 // deviceId 只留末尾几位：足够看出前后两次请求是不是同一个设备，又不至于把整个标识贴到 issue 里。
 const DEVICE_ID_TAIL_LENGTH = 6;
 
+// 错误文字里的 IP 只留协议族和类别（本机、内网、fake-ip、Teredo……），端口保留。
 const truncate = (value) => {
-  const text = typeof value === 'string' ? value : value == null ? '' : String(value);
+  const text = redactIpAddresses(typeof value === 'string' ? value : value == null ? '' : String(value));
   return text.length > MAX_MESSAGE_LENGTH ? `${text.slice(0, MAX_MESSAGE_LENGTH)}…` : text;
 };
 
@@ -158,4 +161,5 @@ function createNeteaseLoginDiagnostics({
 
 module.exports = {
   createNeteaseLoginDiagnostics,
+  readCookieField,
 };

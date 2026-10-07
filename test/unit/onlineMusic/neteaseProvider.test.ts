@@ -20,6 +20,7 @@ vi.mock('@/services/netease', () => ({
         getPersonalizedPlaylists: vi.fn(),
         getLikedSongs: vi.fn(),
         checkQr: vi.fn(),
+        getQrKey: vi.fn(),
         scrobbleV1: vi.fn(),
     },
 }));
@@ -211,6 +212,38 @@ describe('neteaseProvider', () => {
     it('keeps the backend code and message on an unmapped QR response', async () => {
         vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code: 404, msg: 'Not Found' } as any);
         await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toEqual({ state: 'error', message: 'code 404: Not Found' });
+    });
+
+    it.each(['read ECONNRESET', 'socket hang up', 'Client network socket disconnected before secure TLS connection was established'])(
+        'marks a QR poll the upstream reset (%s) as connection-reset',
+        async msg => {
+            vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code: 502, msg } as any);
+            await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toEqual({
+                state: 'error', message: `code 502: ${msg}`, reason: 'connection-reset',
+            });
+        },
+    );
+
+    it('keeps other network failures plain and reduces their addresses to a category', async () => {
+        vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code: 502, msg: 'connect ECONNREFUSED 127.0.0.1:7890' } as any);
+        await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toEqual({
+            state: 'error', message: 'code 502: connect ECONNREFUSED <ipv4-loopback>:7890',
+        });
+    });
+
+    it('throws instead of handing out an empty QR key, marking a reset', async () => {
+        vi.mocked(neteaseApi.getQrKey).mockResolvedValue({ code: 200, data: { unikey: 'k1' } } as any);
+        await expect(neteaseProvider.auth!.getQrKey!()).resolves.toBe('k1');
+
+        vi.mocked(neteaseApi.getQrKey).mockResolvedValue({ code: 502, msg: 'read ECONNRESET' } as any);
+        await expect(neteaseProvider.auth!.getQrKey!()).rejects.toMatchObject({
+            code: 'invalid-response', message: 'code 502: read ECONNRESET', qrLoginReason: 'connection-reset',
+        });
+
+        vi.mocked(neteaseApi.getQrKey).mockResolvedValue({ code: 502, msg: 'connect ETIMEDOUT 59.111.181.35:443' } as any);
+        const error = await neteaseProvider.auth!.getQrKey!().catch((caught: unknown) => caught);
+        expect(error).toMatchObject({ code: 'invalid-response', message: 'code 502: connect ETIMEDOUT <ipv4-public>:443' });
+        expect(error).not.toHaveProperty('qrLoginReason');
     });
 });
 

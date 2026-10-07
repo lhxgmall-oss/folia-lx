@@ -6,7 +6,13 @@ import type {
     LibraryLoginDiagnosticsEnvironment,
     LibraryTimerHandle,
 } from '../contracts/account';
-import { describeAccountError, describeLoginStateMessage, retryAfterMsOf } from '../model/accountRules';
+import {
+    describeAccountError,
+    describeLoginStateMessage,
+    knownQrLoginErrorReason,
+    qrLoginErrorReasonOf,
+    retryAfterMsOf,
+} from '../model/accountRules';
 import {
     formatQrLoginDiagnosticReport,
     QR_LOGIN_TIMELINE_LIMIT,
@@ -287,7 +293,8 @@ export const createProviderLoginSession = (deps: ProviderLoginSessionDeps): Prov
                         // 终态不再轮询，留着 TTL 计时器只会在界面关掉后才触发。
                         ttlTimer = clearTimer(ttlTimer);
                         if (result.state === 'error') {
-                            update({ failure: result.reason === 'canceled-on-device' ? 'canceled-on-device' : 'check-error' });
+                            // 已知的结构化原因本身就是失败形态；没有或不认识时按普通的轮询失败。
+                            update({ failure: knownQrLoginErrorReason(result.reason) ?? 'check-error' });
                             beginCooldown(result.retryAfterMs ?? null);
                         } else if (scanned) update({ failure: 'expired-after-scan' });
                     } else {
@@ -296,7 +303,7 @@ export const createProviderLoginSession = (deps: ProviderLoginSessionDeps): Prov
                 } catch (error) {
                     if (sessionId !== generation) return;
                     note('check:error', { polls, scanned, ...describeAccountError(providerId, error) }, 'warn');
-                    update({ phase: 'error', failure: 'check-error' });
+                    update({ phase: 'error', failure: qrLoginErrorReasonOf(error) ?? 'check-error' });
                     beginCooldown(retryAfterMsOf(error));
                     checkTimer = null;
                     ttlTimer = clearTimer(ttlTimer);
@@ -306,7 +313,7 @@ export const createProviderLoginSession = (deps: ProviderLoginSessionDeps): Prov
         } catch (error) {
             if (sessionId !== generation) return;
             note('start:error', describeAccountError(providerId, error), 'warn');
-            update({ phase: 'error', failure: 'start-error' });
+            update({ phase: 'error', failure: qrLoginErrorReasonOf(error) ?? 'start-error' });
             beginCooldown(retryAfterMsOf(error));
         }
     };

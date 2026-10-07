@@ -285,9 +285,9 @@ GET /api/qq/getSongInfo/0039MnYb0qxYhV
 
 ## 扫码失败诊断
 
-QQ 登录界面不显示诊断区块（网格登录弹窗与 TUI 登录框都一样，TUI 的 F4 不复制报告），Folia 自己的扫码会话与账户日志对 QQ 也只记固定类别、不记原始错误文字。普通日志面板中的 `[QQProvider] qr-login:failed` 提供安全失败摘要，可在「设置 → 开发者」或播放器的 `Alt+Shift+D` → Console 查看、筛选和复制。摘要记录扫码通道、失败步骤、HTTP 状态及后端提供的安全原因代码。`@yakult-green-tea/qq-music-api` 3.1.3 起提供这些字段，本地退避 `429` 还会带上 `last-failure`；旧后端缺失的字段显示 `unavailable`，不能据此判断首次失败原因。
+QQ 扫码失败后，登录界面与其它平台一样给出诊断区块（网格登录弹窗的「复制诊断」「反馈」，TUI 登录框的 F4）。报告的时间线对 QQ 只记固定类别、不记原始错误文字，`qq details` 段就是下面的安全失败摘要。同一份摘要也写进普通日志面板的 `[QQProvider] qr-login:failed`，可在「设置 → 开发者」或播放器的 `Alt+Shift+D` → Console 查看、筛选和复制。摘要记录扫码通道、失败步骤、HTTP 状态及后端提供的安全原因代码。`@yakult-green-tea/qq-music-api` 3.1.3 起提供这些字段，本地退避 `429` 还会带上 `last-failure`；旧后端缺失的字段显示 `unavailable`，不能据此判断首次失败原因。
 
-摘要也覆盖缺少 key、二维码图片、未知返回码和确认后的账号加载失败，并附上确认响应是否带有会话的布尔值。只输出固定类别和安全数字，不包含 cookie、token、IP、账号、设备标识、URL、原始错误或响应正文；等待轮询不额外记录，同一轮的相同失败不会因退避倒计时重复输出。重试会清空内部摘要并隔离上一轮晚回的诊断；同一份摘要也由 provider 的 `getQrLoginDiagnostics` 返回（`omni.getQrLoginDiagnostics('qq')`，`omni` 没有挂到 `window`，只供代码与测试读取）。
+摘要也覆盖缺少 key、二维码图片、未知返回码和确认后的账号加载失败，并附上确认响应是否带有会话的布尔值。只输出固定类别和安全数字，不包含 cookie、token、IP、账号、设备标识、URL、原始错误或响应正文；等待轮询不额外记录，同一轮的相同失败不会因退避倒计时重复输出。重试会清空内部摘要并隔离上一轮晚回的诊断；同一份摘要由 provider 的 `getQrLoginDiagnostics` 返回，诊断报告经 `omni.getQrLoginDiagnostics('qq')` 取用（`omni` 没有挂到 `window`）。
 
 没扫过码就自然过期不算失败：后端回 `failureReason=qr-timeout`，或会话已被清掉、回一个不带任何失败字段的 `800` 时，只在普通日志里记一条 info 级的 `[QQProvider] qr-login:expired`；扫过码之后才过期仍记为 `qr-login:failed`。判定只看这些结构化字段，不比对后端文案，所以 3.1.2 及更早的后端在二维码超时时仍会记成失败，原因显示 `unavailable`。关闭登录框、二维码到期时 Folia 取消当前二维码，这与重新要码一样结束这一轮，之后才回来的轮询结果不再记录，也不会把之后一次普通的登录态检查当成扫码后的账号加载。
 

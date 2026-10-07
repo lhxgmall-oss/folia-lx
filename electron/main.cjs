@@ -4096,20 +4096,35 @@ async function clearCoverCacheDirectory() {
   }
 }
 
-const { withoutImplicitClientIp } = require('./neteaseApiStartup.cjs');
+const { createLoginQrCheck, withoutImplicitClientIp } = require('./neteaseApiStartup.cjs');
 const { createNeteaseLoginDiagnostics } = require('./neteaseLoginDiagnostics.cjs');
+const { createNeteaseLoginIdentity } = require('./neteaseLoginIdentity.cjs');
 const neteaseLoginDiagnostics = createNeteaseLoginDiagnostics();
 // util/request 在首次 require 时读一次匿名 token 并缓存到进程结束，之后启动流程写回的新 token
 // 要到下次启动才生效。记下这一刻文件是否为空，诊断时才知道登录请求有没有匿名凭据兜底。
+const anonymousTokenAtLoad = fs.readFileSync(tokenPath, 'utf-8');
 neteaseLoginDiagnostics.noteStartup({
-  anonymousTokenAtLoad: fs.readFileSync(tokenPath, 'utf-8').trim() ? 'present' : 'empty',
+  anonymousTokenAtLoad: anonymousTokenAtLoad.trim() ? 'present' : 'empty',
+});
+// generateDeviceId 与其它 util/index 导出一起在下面取出；轮换只在请求失败之后发生，届时早已就绪。
+const neteaseLoginIdentity = createNeteaseLoginIdentity({
+  generateDeviceId: () => generateDeviceId(),
+  readAnonymousToken: () => fs.readFileSync(tokenPath, 'utf-8'),
+  initialAnonymousToken: anonymousTokenAtLoad,
 });
 // 必须赶在 main / server 首次 require util/request 之前替换缓存里的导出，它们拿到的才是包过的版本。
 // 先 require 再取缓存项：赋值左侧会先求值，写成一行时缓存项还不存在。
-// 诊断记录包在最里层，看到的是来源 IP 策略处理过、真正要发出去的 options。
+// 诊断记录包在最里层，看到的是来源 IP 策略处理过、真正要发出去的 options；身份轮换在最外层，
+// 它轮换后注入的 MUSIC_A 也会体现在诊断记录里。
 const ncmRequestPath = require.resolve('@neteasecloudmusicapienhanced/api/util/request');
 const ncmRequest = require(ncmRequestPath);
-require.cache[ncmRequestPath].exports = withoutImplicitClientIp(neteaseLoginDiagnostics.wrapRequest(ncmRequest));
+require.cache[ncmRequestPath].exports = neteaseLoginIdentity.wrapRequest(
+  withoutImplicitClientIp(neteaseLoginDiagnostics.wrapRequest(ncmRequest)),
+);
+// 同理，main 加载时就会 require 各个 module 文件，替换扫码轮询模块也要赶在它之前。
+const ncmLoginQrCheckPath = require.resolve('@neteasecloudmusicapienhanced/api/module/login_qr_check');
+require(ncmLoginQrCheckPath);
+require.cache[ncmLoginQrCheckPath].exports = createLoginQrCheck(require('@neteasecloudmusicapienhanced/api/util/option'));
 const { register_anonimous } = require('@neteasecloudmusicapienhanced/api/main');
 const { getXeapiPublicKey } = require('@neteasecloudmusicapienhanced/api/util/xeapiKey');
 const {
@@ -6151,6 +6166,7 @@ ipcMain.handle('get-netease-login-diagnostics', () => ({
     error: neteaseApiStatus.error,
   },
   ...neteaseLoginDiagnostics.snapshot(),
+  identity: neteaseLoginIdentity.describe(),
 }));
 
 // Retrieve dynamic port of the embedded QQ API server; null until it is running.

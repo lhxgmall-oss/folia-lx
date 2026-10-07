@@ -285,19 +285,16 @@ describe('login session derivations', () => {
     });
 
     it('offers diagnostics for any failure unless the backend is down', () => {
-        expect(canShowLoginDiagnostics({ providerId: 'netease', failure: 'check-error', backend: OK_BACKEND })).toBe(true);
-        expect(canShowLoginDiagnostics({ providerId: 'kugou', failure: 'account-refresh-failed', backend: OK_BACKEND })).toBe(true);
-        expect(canShowLoginDiagnostics({ providerId: 'netease', failure: null, backend: OK_BACKEND })).toBe(false);
-        expect(canShowLoginDiagnostics({ providerId: 'netease', failure: 'start-error', backend: FAILED_BACKEND })).toBe(false);
+        expect(canShowLoginDiagnostics({ failure: 'check-error', backend: OK_BACKEND })).toBe(true);
+        expect(canShowLoginDiagnostics({ failure: 'account-refresh-failed', backend: OK_BACKEND })).toBe(true);
+        expect(canShowLoginDiagnostics({ failure: null, backend: OK_BACKEND })).toBe(false);
+        expect(canShowLoginDiagnostics({ failure: 'start-error', backend: FAILED_BACKEND })).toBe(false);
     });
 
-    it('never offers diagnostics for QQ, whose safe failure summary lives in the ordinary log', () => {
+    // 诊断入口不看 provider：QQ 自己接管失败摘要，只决定时间线里记什么，不决定给不给入口。
+    it('marks QQ as owning its failure summary without gating diagnostics on it', () => {
         for (const failure of ['start-error', 'check-error', 'expired-after-scan', 'account-refresh-failed'] as const) {
-            expect(canShowLoginDiagnostics({ providerId: 'qq', failure, backend: OK_BACKEND }), failure).toBe(false);
-            // 其它 provider（含 mod 源这类未知 id）同一失败照样给入口。
-            for (const providerId of ['netease', 'kugou', 'bodian', 'folium.example']) {
-                expect(canShowLoginDiagnostics({ providerId, failure, backend: OK_BACKEND }), `${providerId} ${failure}`).toBe(true);
-            }
+            expect(canShowLoginDiagnostics({ failure, backend: OK_BACKEND }), failure).toBe(true);
         }
         expect(providerOwnsLoginFailureSummary('qq')).toBe(true);
         expect(providerOwnsLoginFailureSummary('netease')).toBe(false);
@@ -373,8 +370,9 @@ describe('cancel on the phone and backend cooldown', () => {
     });
 
     it('offers no diagnostics for a login the user canceled on the phone', () => {
-        expect(canShowLoginDiagnostics({ providerId: 'netease', failure: 'canceled-on-device', backend: OK_BACKEND })).toBe(false);
-        expect(canShowLoginDiagnostics({ providerId: 'netease', failure: 'check-error', backend: OK_BACKEND })).toBe(true);
+        expect(canShowLoginDiagnostics({ failure: 'canceled-on-device', backend: OK_BACKEND })).toBe(false);
+        expect(canShowLoginDiagnostics({ failure: 'check-error', backend: OK_BACKEND })).toBe(true);
+        expect(canShowLoginDiagnostics({ failure: 'connection-reset', backend: OK_BACKEND })).toBe(true);
     });
 
     it('says why the login stopped and how long the retry waits', () => {
@@ -385,7 +383,8 @@ describe('cancel on the phone and backend cooldown', () => {
         expect(status({ failure: 'start-error', retryCooldownSeconds: 25 }))
             .toEqual({ key: 'home.qrRetryCooldown', values: { seconds: 25 } });
         expect(status({ failure: 'check-error', retryCooldownSeconds: null })).toEqual({ key: 'home.loginError' });
-        for (const key of ['qrCanceledOnDevice', 'qrCanceledOnDeviceCooldown', 'qrRetryCooldown']) {
+        expect(status({ failure: 'connection-reset', retryCooldownSeconds: null })).toEqual({ key: 'home.qrConnectionReset' });
+        for (const key of ['qrCanceledOnDevice', 'qrCanceledOnDeviceCooldown', 'qrRetryCooldown', 'qrConnectionReset']) {
             expect((en as unknown as { home: Record<string, unknown> }).home[key]).toBeTruthy();
         }
     });

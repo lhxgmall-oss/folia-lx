@@ -18,6 +18,7 @@ import { createProviderSongMetadata } from '../../utils/songMetadata';
 import { isSongMarkedUnavailable, neteaseApi } from '../netease';
 import { writeProviderSessionValue } from './providerStorage';
 import { collectNeteaseLoginDiagnostics } from './neteaseLoginDiagnostics';
+import { isConnectionResetMessage, redactIpAddresses } from '../../../shared/networkErrorText.mjs';
 
 // src/services/onlineMusic/neteaseProvider.ts
 
@@ -106,6 +107,15 @@ const normalizeCollection = (raw: any, type = 'playlist'): ProviderCollection =>
         ...(raw?.specialType === 'liked' || raw?.isLiked === true ? { isLiked: true } : {}),
     };
 };
+
+// 扫码接口失败时给日志与诊断时间线的一行：返回码 + 文字，文字里的 IP 只留协议族和类别（端口保留）。
+const describeQrResponse = (response: any): string => (
+    `code ${response?.code ?? 'none'}: ${redactIpAddresses(response?.message || response?.msg || 'no message')}`
+);
+
+const isQrConnectionReset = (response: any): boolean => (
+    response?.code === 502 && isConnectionResetMessage(response?.msg)
+);
 
 const extractCloudLyricText = (response: any): string => (
     response?.lrc || response?.data?.lrc || response?.lyric || response?.data?.lyric || ''
@@ -362,7 +372,12 @@ export const neteaseProvider: OnlineMusicProvider = {
         async logout() { await neteaseApi.logout(); },
         async getQrKey() {
             const response = await neteaseApi.getQrKey();
-            return String(response?.data?.unikey || '');
+            const unikey = String(response?.data?.unikey || '');
+            if (unikey) return unikey;
+            // 本地 API 把上游的网络错误转成 { code: 502, msg }。没拿到 key 就别往下走：空 key 去轮询只会换来
+            // 一个看不出原因的 code 400。连接被重置时带上结构化原因，界面提示换网络或重启。
+            const error = new OnlineProviderError('invalid-response', describeQrResponse(response), 'netease');
+            throw isQrConnectionReset(response) ? Object.assign(error, { qrLoginReason: 'connection-reset' as const }) : error;
         },
         async createQr(key) {
             const response = await neteaseApi.createQr(key);
@@ -379,8 +394,12 @@ export const neteaseProvider: OnlineMusicProvider = {
                 return { state: 'confirmed' };
             }
             if (response?.code === 801) return { state: 'waiting' };
+            // 本地 API 把上游的网络错误转成 { code: 502, msg }。连接被重置单独标出，界面据此提示换网络或重启。
+            if (isQrConnectionReset(response)) {
+                return { state: 'error', message: describeQrResponse(response), reason: 'connection-reset' };
+            }
             // 带上原始状态码：只剩 state 的话，风控（8821 等）和后端吞错后的 404 在日志里无从区分。
-            return { state: 'error', message: `code ${response?.code ?? 'none'}: ${response?.message || response?.msg || 'no message'}` };
+            return { state: 'error', message: describeQrResponse(response) };
         },
         getQrLoginDiagnostics: collectNeteaseLoginDiagnostics,
     },

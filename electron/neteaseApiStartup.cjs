@@ -204,8 +204,28 @@ function withoutImplicitClientIp(request) {
   return (uri, data, options = {}) => request(uri, data, options.randomCNIP ? options : { ...options, ip: '' });
 }
 
+// 替换上游 module/login_qr_check.js。上游的 catch 分支引用了 try 块里的 result，请求一旦被拒
+// （连接被重置的 502、风控 8821 等）就抛 ReferenceError，server 只能回一个 `404 Not Found`，
+// 扫码时间线上看不到真实原因。这里发同样的请求，被拒时把 request 的 answer 原样抛出，
+// server 会按它的状态码和正文（{ code, msg }）回给渲染进程。
+function createLoginQrCheck(createOption) {
+  return async (query, request) => {
+    const result = await request(
+      '/api/login/qrcode/client/login',
+      { key: query.key, type: 3 },
+      createOption(query),
+    );
+    return {
+      status: 200,
+      body: { ...result.body, cookie: result.cookie.join(';') },
+      cookie: result.cookie,
+    };
+  };
+}
+
 module.exports = {
   DEFAULT_OPERATION_TIMEOUT_MS,
+  createLoginQrCheck,
   hasUsableXeapiPublicKey,
   refreshAnonymousToken,
   resolveXeapiPublicKey,

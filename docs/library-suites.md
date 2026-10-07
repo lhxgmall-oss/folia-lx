@@ -298,7 +298,7 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 
 要码串行：上一轮的要码请求还没回来时，新一轮先等它结算再发，等待期间又被取代就不发。后端同一时间只允许一个要码在建会话，连点刷新、快速换登录方式时并发的第二个会被拒（409 session-busy）。
 
-失败原因与冷却：provider 能确定用户在手机上取消时，轮询结果带 `reason: 'canceled-on-device'`，会话记为 `canceled-on-device`（不给诊断入口）；失败带着后端要求的冷却（轮询结果的 `retryAfterMs`，或要码错误 `OnlineProviderError.retryAfterMs`）时，登录快照的 `retryCooldownSeconds` 给出秒数，冷却结束自动回到 null。冷却期间 `canRetryLogin` 为 false、`retryLogin` 返回 `rejected`（`cooling-down`），状态行说明原因与秒数；suite 照常按视图的 `canRetry` 显示重试（grid 显示为禁用按钮，TUI 不给重试）。
+失败原因与冷却：provider 能确定用户在手机上取消时，轮询结果带 `reason: 'canceled-on-device'`，会话记为 `canceled-on-device`（不给诊断入口）；请求被上游断开（连接被重置）时，轮询结果带 `reason: 'connection-reset'`，或要码错误带 `qrLoginReason: 'connection-reset'`，会话记为 `connection-reset`（照常给诊断入口，状态行提示重试、换网络或重启）。只认这两种原因（`accountRules` 的 `knownQrLoginErrorReason` / `qrLoginErrorReasonOf`），其它值按普通失败；失败带着后端要求的冷却（轮询结果的 `retryAfterMs`，或要码错误 `OnlineProviderError.retryAfterMs`）时，登录快照的 `retryCooldownSeconds` 给出秒数，冷却结束自动回到 null。冷却期间 `canRetryLogin` 为 false、`retryLogin` 返回 `rejected`（`cooling-down`），状态行说明原因与秒数；suite 照常按视图的 `canRetry` 显示重试（grid 显示为禁用按钮，TUI 不给重试）。
 
 日志：会话与 controller 里带 providerId 的错误（要码、轮询、取消、方式解析、确认后与切换后的刷新、登出）经 `accountRules` 的 `describeAccountError` 描述，轮询报 error 时附带的后端文字经 `describeLoginStateMessage`。QQ 自己在 `[QQProvider] qr-login:failed` 里写白名单过滤后的摘要，这两处对它只记 `reason: 'provider-error'`，不记原始文字。
 
@@ -315,7 +315,7 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 | `account-switch-confirm` | 确认 / 取消待确认切换 | 基础 | `useLibraryAccountPendingSwitch`；`confirmSwitch` / `cancelSwitch` |
 | `account-select` | 首页上的平台列表，选平台 | 推荐 | `useLibraryAccountProviders`；`selectProvider` |
 | `account-logout` | 首页上的登出入口 | 推荐 | `canLogoutProvider`；`logout` |
-| `account-login-diagnostics` | 失败后的诊断报告（QQ 不给：它的安全失败摘要在普通日志面板里，`canShowLoginDiagnostics` 对它恒为 false） | 可选 | 视图的 `diagnosticsPrompt`；`buildLoginDiagnosticReport` |
+| `account-login-diagnostics` | 失败后的诊断报告（QQ 也给：时间线只有固定类别，provider 段是它白名单过滤后的摘要） | 可选 | 视图的 `diagnosticsPrompt`；`buildLoginDiagnosticReport` |
 | `account-backend-restart` | 网易本地后端故障时重启 | 可选 | 视图的 `backendFailure`；`restartLoginBackend` |
 
 `account-select` / `account-logout` 画在 home surface 上，但和其余账户动作一起声明在 entry 的 `surfaces.account` 里。
@@ -331,7 +331,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 - 不要调 Omni 的扫码 / 登出接口，也不要读 `useOnlineProviderAccountStore`、`useNeteaseApiStatusStore`，数据和动作都来自 controller。
 - 确认框按下确认后立即收起：`confirmSwitch` 同步清掉 `pendingSwitch`，不要 `await confirmSwitch` 再关框（它要等清理与刷新走完）。
 - 登出入口的可用性用 `core/model/accountRules` 的 `canLogoutProvider`，且 `logout.status` 不是 `pending`；与 controller 的判定、网格切换器、AccountTab 一致。
-- 诊断入口（区块、按键、提示行）只看视图的 `diagnosticsPrompt` / `canShowDiagnostics`，不要自己按 provider 判断；哪些 provider 不给入口由 core 的 `canShowLoginDiagnostics` 决定（目前是 QQ）。
+- 诊断入口（区块、按键、提示行）只看视图的 `diagnosticsPrompt` / `canShowDiagnostics`，不要自己按 provider 判断；什么时候给入口由 core 的 `canShowLoginDiagnostics` 决定。
 - 键盘只在 `isInteractive` 为真且界面显示着时接。`isInteractive` 是首页外壳层的值，集合层打开时可能仍为真；登录与确认在最上层时，挂 `data-folia-keyboard-window` 让底下的页面按键与全局热键让路。
 
 ## 写一套新 suite 的步骤

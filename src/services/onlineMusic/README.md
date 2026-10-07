@@ -20,7 +20,9 @@ UI / hooks / stores / app services
 当前 registry 注册 `netease`、`kugou`、`qq` 和桌面端的 `bodian`。波点接入状态、接口与剩余验收见
 [`docs/bodian.md`](../../../docs/bodian.md)；支持喜欢与自建歌单歌曲增删，收藏写入尚未实现。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
 
-QQ 扫码的安全失败摘要由 `qqProvider.ts` 收集，写入普通日志的 `[QQProvider] qr-login:failed`，也可通过 `omni.getQrLoginDiagnostics` 读取。覆盖 key、图片、检查和确认后的账号加载，保留 HTTP 状态、固定原因、安全数字和退避来源；相同失败不因倒计时重复输出，上一轮晚回的诊断不会污染新尝试或日志。取消当前二维码（关窗、到期）与要新码一样结束这一轮；没扫过码的自然过期只记 info 级的 `qr-login:expired`，不算失败；确认后只有紧接着开始的那一次账号加载写进摘要，其余登录态检查照常记 `login-status:*`。Library Core 的扫码会话与账户 controller 对 QQ 不记原始错误文字（`core/model/accountRules.ts` 的 `describeAccountError`），登录界面（grid 的诊断区块与 TUI 的 F4）不给 QQ 诊断入口（`canShowLoginDiagnostics`）。
+QQ 扫码的安全失败摘要由 `qqProvider.ts` 收集，写入普通日志的 `[QQProvider] qr-login:failed`，也可通过 `omni.getQrLoginDiagnostics` 读取。覆盖 key、图片、检查和确认后的账号加载，保留 HTTP 状态、固定原因、安全数字和退避来源；相同失败不因倒计时重复输出，上一轮晚回的诊断不会污染新尝试或日志。取消当前二维码（关窗、到期）与要新码一样结束这一轮；没扫过码的自然过期只记 info 级的 `qr-login:expired`，不算失败；确认后只有紧接着开始的那一次账号加载写进摘要，其余登录态检查照常记 `login-status:*`。Library Core 的扫码会话与账户 controller 对 QQ 不记原始错误文字（`core/model/accountRules.ts` 的 `describeAccountError`），登录界面（grid 的诊断区块与 TUI 的 F4）照常给 QQ 诊断入口，报告的 provider 段就是这份摘要。
+
+网易扫码轮询（`/login/qr/check`）在桌面端由主进程替换的 `login_qr_check` 处理（`electron/neteaseApiStartup.cjs` 的 `createLoginQrCheck`）：上游原版请求失败时只回 `404 Not Found`，替换后渲染进程拿到真实的 `{ code, msg }`，例如 `code 502: read ECONNRESET`。`neteaseProvider` 把这种连接被重置（轮询结果的 `reason`，或要码错误上的 `qrLoginReason`）标成 `connection-reset`，登录界面提示重试、切换网络或重启 Folia；没拿到 unikey 时要码直接报错，不再拿空 key 去轮询。识别连接被重置与 IP 脱敏都用 `shared/networkErrorText`（`.mjs` 给渲染进程，`.cjs` 给主进程，内容一致）：错误文字里的地址只留协议族和类别（loopback、private、cgnat、fake-ip、teredo 等），端口保留。主进程在扫码请求被重置后，于下一次要码前换掉扫码身份（`electron/neteaseLoginIdentity.cjs`）：`deviceId` 每次都换；匿名 token `MUSIC_A` 只在 token 文件比加载时更新时才换得到（文件只在启动时刷新，通常只有第一次轮换）。诊断报告的 `identity:` 行记下进程启动时刻、被重置次数、轮换次数、最近一次是否换到新 token、是否还有待轮换。
 
 ## Public contract
 

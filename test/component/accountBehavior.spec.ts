@@ -567,8 +567,8 @@ test.describe(`[${suite}] QQ diagnostics`, () => {
         await mountAccount(mount, page, suite);
     });
 
-    // QQ 的扫码失败摘要写在普通日志面板里（PR #495），登录界面不给复制报告 / 反馈入口；grid 的诊断区块与
-    // TUI 的诊断行和 F4 都看 core 的 canShowLoginDiagnostics。同一种失败在别的平台照样给入口（对照组 gamma）。
+    // QQ 的扫码失败摘要经白名单过滤（PR #495），和别的平台一样给复制报告 / 反馈入口；grid 的诊断区块与
+    // TUI 的诊断行和 F4 都看 core 的 canShowLoginDiagnostics（对照组 gamma）。
     test(`[${suite}] a login canceled on the phone says so and holds the retry until the backend cooldown ends`, async ({ page }) => {
         await scriptQr(page, ACCOUNT_GAMMA, ['canceled']);
         await driver.selectProvider(page, ACCOUNT_GAMMA);
@@ -593,7 +593,7 @@ test.describe(`[${suite}] QQ diagnostics`, () => {
         await expect(statusText(page, 'waiting')).toBeVisible();
     });
 
-    test(`[${suite}] a failed QQ sign-in offers retry but no diagnostics`, async ({ page }) => {
+    test(`[${suite}] a failed QQ sign-in offers retry and diagnostics like other providers`, async ({ page }) => {
         await scriptQr(page, ACCOUNT_GAMMA, ['error']);
         await driver.selectProvider(page, ACCOUNT_GAMMA);
         await expect(statusText(page, 'error')).toBeVisible();
@@ -606,22 +606,29 @@ test.describe(`[${suite}] QQ diagnostics`, () => {
         await expect(statusText(page, 'scanned')).toBeVisible();
         await expect(statusText(page, 'error')).toBeVisible();
         await expect(retryButton(page)).toBeVisible();
-        await expect(diagnosticsButton(page)).toHaveCount(0);
-        await expect(loginDialog(page).getByText(/diagnostic/i)).toHaveCount(0);
+        await expect(diagnosticsButton(page)).toBeVisible();
         if (!isGrid) {
-            await expect(loginDialog(page).locator('[data-tui-login-diagnostics]')).toHaveCount(0);
-            // F4 在没有诊断入口时不接：不出现复制状态，登录框还在。
+            await expect(loginDialog(page).locator('[data-tui-login-diagnostics]')).toHaveCount(1);
+            // F4 复制 QQ 的诊断报告：换掉剪贴板写入，读回写进去的内容。
+            await page.evaluate(() => {
+                Object.defineProperty(navigator, 'clipboard', {
+                    configurable: true,
+                    value: { writeText: async (text: string) => { (window as unknown as { __copied?: string }).__copied = text; } },
+                });
+            });
             await page.keyboard.press('F4');
-            await expect(loginDialog(page).locator('[data-tui-login-diagnostics-copy]')).toHaveCount(0);
-            await expect(loginDialog(page)).toBeVisible();
+            await expect(loginDialog(page).locator('[data-tui-login-diagnostics-copy]')).toHaveAttribute('data-tui-login-diagnostics-copy', 'copied');
+            const copied = await page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '');
+            expect(copied).toContain('### Folia QR login diagnostics');
+            expect(copied).toContain(`provider: ${ACCOUNT_QQ}`);
         }
 
-        // 重试照常可用，新会话同样不给诊断。
+        // 重试后新会话失败同样给诊断。
         await scriptQr(page, ACCOUNT_QQ, ['error']);
         await driver.retry(page);
         await expect.poll(() => countCalls(page, 'create', ACCOUNT_QQ)).toBe(2);
         await expect(statusText(page, 'error')).toBeVisible();
-        await expect(diagnosticsButton(page)).toHaveCount(0);
+        await expect(diagnosticsButton(page)).toBeVisible();
     });
 });
 

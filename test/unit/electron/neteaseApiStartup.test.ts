@@ -3,10 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 // test/unit/electron/neteaseApiStartup.test.ts
 
 const {
+    createLoginQrCheck,
     refreshAnonymousToken,
     resolveXeapiPublicKey,
     withoutImplicitClientIp,
 } = require('../../../electron/neteaseApiStartup.cjs') as {
+    createLoginQrCheck: (
+        createOption: (query: Record<string, unknown>) => Record<string, unknown>,
+    ) => (
+        query: Record<string, unknown>,
+        request: (uri: string, data: unknown, options: Record<string, unknown>) => Promise<any>,
+    ) => Promise<unknown>;
     withoutImplicitClientIp: (
         request: (uri: string, data: unknown, options: Record<string, unknown>) => unknown,
     ) => (uri: string, data: unknown, options?: Record<string, unknown>) => unknown;
@@ -215,5 +222,52 @@ describe('NetEase API client IP policy', () => {
         const options = { ip: '116.1.2.3', randomCNIP: true };
         withoutImplicitClientIp(request)('/api/song/enhance/player/url/v1', {}, options);
         expect(request).toHaveBeenCalledWith('/api/song/enhance/player/url/v1', {}, options);
+    });
+});
+
+describe('NetEase QR check module', () => {
+    const createOption = (query: Record<string, unknown>) => ({ cookie: query.cookie });
+    const upstreamLoginQrCheck = require('@neteasecloudmusicapienhanced/api/module/login_qr_check') as (
+        query: Record<string, unknown>,
+        request: (uri: string, data: unknown, options: Record<string, unknown>) => Promise<any>,
+    ) => Promise<unknown>;
+    const upstreamCreateOption = require('@neteasecloudmusicapienhanced/api/util/option') as (
+        query: Record<string, unknown>,
+    ) => Record<string, unknown>;
+
+    // 上游一旦修好这个 bug，这条会失败：届时删掉 main.cjs 里的替换和 createLoginQrCheck。
+    it('is still needed: the upstream module throws a ReferenceError on a rejected poll', async () => {
+        const request = vi.fn().mockRejectedValue({ status: 502, body: { code: 502, msg: 'read ECONNRESET' }, cookie: [] });
+        await expect(upstreamLoginQrCheck({ key: 'k' }, request)).rejects.toBeInstanceOf(ReferenceError);
+    });
+
+    it('matches the upstream module on success', async () => {
+        const answer = { status: 200, body: { code: 802, message: '授权中' }, cookie: ['NMTID=b'] };
+        const upstreamRequest = vi.fn().mockResolvedValue(answer);
+        const ownRequest = vi.fn().mockResolvedValue(answer);
+        const query = { key: 'k', cookie: 'os=pc', timestamp: '1' };
+
+        await expect(createLoginQrCheck(upstreamCreateOption)(query, ownRequest))
+            .resolves.toEqual(await upstreamLoginQrCheck(query, upstreamRequest));
+        expect(ownRequest.mock.calls).toEqual(upstreamRequest.mock.calls);
+    });
+
+    it('returns the poll result with the cookie joined into the body', async () => {
+        const request = vi.fn().mockResolvedValue({ status: 200, body: { code: 803, message: 'ok' }, cookie: ['MUSIC_U=a', 'NMTID=b'] });
+        await expect(createLoginQrCheck(createOption)({ key: 'k', cookie: 'c' }, request)).resolves.toEqual({
+            status: 200,
+            body: { code: 803, message: 'ok', cookie: 'MUSIC_U=a;NMTID=b' },
+            cookie: ['MUSIC_U=a', 'NMTID=b'],
+        });
+        expect(request).toHaveBeenCalledWith('/api/login/qrcode/client/login', { key: 'k', type: 3 }, { cookie: 'c' });
+    });
+
+    // 上游原版在这里抛 ReferenceError，server 只能回 404；现在 server 拿到的是 request 的 answer。
+    it.each([
+        { status: 502, body: { code: 502, msg: 'read ECONNRESET' }, cookie: [] },
+        { status: 400, body: { code: 8821, message: '需要行为验证码验证' }, cookie: [] },
+    ])('rethrows the rejected answer $body.code so the server can relay it', async answer => {
+        const request = vi.fn().mockRejectedValue(answer);
+        await expect(createLoginQrCheck(createOption)({ key: 'k' }, request)).rejects.toBe(answer);
     });
 });

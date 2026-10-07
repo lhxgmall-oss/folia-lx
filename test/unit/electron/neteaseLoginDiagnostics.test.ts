@@ -50,6 +50,15 @@ describe('NetEase login diagnostics', () => {
         });
     });
 
+    it('keeps only the family and category of addresses in error text', async () => {
+        const diagnostics = createDiagnostics();
+        const request = vi.fn().mockRejectedValue({ status: 502, body: { code: 502, msg: 'connect ECONNREFUSED 127.0.0.1:7890' } });
+
+        await expect(diagnostics.wrapRequest(request)('/api/login/qrcode/unikey', {}, {})).rejects.toBeDefined();
+
+        expect(diagnostics.snapshot().requests[0].outcome.message).toBe('connect ECONNREFUSED <ipv4-loopback>:7890');
+    });
+
     it('ignores requests that have nothing to do with signing in', async () => {
         const diagnostics = createDiagnostics();
         const request = vi.fn().mockResolvedValue({ status: 200, body: { code: 200 } });

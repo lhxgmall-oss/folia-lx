@@ -1142,6 +1142,7 @@ export default {
     "qrExpired": "二维码已过期，请刷新。",
     "qrCanceledOnDevice": "已在手机上取消登录，可以重新获取二维码。",
     "qrCanceledOnDeviceCooldown": "已在手机上取消登录，{{seconds}} 秒后可以重新获取二维码。",
+    "qrConnectionReset": "连接被网易断开。可以先重试；仍然失败请切换网络或重启 Folia。",
     "qrRetryCooldown": "请求过于频繁，{{seconds}} 秒后可以重试。",
     "qrScanned": "扫描成功！请在手机上确认。",
     "loginSuccess": "登录成功！",

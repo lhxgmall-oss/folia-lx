@@ -941,7 +941,7 @@ describe('providerAccountController · QQ failures stay out of ordinary logs', (
         expect(entry![2]).toEqual({ providerId: 'kugou', name: 'private-name', message: secret });
     });
 
-    it('builds no QQ report through the UI rule, and a report built anyway carries no raw text', async () => {
+    it('offers a QQ report whose timeline carries no raw text', async () => {
         accounts = createAccounts('alpha', [summary('qq')]);
         const controller = createController();
         auth.createQrLogin.mockRejectedValueOnce(privateError());
@@ -950,7 +950,7 @@ describe('providerAccountController · QQ failures stay out of ordinary logs', (
 
         const { login } = controller.getSnapshot();
         expect(login).toMatchObject({ providerId: 'qq', phase: 'error', failure: 'start-error' });
-        expect(canShowLoginDiagnostics(login!)).toBe(false);
+        expect(canShowLoginDiagnostics(login!)).toBe(true);
         const report = await controller.buildLoginDiagnosticReport();
         expect(report.status).toBe('ok');
         expect(report.status === 'ok' && report.report).not.toMatch(/private-|https?:/);

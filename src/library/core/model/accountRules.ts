@@ -1,4 +1,4 @@
-import type { OnlineProviderId, ProviderAccountSummary, QrLoginFailureKind } from '../../../types/onlineMusic';
+import type { OnlineProviderId, ProviderAccountSummary, QrLoginErrorReason, QrLoginFailureKind } from '../../../types/onlineMusic';
 import type {
     LibraryLoginBackendState,
     LibraryLoginCopy,
@@ -168,27 +168,26 @@ export const canRetryLogin = (session: LoginRetryState): boolean => (
 );
 
 /**
- * 诊断入口：有失败形态、后端没有故障（后端故障时界面只给原因与重启），且 provider 没有自己接管失败摘要
- * （QQ 的安全摘要在普通日志面板里，登录界面不再给复制报告 / 反馈入口）。grid 的诊断区块与 TUI 的 F4 都看它。
+ * 诊断入口：有失败形态、后端没有故障（后端故障时界面只给原因与重启）。grid 的诊断区块与 TUI 的 F4 都看它。
+ * 自己接管失败摘要的 provider（QQ）同样给入口：时间线里只有固定类别，provider 段是它白名单过滤后的摘要。
  */
 export const canShowLoginDiagnostics = (
-    session: Pick<LibraryLoginSessionSnapshot, 'providerId' | 'failure'> & { backend: Pick<LibraryLoginBackendState, 'failed'> },
+    session: Pick<LibraryLoginSessionSnapshot, 'failure'> & { backend: Pick<LibraryLoginBackendState, 'failed'> },
 ): boolean => (
     session.failure !== null
     // 在手机上取消是用户自己的操作，没有要排查的东西。
     && session.failure !== 'canceled-on-device'
     && !session.backend.failed
-    && !providerOwnsLoginFailureSummary(session.providerId)
 );
 
 // ─── 登录 / 账户错误的日志描述 ──────────────────────────────────────────
 
 // 自己写安全失败摘要的 provider：QQ 的 qqProvider 只把白名单过滤后的阶段、原因和状态码写进
-// [QQProvider] qr-login:failed（PR #495）。它的原始错误文字可能带上后端地址、会话或上游正文，
-// 通用层（扫码会话、账户 controller）对它只记固定类别，诊断入口也不给。
+// [QQProvider] qr-login:failed（PR #495），同一份摘要也进诊断报告的 provider 段。它的原始错误文字可能带上
+// 后端地址、会话或上游正文，通用层（扫码会话、账户 controller）对它只记固定类别。
 const PROVIDERS_OWNING_LOGIN_FAILURE_SUMMARY: ReadonlySet<string> = new Set(['qq']);
 
-/** provider 是否自己接管扫码 / 账户失败的安全摘要（通用层不记它的原始错误文字、不给诊断入口）。 */
+/** provider 是否自己接管扫码 / 账户失败的安全摘要（通用层不记它的原始错误文字）。 */
 export const providerOwnsLoginFailureSummary = (providerId: OnlineProviderId): boolean => (
     PROVIDERS_OWNING_LOGIN_FAILURE_SUMMARY.has(providerId)
 );
@@ -208,6 +207,18 @@ export const describeAccountError = (providerId: OnlineProviderId, error: unknow
             name: error instanceof Error ? error.name : 'Error',
             message: error instanceof Error ? error.message : String(error),
         }
+);
+
+const QR_LOGIN_ERROR_REASONS: ReadonlySet<string> = new Set<QrLoginErrorReason>(['canceled-on-device', 'connection-reset']);
+
+/** 扫码失败的结构化原因只认已知的几种；provider 或主进程带回的其它值按普通失败处理。 */
+export const knownQrLoginErrorReason = (reason: unknown): QrLoginErrorReason | null => (
+    typeof reason === 'string' && QR_LOGIN_ERROR_REASONS.has(reason) ? reason as QrLoginErrorReason : null
+);
+
+/** 要码 / 轮询抛出的错误上带的结构化原因（error.qrLoginReason，例如连接被重置）；读不出时为 null。 */
+export const qrLoginErrorReasonOf = (error: unknown): QrLoginErrorReason | null => (
+    knownQrLoginErrorReason(error && typeof error === 'object' ? (error as { qrLoginReason?: unknown }).qrLoginReason : undefined)
 );
 
 /** 错误里带的后端冷却时长（OnlineProviderError.retryAfterMs，429 退避）；读不出时为 null。 */
@@ -247,7 +258,7 @@ export const shouldResumeLoginAfterBackendRestart = (health: LibraryNeteaseBacke
 );
 
 /**
- * 失败时的状态行：在手机上取消、以及要等后端冷却时，换成说明原因 / 剩余秒数的文案；其余按阶段。
+ * 失败时的状态行：在手机上取消、连接被重置、以及要等后端冷却时，换成说明原因 / 剩余秒数的文案；其余按阶段。
  * 秒数按失败那一刻算，不随时间倒数；冷却结束时快照清掉秒数，状态行回到普通文案、重试同时可用。
  */
 const resolveLoginFailureStatus = (
@@ -258,6 +269,9 @@ const resolveLoginFailureStatus = (
         return seconds === null
             ? { key: 'home.qrCanceledOnDevice' }
             : { key: 'home.qrCanceledOnDeviceCooldown', values: { seconds } };
+    }
+    if (session.failure === 'connection-reset' && seconds === null) {
+        return { key: 'home.qrConnectionReset' };
     }
     if (seconds !== null && (session.phase === 'error' || session.phase === 'expired')) {
         return { key: 'home.qrRetryCooldown', values: { seconds } };

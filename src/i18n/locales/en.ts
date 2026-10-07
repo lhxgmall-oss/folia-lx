@@ -1143,6 +1143,7 @@ export default {
     "qrExpired": "QR Code expired. Refresh to try again.",
     "qrCanceledOnDevice": "Login was canceled on your phone. You can get a new QR code.",
     "qrCanceledOnDeviceCooldown": "Login was canceled on your phone. You can get a new QR code in {{seconds}}s.",
+    "qrConnectionReset": "NetEase dropped the connection. Try again; if it still fails, switch networks or restart Folia.",
     "qrRetryCooldown": "Too many attempts. Try again in {{seconds}}s.",
     "qrScanned": "Scanned! Confirm on your phone.",
     "loginSuccess": "Login Successful!",

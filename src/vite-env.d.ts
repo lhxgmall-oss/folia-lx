@@ -108,6 +108,18 @@ declare global {
       globalIpv6Count: number;
     };
     requests: ElectronNeteaseLoginRequestRecord[];
+    /**
+     * 扫码身份轮换（electron/neteaseLoginIdentity.cjs）：进程启动时刻、扫码请求被重置的次数、
+     * 实际轮换的次数（被重置后到下一次要码才换）、最近一次是否换到了新的匿名 token、是否还有待轮换。
+     */
+    identity?: {
+      processStartedAt: number;
+      connectionResets: number;
+      rotations: number;
+      lastRotatedAt: number | null;
+      lastTokenRenewed: boolean | null;
+      pendingRotation: boolean;
+    };
   }
 
   // `unavailable` means the packaged build shipped without the bundled qq-music-api.

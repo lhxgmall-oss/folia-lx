@@ -1138,6 +1138,7 @@ export default {
     "qrExpired": "Kode QR kedaluwarsa. Muat ulang untuk mencoba lagi.",
     "qrCanceledOnDevice": "Login dibatalkan di ponsel Anda. Anda dapat mengambil kode QR baru.",
     "qrCanceledOnDeviceCooldown": "Login dibatalkan di ponsel Anda. Kode QR baru dapat diambil dalam {{seconds}} detik.",
+    "qrConnectionReset": "Koneksi diputus oleh NetEase. Coba lagi; jika masih gagal, ganti jaringan atau mulai ulang Folia.",
     "qrRetryCooldown": "Terlalu banyak percobaan. Coba lagi dalam {{seconds}} detik.",
     "qrScanned": "Dipindai! Konfirmasi di ponsel Anda.",
     "loginSuccess": "Login Berhasil!",

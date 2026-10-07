@@ -677,6 +677,34 @@ describe('providerLoginSession · QQ failures stay out of ordinary logs', () => 
         expect(session.getSnapshot()).toMatchObject({ phase: 'error', failure: 'canceled-on-device', retryCooldownSeconds: null });
     });
 
+    it('marks a poll the upstream reset as connection-reset, still a failure worth diagnosing', async () => {
+        auth.checkQrLogin.mockResolvedValueOnce({
+            state: 'error', message: 'code 502: read ECONNRESET', reason: 'connection-reset',
+        } satisfies QrLoginState);
+        const session = createSession();
+        await session.start('netease').settled;
+        await manual.advance(QR_POLL_INTERVAL_MS);
+
+        expect(session.getSnapshot()).toMatchObject({ phase: 'error', failure: 'connection-reset', retryCooldownSeconds: null });
+    });
+
+    it('takes a connection reset off a failed QR key request', async () => {
+        auth.createQrLogin.mockRejectedValueOnce(Object.assign(new Error('code 502: read ECONNRESET'), { qrLoginReason: 'connection-reset' }));
+        const session = createSession();
+        await session.start('netease').settled;
+
+        expect(session.getSnapshot()).toMatchObject({ phase: 'error', failure: 'connection-reset' });
+    });
+
+    it('treats an unknown poll reason as a plain check failure', async () => {
+        auth.checkQrLogin.mockResolvedValueOnce({ state: 'error', reason: 'made-up' } as unknown as QrLoginState);
+        const session = createSession();
+        await session.start('netease').settled;
+        await manual.advance(QR_POLL_INTERVAL_MS);
+
+        expect(session.getSnapshot()).toMatchObject({ phase: 'error', failure: 'check-error' });
+    });
+
     it('takes the cooldown of a rejected request, and a new start clears it', async () => {
         auth.createQrLogin.mockRejectedValueOnce(Object.assign(new Error('backed off'), { retryAfterMs: 25_000 }));
         const session = createSession();
