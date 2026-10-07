@@ -305,7 +305,7 @@ type BravaisTileKind =
 bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不另起调色板：墙面、海报各状态与 `--lattice-*` 派生量在共享的 `src/components/wall/wall.css`（类名保留 `lattice-` 前缀），按钮与工具面板的样式在 `src/components/app/lattice/LatticeChrome.css` / `LatticeFocusButton.css`。
 
 - **主题**：只用 folia 的主题变量（`buildAppStyle` 写入的 `--bg-color` / `--text-primary` / `--text-secondary` / `--text-accent`）。派生量与 `.lattice-root` 相同（`--lattice-poster-background`、`--lattice-shade-rgb` 等），日光模式（`is-daylight`）切换整套派生量。
-- **墙面**：`--bg-color` 底，左上 accent 16%、右下 secondary 20% 两团光晕；soft-light 颗粒噪点（暗色 .13 / 日光 .07）；浅暗角（78% → 52%，日光 16%）。
+- **墙面**：`--bg-color` 底，左上 accent 16%、右下 secondary 20% 两团光晕；soft-light 颗粒噪点（暗色 .13 / 日光 .07；只在实色档画，透明档下它会压在窗上、给 visualizer 蒙一层噪点，见 §11）；浅暗角（78% → 52%，日光 16%）。
 - **海报（磁贴）**：
   - 直角（Lattice 的「除控件外一律方角」规则）。
   - 底部压暗渐变与 `.lattice-poster-shade` 相同。
@@ -790,6 +790,7 @@ bravais 的墙可以透出下面的播放页 visualizer。偏好是 app 层的 `
 - **日光主题**：底板用 `--bg-color`（跟主题翻转），scrim 用 `--lattice-shade-rgb`（日光下是白色 scrim、深色字）。
 - **缝**：纸条改用与底板同色的半透明材质（不 blur 时用较浓的一档）。要不要加 backdrop blur（亚克力）由常量 `BRAVAIS_SEAM_ACRYLIC_BLUR` 控制，先关着，按换机实测决定。实色档保持 Lattice 纸条。
 - **降低动态效果**：不影响透光，只影响翻牌（直接换）与让位（没有过渡）。
+- **墙面颗粒噪点不画**：Lattice 墙面的 soft-light 噪点是全屏叠层（`.lattice-root::after`），透明档下它会压在窗上，给下面的 visualizer 蒙一层噪点（实测很明显）。透明档关掉它；实色档照旧。
 
 ### 11.5 实色档卸载 visualizer
 

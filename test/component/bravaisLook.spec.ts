@@ -58,6 +58,9 @@ const visibleSlot = (page: Page, selector: string) => page.evaluate((query) => {
 
 const tile = (page: Page, slotKey: string) => page.locator(`[data-bravais-slot="${slotKey}"]`);
 
+/** 墙面颗粒噪点叠层（.lattice-root::after）的 display。 */
+const noiseOverlay = (page: Page) => stage(page).evaluate(element => getComputedStyle(element, '::after').display);
+
 /** 打开一张首页卡片，等集合层的曲目铺满墙。 */
 const openCollection = async (page: Page) => {
     const slot = await visibleSlot(page, '.bravais-tile[data-library-card]');
@@ -77,6 +80,8 @@ test.describe('[bravais] see-through wall', () => {
         await expect(stage(page)).toHaveAttribute('data-bravais-look', 'partial');
         await expect(stage(page)).toHaveClass(/is-see-through/);
         expect(await stage(page).evaluate(element => getComputedStyle(element).backgroundImage)).toBe('none');
+        // 墙面的颗粒噪点（全屏 ::after）不画：否则它压在窗上，等于给下面的 visualizer 蒙一层噪点。
+        expect(await noiseOverlay(page)).toBe('none');
         await expect.poll(() => windowsPerRenderedBlock(page)).toEqual([3]);
         // 底板：每个已挂载的块一张 SVG（evenodd 路径 = 外框减去 3 个窗洞），在世界层里、磁贴之前；整个 stage 没有 CSS 遮罩。
         await expect(plates(page).first()).toBeAttached();
@@ -130,6 +135,7 @@ test.describe('[bravais] see-through wall', () => {
         expect(await seeThrough.evaluate(element => element.style.backgroundImage)).toBe('');
         await expect(seeThrough.locator('.bravais-tile-strip')).toHaveCount(1);
         await expect(seeThrough.locator('.lattice-poster-copy strong')).toHaveCount(1);
+        expect(await noiseOverlay(page)).toBe('none');
 
         // 聚焦卡照常显示封面。
         await openCollection(page);
@@ -145,6 +151,8 @@ test.describe('[bravais] see-through wall', () => {
         await expect(plates(page)).toHaveCount(0);
         await expect(page.locator('.bravais-tile[data-bravais-see-through], .bravais-tile[data-bravais-kind="window"]')).toHaveCount(0);
         expect(await stage(page).evaluate(element => getComputedStyle(element).backgroundImage)).toContain('radial-gradient');
+        // 实色档照旧有颗粒噪点（与 Lattice 一致）。
+        expect(await noiseOverlay(page)).toBe('block');
     });
 
     test('a focus reflow redraws only its own block plate, with the holes riding on the moving windows', async ({ page }) => {

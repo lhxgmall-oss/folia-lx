@@ -390,6 +390,10 @@
     --bravais-seam-paper: color-mix(in srgb, color-mix(in srgb, var(--bg-color, #070707) 90%, var(--text-primary, #f7f4ee)) 80%, transparent);
 }
 
+/* 墙面的颗粒噪点（wall.css 的 .lattice-root::after）是全屏 soft-light 叠层，本来是给实色墙面加质感的；
+   透明档下它也压在窗上，等于给下面的 visualizer 蒙了一层噪点，所以透明档不画。实色档照旧，与 Lattice 一致。 */
+.bravais-root.is-see-through::after { display: none; }
+
 .bravais-root.has-seam-blur .bravais-seam,
 .bravais-root.has-seam-blur .bravais-seam-tab {
     backdrop-filter: blur(18px);
