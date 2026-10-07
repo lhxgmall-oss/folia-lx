@@ -27,9 +27,14 @@ type BravaisStageChromeProps = {
     onBackToPlayer?: () => void;
     /** 外观动作 locate-playing（useBravaisChromeActions 的那一份）。 */
     locatePlaying: { isAvailable: () => boolean; run: () => void };
+    /**
+     * 工具按钮此刻认领 App 的 dock（WallToolsDock）：墙显示着（首页层可交互、当前层归 bravais），或正在交接里离开（Lattice
+     * 后认领、盖在上面，按钮不闪）。不在 dock 里（组件探针）时不看它。
+     */
+    toolsClaimed?: boolean;
 };
 
-const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({ isDaylight, onBackToPlayer, locatePlaying }) => {
+const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({ isDaylight, onBackToPlayer, locatePlaying, toolsClaimed = true }) => {
     const { t } = useTranslation();
     const look = useLibraryWallLookStore(state => state.look);
     const setLook = useLibraryWallLookStore(state => state.setLook);
@@ -65,6 +70,7 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({ isDaylight, onB
             <WallToolsButton
                 idPrefix="bravais-tools"
                 label={t('libraryBravais.tools')}
+                claimed={toolsClaimed}
                 isDaylight={isDaylight}
                 entries={entries}
                 help={BRAVAIS_HELP_ROWS.map(row => (

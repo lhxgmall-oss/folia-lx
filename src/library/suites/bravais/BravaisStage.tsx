@@ -37,9 +37,12 @@ import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStor
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { useBravaisBeforePush } from './bravaisTransitions';
 import { selectBravaisAccountVariant, useBravaisAccountStore } from './bravaisAccountStore';
+import { useWallHandoffStore } from '../../../stores/useWallHandoffStore';
+import { resolveBravaisWallHandoffState, useBravaisWallHandoff } from './useBravaisWallHandoff';
 import '../../../components/wall/wall.css';
 import './bravais.css';
 import './bravaisAppearance.css';
+import './bravaisHandoff.css';
 
 // src/library/suites/bravais/BravaisStage.tsx
 // bravais 的常驻舞台（B1 的 stage 契约）：一面横跨首页与集合层的墙、相机、缝、翻牌、聚焦卡与键盘焦点。
@@ -57,6 +60,9 @@ import './bravaisAppearance.css';
 // （回到播放页）与右下角工具按钮在 BravaisStageChrome，与 Lattice 共用 components/wall 的同一套控件。
 // 实测反馈 fb3：宿主的播放开关与「进入播放视图」交给聚焦卡（正在播放的那首：暂停 / 继续 + 进入）；从墙上播放后那首的
 // 聚焦卡在回来 / 返回这一层时重新展开（useBravaisPlayingCard）。
+// 翻牌交接（设计稿 §7「进入队列」）：进 / 出 Lattice 时这面墙与 Lattice 叠着换内容（useBravaisWallHandoff）。交接期间
+// 缝的开口目标是 0（合上）、透光档墙面之下垫一层实色 veil（窗关上）、墙不接指针与键盘、根节点挂 data-wall-handoff；
+// 回来时会话结束才算落定（fb3 的展开在这之后）。工具按钮在离开途中仍认领 dock，Lattice 后认领、盖在上面。
 
 const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
     left: bounds.left - by,
@@ -68,13 +74,21 @@ const expandBounds = (bounds: { left: number; right: number; top: number; bottom
 const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     isInteractive,
     isDaylight,
-    navigation,
+    navigation: hostNavigation,
     reportPlayerOcclusion,
     onBackToPlayer,
     onTogglePlayback,
     onEnterPlaybackView,
 }) => {
     const { t } = useTranslation();
+    // 交接会话：缝的开口、veil、颗粒与暗角、磁贴藏不藏都按它（纯计算）；排动画的 hook 在下面（要等显示）。
+    const handoffSession = useWallHandoffStore(state => state.session);
+    const handoff = resolveBravaisWallHandoffState(handoffSession);
+    // 进 Lattice 的那一刻导航层把集合栈清空（Lattice 的历史记录不带集合），墙不该在离开途中翻回首页层：离开期间沿用
+    // 交接开始前的导航快照（回来时历史后退会把集合栈恢复，stage 重新挂载时看的是恢复后的那份）。
+    const frozenNavigationRef = useRef(hostNavigation);
+    if (handoff.role !== 'out') frozenNavigationRef.current = hostNavigation;
+    const navigation = handoff.role === 'out' ? frozenNavigationRef.current : hostNavigation;
     const rootRef = useRef<HTMLElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
     const leftRef = useRef<HTMLDivElement>(null);
@@ -133,12 +147,14 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             searchOpen: current.searchOpen,
         };
     }, [frameRef]);
-    const seamTarget = layer
+    const resolvedSeamTarget = layer
         ? resolveStageSeamTarget({
             ...seamInputFor(layer, { level: seamLevel, panelFor, filterOpen: isFilterOpen && owned, searchOpen: isSearchOpen }),
             viewportWidth: view?.width ?? 0,
         }, accountVariant)
         : { width: 0, variant: 'none' as const };
+    // 交接时缝合上：只把开口目标换成 0，内容不换（缝里画的仍是这一层，开口补间让它随宽度淡出 / 淡入）。
+    const seamTarget = handoff.seamClosed ? { width: 0, variant: resolvedSeamTarget.variant } : resolvedSeamTarget;
     const openWidthFor = useCallback((target: BravaisLayer) => (
         resolveStageSeamTarget(seamInputFor(target), selectBravaisAccountVariant(useBravaisAccountStore.getState())).width
     ), [seamInputFor]);
@@ -198,6 +214,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         collapseFocusCard: focus.collapse,
         getFocusedSlotKey: () => focus.focusedRef.current,
         restoreFocus: key => focus.focusSlot(bravaisSlotFromKey(key)),
+        // 从 Lattice 翻牌交接回来：磁贴由交接翻进来，不再跑整墙入场。
+        suppressEntrance: () => resolveBravaisWallHandoffState(useWallHandoffStore.getState().session).role === 'in',
     });
     displayBridgeRef.current = displayRef.current;
     // B11 transitions.beforePush：宿主压栈之前，没经过墙上磁贴的打开用键盘焦点所在的 slot 当起点磁贴。
@@ -219,9 +237,23 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         togglesCurrent: Boolean(onTogglePlayback),
         hasEnter: Boolean(onEnterPlaybackView),
     });
-    useBravaisPlayingCard({ display, isSettling, focus, frameRef });
+    // 交接期间墙不算落定：fb3 的「正在播放那首重新展开」等交接放完（翻完、缝张开）才发生。
+    const settling = isSettling || handoff.role !== null;
+    useBravaisPlayingCard({ display, isSettling: settling, focus, frameRef });
     // 透光以墙上此刻显示的档位为准（换档时与翻牌同一次提交）；还没有显示时看偏好。
     const seeThrough = (display?.look ?? wallLook.look) !== 'solid';
+    useBravaisWallHandoff({
+        session: handoffSession,
+        rootRef,
+        frameRef,
+        display,
+        canHandoff: isInteractive && owned && Boolean(display) && Boolean(view),
+        seeThrough,
+        reducedMotion,
+        reducedTransitions,
+        expandedSlotKey: focus.expandedSlotKey,
+        focusedRef: focus.focusedRef,
+    });
     const plates = useBravaisBlockPlates({
         enabled: seeThrough,
         slots,
@@ -234,7 +266,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         fieldRef,
     });
 
-    const active = isInteractive && owned && Boolean(layer?.isInteractive);
+    const active = isInteractive && owned && Boolean(layer?.isInteractive) && handoff.role === null;
     useBravaisKeyboard(active, interactions.handleAction);
     // B7 列表面板：打开是一次导航（写 history，面包屑多「列表」），打开时等级拉回 full；单击一行定位到离缝最近的一份并
     // 聚焦（歌曲直接展开聚焦卡），双击播放。
@@ -346,12 +378,20 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             data-library-stage="bravais"
             data-bravais-layer={display?.layer.key}
             data-bravais-active={active || undefined}
-            data-bravais-settling={isSettling || undefined}
+            data-bravais-settling={settling || undefined}
+            data-wall-handoff={handoff.role ?? undefined}
+            data-wall-handoff-phase={handoff.phase ?? undefined}
+            data-wall-handoff-mode={handoff.mode ?? undefined}
+            data-wall-handoff-hold={handoff.hold || undefined}
+            data-wall-handoff-overlays={handoff.overlaysOff ? 'off' : undefined}
+            data-wall-handoff-veil={seeThrough && handoff.veilOn ? 'on' : undefined}
             data-bravais-shift={display?.shift?.kind}
             data-bravais-shift-seq={display?.shift?.seq}
             data-bravais-look={display?.look ?? wallLook.look}
             aria-label={t('libraryBravais.wallLabel')}
         >
+            {/* 交接时关窗：透光档墙面之下的一层实色（与实色档的墙面同一份底色与光晕），开 / 关各淡 0.2s。 */}
+            {seeThrough && <div className="bravais-handoff-veil" data-veil={handoff.veilOn ? 'on' : 'off'} aria-hidden="true" />}
             <div
                 ref={fieldRef}
                 className="lattice-field bravais-field"
@@ -404,6 +444,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             />
             <BravaisStageChrome
                 isDaylight={isDaylight}
+                toolsClaimed={(isInteractive && owned) || handoff.role === 'out'}
                 onBackToPlayer={onBackToPlayer}
                 locatePlaying={chromeHandlers['locate-playing']}
             />

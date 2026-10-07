@@ -405,6 +405,13 @@ export type LibrarySuiteManifest = {
      */
     stage?: LibrarySurfaceComponent<LibrarySuiteStageProps>;
     /**
+     * stage 参与与 Lattice 的翻牌交接：进 / 出 Lattice 时两面墙短暂同时挂着，看起来是同一面墙换了内容。协议是 app 层的
+     * useWallHandoffStore（stage 以「首页墙」登记 peer、按会话阶段合上 / 张开缝与窗、翻出 / 翻进磁贴）。离开 Lattice
+     * 回首页的那一刻 stage 还没挂上，宿主要提前知道该不该让 Lattice 留着等它接手，所以静态声明在这里。缺省为 false：
+     * Lattice 照旧整层淡出（grid / TUI 没有 stage，不声明）。
+     */
+    stageWallHandoff?: boolean;
+    /**
      * 外观动作（B2，见 ./suiteChrome）：只出现在命令面板里的 suite 自有操作。这里静态声明元数据，命令由命令面板按它
      * 生成（id 为 `<suiteId>-<动作 id>`）；运行时由 suite 用 useLibrarySuiteChromeRegistration 注册实现，只有注册着的
      * 那套 suite 的动作可用。不声明则没有外观动作（grid 与 TUI 都不声明：网格的局部动作走 grid surface）。

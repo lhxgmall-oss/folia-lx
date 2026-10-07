@@ -219,6 +219,8 @@ const bravais: LibrarySuiteManifest = {
     id: 'bravais',
     labelKey: 'libraryBravais.suiteName',
     stage: BravaisStage,
+    // 进 / 出 Lattice 走翻牌交接（设计稿 §7「进入队列」；stage 里的 useBravaisWallHandoff）。
+    stageWallHandoff: true,
     surfaces: {
         home: { component: BravaisHome, actions: HOME_ACTIONS },
         collection: { component: BravaisCollection, actions: COLLECTION_ACTIONS },

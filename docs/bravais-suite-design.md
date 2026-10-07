@@ -108,7 +108,7 @@ score(slot) = distanceToSeam(slot.center) − areaWeight × slot.area
 |---|---|
 | 首页（无限层） | 窄缝，只放 tab / 来源切换和搜索入口 |
 | 歌单 / 歌手 / 搜索（有限层） | 全宽 |
-| 播放展开 | 合拢；进入队列时切到独立的 Lattice 视图 |
+| 播放展开 | 合拢；进入队列时切到独立的 Lattice 视图（翻牌交接里先合拢，见 §7「进 / 出 Lattice」） |
 | push / back | 两种候选，原型里可以切换比较：**A 合拢再裂开**（换层感强）；**B 保持张开，缝里内容翻转**（更连续） |
 
 ### 缝与墙的耦合
@@ -270,7 +270,7 @@ type BravaisTileKind =
 | 输入过滤 / 搜索结果到达 | 只翻内容变化的 slot | 缝的两侧边缘 |
 | 点击歌曲（或在列表面板里点一行定位到它） | **聚焦**：沿用 Lattice 的块内让位，就地展开成 6×6 聚焦卡；不播放 | 被点磁贴 |
 | 聚焦卡上的「立即播放」 | 按 folia 的「播放后进入的视图」跳转到 Lattice 或播放页；「留在原处」时不跳转，卡片保持展开 | — |
-| 进入队列 | 切到独立的 Lattice 视图（app 级 `AppView = 'lattice'`），沿用现有的整墙出场/入场 | — |
+| 进入队列 / 离开队列 | 切到独立的 Lattice 视图（app 级 `AppView = 'lattice'`）：**翻牌交接**——缝合上、窗关上，从起点向外一波半圈翻牌，资料库墙的每块翻过去就成了 Lattice 的海报；回来时反过来，翻完缝张开、窗打开（见下方「进 / 出 Lattice」）。降低动态效果时整面淡入淡出交叉 0.18s | 聚焦卡 / 键盘焦点 / 视口中心（回来时是 Lattice 展开 / 聚焦的海报） |
 
 **起点磁贴**（已定）：
 
@@ -299,6 +299,28 @@ type BravaisTileKind =
 - 显式「进入播放视图」的入口（播放胶囊、启动时打开播放页、bravais 的「进入」）在 `'stay'` 下去播放页——它没有自己的视图。
 - 三套 suite 在 `'stay'` 下：**bravais** 聚焦卡上立即播放只开始播放，卡片保持展开，播放键变成暂停 / 继续，「进入」去播放页；**网格**点卡片播放不跳转，那张卡（集合页与歌手页的热门歌曲）的播放键变成暂停 / 继续，再点切换播放状态（另外两个值下网格不变）；**TUI** 播放后不跳转（它的播放经同一个播放端口）。
 - 仍不做的：就地展开歌词与完整播放控制。聚焦卡只多了暂停 / 继续与「进入」。
+
+**进 / 出 Lattice：翻牌交接**（已定，用户 2026-10-08）：
+
+两面墙短暂同时挂着、叠在同一个视口里，看起来是**同一面墙换了内容**。协议是 app 层的 `useWallHandoffStore`（App 不认识 suite：bravais 的 stage 以「首页墙」登记 peer，Lattice 登记另一个；manifest 的 `stageWallHandoff` 让宿主在离开 Lattice、stage 还没挂上时就知道要等它接手），时间表与对齐几何在 wall 引擎的 `wallHandoff`，两边各自的一半在 `useBravaisWallHandoff` / `useLatticeWallHandoff`。director（`wallHandoffDirector`）在视图切换的**同一刻**开会话（zustand 的 subscribe 同步回调，早于 React 重渲染），所以首页层与 Lattice 在新视图的第一次渲染里就知道要不要留着。
+
+| 方向 | 阶段 | 资料库墙 | Lattice |
+|---|---|---|---|
+| 进 Lattice | closing | 缝合上（开口补间到 0，0.36s），窗关上（透光档墙面之下垫实色 veil 0.2s 淡入，窗位的光晕一并淡掉；全透明档的磁贴因此成了实色）；合上后报起点与对齐信息 | 挂上（第一次进时 chunk 还在加载，等它）；不跑入场波次，海报全部侧立（−90°）；量好尺寸、正在播放那首展开并摆好相机后报准备好 |
+| | flipping（两边都准备好才开，或 1.2s 到点） | 视口里的磁贴按到起点的屏幕距离错开翻出半圈（WAAPI，只转内容层，停在侧立） | 先对齐相机（看不见时挪），再让每张海报在**同一位置上资料库墙翻出之后**翻进半圈 |
+| | 结束（0.78s） | 卸载 | 接管交互；返回按钮开翻后淡入 |
+| 回资料库墙 | waiting | 在 Lattice 之下挂上：磁贴藏着、缝合着、veil 盖着、不跑整墙入场；画好后报准备好（有窗时从挂上起至少等 0.28s，让 visualizer 的初始化落在 Lattice 还静止的时候；层在加载时最多等 0.5s） | 照常显示（不接指针） |
+| | flipping（等不到 1.6s 就放弃，Lattice 照旧淡出） | 每张磁贴等同一位置上 Lattice 翻出半圈之后翻进来 | 海报从起点（展开 / 键盘聚焦的海报，没有就视口中心）按距离翻出；墙面底色不画 |
+| | opening（0.4s） | 缝张开、veil 淡出（窗打开）；结束后才算落定，fb3 的「正在播放那首重新展开」在这之后照常发生 | 翻完那一刻卸载（不再淡出） |
+
+- **起点**：进 Lattice 时是聚焦卡（例如从正在播放的聚焦卡点「进入 Lattice」）或键盘焦点所在的磁贴，都没有就视口中心；在缝合上之后量（两半墙靠拢，卡片会挪）。离开途中墙沿用交接开始前的导航快照：导航层进 Lattice 时把集合栈清空，墙不能在离开途中翻回首页层。
+- **对齐（两面墙的格子不一定对齐，选的是「按屏幕距离同步错开」加对齐）**：错开按「到起点的屏幕距离 ÷ 屏幕格距 × 18ms，上限 420ms」算，与 slot 无关，所以同一个屏幕位置在两面墙上拿到同一个时刻，翻出（150ms，ease-in）与翻进（210ms）首尾相接——每个位置上都是一次完整的半圈翻牌，与墙上磁贴的翻牌同一套时长、缓动与透视。在这之上再对齐 Lattice 的相机（开翻那一刻海报都侧立着，挪了看不见）：两边都有展开的卡时让两张卡重合（同为 6×6 档、同一缩放，尺寸相同——起点那张卡原地换成 Lattice 的展开海报，它周围的墙向外翻开）；否则只把 Lattice 的格线挪到资料库墙的格线上（不超过半格），两面墙的缝隙线在同一套网格上。回资料库墙时不挪资料库墙的相机（它的相机、缝的锚点与块边界、布局记忆都有自己的规则），只按距离同步。
+- **墙面与叠层**：叠在上面的 Lattice 在交接期间不画墙面底色（下面那面墙画的是同一份底色与光晕，透光档是 veil）；颗粒与暗角两面墙只留上面那层的一份，瞬间交换（同一套设置），下面是透光档（没有颗粒）时颗粒随交接淡入 / 淡出。
+- **浮层控件**：右下角工具按钮是 App 的 `WallToolsDock` 里唯一的一颗（两面墙的 `WallToolsButton` 把条目与帮助认领进去，后认领的在上面），整个交接期间节点不重建、位置不变，只换条目；离开途中资料库墙仍认领，免得 Lattice 还没挂上时按钮闪一下。左上角返回：Lattice 常驻的那颗进来时在开翻后淡入、离开时开翻就淡出；bravais 的隐藏式那颗交接期间收着。
+- **visualizer**（§11.5）：进 Lattice 时有窗就一直垫着，直到窗关上（closing 结束）才卸载；回资料库墙时首页墙一报「有窗」就装上，赶在窗打开（opening）之前。实色档整个交接都不装。
+- **降低动态效果**（「队列拼贴」，或 bravais 换层转场的同一套判断）：不翻牌，整面淡入淡出交叉 0.18s（进：等 Lattice 画出来后整层从 0 淡入；出：资料库墙画好后 Lattice 整层淡到 0 再卸载），没有合缝 / 开缝。
+- 交接期间两面墙都不接指针，资料库墙也不接键盘、视为 settling（根节点 `data-bravais-settling`）；两面墙的根节点挂 `data-wall-handoff`（`out` = 离开、`in` = 进来）、`-phase`、`-mode`，放完摘掉。只影响资料库墙 ↔ Lattice：grid / TUI 没有 stage，播放页 ↔ Lattice 不经过交接，照旧（Lattice 自己的抬起入场与 0.62s 整层淡出）。
+- **性能**（headless Chromium、dev 构建、1440×900、软件合成，仅作相对参考）：两面墙同时挂着约 48 张磁贴 + 50 张海报；资料库墙的翻牌是 WAAPI（合成器线程），Lattice 的是 Framer（主线程，只动 transform），DOM 读写只在阶段切换那一刻各一次。实色档 flipping 段帧间隔中位数 17ms、最长 31–51ms（首轮冷启动 83ms，Lattice chunk 与海报首次挂载）；透光档回来时 visualizer 的初始化原本落在翻牌途中（单帧 130–180ms），加了 0.28s 的等待后 flipping 段最长 31–33ms，那一帧挪到了 Lattice 还静止的 waiting 段。真机（GPU 合成、Electron 正式构建）待换机实测时一起看。
 
 翻牌参数（原型初值）：
 
@@ -351,7 +373,7 @@ bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不�
 - **缝**：默认 Lattice 主题材质，底色 `color-mix(bg 90%, primary)`，文字为主色，标题改为 Inter / Noto Sans 800（不再用衬线）；按钮、tab、排序控件同样走 LatticeChrome 的悬停框；输入框聚焦时下划线用强调色。图 1 的纸张材质保留为原型对照项。
 - **浮层控件**（实测反馈 1 落地，与 Lattice 共用 `src/components/wall/` 的同一套控件）：
   - 左上角返回 = `WallBackButton`（`.lattice-back`：40px 圆、白 8%、模糊）。bravais 用隐藏式：平时不显示，鼠标进入左上角 120px 热区或键盘聚焦时出现（与播放页 VisualizerShell 左上角那颗相同；触屏常驻）。语义是**回到播放页**（宿主经 stage 契约的 `onBackToPlayer` 交来，首页与集合层都在），不是缝里 ‹ 的层返回（`onDone`）；层级在缝之下（缝开在左上角时缝的按钮在上面）。Lattice 那颗常驻显示，行为不变。
-  - 右下角工具按钮 = `WallToolsButton`（`SlideActionButton`：点按打开 `.lattice-tools-panel`，24px 圆角、黑 40%、模糊 24px；向左滑打开命令面板；底距随播放胶囊，同 Lattice）。共享部分：点外部 / Esc 收起（Esc 只收面板，墙的 Esc 阶梯不处理这一下）、海报叠色开关、开灯 / 关灯、帮助的展开；条目与帮助内容由使用方给。bravais 的条目：定位正在播放（外观动作 `locate-playing` 的同一个实现）、透光（循环三档，面板不收起）；帮助每行一件事（说明 + 右侧一个按键，与 Lattice 同一排版，行在 `bravaisHelp`）：直接打字过滤当前页（A–Z）、`/` 搜索在线平台（首页）、方向键移动焦点、Enter 展开 / 打开、再 Enter 播放、Shift+Enter 加入队列、Esc 逐级返回、Tab 进出缝、F6 切首页页签、`:` + `c` 定位正在播放、Ctrl/Cmd+K 命令面板（不列 `s`：每面墙都注册了当前页过滤，`s` 只是一个过滤字符）。
+  - 右下角工具按钮 = `WallToolsButton`（App 里两面墙共用 `WallToolsDock` 的同一颗，交接时节点不重建，见 §7「进 / 出 Lattice」；`SlideActionButton`：点按打开 `.lattice-tools-panel`，24px 圆角、黑 40%、模糊 24px；向左滑打开命令面板；底距随播放胶囊，同 Lattice）。共享部分：点外部 / Esc 收起（Esc 只收面板，墙的 Esc 阶梯不处理这一下）、海报叠色开关、开灯 / 关灯、帮助的展开；条目与帮助内容由使用方给。bravais 的条目：定位正在播放（外观动作 `locate-playing` 的同一个实现）、透光（循环三档，面板不收起）；帮助每行一件事（说明 + 右侧一个按键，与 Lattice 同一排版，行在 `bravaisHelp`）：直接打字过滤当前页（A–Z）、`/` 搜索在线平台（首页）、方向键移动焦点、Enter 展开 / 打开、再 Enter 播放、Shift+Enter 加入队列、Esc 逐级返回、Tab 进出缝、F6 切首页页签、`:` + `c` 定位正在播放、Ctrl/Cmd+K 命令面板（不列 `s`：每面墙都注册了当前页过滤，`s` 只是一个过滤字符）。
   - 灯光与叠色读 Lattice 的同一个 `useLatticeSettingsStore`（一套墙面外观设置同时作用于两边；设置页「队列拼贴与资料库墙」、命令面板「海报墙叠色 / 边缘暗角」）。熄灯：内容磁贴压 82% 黑（日光白），正在播放、聚焦卡、悬停、键盘焦点、列表联动 / 批量选中的不熄；部分透明档的窗与空画框没有熄灯层；全透明档的内容磁贴本身是窗，熄灯不涂黑，只把标题、徽标与封面底条压到 0.28。叠色只画在不透的内容磁贴上（窗与全透明档的磁贴没有叠色层），熄灯时归零。
   - 聚焦卡的「立即播放」是与 Lattice 展开海报同样的纯图标按钮（无文字，可访问名「立即播放」）；队列按钮「已在队列」时悬停 / 键盘聚焦显示「插入队列」（点它按「加入队列的默认位置」把这首挪到队尾或下一首）。
 - **相机缩放**：与 `PosterWall.getScale` 相同（<640: .52，<1100: .64，否则 .76）。
@@ -887,7 +909,8 @@ bravais 的墙可以透出下面的播放页 visualizer。偏好是 app 层的 `
 墙完全盖住播放页时不在下面全速渲染 visualizer（与 Lattice 一致）。App 不认识 bravais，也不读透光 store，走 stage 契约：
 
 - stage 在 effect 里 `reportPlayerOcclusion(look === 'solid')`：只要有任何透光处（窗、半透明的缝）就报 false。宿主把报告写进 `useLibraryPlayerOcclusionStore`，stage 卸载或换 suite 时自动复位为 false。
-- App 的挂载条件：`currentView !== 'lattice' && hasLatticeExited && !(shouldShowHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled)`。首页完全显示（淡入 0.25s）且 stage 报遮挡后才卸载；回播放页、打开设置弹窗 / 面板、切到透明档时立即重挂。切到透明档时，窗在 visualizer 出画面前显示光晕底。
+- App 的挂载条件：`handoffKeepsVisualizer || (currentView !== 'lattice' && hasLatticeExited && !(shouldShowHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled))`。首页完全显示（淡入 0.25s）且 stage 报遮挡后才卸载；回播放页、打开设置弹窗 / 面板、切到透明档时立即重挂。切到透明档时，窗在 visualizer 出画面前显示光晕底。
+- 与 Lattice 的翻牌交接（§7「进 / 出 Lattice」）：透光档进 Lattice 时窗关上（veil 盖实）之前 visualizer 一直挂着、开翻时才卸载；回来时 stage 一挂上就报「有窗」，visualizer 立即装上，赶在窗打开之前（`wallHandoffPresentation.keepsVisualizer`）。实色档整个交接都不装。
 - grid / TUI 不声明 stage，永远不报遮挡，行为不变。
 
 ### 11.6 性能与待实测

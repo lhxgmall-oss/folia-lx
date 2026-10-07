@@ -85,4 +85,25 @@ describe('shouldMountPlayerVisualizer', () => {
             }
         }
     });
+
+    it('stays mounted while a wall handoff asks for it, even on Lattice or behind a solid report', () => {
+        for (const currentView of ['home', 'lattice']) {
+            expect(shouldMountPlayerVisualizer({
+                currentView,
+                hasLatticeExited: false,
+                shouldShowHomeSurface: currentView === 'home',
+                libraryOccludesPlayer: true,
+                hasLibraryOcclusionSettled: true,
+                handoffKeepsVisualizer: true,
+            })).toBe(true);
+        }
+        expect(shouldMountPlayerVisualizer({
+            currentView: 'lattice',
+            hasLatticeExited: false,
+            shouldShowHomeSurface: false,
+            libraryOccludesPlayer: false,
+            hasLibraryOcclusionSettled: false,
+            handoffKeepsVisualizer: false,
+        })).toBe(false);
+    });
 });
