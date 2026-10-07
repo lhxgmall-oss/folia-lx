@@ -67,5 +67,5 @@ export const PROBE_SURFACE_CALLBACKS: ProbeSurfaceCallbacks = {
         ids: songs.map(song => song.navidromeData?.id ?? String(song.id)),
     }),
     onStatusMessage: message => recordProbeCall({ kind: 'statusMessage', ids: [], text: message.text, status: message.type }),
-    onBackToPlayer: () => {},
+    onBackToPlayer: () => recordProbeCall({ kind: 'backToPlayer', ids: [] }),
 };

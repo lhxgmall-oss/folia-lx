@@ -182,6 +182,13 @@ export type HomeProbeApi = {
     chrome: () => { suiteId: string; available: string[] } | null;
     /** 像在命令面板里执行这条外观命令一样执行它；没有注册者或此刻不可用时返回 false。 */
     runChrome: (actionId: string) => boolean;
+    /** 命令面板最近一次被请求打开（useAppViewStore.commandPaletteRequest；探针里没挂命令面板，用例读它判断滑动打开了面板）。 */
+    paletteRequest: () => { seq: number; kind: string };
+    /**
+     * 把播放队列换成这些在线歌（playback key `online:<provider>:<id>`）。探针的入队回调只记账、不进播放 store，
+     * 用例要「已在队列」的状态（bravais 聚焦卡的队列按钮）时用它。
+     */
+    setPlayQueue: (playbackKeys: string[]) => void;
 
     // ---- 环境 ----
     /** 重新挂载整个首页（宿主 + Grid3D），模拟重启后回到首页（隐藏 store 先从存储重读）。 */

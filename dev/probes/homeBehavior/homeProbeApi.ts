@@ -2,7 +2,8 @@ import i18n from '../../../src/i18n/config';
 import { useAppViewStore } from '../../../src/stores/useAppViewStore';
 import { useCollectionNavigationStore } from '../../../src/stores/useCollectionNavigationStore';
 import { useSearchNavigationStore } from '../../../src/stores/useSearchNavigationStore';
-import type { HomeViewTab } from '../../../src/types';
+import type { HomeViewTab, SongResult } from '../../../src/types';
+import { setPlayQueue } from '../../../src/stores/usePlaybackStore';
 import DesktopGrid3DSurface from '../../../src/library/suites/grid/home/DesktopGrid3DSurface';
 import { Grid3DSlider, type Grid3DSliderItem } from '../../../src/library/suites/grid/home/Grid3DSlider';
 import { GridViewTabs } from '../../../src/library/suites/grid/home/GridViewTabs';
@@ -272,6 +273,17 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
             return { suiteId: handle.suiteId, available: declared.map(action => action.id).filter(id => handle.isAvailable(id)) };
         },
         runChrome: actionId => useLibrarySuiteChromeStore.getState().chrome?.run(actionId) ?? false,
+        setPlayQueue: playbackKeys => setPlayQueue(playbackKeys.map(key => {
+            const [, providerId, mediaId] = key.split(':');
+            return {
+                id: mediaId, name: mediaId, artists: [], album: { id: 0, name: '' }, durationMs: 0,
+                sourceRef: { kind: 'online', providerId, mediaId },
+            } as SongResult;
+        })),
+        paletteRequest: () => {
+            const { seq, kind } = useAppViewStore.getState().commandPaletteRequest;
+            return { seq, kind };
+        },
 
         tabs: readTabs,
         tab: () => useSearchNavigationStore.getState().homeViewTab as HomeTabKey,

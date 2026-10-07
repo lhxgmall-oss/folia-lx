@@ -28,7 +28,9 @@ export type ProbeCallKind =
     // 以下几种只有首页探针会记：打开集合（宿主收到的描述）、经由探针替身的服务调用、搜索提交。
     | 'openCollection'
     | 'service'
-    | 'searchCommitted';
+    | 'searchCommitted'
+    // 回到播放页（宿主的 onBackToPlayer：bravais 左上角的隐藏式返回、首页缝里的「回到播放页」）。
+    | 'backToPlayer';
 
 export type ProbeCall = {
     seq: number;
