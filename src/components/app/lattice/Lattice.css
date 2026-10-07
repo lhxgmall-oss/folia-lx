@@ -17,28 +17,7 @@
     border-radius: 0 !important;
 }
 
-.lattice-poster-lights-out {
-    position: absolute;
-    inset: 0;
-    /* Lights-out covers the complete poster, including its copy and badge. */
-    z-index: 5;
-    pointer-events: none;
-    background: #000;
-    opacity: 0;
-    transition: opacity 260ms ease;
-}
-
-.lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
-    opacity: 0.82;
-}
-
-.lattice-root.is-daylight.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
-    background: #fff;
-}
-
-.lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-tint {
-    opacity: 0;
-}
+/* 熄灯（.lattice-poster-lights-out 与 is-lights-out）在 components/wall/wall.css（实测反馈 1：资料库墙也跟随灯光设置）。 */
 
 .lattice-poster.is-expanded .lattice-poster-copy {
     right: 32px;
@@ -54,30 +33,7 @@
     z-index: 2;
 }
 
-/* Same shape and weight as the grid and player back buttons, and the one place the wall's
-   square-everything rule is deliberately overridden. */
-.lattice-back {
-    position: absolute;
-    top: 20px;
-    left: 24px;
-    z-index: 5;
-    display: grid;
-    width: 40px;
-    height: 40px;
-    place-items: center;
-    border: none;
-    border-radius: 999px !important;
-    color: inherit;
-    background: rgb(255 255 255 / 8%);
-    box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
-    backdrop-filter: blur(8px);
-    transition: transform 200ms ease, background-color 200ms ease;
-    pointer-events: auto;
-}
-
-.lattice-root.is-daylight .lattice-back { background: rgb(0 0 0 / 5%); }
-.lattice-back:hover { transform: scale(1.05); }
-.lattice-back:active { transform: scale(0.95); }
+/* .lattice-back（左上角返回）在 components/wall/WallBackButton.css（实测反馈 1：bravais 也用同一个按钮）。 */
 
 .lattice-empty {
     position: absolute;
@@ -92,10 +48,3 @@
 
 .lattice-empty strong { font-size: 17px; letter-spacing: 0.16em; }
 .lattice-empty span { font-size: 12px; opacity: 0.5; }
-
-/* 降级状态的来源同 wall.css 里海报的那条规则（useMotionSettingsStore → <html data-reduce-motion>）。 */
-:root[data-reduce-motion~='lattice'] .lattice-poster-lights-out { transition: none; }
-
-@media (max-width: 640px) {
-    .lattice-back { top: 14px; left: 16px; }
-}

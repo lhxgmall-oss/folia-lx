@@ -1,5 +1,4 @@
 import { useEffect, useMemo, type CSSProperties } from 'react';
-import { ChevronLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MotionValue } from 'framer-motion';
 import { PlayerState, type SongResult, type LyricData } from '../../../types';
@@ -7,6 +6,7 @@ import LatticePlaybackProvider, { type LatticePlaybackActions } from './LatticeP
 import { LatticeTransportContext, type LatticeTransport } from './LatticeTransportContext';
 import PosterWall from './PosterWall';
 import LatticeFocusButton from './LatticeFocusButton';
+import WallBackButton from '../../wall/WallBackButton';
 import { buildLatticeTiles, type LatticeTile } from './latticeModel';
 import { useStableCallbacks } from '../../../hooks/useStableCallbacks';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
@@ -125,10 +125,7 @@ export default function Lattice({
                 onBack={onBack}
             />
             <LatticeFocusButton isDaylight={isDaylight} />
-            <button type="button" className="lattice-back" onClick={onBack}
-                aria-label={t('home.latticeBack')} title={t('home.latticeBack')}>
-                <ChevronLeft size={20} />
-            </button>
+            <WallBackButton label={t('home.latticeBack')} onBack={onBack} />
             {tiles.length === 0 && (
                 <div className="lattice-empty">
                     <strong>{t('home.latticeEmptyTitle')}</strong>

@@ -1,7 +1,8 @@
 /* src/components/wall/wall.css — content-agnostic wall and poster styling shared by Lattice and (from B6) the bravais library
    suite. Class names and tokens keep the `lattice-` prefix on purpose: Lattice's DOM, tests and
    probes address them, and moving them here changed none of that. Lattice-only rules (chrome, lights-out,
-   back button, empty state) stay in components/app/lattice/Lattice.css. No veil or transparency code here. */
+   back button, empty state) stay in components/app/lattice/Lattice.css. No veil or transparency code here.
+   实测反馈 1 起熄灯规则移到本文件末尾，返回按钮与工具面板在同目录的 WallBackButton.css / WallToolsButton.css（两边共用）。 */
 
 .lattice-root {
     --lattice-poster-ink: var(--text-primary, #f7f4ee);
@@ -321,3 +322,31 @@
     display: block;
     -webkit-line-clamp: unset;
 }
+
+/* 熄灯（实测反馈 1 从 Lattice.css 搬来，Lattice 与 bravais 共用同一份灯光设置）。每张海报里一层，正在播放的那张不熄；
+   熄灯时叠色归零（两层不叠加）。bravais 在 bravais.css 里另有几条豁免（聚焦卡、悬停、键盘焦点、全透明档的窗）。 */
+.lattice-poster-lights-out {
+    position: absolute;
+    inset: 0;
+    /* Lights-out covers the complete poster, including its copy and badge. */
+    z-index: 5;
+    pointer-events: none;
+    background: #000;
+    opacity: 0;
+    transition: opacity 260ms ease;
+}
+
+.lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
+    opacity: 0.82;
+}
+
+.lattice-root.is-daylight.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
+    background: #fff;
+}
+
+.lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-tint {
+    opacity: 0;
+}
+
+/* 降级状态的来源同 wall.css 里海报的那条规则（useMotionSettingsStore → <html data-reduce-motion>）。 */
+:root[data-reduce-motion~='lattice'] .lattice-poster-lights-out { transition: none; }
