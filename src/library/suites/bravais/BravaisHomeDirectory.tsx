@@ -59,8 +59,8 @@ export type BravaisHomeDirectoryProps = {
     /** 当前页签 / section 的全部卡片（隐藏的也在）。 */
     items: LibraryHomeCard[];
     isLoading: boolean;
-    /** 没有卡片时缝里的说明（未登录、未配置、空曲库、空列表）。 */
-    emptyMessage: string;
+    /** 没有卡片时缝里的说明（登录过期、未配置、空曲库、空列表）；fb3：未登录时不给（缝里只有「连接在线平台」入口）。 */
+    emptyMessage?: string;
     /** 缝的元数据行（来源）。 */
     meta: string;
     sections?: readonly BravaisHomeSection[];

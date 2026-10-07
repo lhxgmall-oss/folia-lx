@@ -56,7 +56,8 @@ export default {
     "stagePlayer": "舞台播放器",
     "settings": "设置",
     "more": "更多",
-    "scanProgress": "扫描 {{percent}}%"
+    "scanProgress": "扫描 {{percent}}%",
+    "connect": "连接在线平台"
   },
   "libraryTui": {
     "back": "返回",

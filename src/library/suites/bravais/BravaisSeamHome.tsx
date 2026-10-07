@@ -1,12 +1,23 @@
 import React, { useMemo, useRef } from 'react';
-import { Check, FoldHorizontal, Maximize2 } from 'lucide-react';
+import {
+    CalendarPlus,
+    Check,
+    DiscAlbum,
+    Folder,
+    FoldHorizontal,
+    History,
+    LayoutGrid,
+    Library,
+    Maximize2,
+    MicVocal,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer, BravaisSeamTab } from './bravaisLayer';
-import type { BravaisHomeAccount } from './bravaisHomeModels';
+import type { BravaisHomeAccount, BravaisHomeSection } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
 import BravaisSeamHomeTools from './BravaisSeamHomeTools';
-import { abbreviateSeamTabLabels } from './bravaisSeamTabLabels';
+import { abbreviateSeamTabLabel, abbreviateSeamTabLabels } from './bravaisSeamTabLabels';
 import { useBravaisSeamTabsFit } from './useBravaisSeamTabsFit';
 import './bravaisHome.css';
 
@@ -25,6 +36,14 @@ import './bravaisHome.css';
 //   title / aria-label。
 // - fb2 第二轮：「书库」是页头最上面一行小字，折叠按钮紧挨在它下面。缩减顺序：先视觉隐藏这行标题（读屏仍读得到，
 //   页签列的 aria-label 也是它）→ 再把页签缩成一个字 → 再不够导航区在里面滚。三级都按测量（useBravaisSeamTabsFit）。
+// fb3（用户实测）：
+// - 导航区分上下两段：页头（标题、折叠、页签）贴顶；中段（扫描进度、二级切换、管理隐藏、状态、在线页签的账户入口）
+//   在页头与工具格之间的剩余空间里竖直居中，不贴着页签。放不下时中段回到自然高度、与页头一起在导航区里滚。
+// - 二级切换（本地的文件夹 / 专辑 / 艺术家 / 歌单，Navidrome 的 section）纵向一项一行，只有激活项显示竖排文字
+//   （图标在上、文字竖写），其余只显示图标（aria-label / title 是全名）。激活项的文字与页签同级退让：short 时缩成
+//   一个字。选中态与页签区分：页签是填色的块，二级切换是强调色 + 侧边一道细线。
+// - 工具格固定四格（搜索、设置、队列、「⋯」），其余进「⋯」；书脊上「⋯」先展开缝再开菜单（BravaisSeamHomeTools）。
+// - 未登录时账户位只是一个「连接在线平台」入口（BravaisSeamAccountSwitcher）；「先搜几首喜欢的歌」那行不再显示。
 
 /**
  * B10 账户位：首页在线页签窄缝里的平台切换（account-select / account-logout）放在这里。B9 只给一个空容器，挂着
@@ -36,6 +55,64 @@ export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount; com
         <BravaisSeamAccountSwitcher account={account} compact={compact} onExpand={onExpand} />
     </div>
 );
+
+/** 二级切换的图标（本地四行与 Navidrome 的 section 按 key 取；未知的 key 用 LayoutGrid）。 */
+const SECTION_ICONS: Record<string, React.ComponentType<{ 'aria-hidden'?: boolean }>> = {
+    folders: Folder,
+    albums: DiscAlbum,
+    artists: MicVocal,
+    playlists: Library,
+    'recently-added': CalendarPlus,
+    'recently-played': History,
+};
+
+/**
+ * 二级切换（fb3）：纵向一项一行，激活项是图标 + 竖排文字（short 时文字缩成一个字），其余只有图标；全名在
+ * aria-label / title。`measure` 是全名测量副本（span，不可聚焦、不进无障碍树）。
+ */
+const HomeSeamSections: React.FC<{
+    sections: readonly BravaisHomeSection[];
+    label?: string;
+    short: boolean;
+    onSelect?: (key: string) => void;
+    measure?: boolean;
+}> = ({ sections, label, short, onSelect, measure = false }) => {
+    const body = (section: BravaisHomeSection) => {
+        const Icon = SECTION_ICONS[section.key] ?? LayoutGrid;
+        return (
+            <>
+                <Icon aria-hidden />
+                {section.active && <span className="is-label" aria-hidden>{short ? abbreviateSeamTabLabel(section.label) : section.label}</span>}
+            </>
+        );
+    };
+    if (measure) {
+        return (
+            <div className="bravais-seam-sections">
+                {sections.map(section => <span key={section.key} className={`bravais-seam-section${section.active ? ' is-active' : ''}`}>{body(section)}</span>)}
+            </div>
+        );
+    }
+    return (
+        <div className={`bravais-seam-sections${short ? ' is-short' : ''}`} role="tablist" aria-label={label} aria-orientation="vertical">
+            {sections.map(section => (
+                <button
+                    key={section.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={section.active}
+                    aria-label={section.label}
+                    title={section.label}
+                    data-bravais-section={section.key}
+                    className={`bravais-seam-section${section.active ? ' is-active' : ''}`}
+                    onClick={() => onSelect?.(section.key)}
+                >
+                    {body(section)}
+                </button>
+            ))}
+        </div>
+    );
+};
 
 /**
  * 页头：标题与竖排页签（真按钮），或它的全名测量副本（span，不可聚焦、不进无障碍树）。`lead` 是页签那一列旁边的
@@ -97,12 +174,18 @@ const BravaisSeamHome: React.FC<{
     const { seam } = layer;
     const home = seam.home;
     const tabs = seam.tabs ?? [];
+    const sections = home?.sections && home.sections.length > 0 ? home.sections : null;
     const navRef = useRef<HTMLDivElement>(null);
-    const contentRef = useRef<HTMLDivElement>(null);
     const headRef = useRef<HTMLDivElement>(null);
+    const middleRef = useRef<HTMLDivElement>(null);
+    const bodyRef = useRef<HTMLDivElement>(null);
+    const sectionsRef = useRef<HTMLDivElement>(null);
     const titledHeadRef = useRef<HTMLDivElement>(null);
     const bareHeadRef = useRef<HTMLDivElement>(null);
-    const { level, overflowing } = useBravaisSeamTabsFit({ navRef, contentRef, headRef, titledHeadRef, bareHeadRef });
+    const fullSectionsRef = useRef<HTMLDivElement>(null);
+    const { level, overflowing } = useBravaisSeamTabsFit({
+        navRef, headRef, middleRef, bodyRef, sectionsRef, titledHeadRef, bareHeadRef, fullSectionsRef,
+    });
     const short = level === 'short';
     const labelsKey = tabs.map(tab => tab.label).join('\u0000');
     const shortLabels = useMemo(() => abbreviateSeamTabLabels(labelsKey.split('\u0000')), [labelsKey]);
@@ -110,6 +193,7 @@ const BravaisSeamHome: React.FC<{
     // fb2：来源名与账户位（在线平台名）、当前页签（本地 / Navidrome）重复，窄缝里纵向空间最紧，平时不画，只在扫描时
     // 显示进度；页签缩成一个字时全名在页签的 title / aria-label 里。
     const meta = home?.scan ? <div className="bravais-seam-scan" data-bravais-scan>{home.scan}</div> : null;
+    const expand = () => setLevel('full');
     const foldButton = (
         <button type="button" className="bravais-seam-icon" data-bravais-seam-action="hide" onClick={() => setLevel('hidden')}
             aria-label={t('libraryBravais.seamFold')} title={t('libraryBravais.seamFold')}>
@@ -120,42 +204,38 @@ const BravaisSeamHome: React.FC<{
         <div className={`bravais-seam-home${compact ? ' is-compact' : ''}${short ? ' has-short-tabs' : ''}`} data-bravais-home-seam
             data-bravais-home-fit={level}>
             <div ref={navRef} className={`bravais-seam-home-nav${overflowing ? ' is-overflowing' : ''}`}>
-                <div ref={contentRef} className="bravais-seam-home-nav-content">
+                <div className="bravais-seam-home-nav-content">
                     <div ref={headRef}>
                         <HomeSeamHead title={seam.title} hideTitle={level !== 'titled'} tabs={tabs} shorts={short ? shortLabels : null}
                             lead={foldButton} onSelectTab={seam.onSelectTab} />
                     </div>
-                    {home?.sections && home.sections.length > 0 && (
-                        <div className="bravais-seam-sections" role="tablist" aria-label={seam.meta}>
-                            {home.sections.map(section => (
-                                <button
-                                    key={section.key}
-                                    type="button"
-                                    role="tab"
-                                    aria-selected={section.active}
-                                    data-bravais-section={section.key}
-                                    className={section.active ? 'is-active' : undefined}
-                                    onClick={() => home.onSelectSection?.(section.key)}
-                                >
-                                    {section.label}
-                                </button>
-                            ))}
+                    {/* fb3：中段在页头与工具格之间的剩余空间里竖直居中。 */}
+                    <div ref={middleRef} className="bravais-seam-home-middle">
+                        <div ref={bodyRef} className="bravais-seam-home-body" data-bravais-home-body>
+                            {meta}
+                            {sections && (
+                                <div ref={sectionsRef} className="bravais-seam-sections-slot">
+                                    <HomeSeamSections sections={sections} label={seam.meta} short={short} onSelect={home?.onSelectSection} />
+                                </div>
+                            )}
+                            {home?.manage && (
+                                <div className="bravais-seam-manage" data-bravais-manage={home.manage.mode}>
+                                    <span>{home.manage.title}</span>
+                                    <button type="button" aria-pressed={home.manage.mode === 'manage-hidden-only'} data-bravais-seam-action="hidden-only"
+                                        className={home.manage.mode === 'manage-hidden-only' ? 'is-active' : undefined} onClick={home.manage.onToggleHiddenOnly}>
+                                        {home.manage.mode === 'manage-hidden-only' && <Check aria-hidden />}{home.manage.hiddenOnlyLabel}
+                                    </button>
+                                    <button type="button" data-bravais-seam-action="manage-done" onClick={home.manage.onDone}>{home.manage.doneLabel}</button>
+                                </div>
+                            )}
+                            {seam.status && <div className="bravais-seam-vstatus" data-bravais-seam-status>{seam.status}</div>}
+                            {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} onExpand={expand} />}
                         </div>
-                    )}
-                    {home?.manage && (
-                        <div className="bravais-seam-manage" data-bravais-manage={home.manage.mode}>
-                            <span>{home.manage.title}</span>
-                            <button type="button" aria-pressed={home.manage.mode === 'manage-hidden-only'} data-bravais-seam-action="hidden-only"
-                                className={home.manage.mode === 'manage-hidden-only' ? 'is-active' : undefined} onClick={home.manage.onToggleHiddenOnly}>
-                                {home.manage.mode === 'manage-hidden-only' && <Check aria-hidden />}{home.manage.hiddenOnlyLabel}
-                            </button>
-                            <button type="button" data-bravais-seam-action="manage-done" onClick={home.manage.onDone}>{home.manage.doneLabel}</button>
-                        </div>
-                    )}
+                    </div>
                 </div>
             </div>
             {/* 全名页头的测量副本：与页头同宽、绝对定位不占位（useBravaisSeamTabsFit 量它）。
-                fb2 第二轮：两份——带标题的全名页头、不带标题的全名页头。 */}
+                fb2 第二轮：两份——带标题的全名页头、不带标题的全名页头。fb3：再加一份全名二级切换（容器常在）。 */}
             <div ref={titledHeadRef} className="bravais-seam-home-measure" aria-hidden>
                 <HomeSeamHead title={seam.title} hideTitle={false} tabs={tabs} shorts={null} measure
                     lead={<span className="bravais-seam-icon" />} />
@@ -164,12 +244,12 @@ const BravaisSeamHome: React.FC<{
                 <HomeSeamHead title={seam.title} hideTitle tabs={tabs} shorts={null} measure
                     lead={<span className="bravais-seam-icon" />} />
             </div>
-            {meta}
-            {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} onExpand={() => setLevel('full')} />}
-            {seam.status && <div className="bravais-seam-vstatus" data-bravais-seam-status>{seam.status}</div>}
-            {home && <BravaisSeamHomeTools home={home} compact={compact} />}
+            <div ref={fullSectionsRef} className="bravais-seam-home-measure" aria-hidden>
+                {sections && <HomeSeamSections sections={sections} short={false} measure />}
+            </div>
+            {home && <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand} />}
             {compact && (
-                <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={() => setLevel('full')}
+                <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={expand}
                     aria-label={t('libraryBravais.seamExpand')} title={t('libraryBravais.seamExpand')}>
                     <Maximize2 aria-hidden />
                 </button>

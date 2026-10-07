@@ -41,6 +41,7 @@ export const useBravaisHomeAccount = (account: LibraryAccountController, online:
         providerLabel: online.providerLabel,
         detail,
         guest,
+        connectLabel: t('libraryBravaisHome.connect'),
         title: t('home.onlineProvider'),
         toggleLabel: t('home.switchOnlineProvider'),
         rows,

@@ -11,7 +11,10 @@ import type { BravaisAccountRow } from './bravaisAccountModel';
 /** 缝里的二级切换：本地四行（文件夹 / 专辑 / 歌手 / 歌单）、Navidrome 的 section。切换 = 整面翻牌，不换层。 */
 export type BravaisHomeSection = { key: string; label: string; active: boolean };
 
-/** 首页窄缝的工具按钮（图标按钮，文案是标题与读屏名）。 */
+/**
+ * 首页窄缝的工具（文案是标题与读屏名）。fb3：底部工具格固定四格——搜索、设置、播放队列、「⋯」；其余（本页签的目录、
+ * 管理隐藏、Navidrome 刷新，app 级的回到播放页、舞台播放器）都在「⋯」菜单里（BravaisSeamHomeTools 的 splitHomeTools）。
+ */
 export type BravaisHomeToolId =
     | 'search'
     | 'directory'
@@ -65,8 +68,13 @@ export type BravaisHomeAccount = {
     providerLabel: string;
     /** B10：当前平台的账户状态（昵称 / 未登录 / 无需登录）。 */
     detail: string;
-    /** B10：当前平台未登录（墙空着）：列表常开，就是这个页签的登录入口。 */
+    /**
+     * B10：当前平台未登录（墙空着）。fb3：窄缝里只显示一个「连接在线平台」入口（connectLabel），点了才展开平台列表；
+     * 已登录时是当前平台 + 账户状态的开合按钮。
+     */
     guest: boolean;
+    /** fb3：未登录时的入口按钮文案（「连接在线平台」）。 */
+    connectLabel: string;
     /** B10：列表的读屏名（「在线音乐平台」）与开合按钮的标题（「切换在线音乐平台」）。 */
     title: string;
     toggleLabel: string;

@@ -56,7 +56,8 @@ export default {
     "stagePlayer": "Pemutar panggung",
     "settings": "Pengaturan",
     "more": "Lainnya",
-    "scanProgress": "Memindai {{percent}}%"
+    "scanProgress": "Memindai {{percent}}%",
+    "connect": "Hubungkan layanan streaming"
   },
   "libraryTui": {
     "back": "Kembali",

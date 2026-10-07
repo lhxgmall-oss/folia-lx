@@ -11,14 +11,16 @@ import {
     Settings,
 } from 'lucide-react';
 import type { BravaisHomeSeam, BravaisHomeTool, BravaisHomeToolId } from './bravaisHomeModels';
+import { setBravaisHomeOpenRequest, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 
 // src/library/suites/bravais/BravaisSeamHomeTools.tsx
-// 首页窄缝底部的工具格（fb2 重排）：按重要性分两组。
-// - 常驻的图标格（两列 40px，书脊上一列 36px）：搜索、这个页签自己的入口（目录、管理隐藏、Navidrome 刷新）与
-//   「回到播放页」——离开书库最常用的那一个。
-// - 「⋯」溢出菜单：本页签的「更多」（本地的导入文件夹 / 刷新 / 导入歌单文件）在前，app 级的次要入口（打开播放队列、
-//   舞台播放器、设置）在后，中间一道分隔线。菜单从工具格上方弹出、盖在导航区上，不推挤别的内容；Esc 或点别处收起。
-// 书脊（64px）上放不下文字菜单：只留常驻的图标，「⋯」里的东西由底部的「展开」进窄缝再用。
+// 首页窄缝底部的工具格。
+// fb3（用户实测）：工具格固定四格——搜索、设置、播放队列、「⋯」（窄缝两列 40px 排成 2×2，书脊上一列 36px）。
+// 其余全部收进「⋯」菜单：本页签的项在前（目录、管理隐藏、Navidrome 刷新，以及本地的导入文件夹 / 刷新 / 导入歌单
+// 文件），app 级的在后（回到播放页、舞台播放器），中间一道分隔线。菜单从工具格上方弹出、盖在导航区上，不推挤别的
+// 内容；Esc 或点别处收起。开关类的项（目录、管理隐藏）在菜单里是 menuitemcheckbox，按下时 aria-checked。
+// 书脊（64px）放不下文字菜单：一列只有搜索、设置、队列与「⋯」；点「⋯」先把缝展开成窄缝，窄缝渲染出来后再打开菜单
+// （经 bravaisHomeUiStore 的 openRequest）。
 // 各按钮的 data-bravais-seam-action 仍是工具 id / 菜单项 id（用例与探针按它找）。
 
 const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
@@ -32,22 +34,33 @@ const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?
     settings: Settings,
 };
 
-/** 收进「⋯」的次要入口（app 级，不常用）。 */
-const OVERFLOW_TOOLS: ReadonlySet<BravaisHomeToolId> = new Set(['queue', 'stage', 'settings']);
+/** 工具格里固定的三格（加「⋯」共四格），按这个顺序。 */
+const DOCK_TOOLS: readonly BravaisHomeToolId[] = ['search', 'settings', 'queue'];
+/** 「⋯」里分隔线之后的 app 级入口。 */
+const APP_TOOLS: ReadonlySet<BravaisHomeToolId> = new Set(['player', 'stage']);
 
-/** 把工具分成常驻的与收进「⋯」的（保持原顺序）。 */
+/** 把工具分成工具格里的（固定顺序）、「⋯」里本页签的、「⋯」里 app 级的（后两组保持原顺序）。 */
 export const splitHomeTools = (tools: readonly BravaisHomeTool[]) => ({
-    primary: tools.filter(tool => !OVERFLOW_TOOLS.has(tool.id)),
-    overflow: tools.filter(tool => OVERFLOW_TOOLS.has(tool.id)),
+    dock: DOCK_TOOLS.flatMap(id => tools.filter(tool => tool.id === id)),
+    page: tools.filter(tool => !DOCK_TOOLS.includes(tool.id) && !APP_TOOLS.has(tool.id)),
+    app: tools.filter(tool => APP_TOOLS.has(tool.id)),
 });
 
-const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean }> = ({ home, compact }) => {
+const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; onExpand: () => void }> = ({ home, compact, onExpand }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const dockRef = useRef<HTMLDivElement>(null);
-    const { primary, overflow } = splitHomeTools(home.tools);
+    const request = useBravaisHomeUiStore(state => state.openRequest);
+    const { dock, page, app } = splitHomeTools(home.tools);
     const local = home.menu ?? [];
-    const hasMenu = !compact && (local.length > 0 || overflow.length > 0);
-    const open = menuOpen && hasMenu;
+    const hasMenu = page.length > 0 || local.length > 0 || app.length > 0;
+    const open = menuOpen && hasMenu && !compact;
+
+    // 书脊上点了「⋯」：缝展开成窄缝后在这里把菜单打开。
+    useEffect(() => {
+        if (compact || request !== 'menu') return;
+        setBravaisHomeOpenRequest(null);
+        setMenuOpen(true);
+    }, [compact, request]);
 
     // 菜单开着时点别处收起（缝里、墙上都算）。
     useEffect(() => {
@@ -72,30 +85,44 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean }
         run();
     };
 
+    const onMore = () => {
+        if (compact) {
+            setBravaisHomeOpenRequest('menu');
+            onExpand();
+            return;
+        }
+        setMenuOpen(value => !value);
+    };
+
+    const menuTool = (tool: BravaisHomeTool) => {
+        const Icon = TOOL_ICONS[tool.id];
+        const toggle = tool.pressed !== undefined;
+        return (
+            <button key={tool.id} type="button" role={toggle ? 'menuitemcheckbox' : 'menuitem'} aria-checked={toggle ? tool.pressed : undefined}
+                disabled={tool.disabled} data-bravais-seam-action={tool.id} className={`is-tool${tool.pressed ? ' is-pressed' : ''}`}
+                onClick={() => runItem(tool.run)}>
+                <Icon aria-hidden className={tool.busy ? 'animate-spin' : undefined} />{tool.label}
+            </button>
+        );
+    };
+
     return (
         <div ref={dockRef} className="bravais-seam-dock" onKeyDown={onKeyDown}>
             {open && (
                 <div className="bravais-seam-menu is-home" role="menu" aria-label={home.menuLabel} data-bravais-seam-menu>
+                    {page.map(menuTool)}
                     {local.map(item => (
                         <button key={item.id} type="button" role="menuitem" disabled={item.disabled} data-bravais-seam-action={item.id}
                             className={item.danger ? 'is-danger' : undefined} onClick={() => runItem(item.run)}>
                             {item.label}
                         </button>
                     ))}
-                    {local.length > 0 && overflow.length > 0 && <div className="bravais-seam-menu-rule" role="separator" />}
-                    {overflow.map((tool) => {
-                        const Icon = TOOL_ICONS[tool.id];
-                        return (
-                            <button key={tool.id} type="button" role="menuitem" disabled={tool.disabled} data-bravais-seam-action={tool.id}
-                                className="is-tool" onClick={() => runItem(tool.run)}>
-                                <Icon aria-hidden />{tool.label}
-                            </button>
-                        );
-                    })}
+                    {(page.length > 0 || local.length > 0) && app.length > 0 && <div className="bravais-seam-menu-rule" role="separator" />}
+                    {app.map(menuTool)}
                 </div>
             )}
             <div className="bravais-seam-tools">
-                {primary.map((tool) => {
+                {dock.map((tool) => {
                     const Icon = TOOL_ICONS[tool.id];
                     return (
                         <button
@@ -116,7 +143,7 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean }
                 {hasMenu && (
                     <button type="button" className={`bravais-seam-icon${open ? ' is-pressed' : ''}`} data-bravais-seam-action="more"
                         aria-haspopup="menu" aria-expanded={open} aria-label={home.menuLabel} title={home.menuLabel}
-                        onClick={() => setMenuOpen(value => !value)}>
+                        onClick={onMore}>
                         <MoreHorizontal aria-hidden />
                     </button>
                 )}
