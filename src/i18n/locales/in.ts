@@ -2690,6 +2690,33 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_15": {
+      "intro": "0.7.15 meningkatkan penanganan teks Tionghoa pada lirik lokal dan tag MP3, membuat login QR lebih stabil dengan bantuan yang lebih jelas saat gagal, mendukung pintasan dari input simulasi, serta memperbaiki riwayat kembali yang terus memanjang antara halaman artis dan album dan transkode di Apple Silicon.",
+      "localLyrics": {
+        "title": "File Lirik Lokal Lebih Kompatibel",
+        "description": "Lirik KRC kini didekripsi, encoding GBK dikenali, dan akhir baris diseragamkan, sehingga lirik dari alat lama tidak lagi terbaca kosong. Baris kosong tidak lagi mendorong lirik asli ke jalur terjemahan. Jika LRC dwibahasa menaruh terjemahan pada waktu yang salah, Folia memberi tahu saat diputar dan menjelaskan cara memperbaikinya di tab Lokal pada panel pemutaran."
+      },
+      "mp3Tags": {
+        "title": "Tag MP3 Tionghoa Tidak Lagi Rusak",
+        "description": "Judul, artis, dan album yang ditulis sebagai GBK oleh alat lama dikembalikan ke huruf Tionghoa, sementara teks Latin asli seperti Björk atau Café tetap utuh. Pustaka yang sudah diimpor membaca ulang tag pada pemindaian berikutnya."
+      },
+      "qrLogin": {
+        "title": "Login QR Lebih Stabil dan Bantuan Lebih Jelas",
+        "description": "Login QR NetEase mencoba lagi dengan identitas baru saat koneksi terputus di tengah login dan menampilkan penyebab sebenarnya saat gagal. Setelah gagal, langkah sederhana seperti memulai ulang Folia atau berganti jaringan muncul di samping kode QR, dengan diagnostik di bawahnya. Diagnostik QQ Music kembali tersedia, dan setelah Anda membatalkan di ponsel, coba lagi menunggu masa jeda backend selesai."
+      },
+      "injectedShortcuts": {
+        "title": "Pintasan Mendukung Input Simulasi",
+        "description": "Tombol yang dikirim oleh aplikasi pemetaan ulang tombol, makro, atau kendali jarak jauh kini dapat memicu kontrol pemutaran, palet perintah, dan pintasan tutorial."
+      },
+      "collectionNav": {
+        "title": "Riwayat Kembali Tidak Lagi Memanjang",
+        "description": "Saat Anda berpindah bolak-balik antara halaman artis dan album, kembali ke halaman yang baru ditinggalkan dihitung sebagai kembali, sehingga jalur kembali dan riwayat browser tidak lagi menumpuk."
+      },
+      "appleSiliconTranscode": {
+        "title": "Transkode Apple Silicon Diperbaiki",
+        "description": "Memperbaiki ffmpeg bawaan yang gagal berjalan di Mac Apple Silicon, yang menyebabkan galat pemutaran pada lagu yang perlu ditranskode, seperti ALAC."
+      }
+    },
     "v0_7_13": {
       "intro": "0.7.13 menambahkan Bodian Music di desktop, pemilih platform login, opsi agar antrean tetap terbuka setelah mengganti lagu, dan sakelar jejak Lumiere, serta meningkatkan kompatibilitas FLAC dan impor segmentasi lirik.",
       "bodian": {

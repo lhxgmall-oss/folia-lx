@@ -2803,6 +2803,33 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_7_15": {
+      "intro": "0.7.15 improves Chinese text handling in local lyrics and MP3 tags, makes QR login steadier with clearer help when it fails, supports shortcuts from simulated input, and fixes ever-growing back history between artist and album pages and transcoding on Apple Silicon.",
+      "localLyrics": {
+        "title": "Better Local Lyric Files",
+        "description": "KRC lyrics are now decrypted, GBK encoding is detected, and line endings are normalized, so lyrics from older tools no longer parse as empty. Blank lines no longer push original lines into the translation track. When a bilingual LRC puts translations on the wrong timestamps, Folia tells you during playback and explains the fix on the Local tab of the playback panel."
+      },
+      "mp3Tags": {
+        "title": "No More Garbled Chinese MP3 Tags",
+        "description": "Titles, artists, and albums written as GBK by older tools are restored to Chinese, while genuine Latin text such as Björk or Café stays unchanged. Imported libraries reread tags on the next scan."
+      },
+      "qrLogin": {
+        "title": "Steadier QR Login with Better Help",
+        "description": "NetEase QR login retries with a fresh identity when the connection is reset mid-login and shows the real reason when it fails. After a failure, simple fixes such as restarting Folia or switching networks appear next to the QR code, with diagnostics tucked below. QQ Music diagnostics are back, and after you cancel on your phone, retry waits until the backend cooldown ends."
+      },
+      "injectedShortcuts": {
+        "title": "Shortcuts Work with Simulated Input",
+        "description": "Keys sent by key remappers, macro tools, or remote-control software now trigger playback controls, the command palette, and tutorial shortcuts."
+      },
+      "collectionNav": {
+        "title": "Back History Stops Growing",
+        "description": "When you click back and forth between an artist and an album, returning to the page you just left counts as going back, so the back path and browser history no longer pile up."
+      },
+      "appleSiliconTranscode": {
+        "title": "Apple Silicon Transcoding Fixed",
+        "description": "Fixes the bundled ffmpeg failing to start on Apple Silicon Macs, which caused playback errors for tracks that need transcoding, such as ALAC."
+      }
+    },
     "v0_7_13": {
       "intro": "0.7.13 adds Bodian Music on desktop, a platform login switcher, an option to keep the queue open after changing songs, and a Lumiere trail toggle, with better FLAC compatibility and lyric segmentation imports.",
       "bodian": {
