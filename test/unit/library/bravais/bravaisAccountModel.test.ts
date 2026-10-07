@@ -41,6 +41,7 @@ const session = ({ backendHealth = HEALTHY, ...input }: SessionInput = {}): Libr
         failure: null,
         retryCooldownSeconds: null,
         ...input,
+        selfCheck: input.selfCheck ?? null,
         backend: resolveLoginBackendState(providerId, backendHealth),
     };
     return { ...base, copy: resolveLoginSessionCopy(base) };
