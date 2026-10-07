@@ -146,12 +146,27 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await expect(look).toContainText('See-through');
         await expect(stage(page)).toHaveAttribute('data-bravais-look', 'clear');
 
-        // 帮助：bravais 的按键（Tab 进出缝、F6 换页签、s / Ctrl+K 打开命令面板）。
+        // 帮助：每行一件事——左边一个说明、右边一个按键，内容是 bravais 实际的键位（bravaisHelp，单测核对键位规则）。
         await menu.getByRole('menuitem', { name: 'Operation guide', exact: true }).click();
         const help = menu.getByRole('note');
-        await expect(help).toContainText('Into and out of the info strip');
-        await expect(help).toContainText('F6');
-        await expect(help).toContainText('Ctrl + K');
+        await expect(help).toBeVisible();
+        const rows = await help.locator('li').evaluateAll(items => items.map(item => ({
+            children: [...item.children].map(child => child.tagName.toLowerCase()),
+            label: item.querySelector(':scope > span')?.textContent ?? '',
+            key: item.querySelector(':scope > kbd')?.textContent ?? '',
+        })));
+        expect(rows.map(row => row.children)).toEqual(Array.from({ length: 9 }, () => ['span', 'kbd']));
+        expect(rows.map(row => [row.label, row.key])).toEqual([
+            ['Move the focus', '↑ ↓ ← →'],
+            ['Open a song card or a collection', 'Enter'],
+            ['Play the song in the open card', 'Enter'],
+            ['Add the focused song to the queue', 'Shift + Enter'],
+            ['Step back one level', 'ESC'],
+            ['Move between the wall and the info strip', 'Tab'],
+            ['Switch the home tabs', 'F6'],
+            ['Locate the playing song', ': + C'],
+            ['Open the command palette', 'Ctrl + K'],
+        ]);
 
         // 在集合层上按 Esc：只收起面板，不退层。
         await page.keyboard.press('Escape');
