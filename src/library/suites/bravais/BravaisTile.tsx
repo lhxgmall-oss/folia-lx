@@ -298,6 +298,8 @@ function BravaisTile({
                 {display && (
                     <>
                         <span className="lattice-poster-shade" />
+                        {/* 实测反馈 1：熄灯层（wall.css；全透明档的窗与聚焦卡等豁免在 bravais.css）。 */}
+                        <span className="lattice-poster-lights-out" />
                         {face.seeThrough
                             ? <span className="bravais-tile-strip" style={{ backgroundImage: cover }} />
                             : <span className="lattice-poster-tint" />}

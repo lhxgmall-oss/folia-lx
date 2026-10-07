@@ -1,0 +1,34 @@
+/* src/library/suites/bravais/bravaisAppearance.css — 实测反馈 1：Lattice 的墙面外观设置（灯光、叠色）作用到 bravais，
+   以及共享浮层控件（components/wall 的返回按钮、工具按钮）在 bravais 上的位置补充。
+   熄灯本身（每张海报一层 82% 的黑 / 日光下白、正在播放的不熄、熄灯时叠色归零）在 wall.css，与 Lattice 同一份；这里只放
+   bravais 的豁免。叠色不需要补：wall.css 的 has-poster-tint / uses-custom-poster-tint 已经作用在 bravais 根节点上，
+   而窗与全透明档的透着的磁贴根本不画叠色层（BravaisTile），所以叠色从不压在窗上。 */
+
+/* 熄灯时仍然亮着的：聚焦卡（要读、要点按钮）、键盘焦点与悬停的那张（看得见自己在哪）、列表联动与批量选中的那张。
+   正在播放的那张由 wall.css 的 :not(.is-current) 豁免。 */
+.bravais-root.is-lights-out .bravais-tile:hover > .lattice-poster .lattice-poster-lights-out,
+.bravais-root.is-lights-out .lattice-poster.bravais-tile-face:is(.is-expanded, .is-focused, .is-linked, .is-selected) .lattice-poster-lights-out {
+    opacity: 0;
+}
+
+/* 全透明档：墙上的内容磁贴本身就是窗（透出下面的 visualizer），熄灯不往窗上涂黑，只把标题、徽标与封面底条压暗。
+   部分透明档的窗、实色空画框没有内容，也就没有熄灯层。 */
+.bravais-root.is-lights-out .lattice-poster.bravais-tile-face.is-see-through .lattice-poster-lights-out {
+    opacity: 0;
+}
+
+.bravais-tile-face.is-see-through > :is(.lattice-poster-copy, .lattice-poster-badge, .bravais-tile-strip) {
+    transition: opacity 260ms ease;
+}
+
+.bravais-root.is-lights-out .bravais-tile:not(:hover) > .lattice-poster.bravais-tile-face.is-see-through:not(.is-current):not(.is-focused):not(.is-linked):not(.is-selected) > :is(.lattice-poster-copy, .lattice-poster-badge, .bravais-tile-strip) {
+    opacity: 0.28;
+}
+
+:root[data-reduce-motion~='lattice'] .bravais-tile-face.is-see-through > :is(.lattice-poster-copy, .lattice-poster-badge, .bravais-tile-strip) {
+    transition: none;
+}
+
+/* 左上角隐藏式返回（WallBackButton）：在缝之下（缝 5、边缘标签 6）。缝恰好开在左上角时让缝的 ‹ 与面包屑在上面，
+   免得把「回到播放页」叠在「层返回」上误点；墙、暗角（3）与颗粒（2）之上。 */
+.bravais-root .lattice-back { z-index: 4; }

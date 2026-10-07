@@ -364,6 +364,11 @@ export type LibrarySuiteStageProps = {
      * 引用在同一次挂载内稳定；值不变时重复报告没有开销。
      */
     reportPlayerOcclusion: (occludes: boolean) => void;
+    /**
+     * 回到播放页（首页数据的 onBackToPlayer，与网格首页右下角 › 同一个回调）。stage 横跨首页与集合层，所以在这里给，
+     * 而不是只给首页 surface：bravais 左上角的隐藏式返回按钮在集合层上也要能用（实测反馈 1）。缺省时不画那颗按钮。
+     */
+    onBackToPlayer?: () => void;
 };
 
 /**

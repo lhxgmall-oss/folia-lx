@@ -12,6 +12,7 @@ import type { BravaisLayer } from './bravaisLayer';
 import { useBravaisSeamStore, type BravaisSeamLevel } from './bravaisSeamLevel';
 import { resolveCurrentLayer, useBravaisStageStore } from './bravaisStageStore';
 import BravaisSeam from './BravaisSeam';
+import BravaisStageChrome from './BravaisStageChrome';
 import BravaisWall from './BravaisWall';
 import { useBravaisCamera } from './useBravaisCamera';
 import { useBravaisChromeActions } from './useBravaisChromeActions';
@@ -37,6 +38,7 @@ import { useBravaisBeforePush } from './bravaisTransitions';
 import { selectBravaisAccountVariant, useBravaisAccountStore } from './bravaisAccountStore';
 import '../../../components/wall/wall.css';
 import './bravais.css';
+import './bravaisAppearance.css';
 
 // src/library/suites/bravais/BravaisStage.tsx
 // bravais 的常驻舞台（B1 的 stage 契约）：一面横跨首页与集合层的墙、相机、缝、翻牌、聚焦卡与键盘焦点。
@@ -50,6 +52,8 @@ import './bravais.css';
 // B9：首页层的目录树面板与集合层的列表面板同一种开口；首页的全局搜索框开着时窄缝临时展开（search）；管理隐藏视图里
 // 根节点挂 is-managing-hidden（歌单类磁贴的眼睛按钮常驻）。
 // B10：账户的登录态 / 确认态是缝的内容态（bravaisAccountStore → login / confirm 变体），不接 accountLayerRef。
+// 实测反馈 1：灯光（is-lights-out）与叠色同 Lattice 一样读 useLatticeSettingsStore（一套墙面外观设置）；左上角隐藏式返回
+// （回到播放页）与右下角工具按钮在 BravaisStageChrome，与 Lattice 共用 components/wall 的同一套控件。
 
 const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
     left: bounds.left - by,
@@ -58,7 +62,7 @@ const expandBounds = (bounds: { left: number; right: number; top: number; bottom
     bottom: bounds.bottom + by,
 });
 
-const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDaylight, navigation, reportPlayerOcclusion }) => {
+const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDaylight, navigation, reportPlayerOcclusion, onBackToPlayer }) => {
     const { t } = useTranslation();
     const rootRef = useRef<HTMLElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
@@ -76,6 +80,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const reducedTransitions = useBravaisReducedTransitions();
     const devicePixelRatio = useDevicePixelRatio();
     const vignette = useLatticeSettingsStore(state => state.latticeVignette);
+    const lightsOn = useLatticeSettingsStore(state => state.latticeLightsOn);
     const tintEnabled = useLatticeSettingsStore(state => state.latticePosterTintEnabled);
     const tintCustom = useLatticeSettingsStore(state => state.latticePosterTintUseCustomColor);
     const tintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
@@ -265,7 +270,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         };
     }, [active, focusWall, handleAction]);
 
-    useBravaisChromeActions({
+    const chromeHandlers = useBravaisChromeActions({
         active,
         displayRef,
         frameRef,
@@ -292,6 +297,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         'bravais-root',
         isDaylight ? 'is-daylight' : '',
         vignette ? 'has-vignette' : '',
+        lightsOn ? '' : 'is-lights-out',
         tintEnabled ? 'has-poster-tint' : '',
         tintCustom ? 'uses-custom-poster-tint' : '',
         layer?.wall?.loading ? 'is-loading' : '',
@@ -365,6 +371,11 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
                 onTab={onSeamTab}
                 openList={openList}
                 panel={panelActions}
+            />
+            <BravaisStageChrome
+                isDaylight={isDaylight}
+                onBackToPlayer={onBackToPlayer}
+                locatePlaying={chromeHandlers['locate-playing']}
             />
         </section>
     );

@@ -23,6 +23,13 @@ export default {
     "crumbMore": "Tampilkan semua tingkat",
     "crumbSearch": "Pencarian",
     "crumbPlayer": "Sedang Diputar",
+    "tools": "Alat dinding",
+    "toolsLocate": "Temukan lagu yang diputar",
+    "helpEnter": "Enter membuka kartu lagu atau koleksi; Enter lagi memutar",
+    "helpEscape": "Mundur bertahap",
+    "helpMove": "Tombol panah memindahkan fokus",
+    "helpSeam": "Masuk dan keluar dari strip info",
+    "helpTabs": "Ganti tab beranda",
     "kind": {"track": "Lagu", "playlist": "Playlist", "album": "Album", "artist": "Artis", "folder": "Folder", "feed": "Radio"}
   },
   "libraryBravaisHome": {

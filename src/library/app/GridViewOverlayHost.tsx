@@ -635,6 +635,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 theme={surfaceProps.theme}
                 isDaylight={isDaylight}
                 navigation={stageNavigation}
+                onBackToPlayer={surfaceProps.onBackToPlayer}
             />
             <AnimatePresence initial={false}>
                 {layerPresentation.showBackdrop && (

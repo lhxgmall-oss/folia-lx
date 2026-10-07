@@ -23,6 +23,13 @@ export default {
     "crumbMore": "显示全部层级",
     "crumbSearch": "搜索",
     "crumbPlayer": "播放页",
+    "tools": "墙面工具",
+    "toolsLocate": "定位正在播放",
+    "helpEnter": "Enter 展开歌曲或打开集合，再按一次播放",
+    "helpEscape": "逐级返回",
+    "helpMove": "方向键移动焦点",
+    "helpSeam": "进出信息条",
+    "helpTabs": "切换首页页签",
     "kind": {"track": "歌曲", "playlist": "歌单", "album": "专辑", "artist": "歌手", "folder": "文件夹", "feed": "电台"}
   },
   "libraryBravaisHome": {

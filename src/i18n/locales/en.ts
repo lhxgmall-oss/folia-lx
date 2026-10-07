@@ -23,6 +23,13 @@ export default {
     "crumbMore": "Show every level",
     "crumbSearch": "Search",
     "crumbPlayer": "Now Playing",
+    "tools": "Wall tools",
+    "toolsLocate": "Locate the playing song",
+    "helpEnter": "Enter opens a song card or a collection; Enter again plays",
+    "helpEscape": "Step back",
+    "helpMove": "Arrow keys move the focus",
+    "helpSeam": "Into and out of the info strip",
+    "helpTabs": "Switch the home tabs",
     "kind": {"track": "Song", "playlist": "Playlist", "album": "Album", "artist": "Artist", "folder": "Folder", "feed": "Radio"}
   },
   "libraryBravaisHome": {

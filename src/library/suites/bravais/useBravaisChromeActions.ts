@@ -105,4 +105,6 @@ export const useBravaisChromeActions = ({
     }, [displayRef, focusSlot, frameRef, isCollapsed, openList, reopenHere]);
 
     useLibrarySuiteChromeRegistration({ suiteId: BRAVAIS_SUITE_ID, isInteractive: active, handlers });
+    // 实测反馈 1：右下角工具面板（BravaisStageChrome）直接用同一份实现（定位正在播放），不另写一遍。
+    return handlers;
 };
