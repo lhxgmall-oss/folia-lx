@@ -9,6 +9,9 @@
     color: var(--text-primary, #f7f4ee);
 }
 
+/* App 的 dock（WallToolsDock）不接指针，只有按钮与面板接（翻牌交接时两面墙共用这一颗）。 */
+.wall-tools-dock .lattice-tools { pointer-events: auto; }
+
 .lattice-tools-panel {
     position: absolute;
     right: 0;

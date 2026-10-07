@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { CircleHelp, Command, Layers3, Settings2, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLatticeSettingsStore } from '../../stores/useLatticeSettingsStore';
@@ -15,6 +15,9 @@ import './WallToolsButton.css';
 // 上面那几行条目与帮助的内容由使用方传入（Lattice：聚焦当前歌曲、切歌自动聚焦、队列命令；bravais：定位正在播放、透光）。
 // 叠色与灯光读写同一个 useLatticeSettingsStore——一套墙面外观设置同时作用于 Lattice 与资料库墙。
 // 从 LatticeFocusButton 抽出（实测反馈 1），Lattice 的 DOM 与样式不变，只多了叠色那一行。
+// 翻牌交接（设计稿 §7「进入队列」）：App 在首页层与 Lattice 之上挂一个 WallToolsDock，两面墙的按钮都「认领」进同一个
+// dock、由它画出唯一的一颗——进 / 出 Lattice 时按钮节点不重建、原地不动，只换条目与帮助。没有 dock 的地方（组件探针、
+// Ponder 的合成界面）照旧就地渲染。
 
 /** 面板里的一行：动作（点了默认收起面板）或开关（menuitemcheckbox，点了不收起）。 */
 export type WallToolsEntry =
@@ -43,7 +46,7 @@ export type WallToolsEntry =
         onToggle: (next: boolean) => void;
     };
 
-type WallToolsButtonProps = {
+export type WallToolsButtonProps = {
     /** 面板与帮助的 id 前缀（`<前缀>-panel` / `<前缀>-help`）。 */
     idPrefix: string;
     /** 按钮的 title 与面板的可访问名。 */
@@ -53,7 +56,20 @@ type WallToolsButtonProps = {
     entries: readonly WallToolsEntry[] | (() => readonly WallToolsEntry[]);
     /** 帮助列表的内容（若干 `<li>`）。 */
     help: ReactNode;
+    /**
+     * 在 dock 里时要不要认领（缺省要）：墙此刻不显示（首页层被盖住、当前层不归这面墙）时不认领，dock 里就没有它这一份。
+     * 不在 dock 里（就地渲染）时不看它。
+     */
+    claimed?: boolean;
 };
+
+/** dock 的登记处（WallToolsDock 提供）：按钮把自己的 props 认领进去，dock 画最后认领的那一份。 */
+export type WallToolsDockRegistry = {
+    claim: (id: string, props: WallToolsButtonProps) => void;
+    release: (id: string) => void;
+};
+
+export const WallToolsDockContext = createContext<WallToolsDockRegistry | null>(null);
 
 /** 一行条目。 */
 function WallToolsRow({ entry, onDone }: { entry: WallToolsEntry; onDone: () => void }) {
@@ -94,7 +110,8 @@ function WallToolsRow({ entry, onDone }: { entry: WallToolsEntry; onDone: () => 
     );
 }
 
-export default function WallToolsButton({ idPrefix, label, isDaylight, entries, help }: WallToolsButtonProps) {
+/** 按钮与面板本身（dock 里与就地渲染都画这一份）。 */
+export function WallToolsSurface({ idPrefix, label, isDaylight, entries, help }: WallToolsButtonProps) {
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
@@ -230,4 +247,23 @@ export default function WallToolsButton({ idPrefix, label, isDaylight, entries, 
             />
         </motion.div>
     );
+}
+
+/**
+ * 墙用的入口：外面有 dock 时把 props 认领进去、自己不画（dock 画唯一的一颗）；没有 dock 时就地渲染。
+ * 在 AnimatePresence 里退场途中（Lattice 整层淡出）就撤回认领，免得按钮在已经离开的墙上多停一会儿。
+ */
+export default function WallToolsButton(props: WallToolsButtonProps) {
+    const dock = useContext(WallToolsDockContext);
+    const id = useId();
+    const present = useIsPresent();
+    const claimed = (props.claimed ?? true) && present;
+    // 每次提交都把最新的 props 交给 dock（条目、帮助随墙的状态变）；不认领时撤回。
+    useLayoutEffect(() => {
+        if (!dock) return;
+        if (claimed) dock.claim(id, props);
+        else dock.release(id);
+    });
+    useLayoutEffect(() => (dock ? () => dock.release(id) : undefined), [dock, id]);
+    return dock ? null : <WallToolsSurface {...props} />;
 }
