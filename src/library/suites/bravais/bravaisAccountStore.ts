@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { OnlineProviderId } from '../../../types/onlineMusic';
 import type { BravaisAccountForm } from './bravaisAccountModel';
 
 // src/library/suites/bravais/bravaisAccountStore.ts
@@ -12,8 +13,10 @@ export type BravaisAccountActions = {
     selectMethod: (methodId: string) => void;
     retry: () => void;
     restart: () => void;
-    /** 把诊断报告复制到剪贴板；成功返回 true。 */
-    copyDiagnostics: () => Promise<boolean>;
+    /** 生成诊断报告并复制到剪贴板：report 是生成出来的报告（生成失败为 null），copied 是复制成功。 */
+    copyDiagnostics: () => Promise<{ report: string | null; copied: boolean }>;
+    /** 打开 GitHub 反馈页（报告放得进链接时带上，否则只留粘贴提示）；Electron 里交给系统浏览器。 */
+    openIssue: (providerId: OnlineProviderId, report: string | null) => void;
     close: () => void;
     confirm: (requestId: number) => void;
     cancel: (requestId: number) => void;

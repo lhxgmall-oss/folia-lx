@@ -7,14 +7,16 @@ import type { ProviderAccountSummary } from '@/types/onlineMusic';
 import {
     canRunLogout,
     projectAccountSwitcherRows,
+    projectBravaisFailureHelp,
     projectBravaisLoginForm,
+    projectBravaisSelfCheck,
     resolveBravaisAccountForm,
 } from '@/library/suites/bravais/bravaisAccountModel';
 import { resolveSeamTarget, resolveStageSeamTarget, resolveVariantWidth } from '@/library/suites/bravais/bravaisSeamTarget';
 
 // test/unit/library/bravais/bravaisAccountModel.test.ts
 // B10 账户的纯投影：缝里的登录态（二维码位的四种形态、状态行与语气、选方式的两步、重试与冷却秒数、后端故障换成原因与
-// 重启、诊断按声明）、确认态与它对登录态的优先、登录界面不该显示的阶段；首页窄缝切换器的行（当前、账户状态、选它会做什么、
+// 重启、失败帮助按声明——简单办法、自检摘要、收起的诊断与反馈）、确认态与它对登录态的优先、登录界面不该显示的阶段；首页窄缝切换器的行（当前、账户状态、选它会做什么、
 // 只有当前且已登录的平台能登出、登出在途时禁用）；缝的开口（登录 / 确认压过层上的一切，拉到完整宽度）。
 
 const t = ((key: string, values?: Record<string, unknown>) => (
@@ -69,7 +71,7 @@ describe('projectBravaisLoginForm', () => {
             methods: null,
             retry: null,
             restart: null,
-            diagnosticsPrompt: null,
+            failureHelp: null,
             closeLabel: 'home.closeLogin',
         });
         expect(projectBravaisLoginForm(view({ phase: 'loading', qrImageUrl: '' }), FEATURES).qr).toEqual({ kind: 'loading' });
@@ -101,15 +103,17 @@ describe('projectBravaisLoginForm', () => {
         const expired = projectBravaisLoginForm(view({ phase: 'expired' }), FEATURES);
         expect(expired.retry).toEqual({ label: 'home.retryQr', disabled: false, cooldownSeconds: null });
         expect(expired.tone).toBe('normal');
-        expect(expired.diagnosticsPrompt).toBeNull();
+        // 没扫过码的过期不算失败：没有失败帮助。
+        expect(expired.failureHelp).toBeNull();
 
         const failed = projectBravaisLoginForm(view({ phase: 'expired', failure: 'expired-after-scan' }), FEATURES);
         expect(failed.tone).toBe('error');
-        expect(failed.diagnosticsPrompt).toBe('home.qrDiagnosticsPromptScanned');
+        // 扫过码才过期的那句提示在收起的诊断与反馈里。
+        expect(failed.failureHelp?.escalation.prompt).toBe('home.qrDiagnosticsPromptScanned');
         expect(projectBravaisLoginForm(view({ phase: 'error', failure: 'check-error' }), FEATURES)).toMatchObject({
             tone: 'error',
             status: 'home.loginError',
-            diagnosticsPrompt: 'home.qrDiagnosticsPrompt',
+            failureHelp: { escalation: { label: 'home.qrDiagnosticsToggle', prompt: 'home.qrDiagnosticsPrompt' } },
         });
         expect(projectBravaisLoginForm(view({ phase: 'confirmed' }), FEATURES).tone).toBe('success');
     });
@@ -118,14 +122,15 @@ describe('projectBravaisLoginForm', () => {
         const form = projectBravaisLoginForm(view({ phase: 'error', failure: 'canceled-on-device', retryCooldownSeconds: 12 }), FEATURES);
         expect(form.retry).toEqual({ label: 'home.retryQr', disabled: true, cooldownSeconds: 12 });
         expect(form.status).toBe('home.qrCanceledOnDeviceCooldown{"seconds":12}');
-        // 手机上取消是用户自己的操作：不给诊断。
-        expect(form.diagnosticsPrompt).toBeNull();
+        // 手机上取消是用户自己的操作：不给失败帮助。
+        expect(form.failureHelp).toBeNull();
     });
 
-    it('leaves the diagnostics and the backend restart out unless the suite declares them', () => {
-        expect(projectBravaisLoginForm(view({ phase: 'error', failure: 'check-error' }), NO_FEATURES).diagnosticsPrompt).toBeNull();
-        // QQ 自己接管失败摘要：就算声明了也不给诊断。
-        expect(projectBravaisLoginForm(view({ providerId: 'qq', phase: 'error', failure: 'check-error' }), FEATURES).diagnosticsPrompt).toBeNull();
+    it('leaves the failure help and the backend restart out unless the suite declares them', () => {
+        expect(projectBravaisLoginForm(view({ phase: 'error', failure: 'check-error' }), NO_FEATURES).failureHelp).toBeNull();
+        // QQ 和别的平台一样给（什么时候给由 core 的 canShowLoginDiagnostics 决定，不按 provider 判断）。
+        expect(projectBravaisLoginForm(view({ providerId: 'qq', phase: 'error', failure: 'check-error' }), FEATURES).failureHelp)
+            .toMatchObject({ escalation: { prompt: 'home.qrDiagnosticsPrompt' } });
         const down = { supported: true, status: 'error' as const, error: 'xeapi key missing', restarting: false };
         expect(projectBravaisLoginForm(view({ providerId: 'netease', phase: 'error', failure: 'start-error', backendHealth: down }), NO_FEATURES).restart)
             .toBeNull();
@@ -137,13 +142,70 @@ describe('projectBravaisLoginForm', () => {
         expect(form.qr).toEqual({ kind: 'backend-failure', title: 'home.loginBackendDown', detail: 'xeapi key missing' });
         expect(form.status).toBeNull();
         expect(form.retry).toBeNull();
-        expect(form.diagnosticsPrompt).toBeNull();
+        // 后端没拉起来时也给失败帮助：重启解决不了时，报告里有拉起的每一步与错误原文。
+        expect(form.failureHelp?.escalation.prompt).toBe('home.qrDiagnosticsPrompt');
         expect(form.restart).toEqual({ label: 'home.restartBackend', restarting: false });
         const restarting = projectBravaisLoginForm(
             view({ providerId: 'netease', phase: 'error', failure: 'start-error', backendHealth: { ...down, restarting: true } }),
             FEATURES,
         );
         expect(restarting.restart).toEqual({ label: 'home.restartingBackend', restarting: true });
+    });
+});
+
+describe('the failure help in the login form', () => {
+    it('puts the simple fixes first, then the automatic check, and folds the diagnostics behind "still not working?"', () => {
+        const help = projectBravaisFailureHelp(view({ phase: 'error', failure: 'connection-reset' }), FEATURES);
+        expect(help).toEqual({
+            tips: { title: 'home.qrTipsTitle', items: ['home.qrTipRestart', 'home.qrTipSwitchNetwork'] },
+            selfCheck: null,
+            escalation: { label: 'home.qrDiagnosticsToggle', prompt: 'home.qrDiagnosticsPrompt' },
+        });
+        // 没有失败形态、或 suite 没声明诊断：没有。
+        expect(projectBravaisFailureHelp(view({ phase: 'error' }), FEATURES)).toBeNull();
+        expect(projectBravaisFailureHelp(view({ phase: 'error', failure: 'connection-reset' }), NO_FEATURES)).toBeNull();
+    });
+
+    it('shows the automatic check while it runs, its error, or its verdict with the per-layer results', () => {
+        const running = projectBravaisFailureHelp(view({ phase: 'error', failure: 'check-error', selfCheck: { status: 'running' } }), FEATURES);
+        expect(running?.selfCheck).toEqual({
+            state: 'running',
+            title: 'home.qrSelfCheckTitle',
+            summary: 'home.qrSelfCheckRunning',
+            proxyNote: null,
+            items: [],
+        });
+        expect(projectBravaisSelfCheck({
+            title: 'Check', running: false, runningText: 'Checking…', verdict: null, proxyNote: null, error: 'could not finish', items: [],
+        })).toEqual({ state: 'failed', title: 'Check', summary: 'could not finish', proxyNote: null, items: [] });
+        expect(projectBravaisSelfCheck(null)).toBeNull();
+    });
+
+    it('keeps the error code and host after a failed or warned layer, and only the label for a passed one', () => {
+        const projected = projectBravaisSelfCheck({
+            title: 'Check',
+            running: false,
+            runningText: 'Checking…',
+            verdict: 'Cut during the TLS handshake',
+            proxyNote: 'A proxy is on',
+            error: null,
+            items: [
+                { id: 'dns', state: 'ok', detail: null, label: 'DNS' },
+                { id: 'ipv4', state: 'fail', detail: 'probe.example: ECONNRESET (tls)', label: 'IPv4 connection' },
+                { id: 'clock', state: 'warn', detail: '+5 min', label: 'System clock' },
+            ],
+        });
+        expect(projected).toEqual({
+            state: 'done',
+            title: 'Check',
+            summary: 'Cut during the TLS handshake',
+            proxyNote: 'A proxy is on',
+            items: [
+                { id: 'dns', state: 'ok', text: 'DNS', title: 'DNS' },
+                { id: 'ipv4', state: 'fail', text: 'IPv4 connection: probe.example: ECONNRESET (tls)', title: 'IPv4 connection: probe.example: ECONNRESET (tls)' },
+                { id: 'clock', state: 'warn', text: 'System clock: +5 min', title: 'System clock: +5 min' },
+            ],
+        });
     });
 });
 
