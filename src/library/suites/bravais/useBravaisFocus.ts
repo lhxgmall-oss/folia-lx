@@ -5,11 +5,13 @@ import type { WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS, BRAVAIS_REVEAL_PAD_PX } from './bravaisConstants';
 import { resolveFocusReflow } from './bravaisDisplay';
 import type { BravaisFrameState } from './useBravaisFrame';
+import { useBravaisReflowReturn } from './useBravaisReflowReturn';
 
 // src/library/suites/bravais/useBravaisFocus.ts
 // 两个独立的状态（与 Lattice 的 is-focused / is-expanded 对应）：键盘焦点（发丝线 + 主色环）与聚焦卡（6×6 块内让位，
 // 全局只有一张）。都按 slot 记、只在离散变化时 setState。聚焦卡所在块的 12 个 slot 换成让位后的矩形（块外不动），
 // 展开后与键盘焦点移动后相机做最小平移让矩形完整可见（底边避开播放条安全区），尽量让缝留在屏内（wall/revealRect）。
+// fb2：收起 / 换块时，离开让位表的那一块在过渡时长内仍是「正在归位」（useBravaisReflowReturn），沿同一条过渡回到原位。
 
 export const useBravaisFocus = ({
     frameRef,
@@ -34,6 +36,7 @@ export const useBravaisFocus = ({
     const reflow = useMemo(() => resolveFocusReflow(expandedSlotKey), [expandedSlotKey]);
     const reflowRef = useRef(reflow);
     reflowRef.current = reflow;
+    const { returning, returningBlock } = useBravaisReflowReturn(reflow);
 
     /** slot 此刻画在哪（聚焦块里取让位后的矩形）。 */
     const drawnRect = useCallback((slot: WallSlot): WallSlot => reflowRef.current.get(slot.key) ?? slot, []);
@@ -82,6 +85,8 @@ export const useBravaisFocus = ({
         focusedRef,
         expandedRef,
         reflow,
+        returning,
+        returningBlock,
         drawnRect,
         reveal,
         focusSlot,

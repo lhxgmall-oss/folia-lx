@@ -11,12 +11,16 @@ import BravaisTile, { type BravaisTileHandlers, type BravaisTileRect } from './B
 // transform 由 stage 每帧直接写（bravaisFrame），这里只在裁剪范围、显示的层、聚焦 / 焦点变化时渲染。
 // 透光档（B12b）：每一半先画各自块的实色底板（BravaisBlockPlates，在磁贴之下），底板随世界层一起平移。
 
+const NO_RETURNING: ReadonlyMap<string, BravaisTileRect> = new Map();
+
 type BravaisWallProps = {
     slots: readonly WallSlot[];
     display: BravaisDisplay | null;
     anchorX: number | null;
     /** 聚焦卡所在块的让位矩形（slot key → 新矩形）。 */
     reflow: ReadonlyMap<string, BravaisTileRect>;
+    /** fb2：刚离开让位表、正沿过渡回到原位的 slot（仍挂 is-reflowing，矩形已是原位）。 */
+    returning?: ReadonlyMap<string, BravaisTileRect>;
     expandedSlotKey: string | null;
     focusedSlotKey: string | null;
     /** B7：列表面板里悬停的那一项。 */
@@ -36,6 +40,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
     display,
     anchorX,
     reflow,
+    returning = NO_RETURNING,
     expandedSlotKey,
     focusedSlotKey,
     linkedKey = null,
@@ -63,7 +68,7 @@ const BravaisWall: React.FC<BravaisWallProps> = ({
                 seeThrough={isSeeThroughFace(display?.look ?? 'solid', kind, expanded)}
                 step={display?.flips.get(slot.key)}
                 nowPlayingKey={nowPlayingKey}
-                reflowing={reflow.has(slot.key)}
+                reflowing={reflow.has(slot.key) || returning.has(slot.key)}
                 expanded={expanded}
                 keyboardFocused={slot.key === focusedSlotKey}
                 queued={expanded && Boolean(item && display?.layer.queuedKeys.has(item.key))}

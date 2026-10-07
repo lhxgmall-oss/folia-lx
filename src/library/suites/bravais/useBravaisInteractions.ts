@@ -3,7 +3,7 @@ import { getViewWorldBounds, type WallViewCenter } from '../../../components/wal
 import { overlaps } from '../../../components/wall/layout';
 import { getWallSlot, parseWallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS } from './bravaisConstants';
-import { findNearestSlot, resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
+import { findNearestSlot, resolveSlotFace, resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
 import { resolveEscapeStep, type BravaisKeyAction } from './bravaisKeyboardModel';
 import type { BravaisHomeKeyAction } from './bravaisHomeKeys';
 import { findAdjacentSlot } from './bravaisNavigation';
@@ -24,6 +24,8 @@ import type { useBravaisFocus } from './useBravaisFocus';
 // B9 首页：批量模式（目录树面板开着）里点卡片 / Enter 只切换选中、绝不进入文件夹（拖动后的残余点击在磁贴里已吞掉）；
 // 私人 FM 卡直接播放、不记起点；歌单类卡片的眼睛按钮；F6 切页签与批量按键（bravaisHomeKeys）；Esc 阶梯的「视图」一级
 // 退出管理隐藏。
+// fb2：点窗（结构窗、透明档有限墙的空 slot）什么都不做：不收起聚焦卡、不动键盘焦点、不翻牌、不动相机。只有实色空画框
+// （实色档或无限墙的空画框）与磁贴之间的墙面算「空白墙面」，点它收起聚焦卡。
 
 type BravaisFocus = ReturnType<typeof useBravaisFocus>;
 
@@ -81,6 +83,8 @@ export const useBravaisInteractions = ({
             const item = itemAt(slotKey);
             const layer = displayRef.current?.layer;
             if (!slot || !item || !layer) {
+                // 窗不是墙面：点它没有反应（聚焦卡仍展开）。
+                if (slot && resolveSlotFace(displayRef.current, slot).kind === 'window') return;
                 collapse();
                 return;
             }

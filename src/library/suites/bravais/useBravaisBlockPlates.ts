@@ -19,6 +19,7 @@ import { useBravaisReflowPlate } from './useBravaisReflowPlate';
 // - 已挂载的块跟着裁剪走：新进来的块各画一次，离开的卸载；已挂的块只在它的洞变了时重画（同一块的输入没变就沿用
 //   上一份，不重算；重算出来路径没变也沿用上一份，BravaisBlockPlates 里每块的 memo 不重渲染）。
 // - 聚焦卡让位期间只逐帧重画那一块（useBravaisReflowPlate），落定后停。
+// - fb2：收起 / 换块时归位的那一块同样逐帧重画（第二个 useBravaisReflowPlate，跟 returning），归位放完后停。
 // - 实色档不挂（stage 根节点画墙面）。
 
 type CachedBlock = {
@@ -35,6 +36,7 @@ export const useBravaisBlockPlates = ({
     display,
     expandedSlotKey,
     reflow,
+    returning,
     anchorX,
     reducedMotion,
     fieldRef,
@@ -45,6 +47,8 @@ export const useBravaisBlockPlates = ({
     display: BravaisDisplay | null;
     expandedSlotKey: string | null;
     reflow: ReadonlyMap<string, PlateRect>;
+    /** fb2：最近一次离开让位表、正在归位的那一块（slot key → 原来的让位矩形）；没有时为空。 */
+    returning: ReadonlyMap<string, PlateRect>;
     anchorX: number | null;
     reducedMotion: boolean;
     fieldRef: RefObject<HTMLElement | null>;
@@ -80,5 +84,6 @@ export const useBravaisBlockPlates = ({
 
     platesRef.current = useMemo(() => new Map([...plates.left, ...plates.right].map(block => [block.key, block])), [plates]);
     useBravaisReflowPlate({ active: enabled && !reducedMotion, reflow, platesRef, fieldRef });
+    useBravaisReflowPlate({ active: enabled && !reducedMotion, reflow: returning, platesRef, fieldRef });
     return plates;
 };
