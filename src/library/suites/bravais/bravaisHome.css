@@ -9,7 +9,7 @@
 /* 五个一级页签竖排并列，像一排书脊（窄缝只有 120px）。
    fb2 重排：从上到下是导航区（页头 + 二级切换 + 管理隐藏；唯一可伸缩的一段，放不下时在里面滚，滚动条不画）
    → 扫描进度 → 账户位 → 状态 → 工具格，各段自然高度、互不重叠。页签一列一个、竖排；「书库」是页头最上面一行小字，
-   折叠按钮紧挨在它下面。缩减顺序：先隐藏标题，再把页签缩成一个字（.is-short），再不够导航区在里面滚
+   折叠按钮单独一行在它下面、页签列上面。缩减顺序：先隐藏标题，再把页签缩成一个字（.is-short），再不够导航区在里面滚
    （量的是两份 .bravais-seam-home-measure）。 */
 .bravais-seam-home {
     --bravais-home-pad-x: 10px;
@@ -44,8 +44,9 @@
     gap: 10px;
 }
 
-/* fb2 第二轮：页头竖着排——最上面一行是「书库」小字（横排），下面是折叠按钮与页签那一列（窄缝里折叠按钮在页签列
-   右边、紧挨着标题下方；书脊上在页签上面）。空间不够时先把标题视觉隐藏（.is-hidden，读屏仍读得到），再缩页签。 */
+/* fb2 第二轮：页头竖着排——最上面一行是「书库」小字（横排），下面是折叠按钮，再下面是页签那一列（第三轮：折叠按钮
+   单独一行，不与第一个页签并排；窄缝与书脊一样）。空间不够时先把标题视觉隐藏（.is-hidden，读屏仍读得到；折叠按钮
+   那一行不隐藏），再缩页签。 */
 .bravais-seam-home-head {
     display: flex;
     flex-direction: column;
@@ -79,10 +80,8 @@
     white-space: nowrap;
 }
 
-.bravais-seam-home-side { display: flex; flex: none; flex-direction: row-reverse; align-items: flex-start; justify-content: center; gap: 8px; }
-
-/* 书脊：折叠按钮排在页签那一列上面。 */
-.bravais-seam-home.is-compact .bravais-seam-home-side { flex-direction: column; align-items: center; }
+/* 折叠按钮单独一行，在页签那一列上面（窄缝与书脊相同）。 */
+.bravais-seam-home-side { display: flex; flex: none; flex-direction: column; align-items: center; gap: 8px; }
 
 /* 全名页头的测量副本：与导航区同宽，绝对定位、看不见、不占位。 */
 .bravais-seam-home > .bravais-seam-home-measure {

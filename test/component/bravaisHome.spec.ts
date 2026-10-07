@@ -535,6 +535,7 @@ test.describe('[bravais-only] the account seam over layer shifts', () => {
 // 收进「⋯」；导航区、账户位、工具格互不重叠，整体在播放条安全区之上。
 // fb2 第二轮：「书库」是页头最上面一行小字。缩减顺序（都按测量）：先隐藏标题（视觉隐藏，读屏仍有）→ 再缩页签
 // → 再不够导航区内部滚动。大高度：标题 + 全名；中等：无标题 + 全名；小：无标题 + 一个字。
+// 第三轮：折叠按钮单独一行，在标题之下、页签列之上，三级下都看得见、点得到。
 test.describe('[bravais-only] the narrow home seam layout', () => {
     type Box = { left: number; top: number; right: number; bottom: number };
     const root = (page: Page) => page.locator('[data-bravais-home-seam]');
@@ -560,9 +561,11 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             title: (() => {
                 const title = root.querySelector<HTMLElement>('[data-bravais-home-title]')!;
                 const rect = title.getBoundingClientRect();
-                return { state: title.dataset.bravaisHomeTitle, text: title.textContent, width: rect.width, height: rect.height };
+                return { state: title.dataset.bravaisHomeTitle, text: title.textContent, width: rect.width, height: rect.height, bottom: rect.bottom };
             })(),
             tablistName: root.querySelector('[role="tablist"]')?.getAttribute('aria-label') ?? null,
+            fold: box(root.querySelector('[data-bravais-seam-action="hide"]')),
+            tabsBox: box(root.querySelector('[role="tablist"]')),
             tabs: [...root.querySelectorAll<HTMLElement>('[data-bravais-tab]')].map(tab => ({
                 key: tab.dataset.bravaisTab!,
                 text: tab.textContent,
@@ -596,6 +599,12 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             for (let j = i + 1; j < layout.tools.length; j += 1) expect(overlaps(layout.tools[i], layout.tools[j])).toBe(false);
         }
         expect(layout.dock!.bottom).toBeLessThanOrEqual(layout.safeBottom + 0.5);
+        // 折叠按钮单独一行：在标题之下（标题显示时）、页签列之上，不与页签并排；任何一级都看得见。
+        const fold = layout.fold!;
+        expect(fold.bottom - fold.top).toBeGreaterThan(20);
+        expect(fold.bottom).toBeLessThanOrEqual(layout.tabsBox!.top + 0.5);
+        if (layout.title.state === 'shown') expect(fold.top).toBeGreaterThanOrEqual(layout.title.bottom - 0.5);
+        await expect(seam(page).locator('[data-bravais-home-seam] [data-bravais-seam-action="hide"]')).toBeVisible();
         return layout;
     };
 
@@ -672,5 +681,11 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'titled');
         await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short]')).toHaveCount(0);
         await expectTidy(page);
+
+        // 三级下折叠按钮都能点：小高度（标题隐藏、页签一个字）点它，缝折起来。
+        await resize(page, firstAt.get('short')!);
+        await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'short');
+        await seam(page).locator('[data-bravais-home-seam] [data-bravais-seam-action="hide"]').click();
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam-level', 'hidden');
     });
 });
