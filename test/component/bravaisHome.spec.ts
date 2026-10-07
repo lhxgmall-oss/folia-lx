@@ -228,6 +228,104 @@ test.describe('[bravais-only] home', () => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
     });
 
+    // 设计稿 §7.6：每面墙都有当前页过滤——首页各页签也一样。墙上直接打字进缝里的输入位（窄缝里，平时不占地方），
+    // 过滤词是这一页的目录会话 query；它只收窄当前墙，不发 provider 请求。搜索在线平台是另一个入口（⌕ / `/`）。
+    const filterField = (page: Page) => seam(page).locator('[data-bravais-input-kind="filter"]');
+    const filterInput = (page: Page) => seam(page).locator('[data-bravais-filter-input]');
+    const wallCards = (page: Page) => page.locator('.bravais-tile[data-library-card]').evaluateAll(
+        elements => elements.map(element => element.getAttribute('data-library-card')),
+    );
+    const blur = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+
+    test('typing on a home tab filters its wall into a finite collage through the narrow seam input, without any request', async ({ page }) => {
+        await expect(filterField(page)).toHaveCount(0);
+        await page.evaluate(() => window.__homeProbe!.clearLog());
+        await blur(page);
+        await page.keyboard.press('o');
+        await expect(filterInput(page)).toBeFocused();
+        await page.keyboard.type('wned');
+        await expect(filterInput(page)).toHaveValue('owned');
+        await expect.poll(() => page.evaluate(() => window.__homeProbe!.getQuery())).toBe('owned');
+        // 缝还是首页窄缝（不是搜索），墙退化为有限拼贴：只剩匹配的那张、不重复。
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await settled(page);
+        await expect.poll(() => wallCards(page)).toEqual(['card:playlist:owned']);
+        await expect(filterField(page).locator('[data-bravais-filter-count]')).toHaveText('1 / 5');
+        // 过滤不发请求、不走搜索提交。
+        expect(await page.evaluate(() => window.__homeProbe!.requests())).toEqual([]);
+        expect(await calls(page, 'searchCommitted')).toEqual([]);
+
+        // Esc：先清空（翻回无限拼贴），再结束输入（输入位收起，窄缝不留它）。
+        await page.keyboard.press('Escape');
+        await expect.poll(() => page.evaluate(() => window.__homeProbe!.getQuery())).toBe('');
+        await settled(page);
+        await expect.poll(async () => {
+            const cards = await wallCards(page);
+            return new Set(cards).size < cards.length;
+        }).toBe(true);
+        await page.keyboard.press('Escape');
+        await expect(filterField(page)).toHaveCount(0);
+    });
+
+    test('search and filter are told apart: the online search is its own box, the page filter its own line', async ({ page }) => {
+        // 搜索在线平台：`/`（或工具格的 ⌕）把缝换成搜索态——放大镜、带框的输入框、「搜索在线平台」、面包屑「书库 › 搜索」。
+        await blur(page);
+        await page.keyboard.press('/');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'search');
+        const search = seam(page).locator('[data-bravais-input-kind="search"]');
+        await expect(search.locator('input[name="bravais-search"]')).toHaveAttribute('placeholder', 'Search online platforms');
+        await expect(search.locator('[data-bravais-seam-action="submit-search"]')).toBeVisible();
+        await expect(filterField(page)).toHaveCount(0);
+        await seam(page).locator('[data-bravais-seam-action="close-search"]').click();
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect(seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="search"]')).toHaveAttribute('aria-label', 'Search online platforms');
+
+        // 过滤当前页：「⋯」里的「过滤当前页」（或直接打字）在窄缝里叫出下划线输入位，缝不换形态。
+        await runMenuItem(page, 'filter');
+        await expect(filterInput(page)).toBeFocused();
+        await expect(filterInput(page)).toHaveAttribute('placeholder', 'Filter this page');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect(seam(page).locator('[data-bravais-input-kind="search"]')).toHaveCount(0);
+        // 输入位里 `/` 只是一个字符（焦点在输入框里，不开搜索）。
+        await page.keyboard.type('a/b');
+        await expect(filterInput(page)).toHaveValue('a/b');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect.poll(() => page.evaluate(() => window.__homeProbe!.getQuery())).toBe('a/b');
+    });
+
+    test('the directory panel shows the same page filter; closing the panel keeps the words', async ({ page }) => {
+        await showLocal(page);
+        await blur(page);
+        await page.keyboard.press('b');
+        await page.keyboard.type('eta');
+        await expect(filterInput(page)).toHaveValue('beta');
+        await settled(page);
+        await expect.poll(() => wallCards(page)).toEqual([`card:folder:${homeFolderId('Music/Beta')}`]);
+        await page.keyboard.press('ArrowDown');
+        await runMenuItem(page, 'directory');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'panel');
+        const panelInput = seam(page).locator('[data-bravais-directory] [data-bravais-filter-input]');
+        await expect(panelInput).toHaveValue('beta');
+        // 面板里 `/` 是过滤字符（批量模式不开搜索）。
+        await blur(page);
+        await page.keyboard.press('/');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'panel');
+        await expect(panelInput).toHaveValue('beta/');
+        await page.keyboard.press('Backspace');
+        await expect(panelInput).toHaveValue('beta');
+        // 结束输入，Esc 阶梯关面板（退出批量模式）：选择丢掉，过滤词留着。
+        // （先清掉 ↓ 落下的键盘焦点，再关面板。）
+        await blur(page);
+        if (await page.locator('.bravais-tile[data-bravais-focused]').count() > 0) {
+            await page.keyboard.press('Escape');
+            await expect(page.locator('.bravais-tile[data-bravais-focused]')).toHaveCount(0);
+        }
+        await page.keyboard.press('Escape');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect.poll(() => page.evaluate(() => window.__homeProbe!.getQuery())).toBe('beta');
+        await expect(filterInput(page)).toHaveValue('beta');
+    });
+
     test('the local seam menu imports a folder; the Navidrome seam refreshes the overview', async ({ page }) => {
         await showLocal(page);
         await page.evaluate(() => window.__homeProbe!.clearLog());
@@ -697,7 +795,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(layout.tools.map(tool => tool.id)).toEqual(['search', 'settings', 'more']);
         await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
-        expect(await menuItems(page)).toEqual(['manage-hidden', 'rule', 'player']);
+        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden', 'rule', 'player']);
         await page.keyboard.press('Escape');
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
 
@@ -796,7 +894,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
         await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
-        expect(await menuItems(page)).toEqual(['manage-hidden', 'rule', 'player']);
+        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden', 'rule', 'player']);
         await page.keyboard.press('Escape');
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
@@ -849,6 +947,30 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         // 盖在导航区上（与它重叠），而不是把导航区推开。
         expect(list.y).toBeLessThan(nav.y + nav.height);
     };
+
+    test('typing on the home spine opens the narrow seam for the page filter and folds back once the input ends', async ({ page }) => {
+        await resize(page, 900, 820);
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home-spine');
+        await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+        await page.keyboard.press('o');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam-level', 'spine');
+        const input = seam(page).locator('[data-bravais-filter-input]');
+        await expect(input).toBeFocused();
+        await page.keyboard.type('wned');
+        await expect(input).toHaveValue('owned');
+        // ↓ 交给墙：输入结束，缩回书脊；书脊上是强调色的过滤图标。
+        await page.keyboard.press('ArrowDown');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home-spine');
+        await expect(seam(page).locator('[data-bravais-seam-action="filter"]')).toBeVisible();
+        await seam(page).locator('[data-bravais-seam-action="filter"]').click();
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect(input).toBeFocused();
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('Escape');
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home-spine');
+        await expect(seam(page).locator('[data-bravais-seam-action="filter"]')).toHaveCount(0);
+    });
 
     test('the account entry sits right above the tools and its list pops upwards over the tabs without changing their fit', async ({ page }) => {
         const layout = await expectTidy(page);

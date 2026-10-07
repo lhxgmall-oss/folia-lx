@@ -784,6 +784,30 @@ test.describe('[bravais-only] artist page wall', () => {
         expect((await artist(page))!.topSongIds).toEqual(topKeys(main));
     });
 
+    test('typing on the artist wall filters the albums through the seam input; the words are the browse session query', async ({ mount, page }) => {
+        await openMain(mount, page);
+        await clearLog(page);
+        const before = await page.evaluate(() => window.__libraryProbe!.requests().length);
+        // 墙上直接打字：进缝里的过滤输入位（占位照实说「过滤专辑」：歌手页只筛专辑名）。
+        await pressOnPage(page, 'c');
+        const input = stageRoot(page).locator('[data-bravais-filter-input]');
+        await expect(input).toBeFocused();
+        await expect(input).toHaveAttribute('placeholder', 'Filter albums');
+        await page.keyboard.type('edar');
+        await expect(input).toHaveValue('cedar');
+        expect(await getQuery(page)).toBe('cedar');
+        await expect(artistAnchor(page)).toHaveAttribute('data-bravais-mode', 'finite');
+        await expect.poll(async () => (await artist(page))?.albumIds).toEqual(artistAlbumIdsMatching(main, 'cedar'));
+        expect((await artist(page))!.topSongIds).toEqual(topKeys(main));
+        // 过滤不发请求：只收窄墙上已有的专辑。
+        expect(await page.evaluate(() => window.__libraryProbe!.requests().length)).toBe(before);
+        // Esc：先清空（翻回无限拼贴），再结束输入。
+        await page.keyboard.press('Escape');
+        await expect(artistAnchor(page)).toHaveAttribute('data-bravais-mode', 'infinite');
+        await page.keyboard.press('Escape');
+        await expect(input).not.toBeFocused();
+    });
+
     test('a new album page only fills slots that were empty: tiles already showing something keep it', async ({ mount, page }) => {
         await mountProbe(mount, page, 'bravais');
         await page.evaluate(target => window.__libraryProbe!.holdPagesOf(target), mainTarget);

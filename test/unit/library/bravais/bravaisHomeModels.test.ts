@@ -43,6 +43,17 @@ describe('resolveHomeWallMode', () => {
             .toEqual({ mode: 'finite', filterKey: 'folders|batch|alpha' });
     });
 
+    it('filters any tab into a finite collage keyed by the words, in browse and manage alike', () => {
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'browse', batch: false, query: ' jazz ' }))
+            .toEqual({ mode: 'finite', filterKey: 'playlist|browse|filter|jazz' });
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'manage', batch: false, query: 'jazz' }))
+            .toEqual({ mode: 'finite', filterKey: 'playlist|manage|filter|jazz' });
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'manage-hidden-only', batch: false, query: 'jazz' }))
+            .toEqual({ mode: 'finite', filterKey: 'playlist|hidden-only|jazz' });
+        expect(resolveHomeWallMode({ section: 'playlist', visibilityMode: 'browse', batch: false, query: '   ' }))
+            .toEqual({ mode: 'infinite', filterKey: 'playlist' });
+    });
+
     it('changes the filter identity when the local row changes, so the whole wall flips', () => {
         const folders = resolveHomeWallMode({ section: 'folders', visibilityMode: 'browse', batch: false, query: '' });
         const albums = resolveHomeWallMode({ section: 'albums', visibilityMode: 'browse', batch: false, query: '' });
