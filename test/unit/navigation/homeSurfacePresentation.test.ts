@@ -12,6 +12,7 @@ describe('buildHomeSurfacePresentation', () => {
         })).toEqual({
             shouldKeepHomeMounted: true,
             shouldShowHomeSurface: true,
+            shouldRevealHomeSurface: true,
         });
     });
 
@@ -23,6 +24,7 @@ describe('buildHomeSurfacePresentation', () => {
         })).toEqual({
             shouldKeepHomeMounted: false,
             shouldShowHomeSurface: false,
+            shouldRevealHomeSurface: false,
         });
     });
 
@@ -34,6 +36,7 @@ describe('buildHomeSurfacePresentation', () => {
         })).toEqual({
             shouldKeepHomeMounted: false,
             shouldShowHomeSurface: false,
+            shouldRevealHomeSurface: false,
         });
     });
 
@@ -45,6 +48,7 @@ describe('buildHomeSurfacePresentation', () => {
         })).toEqual({
             shouldKeepHomeMounted: false,
             shouldShowHomeSurface: false,
+            shouldRevealHomeSurface: false,
         });
     });
 
@@ -56,6 +60,20 @@ describe('buildHomeSurfacePresentation', () => {
         })).toEqual({
             shouldKeepHomeMounted: true,
             shouldShowHomeSurface: false,
+            shouldRevealHomeSurface: false,
+        });
+    });
+
+    it('keeps Home mounted and visible, but not interactive, while a wall handoff lands Lattice on it', () => {
+        expect(buildHomeSurfacePresentation({
+            currentView: 'lattice',
+            isSettingsModalOpen: false,
+            isPanelOpen: false,
+            keepsHomeForHandoff: true,
+        })).toEqual({
+            shouldKeepHomeMounted: true,
+            shouldShowHomeSurface: false,
+            shouldRevealHomeSurface: true,
         });
     });
 });
