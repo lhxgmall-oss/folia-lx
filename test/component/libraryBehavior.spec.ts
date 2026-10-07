@@ -1645,7 +1645,8 @@ test.describe('[bravais-only] collection page', () => {
         const matches = keysOf(PROBE_PROVIDER_A, PUBLIC.prefix, expectedPlayableIndexes(PUBLIC.rawIndexes, 'cedar'));
         await waitForScope(page, matches.length);
         await settleFlips(page);
-        // 命令面板的过滤框里按 ↓ 走的就是这个注册（CommandFilterAnchor.focusResults）。
+        // 命令面板的过滤框（Ctrl/Cmd+F、列表里的 filter-view，bravais 上是浮层）里按 ↓ 走的就是这个注册
+        // （CommandFilterAnchor.focusResults）；缝里输入位的 ↓ 见下一条。
         const handled = await page.evaluate(async () => {
             const storePath = '/src/stores/useAppViewStore.ts';
             const { useAppViewStore } = await import(/* @vite-ignore */ storePath);
@@ -1657,6 +1658,80 @@ test.describe('[bravais-only] collection page', () => {
         await clearLog(page);
         await playFocused(page, 'bravais');
         await expect.poll(async () => (await lastCall(page, 'playSong'))?.ids).toEqual([matches[0]]);
+    });
+
+    // 设计稿 §7.6：每面墙的当前页过滤是缝自己的输入位——墙上直接打字（命令面板经 ownInput 交过来；组件探针里是
+    // paletteTypingStandIn），不是命令面板的内联框。
+    const filterInput = (page: Page) => page.locator('[data-library-stage="bravais"] [data-bravais-filter-input]');
+
+    test('typing on the wall goes into the seam own filter input; arrow down hands the keyboard to rank 0 and keeps the filter', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        await pressOnGrid(page, 'c');
+        await expect(filterInput(page)).toBeFocused();
+        await page.keyboard.type('edar');
+        await expect(filterInput(page)).toHaveValue('cedar');
+        expect(await getQuery(page)).toBe('cedar');
+        // 不是命令面板的框：缝里只有自己的输入位（下划线、「过滤当前页」）。
+        await expect(page.getByTestId('command-palette-filter')).toHaveCount(0);
+        await expect(filterInput(page)).toHaveAttribute('placeholder', 'Filter this page');
+        const matches = keysOf(PROBE_PROVIDER_A, PUBLIC.prefix, expectedPlayableIndexes(PUBLIC.rawIndexes, 'cedar'));
+        await waitForScope(page, matches.length);
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'finite');
+        // 匹配数在输入位右边（墙上放的是全部匹配项，不可播放的也在）。
+        const matchCount = PUBLIC.rawIndexes.filter(index => onlineSearchText(index).includes('cedar')).length;
+        await expect(page.locator('[data-bravais-filter-count]')).toHaveText(new RegExp(`^${matchCount} / \\d+$`));
+        await settleFlips(page);
+        await page.keyboard.press('ArrowDown');
+        await expect(page.locator('.bravais-tile[data-bravais-focused]')).toHaveAttribute('data-library-entry', `${matches[0]}-0`);
+        await expect(filterInput(page)).not.toBeFocused();
+        expect(await getQuery(page)).toBe('cedar');
+        await clearLog(page);
+        await playFocused(page, 'bravais');
+        await expect.poll(async () => (await lastCall(page, 'playSong'))?.ids).toEqual([matches[0]]);
+    });
+
+    test('Escape in the seam input clears the words first, then ends the input without leaving the collection', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        await pressOnGrid(page, 'a');
+        await page.keyboard.type('mber');
+        await expect(filterInput(page)).toHaveValue('amber');
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'finite');
+        await page.keyboard.press('Escape');
+        await expect(filterInput(page)).toHaveValue('');
+        await expect(filterInput(page)).toBeFocused();
+        expect(await getQuery(page)).toBe('');
+        await expect(collectionAnchor(page)).toHaveAttribute('data-bravais-mode', 'infinite');
+        await page.keyboard.press('Escape');
+        await expect(filterInput(page)).not.toBeFocused();
+        expect(await stack(page)).toEqual(['Public Playlist']);
+    });
+
+    test('typing on the spine opens the seam to the full strip for the input, and it folds back once the input ends', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = page.locator('[data-library-stage="bravais"] [data-bravais-seam]');
+        await page.locator('[data-bravais-seam-action="spine"]').click();
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'spine');
+        await pressOnGrid(page, 'a');
+        // 书脊上没有输入框：这一下先追加进过滤词，缝临时展开成完整信息条，输入位挂上后拿焦点（光标在末尾）。
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'spine');
+        await expect(filterInput(page)).toBeFocused();
+        await page.keyboard.type('mber');
+        await expect(filterInput(page)).toHaveValue('amber');
+        // ↓ 交给墙：输入结束，缝缩回书脊；过滤词还在，书脊上是强调色的过滤图标。
+        await settleFlips(page);
+        await page.keyboard.press('ArrowDown');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'spine');
+        expect(await getQuery(page)).toBe('amber');
+        await expect(seam.locator('[data-bravais-seam-action="filter"]')).toBeVisible();
+        // 点它重新展开、焦点回到输入位；清空并结束输入后缩回原等级。
+        await seam.locator('[data-bravais-seam-action="filter"]').click();
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+        await expect(filterInput(page)).toBeFocused();
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('Escape');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'spine');
+        expect(await getQuery(page)).toBe('');
     });
 
     test('the list panel is a navigation step: the crumb gains "List", Escape and browser back close it before leaving', async ({ mount, page }) => {
@@ -1732,7 +1807,8 @@ test.describe('[bravais-only] collection page, more', () => {
         await mountProbe(mount, page, 'bravais');
         await open(page, 'online-public');
         await waitForScope(page, expectedPlayableIndexes(fixture['online-public'].rawIndexes).length);
-        const host = page.locator('[data-bravais-filter-host]');
+        // 组词发生在缝里的输入位上（它报告组词状态，墙用的过滤词停在组词开始前的那一个）。
+        const host = page.locator('[data-library-stage="bravais"] [data-bravais-filter-input]');
         await host.dispatchEvent('compositionstart');
         await setQuery(page, 'amber');
         await page.waitForTimeout(500);

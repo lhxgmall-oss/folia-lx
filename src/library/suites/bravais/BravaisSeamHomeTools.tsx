@@ -4,6 +4,7 @@ import {
     Disc3,
     EyeOff,
     FolderTree,
+    ListFilter,
     ListMusic,
     MonitorPlay,
     MoreHorizontal,
@@ -20,7 +21,7 @@ import { bravaisPopMotion } from './bravaisSeamMotion';
 // 首页窄缝底部的工具格。
 // fb3（用户实测）：工具格固定四格——搜索、设置、播放队列、「⋯」（窄缝两列 40px 排成 2×2，书脊上一列 36px）。
 // 其余全部收进「⋯」菜单：本页签的项在前（目录、管理隐藏、Navidrome 刷新，以及本地的导入文件夹 / 刷新 / 导入歌单
-// 文件），app 级的在后（回到播放页、舞台播放器），中间一道分隔线。菜单从工具格上方弹出、盖在导航区上，不推挤别的
+// 文件；当前页过滤的「过滤当前页」排在最前），app 级的在后（回到播放页、舞台播放器），中间一道分隔线。菜单从工具格上方弹出、盖在导航区上，不推挤别的
 // 内容；Esc 或点别处收起。开关类的项（目录、管理隐藏）在菜单里是 menuitemcheckbox，按下时 aria-checked。
 // 书脊（64px）放不下文字菜单：一列只有搜索、设置、队列与「⋯」；点「⋯」先把缝展开成窄缝，窄缝渲染出来后再打开菜单
 // （经 bravaisHomeUiStore 的 openRequest）。
@@ -29,6 +30,7 @@ import { bravaisPopMotion } from './bravaisSeamMotion';
 
 const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
     search: Search,
+    filter: ListFilter,
     directory: FolderTree,
     'manage-hidden': EyeOff,
     'refresh-navidrome': RefreshCw,

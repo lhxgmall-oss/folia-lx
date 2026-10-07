@@ -5,7 +5,6 @@ import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
 import type { BravaisPanelActions } from './BravaisListPanel';
-import { setBravaisFilterHost } from './bravaisUiStore';
 import BravaisSeamContent from './BravaisSeamContent';
 import { BravaisSeamNavigation } from './BravaisSeamCrumbs';
 import type { LibraryNavigationContext } from '../../core/contracts/suite';
@@ -21,6 +20,7 @@ import { selectBravaisAccountKeyboardWindow, useBravaisAccountStore } from './br
 // 挂 inert + aria-hidden：不可点、不可聚焦、不进无障碍树（反方向——账户表单翻出去——由表单自己的 live 处理）。
 // fb4（缝内的过渡）：推广到每一次整条翻走——转出的半圈（降低动效时的淡出）里旧内容一律 inert + aria-hidden，
 // 读屏与用例只看得到要换上的那一层。
+// 当前页过滤（设计稿 §7.6）：输入位在缝的内容里（BravaisSeamFilterField，随内容翻牌），不再给命令面板的内联框留锚点。
 
 const isAccountVariant = (variant: BravaisSeamContentVariant) => variant === 'login' || variant === 'confirm';
 
@@ -96,13 +96,6 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
                         </BravaisSeamNavigation.Provider>
                     </motion.div>
                 </div>
-                {/* B7：命令面板的内联过滤框画在这里（不随内容翻转；位置对着完整信息条 / 面板里留出的过滤位）。 */}
-                <div
-                    ref={setBravaisFilterHost}
-                    className="bravais-seam-filter-host"
-                    data-bravais-filter-host={variant === 'panel' ? 'panel' : 'strip'}
-                    style={{ width: Math.max(0, width - 44), marginLeft: -Math.max(0, width - 44) / 2 }}
-                />
             </div>
             <button
                 ref={tabRef}

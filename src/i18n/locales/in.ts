@@ -39,6 +39,9 @@ export default {
     "helpTabs": "Ganti tab beranda",
     "helpLocate": "Temukan lagu yang diputar",
     "helpCommands": "Buka panel perintah",
+    "helpFilter": "Ketik untuk menyaring halaman ini",
+    "helpSearch": "Cari di platform online (beranda)",
+    "filterPlaceholder": "Saring halaman ini",
     "kind": {"track": "Lagu", "playlist": "Playlist", "album": "Album", "artist": "Artis", "folder": "Folder", "feed": "Radio"}
   },
   "libraryBravaisHome": {
@@ -46,13 +49,14 @@ export default {
     "unhide": "Tampilkan lagi",
     "directory": "Direktori",
     "directoryCrumb": "Direktori",
-    "filterPlaceholder": "Saring direktori",
     "clearSelection": "Kosongkan pilihan",
     "manageHidden": "Kelola yang disembunyikan",
     "hiddenOnly": "Hanya yang disembunyikan",
     "manageDone": "Selesai",
     "search": "Cari",
-    "searchPlaceholder": "Cari lagu, artis, album",
+    "searchPlaceholder": "Cari di platform online",
+    "searchHint": "Mencari lagu, artis, dan album secara online; hasilnya dibuka di halaman pencarian. Dinding ini tidak ikut disaring.",
+    "searchOnline": "Cari di platform online",
     "searchSubmit": "Cari",
     "searchClose": "Tutup pencarian",
     "openQueue": "Buka antrean",
@@ -61,7 +65,8 @@ export default {
     "settings": "Pengaturan",
     "more": "Lainnya",
     "scanProgress": "Memindai {{percent}}%",
-    "connect": "Hubungkan layanan streaming"
+    "connect": "Hubungkan layanan streaming",
+    "noMatch": "Tidak ada yang cocok di halaman ini"
   },
   "libraryTui": {
     "back": "Kembali",
@@ -142,7 +147,6 @@ export default {
     "artistHints": "↑↓ pindah · Tab lagu/album · Enter putar/buka · Shift+Enter antrekan · Ctrl+Enter putar semua · Ctrl+Shift+Enter antrekan lagu populer · Esc kembali"
   },
   "libraryBravaisCollection": {
-    "filterPlaceholder": "Saring koleksi ini",
     "matchCount": "{{matches}} / {{total}}",
     "clearFilter": "Hapus saringan",
     "more": "Lainnya",

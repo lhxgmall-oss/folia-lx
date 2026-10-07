@@ -2,7 +2,7 @@ import type { WallDirection } from '../../../components/wall/wallNavigation';
 
 // src/library/suites/bravais/bravaisKeyboardModel.ts
 // 墙上的按键（设计稿 §7.6，纯规则）：只认不可打印的键——方向键、Enter 一族、Esc、Home、PgUp / PgDn、Tab。
-// 可打印字符归命令面板（打字即筛选），Space 是全局的播放 / 暂停，都不接管；带 Ctrl / Alt / Meta 的组合只处理表里
+// 可打印字符由命令面板分发（打字即过滤，交给缝里的输入位，见 resolveBravaisTypingKey），Space 是全局的播放 / 暂停，都不在这里接管；带 Ctrl / Alt / Meta 的组合只处理表里
 // 列出的那几个（Alt+Enter / Alt+Shift+Enter），其余一律放行。Esc 阶梯每次只处理一级。
 
 export type BravaisKeyAction =
@@ -84,4 +84,20 @@ export const resolveEscapeStep = ({
     if (hasViewMode) return 'view';
     if (hasQuery) return 'query';
     return canGoBack ? 'back' : null;
+};
+
+/**
+ * 墙上的「打字即过滤」（设计稿 §7.6）：不带 Ctrl / Alt / Meta 的可打印字符是过滤词的一个字（`char`），输入法的开头
+ * （`Process` / `Unidentified`，还没有字）是 `ime`；Space（全局播放 / 暂停）与 `reserved` 里的键（首页的 `/` 是全局
+ * 搜索）不算。按键先到命令面板，它留下自己的 `:` 之后经过滤注册的 ownInput 交给缝（useBravaisSeamFilter）。
+ */
+export const resolveBravaisTypingKey = (
+    input: Pick<BravaisKeyInput, 'key' | 'altKey' | 'ctrlKey' | 'metaKey'>,
+    reserved: readonly string[] = [],
+): 'char' | 'ime' | null => {
+    const { key, altKey, ctrlKey, metaKey } = input;
+    if (altKey || ctrlKey || metaKey) return null;
+    if (key === 'Process' || key === 'Unidentified') return 'ime';
+    if ([...key].length !== 1 || key === ' ' || reserved.includes(key)) return null;
+    return 'char';
 };

@@ -70,6 +70,7 @@ export const useBravaisHomeChrome = ({
     const search = useMemo<BravaisHomeSearch>(() => ({
         title: t('libraryBravaisHome.search'),
         placeholder: t('libraryBravaisHome.searchPlaceholder'),
+        hint: t('libraryBravaisHome.searchHint'),
         submitLabel: t('libraryBravaisHome.searchSubmit'),
         closeLabel: t('libraryBravaisHome.searchClose'),
         onSubmit: query => latest.current.props.onSearchCommitted(query, latest.current.tab as HomeViewTab),
@@ -77,7 +78,8 @@ export const useBravaisHomeChrome = ({
 
     const searchTool = useMemo<BravaisHomeTool>(() => ({
         id: 'search',
-        label: t('libraryBravaisHome.search'),
+        // 与「过滤当前页」区分：工具格里的这一格是去在线平台搜索（切到搜索页），不是收窄这面墙。
+        label: t('libraryBravaisHome.searchOnline'),
         pressed: searchOpen,
         run: () => {
             const seam = useBravaisSeamStore.getState();

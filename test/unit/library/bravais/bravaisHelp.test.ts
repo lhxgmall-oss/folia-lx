@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import bravais from '@/library/suites/bravais/entry';
 import { BRAVAIS_HELP_ROWS } from '@/library/suites/bravais/bravaisHelp';
-import { resolveBravaisKey, type BravaisKeyInput } from '@/library/suites/bravais/bravaisKeyboardModel';
+import { resolveBravaisKey, resolveBravaisTypingKey, type BravaisKeyInput } from '@/library/suites/bravais/bravaisKeyboardModel';
 import { resolveBravaisHomeKey } from '@/library/suites/bravais/bravaisHomeKeys';
 import { COMMAND_PALETTE_COMMANDS } from '@/components/command-palette/commandRegistry';
 import en from '@/i18n/locales/en';
@@ -22,6 +22,8 @@ const lookup = (locale: Record<string, unknown>, path: string) => path.split('.'
 describe('bravais help rows', () => {
     it('lists one key per line, in order', () => {
         expect(BRAVAIS_HELP_ROWS.map(row => [row.id, row.kbd('Ctrl')])).toEqual([
+            ['filter', 'A–Z'],
+            ['search', '/'],
             ['move', '↑ ↓ ← →'],
             ['open', 'Enter'],
             ['play', 'Enter'],
@@ -41,6 +43,18 @@ describe('bravais help rows', () => {
             const action = resolveBravaisKey(input) ?? resolveBravaisHomeKey(input);
             expect(action?.type, row.id).toBe(row.probe.action);
         }
+    });
+
+    it('types into the filter with printable keys; `/` stays the online search on home, Space stays global', () => {
+        const typing = BRAVAIS_HELP_ROWS.find(row => row.id === 'filter')!.typing!;
+        expect(resolveBravaisTypingKey(press({ key: typing.key }))).toBe('char');
+        expect(resolveBravaisTypingKey(press({ key: 's' }))).toBe('char');
+        expect(resolveBravaisTypingKey(press({ key: 'Process' }))).toBe('ime');
+        expect(resolveBravaisTypingKey(press({ key: '/' }), ['/'])).toBeNull();
+        expect(resolveBravaisTypingKey(press({ key: '/' }))).toBe('char');
+        expect(resolveBravaisTypingKey(press({ key: ' ' }))).toBeNull();
+        expect(resolveBravaisTypingKey(press({ key: 'a', ctrlKey: true }))).toBeNull();
+        expect(resolveBravaisTypingKey(press({ key: 'ArrowDown' }))).toBeNull();
     });
 
     it('locates the playing song through execute mode and the chrome action key', () => {

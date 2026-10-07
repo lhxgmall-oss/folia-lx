@@ -7,15 +7,14 @@ import type { CollectionResourceSnapshot } from '../../core/contracts/resource';
 import { resolveCollectionSyncCounts } from '../../core/model/collectionProgress';
 import type { CollectionActions } from '../../core/bindings/useCollectionActions';
 import type { CollectionView } from '../../core/bindings/useCollectionView';
-import { openCommandFilter } from '../../../stores/useAppViewStore';
 import type { LocalSongFolderSortDirection, LocalSongFolderSortField } from '../../../utils/localSongSorting';
 import { projectCollectionStatus, resolveWallPeriodCount } from './bravaisCollectionStatus';
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamMenuItem } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
 import type { useBravaisCollectionForms } from './useBravaisCollectionForms';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
 
 // src/library/suites/bravais/useBravaisCollectionSeam.ts
-// 集合层在缝与墙上的投影（设计稿 §10.2 / §10.6）：缝里的收藏星标、补页进度 / 续传、状态行、过滤位、每日推荐的日期步进、
+// 集合层在缝与墙上的投影（设计稿 §10.2 / §10.6）：缝里的收藏星标、补页进度 / 续传、状态行、过滤输入位、每日推荐的日期步进、
 // 「⋯ 更多」与表单态；墙的内容规则（补页期间的循环周期、有限拼贴的规划条目数、过滤身份、首屏呼吸）；列表面板的排序
 // 与聚焦卡「⋯」的条目动作。入口只在「suite 声明 ∩ 控制器能力」时出现（与 TUI、网格同一条规则）。
 // 回调一律经 latest ref 读最新的视图、动作与控制器，层描述只在显示的东西变了时换身份。
@@ -182,13 +181,13 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
     }, [branches.isOnlineAlbum, mutation.subscribed, mutation.subscribing, offers, t]);
 
     const matchLabel = t('libraryBravaisCollection.matchCount', { matches: input.matchCount, total: input.itemCount });
-    const filter = useMemo<BravaisSeamCollection['filter']>(() => (declares('filter') ? {
+    // 缝里的过滤输入位（「过滤当前页」）：读写的就是浏览会话的 query。
+    const filter = useMemo<BravaisSeamFilter | undefined>(() => (declares('filter') ? {
         query: input.query,
-        placeholder: t('libraryBravaisCollection.filterPlaceholder'),
+        placeholder: t('libraryBravais.filterPlaceholder'),
         matchLabel,
         clearLabel: t('libraryBravaisCollection.clearFilter'),
-        onOpen: openCommandFilter,
-        onClear: () => latest.current.setQuery(''),
+        setQuery: (query: string) => latest.current.setQuery(query),
     } : undefined), [declares, input.query, matchLabel, t]);
 
     // 表单态（改名、删除确认、加入歌单选择 / 新建）。
@@ -237,7 +236,6 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         sync: syncLine,
         status,
         notice: notice.notice,
-        filter,
         daily,
         menu,
         moreLabel: t('libraryBravaisCollection.more'),
@@ -245,7 +243,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         form,
     // status / syncLine 是每次渲染新算的小对象：按它们的文案比较，免得层描述白换身份。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [daily, filter, form, menu, notice.notice, status?.tone, status?.text, subscribe, syncLine?.state, syncLine?.label, t]);
+    }), [daily, form, menu, notice.notice, status?.tone, status?.text, subscribe, syncLine?.state, syncLine?.label, t]);
 
     // 墙的内容规则：补页期间的循环周期（新页只翻新 slot）、有限拼贴的规划条目数、过滤身份、首屏呼吸。
     const periodCount = resolveWallPeriodCount({ itemCount: input.itemCount, totalCount, sync });
@@ -302,5 +300,5 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         cancelForm: forms.cancel,
     }), [declares, formState, forms.cancel, input.query, isDaily, sortInput.direction, sortInput.field, sortInput.supported, t]);
 
-    return { seamCollection, wall, entries, matchLabel };
+    return { seamCollection, filter, wall, entries, matchLabel };
 };

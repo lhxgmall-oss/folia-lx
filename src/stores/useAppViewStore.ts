@@ -46,6 +46,22 @@ export type CommandFilterAnchor = {
      * wall's own focus one step further. Surfaces without it keep the box's default arrow handling.
      */
     focusResults?: () => boolean;
+    /**
+     * The surface draws its own filter input (the bravais seam) instead of borrowing the palette's inline box.
+     * Bare typing and `openCommandFilter` requests go to it; the palette keeps its own keys (`:`, the opt-in `s`)
+     * and the `filter-view` command itself — picked from the list or by its hotkey it still opens the palette's
+     * box (as the overlay, since such a surface gives no anchor), with the `--play` / `--add` dialect.
+     */
+    ownInput?: {
+        /**
+         * A modifier-free printable key (or an IME's opening `Process`) pressed outside any text field. Returns true
+         * when the surface took it; it calls preventDefault itself only when the keystroke must not land anywhere.
+         * Returning false leaves the key alone (Space, a key the surface reserves for something else).
+         */
+        takeKey: (event: KeyboardEvent) => boolean;
+        /** Put the input up and focus it. */
+        open: () => void;
+    };
 };
 
 /** The registered owner of typed characters: a query port (read/write the filter text) plus its anchor. */

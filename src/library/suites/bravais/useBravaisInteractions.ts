@@ -13,7 +13,6 @@ import { closeBravaisPanel } from './bravaisPanelHistory';
 import { setBravaisWallHoverKey, useBravaisUiStore } from './bravaisUiStore';
 import { setBravaisSearchOpen } from './bravaisHomeUiStore';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
-import { useAppViewStore } from '../../../stores/useAppViewStore';
 import type { BravaisTileHandlers } from './BravaisTile';
 import type { BravaisFrameState } from './useBravaisFrame';
 import type { useBravaisFocus } from './useBravaisFocus';
@@ -195,7 +194,8 @@ export const useBravaisInteractions = ({
     const focusWall = useCallback(() => fieldRef.current?.focus({ preventScroll: true }), [fieldRef]);
 
     const seamFocusables = useCallback(() => (
-        [...(seamRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? [])]
+        // 缝里的按钮与过滤输入位（Tab 进缝后也能走到输入位）。
+        [...(seamRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input[data-bravais-filter-input]') ?? [])]
             .filter(element => element.offsetParent !== null)
     ), [seamRef]);
 
@@ -245,8 +245,8 @@ export const useBravaisInteractions = ({
         // B9 首页：F6 切页签；批量模式的 Ctrl+A / Ctrl+Enter / Delete（不在首页、不在批量模式时不接，按键照常放行）。
         if (action.type === 'cycle-tab') return layer.home?.cycleTab?.(action.delta) ?? false;
         if (action.type === 'open-search') {
-            // 有过滤框注册着（目录树面板开着）时 `/` 是过滤字符，留给命令面板。
-            if (!layer.seam.home || useAppViewStore.getState().commandFilter) return false;
+            // 目录树面板开着（批量模式）时 `/` 是过滤字符（命令面板经 ownInput 交给缝里的输入位），不开搜索。
+            if (!layer.seam.home || useBravaisUiStore.getState().panelFor === layer.key) return false;
             if (useBravaisSeamStore.getState().level === 'hidden') useBravaisSeamStore.getState().restore();
             setBravaisSearchOpen(true);
             return true;

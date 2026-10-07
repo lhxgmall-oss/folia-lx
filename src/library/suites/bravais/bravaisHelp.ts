@@ -4,7 +4,9 @@ import type { BravaisKeyInput } from './bravaisKeyboardModel';
 // 右下角工具面板「操作提示」的行（纯数据）：每行一件事，「说明 + 右侧一个按键标签」，与 Lattice 的帮助列表同一排版。
 // 内容以 bravais 实际的键位为准（bravaisKeyboardModel / bravaisHomeKeys / 命令面板的全局键，设计稿 §7.6）；
 // `probe` 是这行按键对应的一次按下，单测拿它过一遍按键规则，确认帮助里写的键真的有那个动作。
-// 不列 S：S 只在首页（没注册过滤）打开命令面板，集合层上它是过滤框的第一个字符；Ctrl / Cmd+K 在哪都打开。
+// 每面墙都注册了当前页过滤（设计稿 §7.6）：直接打字进缝里的过滤输入位，S 也只是一个过滤字符，所以不列 S；
+// 命令面板只列 Ctrl / Cmd+K。`/` 是首页的「搜索在线平台」（批量模式下它也是过滤字符）。
+// `typing` 是「打字」这一行的探针：过一遍 resolveBravaisTypingKey，确认普通字符算过滤字符、`/` 在首页被留给搜索。
 
 export type BravaisHelpRow = {
     id: string;
@@ -14,9 +16,13 @@ export type BravaisHelpRow = {
     kbd: (mod: string) => string;
     /** 墙上的按键规则会解析出的动作类型（命令面板的全局键没有，单测另外核对）。 */
     probe?: { input: Partial<BravaisKeyInput> & { key: string }; action: string };
+    /** 打字过滤这一行：这个键应被认作过滤字符（resolveBravaisTypingKey，首页保留 `/`）。 */
+    typing?: { key: string };
 };
 
 export const BRAVAIS_HELP_ROWS: readonly BravaisHelpRow[] = Object.freeze<BravaisHelpRow[]>([
+    { id: 'filter', labelKey: 'libraryBravais.helpFilter', kbd: () => 'A–Z', typing: { key: 'a' } },
+    { id: 'search', labelKey: 'libraryBravais.helpSearch', kbd: () => '/', probe: { input: { key: '/' }, action: 'open-search' } },
     { id: 'move', labelKey: 'libraryBravais.helpMove', kbd: () => '↑ ↓ ← →', probe: { input: { key: 'ArrowRight' }, action: 'move' } },
     { id: 'open', labelKey: 'libraryBravais.helpOpen', kbd: () => 'Enter', probe: { input: { key: 'Enter' }, action: 'enter' } },
     { id: 'play', labelKey: 'libraryBravais.helpPlay', kbd: () => 'Enter', probe: { input: { key: 'Enter' }, action: 'enter' } },

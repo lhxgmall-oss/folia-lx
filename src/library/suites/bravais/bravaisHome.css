@@ -342,15 +342,21 @@
     box-sizing: border-box;
 }
 
+/* 搜索在线平台：带框的输入框（放大镜 + 「搜索在线平台」 + 「搜索」按钮），与当前页过滤的下划线输入位明确区分。 */
 .bravais-search-form {
     display: flex;
     align-items: center;
     gap: 8px;
-    border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+    padding: 0 6px 0 12px;
+    border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, currentColor 5%, transparent);
+    transition: border-color 180ms ease;
 }
 
-.bravais-search-form:focus-within { border-bottom-color: var(--text-accent, currentColor); }
-.bravais-search-form > svg { width: 16px; height: 16px; flex: none; opacity: 0.6; }
+.bravais-search-form:focus-within { border-color: var(--text-accent, currentColor); }
+.bravais-search-form > svg { width: 16px; height: 16px; flex: none; opacity: 0.7; }
+.bravais-search-hint { margin: -6px 0 0; color: var(--bravais-seam-ink-soft); font-size: 12px; line-height: 1.45; }
 
 .bravais-search-form input {
     min-width: 0;
@@ -517,3 +523,6 @@
 
 :root[data-reduce-motion~='lattice'] .lattice-poster.bravais-tile-face.is-dimmed,
 :root[data-reduce-motion~='lattice'] .bravais-tile-eye { transition: none; }
+
+/* 当前页过滤（设计稿 §7.6）：正在输入或有过滤词时，输入位排在导航区与账户入口之间（自然高度）。 */
+.bravais-seam-home > .bravais-seam-home-filter { width: 100%; margin-bottom: calc(10px - var(--bravais-home-gap, 18px)); }

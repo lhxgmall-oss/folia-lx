@@ -8,6 +8,7 @@ import {
     FoldHorizontal,
     History,
     LayoutGrid,
+    ListFilter,
     Library,
     Maximize2,
     MicVocal,
@@ -24,6 +25,9 @@ import { BravaisSeamFlip, BravaisSeamFlipText, useBravaisSeamFade } from './Brav
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { bravaisRevealMotion, BRAVAIS_SEAM_FLIP_IN_EASING_BEZIER } from './bravaisSeamMotion';
 import { BRAVAIS_SEAM_FLIP_IN_MS } from './bravaisConstants';
+import BravaisSeamFilterField from './BravaisSeamFilterField';
+import { useBravaisUiStore } from './bravaisUiStore';
+import { openBravaisFilter } from './useBravaisSeamFilter';
 import './bravaisHome.css';
 
 // src/library/suites/bravais/BravaisSeamHome.tsx
@@ -52,6 +56,9 @@ import './bravaisHome.css';
 // fb4（用户实测）：账户入口（已登录的切换按钮、未登录的「连接在线平台」、书脊上的图标）不在中段了，挪到导航区与
 // 工具格之间、贴着工具格（自然高度，导航区照旧是唯一可伸缩的一段）。平台列表从入口往上弹出、绝对定位盖在导航区上，
 // 不推挤页签，所以页签的缩减级别与列表开合无关。中段只剩扫描进度、二级切换、管理隐藏、状态，仍按 fb3 竖直居中。
+// 当前页过滤（设计稿 §7.6）：过滤输入位（BravaisSeamFilterField）只在正在输入或有过滤词时出现，排在导航区与账户入口
+// 之间（自然高度，导航区照旧是唯一可伸缩的一段，页签的缩减按剩下的高度重新量）；平时不占窄缝的纵向空间，入口是墙上
+// 直接打字与「⋯」里的「过滤当前页」。书脊（64px）放不下输入框：过滤中只有一个强调色的过滤图标，点它或打字先展开成窄缝。
 // 动效（设计稿 §7「缝内的过渡」）：换页签时页签列不动（选中的填色块淡出 / 淡入），中段像磁贴一样翻成新页签的内容
 // （BravaisSeamFlip）；换二级切换时各行滑到新位置、新的文字翻进来；缩减级别变了页头淡入新的样子；扫描进度、管理隐藏的
 // 开关淡入 / 淡出；状态文字换了翻进新的一行。降低动效时都只淡入淡出。
@@ -230,6 +237,7 @@ const BravaisSeamHome: React.FC<{
     // 显示进度；页签缩成一个字时全名在页签的 title / aria-label 里。
     const reduced = useBravaisReducedTransitions();
     const reveal = bravaisRevealMotion(reduced);
+    const filterEditing = useBravaisUiStore(state => state.filterEditing);
     const meta = home?.scan ? <motion.div key="scan" className="bravais-seam-scan" data-bravais-scan {...reveal}>{home.scan}</motion.div> : null;
     // 缩减级别变了（标题隐藏、页签缩成一个字）：页头与二级切换淡入新的样子，不硬切。
     useBravaisSeamFade(level, headRef, sectionsRef);
@@ -289,6 +297,19 @@ const BravaisSeamHome: React.FC<{
             <div ref={fullSectionsRef} className="bravais-seam-home-measure" aria-hidden>
                 {sections && <HomeSeamSections sections={sections} short={false} measure />}
             </div>
+            <AnimatePresence initial={false}>
+                {seam.filter && !compact && (filterEditing || seam.filter.query) && (
+                    <motion.div key="filter" className="bravais-seam-home-filter" {...reveal}>
+                        <BravaisSeamFilterField filter={seam.filter} variant="home" />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {seam.filter?.query && compact && (
+                <button type="button" className="bravais-seam-icon is-filtering" data-bravais-seam-action="filter" onClick={openBravaisFilter}
+                    aria-label={seam.filter.placeholder} title={`${seam.filter.placeholder} · ${seam.filter.query}`}>
+                    <ListFilter aria-hidden />
+                </button>
+            )}
             {/* fb4：账户入口贴在工具格正上方（不在中段），平台列表从它往上弹出、盖在导航区上。 */}
             {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} onExpand={expand} />}
             {home && <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand} />}

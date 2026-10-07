@@ -11,9 +11,6 @@ import { useLibraryDirectoryVisibility } from '../../core/bindings/useLibraryDir
 import { useLibraryDirectoryScope } from '../../core/bindings/useLibraryDirectoryScope';
 import { useLibraryDirectoryActions } from '../../core/bindings/useLibraryDirectoryActions';
 import { useHiddenCollections } from '../../core/bindings/useHiddenCollections';
-import { useCommittedQuery } from '../../core/bindings/useCommittedQuery';
-import { useGridCommandFilter } from '../../../hooks/useGridCommandFilter';
-import { openCommandFilter } from '../../../stores/useAppViewStore';
 import type { BravaisItemKind, BravaisLayer, BravaisSeamModel } from './bravaisLayer';
 import type { BravaisHomeAccount, BravaisHomeSection, BravaisHomeTool } from './bravaisHomeModels';
 import type { BravaisLayerEntries, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
@@ -22,7 +19,8 @@ import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import { useBravaisDirectoryPanel } from './useBravaisDirectoryPanel';
 import { useBravaisHomeDirectorySurface } from './useBravaisHomeDirectorySurface';
 import { useBravaisLayerRegistration } from './useBravaisLayerRegistration';
-import { bravaisFilterAnchorRef, useBravaisUiStore } from './bravaisUiStore';
+import { useBravaisUiStore } from './bravaisUiStore';
+import { openBravaisFilter, useBravaisSeamFilter } from './useBravaisSeamFilter';
 import { closeBravaisPanel, openBravaisPanel } from './bravaisPanelHistory';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 
@@ -33,8 +31,11 @@ import { useBravaisSeamStore } from './bravaisSeamLevel';
 // - 管理隐藏（视图模式，不是导航）：整面翻牌，已隐藏的也翻上来、灰度 + 半透明，眼睛按钮常驻、原地变色不重排；
 //   「只看隐藏」退化为有限拼贴；退出整面翻回浏览。
 // - 目录树面板（本地有批量的几行，窄缝的 ▤）= 批量模式：面板一打开墙就退化为以缝为中心的有限拼贴，没选中的灰度 +
-//   半透明，点卡片只切换选中；面板里的输入框是目录过滤（命令面板的内联框画在面板的过滤位上）。关面板 = 退出批量模式：
-//   丢掉选择与目录过滤，翻回无限拼贴。
+//   半透明，点卡片只切换选中；面板里的输入位就是这一页的过滤（同一个目录 query）。关面板 = 退出批量模式：丢掉选择
+//   （过滤词留着，墙仍按它收窄），翻回无限拼贴（有过滤词时是有限拼贴）。
+// - 当前页过滤（设计稿 §7.6）：过滤词是目录会话的 query（与 GridMap、TUI 读写同一份；换页签 / section 换目录、离开首页时
+//   由 core 的目录开关规则丢掉）。墙上打字进缝里的输入位（useBravaisSeamFilter），过滤时墙退化为以缝为中心的有限拼贴。
+//   非批量模式下 `/` 留给全局搜索（「搜索在线平台」），不是过滤字符。
 // 这个组件只渲染 null；被探针读 props（directoryKey、items、hiddenScope、batchConfig、layerKey、onOpen）。
 
 const NO_KEYS: ReadonlySet<string> = new Set();
@@ -123,27 +124,25 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
         if (!batchConfig && useBravaisUiStore.getState().panelFor === layerKey) closeBravaisPanel();
     }, [batchConfig, layerKey]);
 
+    const declaresFilter = declaredActions.actions.includes('directory-filter');
     const { query, setQuery, port } = useLibraryDirectoryQuery(directoryKey);
-    useGridCommandFilter({
-        isInteractive: isInteractive && panelOpen,
+    const effectiveQuery = useBravaisSeamFilter({
         port,
-        anchorRef: bravaisFilterAnchorRef,
-        reopenIfFiltered: true,
-        onFocusResults: () => useBravaisUiStore.getState().focusFirst?.() ?? false,
+        query,
+        isActive: isInteractive && declaresFilter,
+        // 非批量模式下 `/` 是全局搜索；面板开着时它是过滤字符（与面板之前的目录过滤一致）。
+        reserved: () => (useBravaisUiStore.getState().panelFor === layerKey ? [] : ['/']),
     });
-    const committedQuery = useCommittedQuery(query);
-    // 目录过滤只在批量模式里生效（首页不注册过滤；从网格带过来的过滤词在面板打开之前不作用于墙）。
-    const effectiveQuery = panelOpen ? committedQuery : '';
     const { selectedIds, setSelected, toggleSelected, replaceSelection } = useLibraryDirectorySelection(directoryKey);
     const { visibilityMode, setVisibilityMode, toggleManageHidden, toggleHiddenOnly } = useLibraryDirectoryVisibility(directoryKey);
     const { hiddenIds, toggleHidden } = useHiddenCollections(hiddenScope);
 
-    // 关面板 = 退出批量模式：丢掉选择与目录过滤（与关掉 GridMap 丢掉会话同一条规则），墙翻回无限拼贴。
+    // 关面板 = 退出批量模式：丢掉选择（过滤词是这一页的，留着），墙翻回无限拼贴（还有过滤词时是有限拼贴）。
     const panelOpenRef = useRef(panelOpen);
     useEffect(() => {
         const wasOpen = panelOpenRef.current;
         panelOpenRef.current = panelOpen;
-        if (wasOpen && !panelOpen) useLibraryDirectorySessionStore.getState().clearSession(directoryKey);
+        if (wasOpen && !panelOpen) useLibraryDirectorySessionStore.getState().resetSelection(directoryKey);
     }, [directoryKey, panelOpen]);
 
     const entries = useMemo(() => items.map(toHomeEntry), [items]);
@@ -157,14 +156,14 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     });
     const { capabilities, run } = useLibraryDirectoryActions(batchConfig, context);
 
-    const filter = useMemo<BravaisSeamFilter>(() => ({
+    // 缝里的过滤输入位（首页窄缝、目录面板里同一个）：读写目录会话的 query。
+    const filter = useMemo<BravaisSeamFilter | undefined>(() => (declaresFilter ? {
         query,
-        placeholder: t('libraryBravaisHome.filterPlaceholder'),
-        matchLabel: `${displayItems.length} / ${visibleItems.length}`,
+        placeholder: t('libraryBravais.filterPlaceholder'),
+        matchLabel: t('libraryBravaisCollection.matchCount', { matches: displayItems.length, total: visibleItems.length }),
         clearLabel: t('libraryBravaisCollection.clearFilter'),
-        onOpen: openCommandFilter,
-        onClear: () => setQuery(''),
-    }), [displayItems.length, query, setQuery, t, visibleItems.length]);
+        setQuery,
+    } : undefined), [declaresFilter, displayItems.length, query, setQuery, t, visibleItems.length]);
 
     const directoryPanel = useBravaisDirectoryPanel({
         directoryKey,
@@ -180,7 +179,6 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
         setSelected,
         toggleSelected,
         replaceSelection,
-        filter,
         openPanel,
     });
 
@@ -243,6 +241,8 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     // ---- 缝 ----
     const tools = useMemo<BravaisHomeTool[]>(() => [
         chrome.searchTool,
+        // 「⋯」里的「过滤当前页」：打字之外，用鼠标也能把首页窄缝里的过滤输入位叫出来。
+        ...(declaresFilter ? [{ id: 'filter' as const, label: t('libraryBravais.filterPlaceholder'), run: openBravaisFilter }] : []),
         ...(batchConfig ? [{
             id: 'directory' as const,
             label: t('libraryBravaisHome.directory'),
@@ -257,7 +257,7 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
         }] : []),
         ...(sourceTools ?? []),
         ...chrome.appTools,
-    ], [batchConfig, chrome.appTools, chrome.searchTool, hasHideableItems, layerKey, openPanel, panelOpen, sourceTools, t, toggleManageHidden, visibilityMode]);
+    ], [batchConfig, chrome.appTools, chrome.searchTool, declaresFilter, hasHideableItems, layerKey, openPanel, panelOpen, sourceTools, t, toggleManageHidden, visibilityMode]);
     const manage = useMemo(() => (visibilityMode === 'browse' ? null : {
         mode: visibilityMode,
         title: t('libraryBravaisHome.manageHidden'),
@@ -270,12 +270,13 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
         ? undefined
         : isLoading
             ? t('playlist.loading')
-            : effectiveQuery ? t('home.gridSearchNoResults') : emptyMessage;
+            : effectiveQuery ? t('libraryBravaisHome.noMatch') : emptyMessage;
     const seam = useMemo<BravaisSeamModel>(() => ({
         title: chrome.title,
         crumb: chrome.title,
         meta,
         status,
+        filter,
         tabs: chrome.tabs,
         onSelectTab: chrome.onSelectTab,
         home: {
@@ -289,19 +290,19 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
             search: chrome.search,
             account,
         },
-    }), [account, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, manage, menu, meta, onSelectSection, sections, status, t, tools]);
+    }), [account, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, filter, manage, menu, meta, onSelectSection, sections, status, t, tools]);
 
     const entriesModel = useMemo<BravaisLayerEntries>(() => ({
         hasPanel: Boolean(batchConfig),
         panelTitle,
         listCrumb: t('libraryBravaisHome.directoryCrumb'),
-        hasQuery: panelOpen && Boolean(query),
+        hasQuery: Boolean(query),
         clearQuery: () => setQuery(''),
         hasForm: directoryPanel.hasForm,
         cancelForm: directoryPanel.cancelForm,
         hasViewMode: visibilityMode !== 'browse',
         exitViewMode: () => setVisibilityMode('browse'),
-    }), [batchConfig, directoryPanel.cancelForm, directoryPanel.hasForm, panelOpen, panelTitle, query, setQuery, setVisibilityMode, t, visibilityMode]);
+    }), [batchConfig, directoryPanel.cancelForm, directoryPanel.hasForm, panelTitle, query, setQuery, setVisibilityMode, t, visibilityMode]);
 
     const home = useMemo(() => ({
         panel: directoryPanel.panel,

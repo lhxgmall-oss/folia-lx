@@ -574,8 +574,12 @@ test.describe(`[${suite}] directory filter`, () => {
     test('closing the map drops the query; reopening starts unfiltered', async ({ mount, page }) => {
         await mountHome(mount, page, suite);
         if (suite === 'bravais') {
-            // bravais 的首页不注册过滤：在线页签没有目录过滤，只有本地的目录树面板里有（directory-filter）。
-            expect(await setQuery(page, 'owned')).toBe(false);
+            // 每面墙都注册了当前页过滤（设计稿 §7.6）：在线页签上也能过滤，过滤词是目录会话的 query；关闭目录丢掉它。
+            expect(await setQuery(page, 'owned')).toBe(true);
+            await expect.poll(() => mapIds(page)).toEqual(['owned']);
+            await hideMap(page);
+            expect(await mapIds(page)).toEqual(['public', 'cloud', 'owned', 'big', 'same']);
+            // 本地的目录树面板里是同一个过滤（同一个目录 query）。
             await showList(page, 'local');
             await showMap(page);
             expect(await setQuery(page, 'beta')).toBe(true);

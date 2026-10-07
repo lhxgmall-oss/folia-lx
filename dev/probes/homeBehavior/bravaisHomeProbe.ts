@@ -13,7 +13,8 @@ import { findPresentComponent, propsOf } from './reactFiberProbe';
 //   （去掉隐藏的）找，open 调 onOpen——与点卡片同一个回调（不经 stage 的起点记录）。
 // - 「地图」的筛选与批量 = 目录树面板（本地有批量的几行）：openMap / openPanel 打开面板（与窄缝的 ▤ 同一个入口：
 //   面板 history + 缝拉回完整），batchOpen = 面板开着；没有批量的目录（在线、Navidrome、本地歌单）openMap 什么都不做。
-//   bravais 只在面板里注册目录过滤（首页不注册过滤），所以在线页签上 setQuery 返回 false。
+//   当前页过滤（设计稿 §7.6）：每个页签的墙都注册过滤（目录会话的 query），在线页签上 setQuery 同样生效；面板里的输入位
+//   是同一个过滤。
 // - closeMap = 关面板（退出批量模式）+ 关闭目录（与 TUI 一样丢掉会话再打开一个空的，getQuery 是 ''）。
 
 export type BravaisDirectoryProbeProps = {

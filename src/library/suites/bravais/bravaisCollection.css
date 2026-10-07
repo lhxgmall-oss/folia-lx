@@ -1,69 +1,100 @@
-/* src/library/suites/bravais/bravaisCollection.css — B7 集合页的样式：缝里的过滤位与命令面板过滤框的锚点、收藏星标、
+/* src/library/suites/bravais/bravaisCollection.css — B7 集合页的样式：缝里的过滤输入位（每面墙都用它）、收藏星标、
    补页进度、日期步进、状态行（加载 / 错误 / 空 / 过滤无结果各有图标）、「⋯ 更多」、结果提示、表单态、列表面板与列表行、
    聚焦卡的「⋯」、列表联动高亮（is-linked）与首屏加载的呼吸。单独成文件，不改 bravais.css 的已有块。
    视觉沿用 Lattice：主题变量、bravais-chrome-button 的悬停框、日光切换（.is-daylight）。 */
 
-/* ---------- 过滤位：完整信息条与列表面板在同一个高度留出它，命令面板的内联过滤框画在锚点上 ---------- */
+/* ---------- 过滤输入位（当前页过滤，设计稿 §7.6）：缝自己的样式——缝的字体与墨色、一道下划线（聚焦时换强调色），
+   漏斗图标 + 「过滤当前页」。与「搜索在线平台」（放大镜、带框的输入框、占整条缝）明确区分。 ---------- */
 
-.bravais-seam-filter-slot {
+.bravais-seam-filter-field {
     display: flex;
+    min-width: 0;
     flex: none;
-    height: 44px;
-    align-items: center;
+    flex-direction: column;
+    justify-content: center;
 }
 
-/* 过滤位里翻牌的那一格（BravaisSeamFlip）：撑满过滤位，里面照旧是一行。 */
-.bravais-seam-filter-face {
+.bravais-seam-filter-field.is-strip,
+.bravais-seam-filter-field.is-panel { height: 44px; }
+
+.bravais-seam-filter-line {
     display: flex;
     min-width: 0;
-    flex: 1 1 auto;
-    align-items: center;
-}
-
-.bravais-seam-filter-host {
-    position: absolute;
-    top: 68px;
-    left: 50%;
-    z-index: 3;
-    height: 44px;
-    pointer-events: none;
-}
-
-/* 命令面板的内联框（CommandPaletteInlineFrame）：贴在过滤位上，宽度跟着缝。不在 @layer 里，盖过 Tailwind 工具类。 */
-.bravais-seam-filter-host > [data-testid='command-palette-filter'] {
-    top: 0;
-    left: 0;
-    width: 100%;
-    translate: none;
-}
-
-/* 缝里的按钮都被 bravais.css 的 `.bravais-seam button { font: inherit }` 统一过：这里的字号规则要带上 .bravais-seam。 */
-.bravais-seam .bravais-seam-filter-open,
-.bravais-seam .bravais-seam-filter-query {
-    display: inline-flex;
-    min-width: 0;
-    flex: 1 1 auto;
+    height: 34px;
     align-items: center;
     gap: 8px;
-    height: 40px;
-    padding: 0 14px;
-    border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
-    border-radius: 999px;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent);
     color: var(--bravais-seam-ink-soft);
-    font-size: 12px;
-    background: transparent;
     cursor: text;
+    transition: border-color 180ms ease, color 180ms ease;
 }
 
-.bravais-seam-filter-open svg,
-.bravais-seam-filter-query svg { width: 14px; height: 14px; flex: none; }
-.bravais-seam-filter-open:hover,
-.bravais-seam-filter-query:hover { border-color: color-mix(in srgb, currentColor 30%, transparent); }
+.bravais-seam-filter-field.has-query .bravais-seam-filter-line {
+    border-bottom-color: color-mix(in srgb, currentColor 36%, transparent);
+    color: var(--text-primary, currentColor);
+}
 
-.bravais-seam-filter-chip { display: flex; width: 100%; align-items: center; gap: 4px; }
-.bravais-seam-filter-query { color: var(--text-primary, #f7f4ee); border-color: var(--text-accent, currentColor); }
-.bravais-seam-filter-query span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bravais-seam-filter-query em { margin-left: auto; color: var(--bravais-seam-ink-soft); font-style: normal; font-variant-numeric: tabular-nums; }
+.bravais-seam-filter-line:focus-within {
+    border-bottom-color: var(--text-accent, currentColor);
+    color: var(--text-primary, currentColor);
+}
+
+.bravais-seam-filter-icon { width: 14px; height: 14px; flex: none; opacity: 0.75; }
+.bravais-seam-filter-field.has-query .bravais-seam-filter-icon { color: var(--text-accent, currentColor); opacity: 1; }
+
+/* 缝里的控件都被 bravais.css 的 `.bravais-seam button { font: inherit }` 一类规则统一过：这里带上 .bravais-seam。 */
+.bravais-seam .bravais-seam-filter-line input {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 0;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    background: none;
+    outline: none;
+}
+
+.bravais-seam .bravais-seam-filter-line input::placeholder {
+    color: var(--bravais-seam-ink-soft);
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+.bravais-seam-filter-count {
+    flex: none;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.bravais-seam .bravais-seam-filter-clear {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    flex: none;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    color: var(--bravais-seam-ink-soft);
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam-filter-clear:hover { color: var(--text-primary, currentColor); background: color-mix(in srgb, currentColor 10%, transparent); }
+.bravais-seam-filter-clear svg { width: 14px; height: 14px; }
+
+/* 首页窄缝（120px）：一行更矮、字小一号；匹配数另起一行靠右。 */
+.bravais-seam-filter-field.is-home .bravais-seam-filter-line { height: 30px; gap: 6px; }
+.bravais-seam .bravais-seam-filter-field.is-home .bravais-seam-filter-line input { font-size: 12px; }
+.bravais-seam-filter-field.is-home .bravais-seam-filter-clear { width: 20px; height: 20px; }
+.bravais-seam-filter-count-line { display: flex; justify-content: flex-end; padding-top: 4px; }
+
+/* 书脊上的「过滤中」图标（点它把缝临时展开、焦点进输入位）。 */
+.bravais-seam .bravais-seam-icon.is-filtering { color: var(--text-accent, currentColor); background: color-mix(in srgb, currentColor 14%, transparent); }
 
 /* ---------- 星标、补页进度、日期步进 ---------- */
 

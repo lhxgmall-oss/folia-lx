@@ -1,7 +1,7 @@
 import type { BravaisFormState } from './bravaisFormModel';
 
 // src/library/suites/bravais/bravaisSeamModels.ts
-// B7 集合页挂在层描述上的扩展类型（设计稿 §10.2 / §10.6）：缝里的收藏星标、补页进度、状态行、结果提示、过滤位、
+// B7 集合页挂在层描述上的扩展类型（设计稿 §10.2 / §10.6）：缝里的收藏星标、补页进度、状态行、结果提示、过滤输入位（每面墙都有）、
 // 每日推荐的日期步进、「⋯ 更多」与表单态；墙的内容规则（循环周期、有限拼贴的规划条目数、过滤身份）；列表面板与
 // 聚焦卡「⋯」要的条目动作。都是已翻译的文案与身份稳定的回调，stage 只读、只调。
 
@@ -45,15 +45,18 @@ export type BravaisSeamDaily = {
     onRefresh?: () => void;
 };
 
-/** 过滤位：命令面板的内联过滤框画在它上面；框收起但还有过滤词时显示词与清除。 */
+/**
+ * 缝里的过滤输入位（设计稿 §7.6）：每面墙都有。过滤词是这一层的 core 会话 query（query / setQuery 直接读写它），
+ * 输入位是缝自己画的（BravaisSeamFilterField）；打字、匹配数、清除都经这里。
+ */
 export type BravaisSeamFilter = {
     query: string;
-    /** 「过滤…」占位、「匹配 / 总数」。 */
+    /** 「过滤当前页」占位（同时是输入框的读屏名）。 */
     placeholder: string;
+    /** 「匹配 / 总数」（有过滤词时显示）。 */
     matchLabel: string;
     clearLabel: string;
-    onOpen: () => void;
-    onClear: () => void;
+    setQuery: (query: string) => void;
 };
 
 /** 「⋯ 更多」里的一项（集合级的低频动作）。 */
@@ -95,7 +98,6 @@ export type BravaisSeamCollection = {
     sync?: BravaisSeamSync;
     status?: BravaisSeamStatus;
     notice?: BravaisSeamNotice | null;
-    filter?: BravaisSeamFilter;
     daily?: BravaisSeamDaily;
     menu: readonly BravaisSeamMenuItem[];
     moreLabel: string;

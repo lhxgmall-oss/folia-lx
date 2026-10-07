@@ -26,7 +26,8 @@ export const resolveBravaisHomeKey = (input: BravaisKeyInput): BravaisHomeKeyAct
         if (!shiftKey && (key === 'a' || key === 'A')) return { type: 'batch-select-all' };
         return null;
     }
-    // `/`：首页缝里的全局搜索框（首页不注册过滤，可打印字符不会先被命令面板的过滤框拿走）。
+    // `/`：首页缝里的全局搜索框（「搜索在线平台」）。首页的过滤注册把 `/` 声明为保留键（批量模式除外），命令面板不把它
+    // 当过滤字符交给缝；批量模式下处理器不接，它照常是过滤字符。
     if (key === '/') return { type: 'open-search' };
     if (shiftKey) return null;
     if (key === 'Insert') return { type: 'batch-toggle' };

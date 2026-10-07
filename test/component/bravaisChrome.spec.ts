@@ -155,8 +155,10 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
             label: item.querySelector(':scope > span')?.textContent ?? '',
             key: item.querySelector(':scope > kbd')?.textContent ?? '',
         })));
-        expect(rows.map(row => row.children)).toEqual(Array.from({ length: 9 }, () => ['span', 'kbd']));
+        expect(rows.map(row => row.children)).toEqual(Array.from({ length: 11 }, () => ['span', 'kbd']));
         expect(rows.map(row => [row.label, row.key])).toEqual([
+            ['Type to filter this page', 'A–Z'],
+            ['Search online platforms (home)', '/'],
             ['Move the focus', '↑ ↓ ← →'],
             ['Open a song card or a collection', 'Enter'],
             ['Play the song in the open card', 'Enter'],
