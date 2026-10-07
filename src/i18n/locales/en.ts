@@ -56,7 +56,8 @@ export default {
     "stagePlayer": "Stage player",
     "settings": "Settings",
     "more": "More",
-    "scanProgress": "Scanning {{percent}}%"
+    "scanProgress": "Scanning {{percent}}%",
+    "connect": "Connect a streaming service"
   },
   "libraryTui": {
     "back": "Back",

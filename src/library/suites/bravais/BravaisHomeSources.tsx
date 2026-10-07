@@ -76,8 +76,10 @@ export const BravaisHomeOnline: React.FC<BravaisHomeSourceCommonProps & {
         runAction: () => false,
     });
     // 未登录 / 无账户 / 解析中：墙空着，缝里说原因（平台切换与登录在 B10 的账户位里）。
+    // fb3（用户实测）：未登录时不再显示「先搜几首喜欢的歌试试看」（grid / TUI 仍用 home.guestTitle），缝里只有
+    // 「连接在线平台」入口；登录过期仍要说。
     const emptyMessage = online.accountView === 'guest'
-        ? (online.needsRelogin ? t('status.loginExpired') : t('home.guestTitle'))
+        ? (online.needsRelogin ? t('status.loginExpired') : undefined)
         : online.accountView === 'resolving' ? t('home.loadingLibrary') : list.emptyMessage;
     // B10：账户位里的平台切换（account-select / account-logout）。
     const account = useBravaisHomeAccount(accountController, online);
