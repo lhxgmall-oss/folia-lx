@@ -151,6 +151,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         viewportWidth: view?.width ?? 0,
         contentRef: seamContentRef,
         reducedMotion,
+        reducedTransitions,
         tweenCamera: camera.tweenTo,
         checkCull: camera.checkCull,
     });
@@ -380,6 +381,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                 tabRef={tabRef}
                 variant={seam.rendered.variant}
                 targetVariant={seamTarget.variant}
+                leaving={seam.leaving}
                 contentWidth={seam.rendered.width}
                 layer={seam.rendered.layer}
                 currentLayer={layer}

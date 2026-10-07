@@ -19,6 +19,8 @@ import { selectBravaisAccountKeyboardWindow, useBravaisAccountStore } from './br
 // 打字即筛选都让路，不带修饰键的按键归 account surface 的独占监听（Esc 先撤销表单态）。
 // B12b：缝正翻向账户表单（目标是 login / confirm、此刻渲染的还是别的内容）时，翻出去的半圈里旧内容（面包屑、按钮）
 // 挂 inert + aria-hidden：不可点、不可聚焦、不进无障碍树（反方向——账户表单翻出去——由表单自己的 live 处理）。
+// fb4（缝内的过渡）：推广到每一次整条翻走——转出的半圈（降低动效时的淡出）里旧内容一律 inert + aria-hidden，
+// 读屏与用例只看得到要换上的那一层。
 
 const isAccountVariant = (variant: BravaisSeamContentVariant) => variant === 'login' || variant === 'confirm';
 
@@ -29,6 +31,8 @@ type BravaisSeamProps = {
     variant: BravaisSeamContentVariant;
     /** 缝要翻向的内容（stage 算的目标）；与 variant 不同时内容正在翻转。 */
     targetVariant: BravaisSeamContentVariant;
+    /** 正画着的内容正要翻走（useBravaisSeam 的 leaving）。 */
+    leaving: boolean;
     /** 此刻渲染的那一套内容的排版宽度（翻转不重排）。 */
     contentWidth: number;
     layer: BravaisLayer | null;
@@ -51,6 +55,7 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     tabRef,
     variant,
     targetVariant,
+    leaving,
     contentWidth,
     layer,
     currentLayer,
@@ -66,7 +71,7 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     const width = contentWidth;
     const tabLabel = currentLayer?.seam.title ?? '';
     const keyboardWindow = useBravaisAccountStore(selectBravaisAccountKeyboardWindow);
-    const leavingForAccount = isAccountVariant(targetVariant) && !isAccountVariant(variant);
+    const hideLeaving = leaving || (isAccountVariant(targetVariant) && !isAccountVariant(variant));
     return (
         <>
             <div
@@ -82,9 +87,9 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
                     <motion.div
                         className="bravais-seam-body"
                         style={{ paddingBottom: bottomPx }}
-                        inert={leavingForAccount}
-                        aria-hidden={leavingForAccount || undefined}
-                        data-bravais-seam-leaving={leavingForAccount || undefined}
+                        inert={hideLeaving}
+                        aria-hidden={hideLeaving || undefined}
+                        data-bravais-seam-leaving={hideLeaving || undefined}
                     >
                         <BravaisSeamNavigation.Provider value={navigation}>
                             <BravaisSeamContent variant={variant} layer={layer} depth={navigation.depth} actions={{ setLevel, openList, panel }} />

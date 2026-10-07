@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
     Disc3,
     EyeOff,
@@ -12,6 +13,8 @@ import {
 } from 'lucide-react';
 import type { BravaisHomeSeam, BravaisHomeTool, BravaisHomeToolId } from './bravaisHomeModels';
 import { setBravaisHomeOpenRequest, useBravaisHomeUiStore } from './bravaisHomeUiStore';
+import { useBravaisReducedTransitions } from './bravaisMotion';
+import { bravaisPopMotion } from './bravaisSeamMotion';
 
 // src/library/suites/bravais/BravaisSeamHomeTools.tsx
 // 首页窄缝底部的工具格。
@@ -22,6 +25,7 @@ import { setBravaisHomeOpenRequest, useBravaisHomeUiStore } from './bravaisHomeU
 // 书脊（64px）放不下文字菜单：一列只有搜索、设置、队列与「⋯」；点「⋯」先把缝展开成窄缝，窄缝渲染出来后再打开菜单
 // （经 bravaisHomeUiStore 的 openRequest）。
 // 各按钮的 data-bravais-seam-action 仍是工具 id / 菜单项 id（用例与探针按它找）。
+// 菜单开合是弹出动画（从工具格那一侧放大、上移、淡入，收起反过来；降低动效时只淡入淡出，bravaisSeamMotion）。
 
 const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
     search: Search,
@@ -49,11 +53,13 @@ export const splitHomeTools = (tools: readonly BravaisHomeTool[]) => ({
 const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; onExpand: () => void }> = ({ home, compact, onExpand }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const dockRef = useRef<HTMLDivElement>(null);
+    const moreRef = useRef<HTMLButtonElement>(null);
     const request = useBravaisHomeUiStore(state => state.openRequest);
     const { dock, page, app } = splitHomeTools(home.tools);
     const local = home.menu ?? [];
     const hasMenu = page.length > 0 || local.length > 0 || app.length > 0;
     const open = menuOpen && hasMenu && !compact;
+    const pop = bravaisPopMotion('above', useBravaisReducedTransitions());
 
     // 书脊上点了「⋯」：缝展开成窄缝后在这里把菜单打开。
     useEffect(() => {
@@ -78,6 +84,8 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; 
         if (event.key !== 'Escape' || !open) return;
         event.preventDefault();
         setMenuOpen(false);
+        // 菜单要放完收起动画才卸载：焦点在菜单里的话先交回「⋯」，不跟着卸载的菜单丢掉。
+        if (event.target instanceof Node && !moreRef.current?.contains(event.target)) moreRef.current?.focus({ preventScroll: true });
     };
 
     const runItem = (run: () => void) => {
@@ -108,19 +116,21 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; 
 
     return (
         <div ref={dockRef} className="bravais-seam-dock" onKeyDown={onKeyDown}>
-            {open && (
-                <div className="bravais-seam-menu is-home" role="menu" aria-label={home.menuLabel} data-bravais-seam-menu>
-                    {page.map(menuTool)}
-                    {local.map(item => (
-                        <button key={item.id} type="button" role="menuitem" disabled={item.disabled} data-bravais-seam-action={item.id}
-                            className={item.danger ? 'is-danger' : undefined} onClick={() => runItem(item.run)}>
-                            {item.label}
-                        </button>
-                    ))}
-                    {(page.length > 0 || local.length > 0) && app.length > 0 && <div className="bravais-seam-menu-rule" role="separator" />}
-                    {app.map(menuTool)}
-                </div>
-            )}
+            <AnimatePresence>
+                {open && (
+                    <motion.div key="menu" className="bravais-seam-menu is-home" role="menu" aria-label={home.menuLabel} data-bravais-seam-menu {...pop}>
+                        {page.map(menuTool)}
+                        {local.map(item => (
+                            <button key={item.id} type="button" role="menuitem" disabled={item.disabled} data-bravais-seam-action={item.id}
+                                className={item.danger ? 'is-danger' : undefined} onClick={() => runItem(item.run)}>
+                                {item.label}
+                            </button>
+                        ))}
+                        {(page.length > 0 || local.length > 0) && app.length > 0 && <div className="bravais-seam-menu-rule" role="separator" />}
+                        {app.map(menuTool)}
+                    </motion.div>
+                )}
+            </AnimatePresence>
             <div className="bravais-seam-tools">
                 {dock.map((tool) => {
                     const Icon = TOOL_ICONS[tool.id];
@@ -141,7 +151,7 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; 
                     );
                 })}
                 {hasMenu && (
-                    <button type="button" className={`bravais-seam-icon${open ? ' is-pressed' : ''}`} data-bravais-seam-action="more"
+                    <button ref={moreRef} type="button" className={`bravais-seam-icon${open ? ' is-pressed' : ''}`} data-bravais-seam-action="more"
                         aria-haspopup="menu" aria-expanded={open} aria-label={home.menuLabel} title={home.menuLabel}
                         onClick={onMore}>
                         <MoreHorizontal aria-hidden />

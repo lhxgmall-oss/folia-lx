@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react';
 import { Loader2, Plus } from 'lucide-react';
 import type { BravaisSeamForm } from './bravaisSeamModels';
+import { BravaisSeamFlip } from './BravaisSeamFlip';
 
 // src/library/suites/bravais/BravaisSeamFormView.tsx
 // 缝的表单态（设计稿 §10.1「表单态」）：缝原地翻成输入框、确认或选择列表，完成或取消后再翻回。不是导航，不写 history。
@@ -9,6 +10,7 @@ import type { BravaisSeamForm } from './bravaisSeamModels';
 // - pick-playlist：可写的 Navidrome 歌单（横排列表，与面板列表同一种行），顶上「新建歌单…」在同一个表单里展开输入框。
 // 输入框是非受控的：打字不经过层描述（不让 stage 每个字都重算），只在提交时把值交给 surface。
 // Esc：输入框里自己处理（先收起新建输入框，再撤销）；焦点在按钮上时由墙的 Esc 阶梯的「表单」一级撤销。
+// 「新建歌单…」与它展开的输入框之间翻一格（绕 X 轴，BravaisSeamFlip）；出错的一行淡入（CSS）。
 
 const FormInput: React.FC<{
     initial: string;
@@ -84,22 +86,24 @@ const BravaisSeamFormView: React.FC<{ form: BravaisSeamForm }> = ({ form }) => {
             )}
             {state.kind === 'pick-playlist' && (
                 <>
-                    {state.creating ? (
-                        <FormInput
-                            name="bravais-create-playlist"
-                            initial=""
-                            placeholder={labels.placeholder}
-                            submitLabel={labels.submit}
-                            cancelLabel={labels.cancel}
-                            pending={pending}
-                            onSubmit={form.onSubmit}
-                            onCancel={form.onCancel}
-                        />
-                    ) : form.onStartCreate && labels.createLabel && (
-                        <button type="button" className="bravais-form-row is-create" data-bravais-form-action="create" onClick={() => form.onStartCreate?.()}>
-                            <Plus aria-hidden />{labels.createLabel}
-                        </button>
-                    )}
+                    {(state.creating || (form.onStartCreate && labels.createLabel)) && <BravaisSeamFlip axis="x" flipKey={state.creating ? 'creating' : 'list'}>
+                        {state.creating ? (
+                            <FormInput
+                                name="bravais-create-playlist"
+                                initial=""
+                                placeholder={labels.placeholder}
+                                submitLabel={labels.submit}
+                                cancelLabel={labels.cancel}
+                                pending={pending}
+                                onSubmit={form.onSubmit}
+                                onCancel={form.onCancel}
+                            />
+                        ) : form.onStartCreate && labels.createLabel && (
+                            <button type="button" className="bravais-form-row is-create" data-bravais-form-action="create" onClick={() => form.onStartCreate?.()}>
+                                <Plus aria-hidden />{labels.createLabel}
+                            </button>
+                        )}
+                    </BravaisSeamFlip>}
                     <div className="bravais-form-list" role="listbox" aria-label={labels.title}>
                         {(form.playlists ?? []).map(playlist => (
                             <button key={playlist.id} type="button" role="option" aria-selected={false} className="bravais-form-row"

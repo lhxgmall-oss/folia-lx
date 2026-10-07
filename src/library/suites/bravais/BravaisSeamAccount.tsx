@@ -5,6 +5,7 @@ import type { BravaisAccountForm, BravaisConfirmForm, BravaisLoginForm } from '.
 import { setBravaisAccountElement, useBravaisAccountStore, type BravaisAccountActions } from './bravaisAccountStore';
 import type { BravaisAccountSeamVariant } from './bravaisSeamTarget';
 import BravaisLoginFailureHelpView from './BravaisLoginFailureHelp';
+import { BravaisSeamFlip, BravaisSeamFlipText } from './BravaisSeamFlip';
 import qqIcon from '../../../assets/providers/qq.svg';
 import wechatIcon from '../../../assets/providers/wechat.svg';
 import './bravaisAccount.css';
@@ -18,12 +19,16 @@ import './bravaisAccount.css';
 // 表单数据与动作来自 bravaisAccountStore（account surface 投影好的）；按键由 account surface 的独占监听处理，这里的
 // 按钮给鼠标与原生 Enter / 空格用。翻出去的那半圈（已答复 / 已关掉）仍画最后一份同类的表单，但对读屏与指针都藏起来，
 // 不在纸上留白，也不会被当成还开着的登录界面。
+// 表单里：二维码位换了形态（要码中 → 二维码 → 后端故障…）像磁贴一样翻一次，状态行换了字新的一行翻进来（BravaisSeamFlip）。
 
 // provider 只声明 iconKey 字符串，静态资源的映射留在 UI 层（与 grid 的登录弹窗同一份图）。
 const LOGIN_METHOD_ICONS: Record<string, string> = {
     qq: qqIcon,
     wechat: wechatIcon,
 };
+
+/** 二维码位翻牌的那一格：在表单的竖排里居中（二维码位自己的 align-self 在这一格里不再起作用）。 */
+const QR_FACE_STYLE: React.CSSProperties = { alignSelf: 'center', flex: 'none' };
 
 const LoginQr: React.FC<{ qr: BravaisLoginForm['qr'] }> = ({ qr }) => (
     <div className={`bravais-login-qr is-${qr.kind}`} data-bravais-login-qr={qr.kind}>
@@ -93,9 +98,15 @@ const LoginView: React.FC<{ form: BravaisLoginForm; actions: BravaisAccountActio
                     </div>
                 </div>
             )}
-            <LoginQr qr={form.qr} />
+            <BravaisSeamFlip flipKey={form.qr.kind} style={QR_FACE_STYLE}>
+                <LoginQr qr={form.qr} />
+            </BravaisSeamFlip>
             {methods?.current && <p className="bravais-login-current">{methods.current}</p>}
-            {form.status && <p className={`bravais-login-status is-${form.tone}`} data-bravais-login-status>{form.status}</p>}
+            {form.status && (
+                <BravaisSeamFlipText as="p" flipKey={form.status} className={`bravais-login-status is-${form.tone}`} data-bravais-login-status>
+                    {form.status}
+                </BravaisSeamFlipText>
+            )}
             {(restart || retry) && (
                 <span className="bravais-form-buttons">
                     {restart && (

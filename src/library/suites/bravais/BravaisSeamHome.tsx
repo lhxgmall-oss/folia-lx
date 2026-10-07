@@ -1,4 +1,5 @@
 import React, { useMemo, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
     CalendarPlus,
     Check,
@@ -19,6 +20,10 @@ import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
 import BravaisSeamHomeTools from './BravaisSeamHomeTools';
 import { abbreviateSeamTabLabel, abbreviateSeamTabLabels } from './bravaisSeamTabLabels';
 import { useBravaisSeamTabsFit } from './useBravaisSeamTabsFit';
+import { BravaisSeamFlip, BravaisSeamFlipText, useBravaisSeamFade } from './BravaisSeamFlip';
+import { useBravaisReducedTransitions } from './bravaisMotion';
+import { bravaisRevealMotion, BRAVAIS_SEAM_FLIP_IN_EASING_BEZIER } from './bravaisSeamMotion';
+import { BRAVAIS_SEAM_FLIP_IN_MS } from './bravaisConstants';
 import './bravaisHome.css';
 
 // src/library/suites/bravais/BravaisSeamHome.tsx
@@ -47,6 +52,9 @@ import './bravaisHome.css';
 // fb4（用户实测）：账户入口（已登录的切换按钮、未登录的「连接在线平台」、书脊上的图标）不在中段了，挪到导航区与
 // 工具格之间、贴着工具格（自然高度，导航区照旧是唯一可伸缩的一段）。平台列表从入口往上弹出、绝对定位盖在导航区上，
 // 不推挤页签，所以页签的缩减级别与列表开合无关。中段只剩扫描进度、二级切换、管理隐藏、状态，仍按 fb3 竖直居中。
+// 动效（设计稿 §7「缝内的过渡」）：换页签时页签列不动（选中的填色块淡出 / 淡入），中段像磁贴一样翻成新页签的内容
+// （BravaisSeamFlip）；换二级切换时各行滑到新位置、新的文字翻进来；缩减级别变了页头淡入新的样子；扫描进度、管理隐藏的
+// 开关淡入 / 淡出；状态文字换了翻进新的一行。降低动效时都只淡入淡出。
 
 /**
  * B10 账户位：首页在线页签窄缝里的平台切换（account-select / account-logout）放在这里。B9 只给一个空容器，挂着
@@ -70,6 +78,11 @@ const SECTION_ICONS: Record<string, React.ComponentType<{ 'aria-hidden'?: boolea
     'recently-played': History,
 };
 
+const SectionIcon: React.FC<{ section: BravaisHomeSection }> = ({ section }) => {
+    const Icon = SECTION_ICONS[section.key] ?? LayoutGrid;
+    return <Icon aria-hidden />;
+};
+
 /**
  * 二级切换（fb3）：纵向一项一行，激活项是图标 + 竖排文字（short 时文字缩成一个字），其余只有图标；全名在
  * aria-label / title。`measure` 是全名测量副本（span，不可聚焦、不进无障碍树）。
@@ -81,15 +94,15 @@ const HomeSeamSections: React.FC<{
     onSelect?: (key: string) => void;
     measure?: boolean;
 }> = ({ sections, label, short, onSelect, measure = false }) => {
-    const body = (section: BravaisHomeSection) => {
-        const Icon = SECTION_ICONS[section.key] ?? LayoutGrid;
-        return (
-            <>
-                <Icon aria-hidden />
-                {section.active && <span className="is-label" aria-hidden>{short ? abbreviateSeamTabLabel(section.label) : section.label}</span>}
-            </>
-        );
-    };
+    const reduced = useBravaisReducedTransitions();
+    const activeKey = sections.find(section => section.active)?.key ?? '';
+    const labelText = (section: BravaisHomeSection) => (short ? abbreviateSeamTabLabel(section.label) : section.label);
+    const body = (section: BravaisHomeSection) => (
+        <>
+            <SectionIcon section={section} />
+            {section.active && <span className="is-label" aria-hidden>{labelText(section)}</span>}
+        </>
+    );
     if (measure) {
         return (
             <div className="bravais-seam-sections">
@@ -100,8 +113,13 @@ const HomeSeamSections: React.FC<{
     return (
         <div className={`bravais-seam-sections${short ? ' is-short' : ''}`} role="tablist" aria-label={label} aria-orientation="vertical">
             {sections.map(section => (
-                <button
+                // 换激活项：文字从旧的一行挪到新的一行，各行滑到新位置（只在激活项变了时量，layoutDependency），新的文字像
+                // 翻牌一样转进来；降低动效时不滑、文字淡入。
+                <motion.button
                     key={section.key}
+                    layout={reduced ? false : 'position'}
+                    layoutDependency={activeKey}
+                    transition={{ duration: BRAVAIS_SEAM_FLIP_IN_MS / 1000, ease: BRAVAIS_SEAM_FLIP_IN_EASING_BEZIER }}
                     type="button"
                     role="tab"
                     aria-selected={section.active}
@@ -111,8 +129,22 @@ const HomeSeamSections: React.FC<{
                     className={`bravais-seam-section${section.active ? ' is-active' : ''}`}
                     onClick={() => onSelect?.(section.key)}
                 >
-                    {body(section)}
-                </button>
+                    <SectionIcon section={section} />
+                    <AnimatePresence initial={false}>
+                        {section.active && (
+                            <motion.span
+                                key="label"
+                                className="is-label"
+                                aria-hidden
+                                initial={reduced ? { opacity: 0 } : { rotateY: -90, transformPerspective: 1400 }}
+                                animate={{ rotateY: 0, opacity: 1 }}
+                                transition={{ duration: (reduced ? BRAVAIS_SEAM_FLIP_IN_MS / 2 : BRAVAIS_SEAM_FLIP_IN_MS) / 1000, ease: BRAVAIS_SEAM_FLIP_IN_EASING_BEZIER }}
+                            >
+                                {labelText(section)}
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
+                </motion.button>
             ))}
         </div>
     );
@@ -196,7 +228,11 @@ const BravaisSeamHome: React.FC<{
     // 元数据行：平时是来源（在线平台名 / 本地 / Navidrome），本地导入 / 重扫时换成扫描进度。
     // fb2：来源名与账户位（在线平台名）、当前页签（本地 / Navidrome）重复，窄缝里纵向空间最紧，平时不画，只在扫描时
     // 显示进度；页签缩成一个字时全名在页签的 title / aria-label 里。
-    const meta = home?.scan ? <div className="bravais-seam-scan" data-bravais-scan>{home.scan}</div> : null;
+    const reduced = useBravaisReducedTransitions();
+    const reveal = bravaisRevealMotion(reduced);
+    const meta = home?.scan ? <motion.div key="scan" className="bravais-seam-scan" data-bravais-scan {...reveal}>{home.scan}</motion.div> : null;
+    // 缩减级别变了（标题隐藏、页签缩成一个字）：页头与二级切换淡入新的样子，不硬切。
+    useBravaisSeamFade(level, headRef, sectionsRef);
     const expand = () => setLevel('full');
     const foldButton = (
         <button type="button" className="bravais-seam-icon" data-bravais-seam-action="hide" onClick={() => setLevel('hidden')}
@@ -215,25 +251,28 @@ const BravaisSeamHome: React.FC<{
                     </div>
                     {/* fb3：中段在页头与工具格之间的剩余空间里竖直居中。 */}
                     <div ref={middleRef} className="bravais-seam-home-middle">
-                        <div ref={bodyRef} className="bravais-seam-home-body" data-bravais-home-body>
-                            {meta}
+                        {/* 换页签：页签列不动，中段像磁贴一样翻成新页签的内容（BravaisSeamFlip）。 */}
+                        <BravaisSeamFlip ref={bodyRef} flipKey={layer.key} className="bravais-seam-home-body" data-bravais-home-body>
+                            <AnimatePresence initial={false}>{meta}</AnimatePresence>
                             {sections && (
                                 <div ref={sectionsRef} className="bravais-seam-sections-slot">
                                     <HomeSeamSections sections={sections} label={seam.meta} short={short} onSelect={home?.onSelectSection} />
                                 </div>
                             )}
-                            {home?.manage && (
-                                <div className="bravais-seam-manage" data-bravais-manage={home.manage.mode}>
-                                    <span>{home.manage.title}</span>
-                                    <button type="button" aria-pressed={home.manage.mode === 'manage-hidden-only'} data-bravais-seam-action="hidden-only"
-                                        className={home.manage.mode === 'manage-hidden-only' ? 'is-active' : undefined} onClick={home.manage.onToggleHiddenOnly}>
-                                        {home.manage.mode === 'manage-hidden-only' && <Check aria-hidden />}{home.manage.hiddenOnlyLabel}
-                                    </button>
-                                    <button type="button" data-bravais-seam-action="manage-done" onClick={home.manage.onDone}>{home.manage.doneLabel}</button>
-                                </div>
-                            )}
-                            {seam.status && <div className="bravais-seam-vstatus" data-bravais-seam-status>{seam.status}</div>}
-                        </div>
+                            <AnimatePresence initial={false}>
+                                {home?.manage && (
+                                    <motion.div key="manage" className="bravais-seam-manage" data-bravais-manage={home.manage.mode} {...reveal}>
+                                        <span>{home.manage.title}</span>
+                                        <button type="button" aria-pressed={home.manage.mode === 'manage-hidden-only'} data-bravais-seam-action="hidden-only"
+                                            className={home.manage.mode === 'manage-hidden-only' ? 'is-active' : undefined} onClick={home.manage.onToggleHiddenOnly}>
+                                            {home.manage.mode === 'manage-hidden-only' && <Check aria-hidden />}{home.manage.hiddenOnlyLabel}
+                                        </button>
+                                        <button type="button" data-bravais-seam-action="manage-done" onClick={home.manage.onDone}>{home.manage.doneLabel}</button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            {seam.status && <BravaisSeamFlipText as="div" axis="y" flipKey={seam.status} className="bravais-seam-vstatus" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
+                        </BravaisSeamFlip>
                     </div>
                 </div>
             </div>
