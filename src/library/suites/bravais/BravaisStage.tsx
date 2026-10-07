@@ -226,6 +226,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         display,
         expandedSlotKey: focus.expandedSlotKey,
         reflow: focus.reflow,
+        returning: focus.returningBlock,
         anchorX: seam.anchorX,
         reducedMotion,
         fieldRef,
@@ -360,6 +361,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                     display={display}
                     anchorX={seam.anchorX}
                     reflow={focus.reflow}
+                    returning={focus.returning}
                     expandedSlotKey={focus.expandedSlotKey}
                     focusedSlotKey={focus.focusedSlotKey}
                     linkedKey={panelFor !== null && panelFor === display?.layer.key ? linkedKey : null}

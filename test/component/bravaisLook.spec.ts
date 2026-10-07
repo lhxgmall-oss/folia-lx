@@ -71,6 +71,53 @@ const openCollection = async (page: Page) => {
     await expect(page.locator('.bravais-tile[data-library-entry]').first()).toBeAttached();
 };
 
+/**
+ * 每次块底板的路径被写（MutationObserver 的微任务，与写入同一帧）：记下是哪一块，并把路径里的洞对照块里窗磁贴
+ * 此刻的实际位置（getBoundingClientRect；磁贴越出块外框的部分先裁掉，洞本来就裁到外框里）。
+ */
+const watchPlateWrites = (page: Page, blockKey: string) => page.evaluate((key) => {
+    const countWindow = window as CountWindow;
+    countWindow.__plateWrites = [];
+    countWindow.__reflowError = [];
+    const measure = (svg: SVGSVGElement) => {
+        const box = svg.getBoundingClientRect();
+        const ratio = box.width / svg.viewBox.baseVal.width;
+        const holes = [...svg.querySelector('path')!.getAttribute('d')!.matchAll(/M(-?[\d.]+) (-?[\d.]+)h(-?[\d.]+)v(-?[\d.]+)/g)]
+            .slice(1)
+            .map(match => ({
+                left: box.left + Number(match[1]) * ratio,
+                top: box.top + Number(match[2]) * ratio,
+                right: box.left + (Number(match[1]) + Number(match[3])) * ratio,
+                bottom: box.top + (Number(match[2]) + Number(match[4])) * ratio,
+            }));
+        let worst = 0;
+        document.querySelectorAll<HTMLElement>(`.bravais-tile[data-bravais-slot^="${key},"][data-bravais-kind="window"]`).forEach((tile) => {
+            const rect = tile.getBoundingClientRect();
+            const clipped = {
+                left: Math.max(box.left, rect.left),
+                top: Math.max(box.top, rect.top),
+                right: Math.min(box.right, rect.right),
+                bottom: Math.min(box.bottom, rect.bottom),
+            };
+            worst = Math.max(worst, Math.min(...holes.map(hole => Math.max(
+                Math.abs(hole.left - clipped.left), Math.abs(hole.top - clipped.top),
+                Math.abs(hole.right - clipped.right), Math.abs(hole.bottom - clipped.bottom),
+            ))));
+        });
+        countWindow.__reflowError!.push(worst);
+    };
+    new MutationObserver((records) => {
+        const written = new Set<SVGSVGElement>();
+        for (const record of records) {
+            const svg = (record.target as Element).closest<SVGSVGElement>('[data-bravais-plate-block]');
+            if (!svg) continue;
+            countWindow.__plateWrites!.push(svg.dataset.bravaisPlateBlock!);
+            written.add(svg);
+        }
+        written.forEach(svg => { if (svg.dataset.bravaisPlateBlock === key) measure(svg); });
+    }).observe(document.querySelector('[data-library-stage="bravais"]')!, { attributes: true, subtree: true, attributeFilter: ['d'] });
+}, blockKey);
+
 test.describe('[bravais] see-through wall', () => {
     test.beforeEach(async ({ mount, page }) => {
         await mountBravais(mount, page);
@@ -160,50 +207,8 @@ test.describe('[bravais] see-through wall', () => {
         await expect(plates(page).first()).toBeAttached();
         const track = await visibleSlot(page, '.bravais-tile[data-library-entry]');
         const blockKey = track!.split(',').slice(0, 2).join(',');
-        // 每次块底板的路径被写（MutationObserver 的微任务，与写入同一帧）：记下是哪一块，并把路径里的洞对照块里窗磁贴
-        // 此刻的实际位置（getBoundingClientRect；磁贴越出块外框的部分先裁掉，洞本来就裁到外框里）。
-        await page.evaluate((key) => {
-            const countWindow = window as CountWindow;
-            countWindow.__plateWrites = [];
-            countWindow.__reflowError = [];
-            const measure = (svg: SVGSVGElement) => {
-                const box = svg.getBoundingClientRect();
-                const ratio = box.width / svg.viewBox.baseVal.width;
-                const holes = [...svg.querySelector('path')!.getAttribute('d')!.matchAll(/M(-?[\d.]+) (-?[\d.]+)h(-?[\d.]+)v(-?[\d.]+)/g)]
-                    .slice(1)
-                    .map(match => ({
-                        left: box.left + Number(match[1]) * ratio,
-                        top: box.top + Number(match[2]) * ratio,
-                        right: box.left + (Number(match[1]) + Number(match[3])) * ratio,
-                        bottom: box.top + (Number(match[2]) + Number(match[4])) * ratio,
-                    }));
-                let worst = 0;
-                document.querySelectorAll<HTMLElement>(`.bravais-tile[data-bravais-slot^="${key},"][data-bravais-kind="window"]`).forEach((tile) => {
-                    const rect = tile.getBoundingClientRect();
-                    const clipped = {
-                        left: Math.max(box.left, rect.left),
-                        top: Math.max(box.top, rect.top),
-                        right: Math.min(box.right, rect.right),
-                        bottom: Math.min(box.bottom, rect.bottom),
-                    };
-                    worst = Math.max(worst, Math.min(...holes.map(hole => Math.max(
-                        Math.abs(hole.left - clipped.left), Math.abs(hole.top - clipped.top),
-                        Math.abs(hole.right - clipped.right), Math.abs(hole.bottom - clipped.bottom),
-                    ))));
-                });
-                countWindow.__reflowError!.push(worst);
-            };
-            new MutationObserver((records) => {
-                const written = new Set<SVGSVGElement>();
-                for (const record of records) {
-                    const svg = (record.target as Element).closest<SVGSVGElement>('[data-bravais-plate-block]');
-                    if (!svg) continue;
-                    countWindow.__plateWrites!.push(svg.dataset.bravaisPlateBlock!);
-                    written.add(svg);
-                }
-                written.forEach(svg => { if (svg.dataset.bravaisPlateBlock === key) measure(svg); });
-            }).observe(document.querySelector('[data-library-stage="bravais"]')!, { attributes: true, subtree: true, attributeFilter: ['d'] });
-        }, blockKey);
+        // 每次块底板的路径被写：记下是哪一块，并对照洞与窗磁贴此刻的实际位置（watchPlateWrites）。
+        await watchPlateWrites(page, blockKey);
         await tile(page, track!).locator('article').click();
         // 让位期间：只有聚焦的块挂着 data-bravais-plate-live；落定后摘掉。
         await expect(page.locator('[data-bravais-plate-live]')).toHaveAttribute('data-bravais-plate-block', blockKey);
@@ -275,5 +280,154 @@ test.describe('[bravais] see-through wall', () => {
         expect(counts.writes).toEqual([]);
         expect(counts.renders.BravaisBlockPlate ?? 0).toBe(0);
         expect(counts.renders.BravaisTile ?? 0).toBe(0);
+    });
+});
+
+// fb2：窗不是墙面。聚焦卡展开时点窗（结构窗、透明档有限墙的空 slot）没有任何反应——聚焦卡仍展开、键盘焦点不动、
+// 不换层不翻牌、相机不动；拖动结束在窗上也一样。实色空画框（实色档 / 无限墙的空画框）才算空白墙面，点它收起
+// 聚焦卡，让位那一块沿同一条过渡回到原位（之前收起的那次提交同时摘掉了 is-reflowing，整块瞬间归位）。
+
+/** 中心点在视口里（避开缝与底部播放条一带）、中心点上最上层就是它自己的磁贴（按选择器挑，可排除某个块）。 */
+const topmostSlot = (page: Page, selector: string, excludeBlock: string | null = null) => page.evaluate(([query, skip]) => {
+    const seamRect = document.querySelector('[data-bravais-seam]')?.getBoundingClientRect();
+    const tile = [...document.querySelectorAll<HTMLElement>(query)].find((element) => {
+        if (skip && element.dataset.bravaisSlot!.startsWith(`${skip},`)) return false;
+        const rect = element.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        if (x < 40 || y < 40 || x > window.innerWidth - 40 || y > window.innerHeight - 160) return false;
+        if (seamRect && seamRect.width > 0 && x > seamRect.left - 60 && x < seamRect.right + 60) return false;
+        const hit = document.elementFromPoint(x, y);
+        return Boolean(hit && element.contains(hit));
+    });
+    return tile?.dataset.bravaisSlot ?? null;
+}, [selector, excludeBlock] as const);
+
+const blockOf = (slotKey: string) => slotKey.split(',').slice(0, 2).join(',');
+const expanded = (page: Page) => page.locator('.bravais-tile[data-bravais-expanded]');
+/** 外框上没有在跑的让位过渡（展开着时聚焦块一直挂 is-reflowing，所以看过渡本身）。 */
+const reflowSettled = (page: Page) => expect.poll(() => page.evaluate(() => [...document.querySelectorAll('.bravais-tile')]
+    .flatMap(element => element.getAnimations()).filter(animation => animation instanceof CSSTransition).length), { timeout: 3_000 }).toBe(0);
+
+/** 此刻点不动的那些东西：聚焦卡、键盘焦点、DOM 焦点、换层序号、两半世界层的位置、在跑的翻牌（WAAPI）。 */
+const wallSnapshot = (page: Page) => page.evaluate(() => ({
+    expanded: document.querySelector<HTMLElement>('.bravais-tile[data-bravais-expanded]')?.dataset.bravaisSlot ?? null,
+    focused: document.querySelector<HTMLElement>('.bravais-tile[data-bravais-focused]')?.dataset.bravaisSlot ?? null,
+    active: document.activeElement?.closest<HTMLElement>('[data-bravais-slot]')?.dataset.bravaisSlot ?? document.activeElement?.className ?? null,
+    shiftSeq: document.querySelector('[data-library-stage="bravais"]')?.getAttribute('data-bravais-shift-seq') ?? null,
+    worlds: [...document.querySelectorAll<HTMLElement>('[data-bravais-half]')].map(element => element.style.transform),
+    flips: document.getAnimations().filter(animation => typeof CSSTransition === 'undefined' || !(animation instanceof CSSTransition)).length,
+}));
+
+test.describe('[bravais] clicking a window', () => {
+    test.beforeEach(async ({ mount, page }) => {
+        await mountBravais(mount, page);
+    });
+
+    test('a window click (or a drag that ends on a window) leaves the focus card, the focus and the camera alone', async ({ page }) => {
+        await openCollection(page);
+        await expect(stage(page)).not.toHaveAttribute('data-bravais-settling', /.*/, { timeout: 10_000 });
+        const track = await topmostSlot(page, '.bravais-tile[data-library-entry]');
+        expect(track).not.toBeNull();
+        await tile(page, track!).locator('article').click();
+        await expect(tile(page, track!)).toHaveAttribute('data-bravais-expanded', 'true');
+        await reflowSettled(page);
+        await page.waitForTimeout(400);
+        const before = await wallSnapshot(page);
+        expect(before).toMatchObject({ expanded: track, focused: track, flips: 0 });
+
+        const windowSlot = await topmostSlot(page, '.bravais-tile[data-bravais-kind="window"]', blockOf(track!));
+        expect(windowSlot).not.toBeNull();
+        await tile(page, windowSlot!).locator('article').click();
+        await page.waitForTimeout(300);
+        expect(await wallSnapshot(page)).toEqual(before);
+        // 也没有收起：外框上没有起过渡。
+        await reflowSettled(page);
+
+        // 在窗上按下、拖一段、松手：只是拖动（相机跟手），松手后的残余点击不收起聚焦卡、不动焦点。
+        const box = (await tile(page, windowSlot!).boundingBox())!;
+        const x = box.x + box.width / 2;
+        const y = box.y + box.height / 2;
+        await page.mouse.move(x, y);
+        await page.mouse.down();
+        for (let step = 1; step <= 8; step += 1) await page.mouse.move(x + step * 6, y + step * 4);
+        await page.waitForTimeout(60);
+        await page.mouse.move(x + 48, y + 32);
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+        const dragged = await wallSnapshot(page);
+        expect(dragged.worlds).not.toEqual(before.worlds);
+        expect({ ...dragged, worlds: before.worlds }).toEqual(before);
+
+        // 残余点击已经吞掉：接下来点别的歌照常展开（拖动标记没有残留在窗上）。
+        const other = await topmostSlot(page, '.bravais-tile[data-library-entry]:not([data-bravais-expanded])', blockOf(track!));
+        expect(other).not.toBeNull();
+        await tile(page, other!).locator('article').click();
+        await expect(tile(page, other!)).toHaveAttribute('data-bravais-expanded', 'true');
+    });
+
+    test('folding the card back redraws only that block plate, with the holes riding on the returning windows', async ({ page }) => {
+        await openCollection(page);
+        await expect(stage(page)).not.toHaveAttribute('data-bravais-settling', /.*/, { timeout: 10_000 });
+        const track = await topmostSlot(page, '.bravais-tile[data-library-entry]');
+        expect(track).not.toBeNull();
+        await tile(page, track!).locator('article').click();
+        await expect(tile(page, track!)).toHaveAttribute('data-bravais-expanded', 'true');
+        await reflowSettled(page);
+        await expect(page.locator('[data-bravais-plate-live]')).toHaveCount(0, { timeout: 3_000 });
+        const blockKey = blockOf(track!);
+        await watchPlateWrites(page, blockKey);
+        // Esc 的第一级收起聚焦卡：这一块沿过渡归位，期间块底板逐帧跟着窗磁贴重画，放完摘掉 live。
+        await page.keyboard.press('Escape');
+        await expect(expanded(page)).toHaveCount(0);
+        await expect(page.locator('[data-bravais-plate-live]')).toHaveAttribute('data-bravais-plate-block', blockKey);
+        await expect(page.locator('[data-bravais-plate-live]')).toHaveCount(0, { timeout: 3_000 });
+        await expect(page.locator('.bravais-tile.is-reflowing')).toHaveCount(0);
+        const result = await page.evaluate(() => ({
+            writes: (window as CountWindow).__plateWrites ?? [],
+            error: (window as CountWindow).__reflowError ?? [],
+        }));
+        expect(new Set(result.writes)).toEqual(new Set([blockKey]));
+        expect(result.writes.length).toBeGreaterThan(5);
+        expect(Math.max(...result.error)).toBeLessThan(1.5);
+    });
+
+    test('a solid empty frame folds the focus card back with the reflow transition', async ({ page }) => {
+        // 实色档：partial → clear → solid。
+        expect(await runChrome(page, 'wall-look')).toBe(true);
+        expect(await runChrome(page, 'wall-look')).toBe(true);
+        await expect(stage(page)).toHaveAttribute('data-bravais-look', 'solid');
+        await openCollection(page);
+        await expect(stage(page)).not.toHaveAttribute('data-bravais-settling', /.*/, { timeout: 10_000 });
+        // 过滤成有限拼贴：结果之外的 slot 是实色空画框。
+        const title = await page.locator('.bravais-tile[data-library-entry] .lattice-poster-copy strong').first().textContent();
+        await expect.poll(() => page.evaluate(query => window.__homeProbe!.setQuery(query), title!.trim())).toBe(true);
+        await expect(page.locator('.bravais-tile[data-bravais-kind="wall"]').first()).toBeAttached();
+        await expect(stage(page)).not.toHaveAttribute('data-bravais-settling', /.*/, { timeout: 10_000 });
+        await expect(page.locator('.bravais-tile[data-bravais-kind="window"]')).toHaveCount(0);
+
+        const track = await topmostSlot(page, '.bravais-tile[data-library-entry]');
+        expect(track).not.toBeNull();
+        await tile(page, track!).locator('article').click();
+        await expect(tile(page, track!)).toHaveAttribute('data-bravais-expanded', 'true');
+        await reflowSettled(page);
+        const frame = await topmostSlot(page, '.bravais-tile[data-bravais-kind="wall"]', blockOf(track!));
+        expect(frame).not.toBeNull();
+        await tile(page, frame!).locator('article').click();
+        await expect(expanded(page)).toHaveCount(0);
+        // 收起的那一刻：原来让位的那一块仍挂着过渡，外框上正在跑回原位的 CSS 过渡。
+        const returning = await tile(page, track!).evaluate(element => ({
+            reflowing: element.classList.contains('is-reflowing'),
+            transitions: element.getAnimations()
+                .filter(animation => animation instanceof CSSTransition)
+                .map(animation => (animation as CSSTransition).transitionProperty)
+                .sort(),
+        }));
+        // （展开的那张可能就在原位上展开，平移不变，所以只要求宽高在过渡。）
+        expect(returning.reflowing).toBe(true);
+        expect(returning.transitions).toEqual(expect.arrayContaining(['height', 'width']));
+        // 放完后摘掉。
+        await reflowSettled(page);
+        await expect(page.locator('.bravais-tile.is-reflowing')).toHaveCount(0);
     });
 });

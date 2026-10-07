@@ -3,7 +3,7 @@ import { getViewWorldBounds, type WallViewCenter } from '../../../components/wal
 import { overlaps } from '../../../components/wall/layout';
 import { getWallSlot, parseWallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS } from './bravaisConstants';
-import { findNearestSlot, resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
+import { findNearestSlot, resolveSlotFace, resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
 import { resolveEscapeStep, type BravaisKeyAction } from './bravaisKeyboardModel';
 import type { BravaisHomeKeyAction } from './bravaisHomeKeys';
 import { findAdjacentSlot } from './bravaisNavigation';
@@ -27,6 +27,8 @@ import type { useBravaisFocus } from './useBravaisFocus';
 // 退出管理隐藏。
 // fb3：聚焦卡的「立即播放」（点按钮或展开后再按 Enter）在正在播放的那首上是暂停 / 继续（宿主的播放开关）；其余的照旧
 // 交给 surface 播放，并记下「回来时展开这一项」（bravaisPlayingCard）。「进入」按钮按设置进入播放视图。
+// fb2：点窗（结构窗、透明档有限墙的空 slot）什么都不做：不收起聚焦卡、不动键盘焦点、不翻牌、不动相机。只有实色空画框
+// （实色档或无限墙的空画框）与磁贴之间的墙面算「空白墙面」，点它收起聚焦卡。
 
 type BravaisFocus = ReturnType<typeof useBravaisFocus>;
 
@@ -98,6 +100,8 @@ export const useBravaisInteractions = ({
             const item = itemAt(slotKey);
             const layer = displayRef.current?.layer;
             if (!slot || !item || !layer) {
+                // 窗不是墙面：点它没有反应（聚焦卡仍展开）。
+                if (slot && resolveSlotFace(displayRef.current, slot).kind === 'window') return;
                 collapse();
                 return;
             }

@@ -28,6 +28,7 @@ import { getWaveStagger, WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } fro
 // 的眼睛按钮与批量选中的勾（BravaisTileMarks），批量模式里没选中的、管理隐藏视图里已隐藏的灰度 + 半透明（is-dimmed）。
 // B11：降低动态效果时翻牌（含整墙波次）换成淡出 → 换内容 → 淡入（合计 0.18s，不错开）；从搜索 / 播放页打开集合的
 // 整墙入场（entrance）没有出场段，磁贴立刻换成新内容、保持抬起，按离视口左上角的距离错开落回（刚挂载的同样）。
+// fb2：窗上按下鼠标不抢焦点（不把 DOM 焦点挪到窗上）；点窗由 activate 判定为无反应，拖动后的残余点击照常在外面吞掉。
 
 export type BravaisTileRect = { x: number; y: number; width: number; height: number };
 
@@ -73,6 +74,9 @@ const SETTLED: Keyframe = { transform: 'none', opacity: 1 };
 const FADED: Keyframe = { opacity: 0 };
 const SHOWN: Keyframe = { opacity: 1 };
 const FADE_HALF_MS = BRAVAIS_REDUCED_FADE_MS / 2;
+
+/** 窗上按下鼠标：不让浏览器把焦点挪到这张窗上（拖动走 pointer 事件，不受影响）。 */
+const preventFocus = (event: MouseEvent<HTMLElement>) => event.preventDefault();
 
 const fallbackBackground = (id: string) => {
     const hue = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
@@ -293,6 +297,7 @@ function BravaisTile({
                 aria-label={display ? `${display.title} · ${display.subtitle}` : undefined}
                 aria-expanded={isTrack ? isExpanded : undefined}
                 tabIndex={-1}
+                onMouseDown={isWindow ? preventFocus : undefined}
                 onClick={handleClick}
             >
                 {display && (
