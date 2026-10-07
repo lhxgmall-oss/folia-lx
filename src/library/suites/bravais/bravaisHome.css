@@ -12,7 +12,8 @@
    折叠按钮单独一行在它下面、页签列上面。缩减顺序：先隐藏标题，再把页签缩成一个字（.is-short），再不够导航区在里面滚
    （量的是两份 .bravais-seam-home-measure）。
    fb3：导航区里分上下两段——页头贴顶，中段（.bravais-seam-home-middle：扫描进度、二级切换、管理隐藏、状态、账户入口）
-   撑满页头与工具格之间的剩余空间、内容竖直居中；放不下时中段回到自然高度，与页头一起在导航区里滚。工具格固定四格。 */
+   撑满页头与工具格之间的剩余空间、内容竖直居中；放不下时中段回到自然高度，与页头一起在导航区里滚。工具格固定四格。
+   fb4：账户入口移出中段，贴在工具格正上方（.bravais-seam-account），平台列表往上弹出、盖在导航区上。 */
 .bravais-seam-home {
     --bravais-home-pad-x: 10px;
     position: relative;
@@ -246,10 +247,21 @@
 
 .bravais-seam-home.is-compact .bravais-seam-scan { display: none; }
 
-/* B10 账户位：B9 只占位（空容器不占高度）。fb3：在中段里，与二级切换同一个竖直居中的区域；列表展开后变高，
-   页头随之按测量退让（先藏标题、再缩页签），再不够与导航区一起滚。 */
+/* B10 账户位：B9 只占位（空容器不占高度）。~~fb3：在中段里，与二级切换同一个竖直居中的区域；列表展开后变高，
+   页头随之按测量退让。~~
+   fb4：账户位是首页窄缝的直接子级，排在导航区与工具格之间、贴着工具格（与工具格之间只留 8px，书脊上 6px，
+   负的下外边距抵掉一部分段间距）。平台列表从它往上弹出（绝对定位，见 bravaisAccount.css），盖在导航区上、
+   层级高于导航区，不改变任何一段的高度。 */
 .bravais-seam-account { width: 100%; }
 .bravais-seam-account:empty { display: none; }
+
+.bravais-seam-home > .bravais-seam-account {
+    position: relative;
+    z-index: 3;
+    margin-bottom: calc(8px - var(--bravais-home-gap, 18px));
+}
+
+.bravais-seam-home.is-compact > .bravais-seam-account { margin-bottom: calc(6px - var(--bravais-home-gap, 12px)); }
 .bravais-seam-home-body > .bravais-seam-vstatus { max-height: none; }
 
 /* 工具按钮：三列一格格（书脊上一列）。

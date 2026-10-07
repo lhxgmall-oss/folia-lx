@@ -149,7 +149,9 @@ const bravaisToggle = (page: Page) => page.locator('[data-bravais-account-toggle
 const bravaisConnect = (page: Page) => page.locator('[data-bravais-account-toggle="connect"]');
 const bravaisAccountList = (page: Page) => page.locator('[data-bravais-account="panel"], [data-bravais-account="guest-panel"]');
 const bravaisAccountRow = (page: Page, providerId: string) => bravaisAccountList(page).locator(`[data-bravais-account-provider="${providerId}"]`);
-const bravaisLogoutButtons = (page: Page) => bravaisAccountList(page).locator('[data-bravais-account-logout]');
+/** fb4：登出是当前那一行右侧的小图标按钮（可访问名是登出文案「Logout」），不再单独排在行下面。 */
+const bravaisLogoutButtons = (page: Page) => bravaisAccountList(page).getByRole('button', { name: 'Logout', exact: true });
+const bravaisLogoutButton = (page: Page, providerId: string) => bravaisAccountRow(page, providerId).getByRole('button', { name: 'Logout', exact: true });
 const bravaisConfirm = (page: Page) => page.locator('[data-bravais-account-confirm]:not([aria-hidden="true"])');
 /** 打开平台列表：已登录时点账户位的按钮，未登录时点「连接在线平台」入口。 */
 const bravaisOpenAccounts = async (page: Page) => {
@@ -342,10 +344,11 @@ const BRAVAIS_DRIVER: AccountDriver = {
         return bravaisLogoutButtons(page);
     },
     expectLogoutOn: async (page, providerId) => {
-        await expect(bravaisAccountRow(page, providerId).locator('[data-bravais-account-logout]')).toHaveCount(1);
+        await expect(bravaisLogoutButton(page, providerId)).toHaveCount(1);
     },
     logoutCurrent: async (page, providerId) => {
-        await bravaisAccountRow(page, providerId).locator('[data-bravais-account-logout]').click();
+        await bravaisLogoutButton(page, providerId).click();
+        await expect(bravaisAccountList(page)).toHaveCount(0);
     },
     closePicker: async page => {
         // 已登录点账户位的按钮收起，未登录点「连接在线平台」入口收起。
