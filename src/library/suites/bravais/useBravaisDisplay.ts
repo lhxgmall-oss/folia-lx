@@ -79,6 +79,8 @@ export type BravaisDisplayControls = {
     collapseFocusCard: () => void;
     getFocusedSlotKey: () => string | null;
     restoreFocus: (slotKey: string | null) => void;
+    /** 挂载时不跑整墙入场（翻牌交接从 Lattice 回来：磁贴由交接翻进来）。只在第一次显示时问。 */
+    suppressEntrance?: () => boolean;
 };
 
 const slotFromKey = (key: string | null): WallSlot | null => {
@@ -279,7 +281,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             controlsNow.moveTo(center, true);
             releasePanelOnLayerChange('first', layer.key);
             const draft = createBravaisDisplay(layer, memory?.startSlotKey ?? null, undefined, wallLook);
-            const entering = depth > 0 && isSourceOrigin(navigation.origin);
+            const entering = depth > 0 && isSourceOrigin(navigation.origin) && !controlsNow.suppressEntrance?.();
             const entrance = entering ? planEntrance() : null;
             const next = { ...draft, finite: resolveFinite(layer, null), entrance };
             commit(next, depth, entering ? 'enter' : 'first');
