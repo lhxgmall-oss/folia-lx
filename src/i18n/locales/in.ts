@@ -2941,7 +2941,7 @@ export default {
     "unknownAlbum": "Album Tidak Dikenal"
   },
   "localMusic": {
-    "foldersAndPlaylists": "Folder & Playlist",
+    "foldersAndPlaylists": "Folder",
     "albums": "Album",
     "artists": "Artis",
     "customPlaylists": "Playlist",

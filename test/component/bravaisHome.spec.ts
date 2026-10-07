@@ -102,15 +102,15 @@ test.describe('[bravais-only] home', () => {
 
     test('the four local rows switch inside the seam without changing the layer', async ({ page }) => {
         await showLocal(page);
-        await expect(section(page, 'Folders & Playlists')).toHaveAttribute('aria-selected', 'true');
+        await expect(section(page, 'Folders')).toHaveAttribute('aria-selected', 'true');
         // fb3：只有激活项显示竖排文字，其余只有图标（全名在 aria-label / title）。
-        await expect(section(page, 'Folders & Playlists').locator('.is-label')).toHaveText('Folders & Playlists');
+        await expect(section(page, 'Folders').locator('.is-label')).toHaveText('Folders');
         await expect(section(page, 'Albums').locator('.is-label')).toHaveCount(0);
         await expect(section(page, 'Albums')).toHaveAttribute('title', 'Albums');
         await section(page, 'Albums').click();
         await expect(section(page, 'Albums')).toHaveAttribute('aria-selected', 'true');
         await expect(section(page, 'Albums').locator('.is-label')).toHaveText('Albums');
-        await expect(section(page, 'Folders & Playlists').locator('.is-label')).toHaveCount(0);
+        await expect(section(page, 'Folders').locator('.is-label')).toHaveCount(0);
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:local');
         await settled(page);
         await expect(page.locator('.bravais-tile[data-library-card^="card:album:"]').first()).toBeAttached();
@@ -727,8 +727,8 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await settled(page);
         layout = await expectTidy(page);
         const active = layout.sections.find(entry => entry.active)!;
-        expect(active.name).toBe('Folders & Playlists');
-        expect(active.label).toBe(layout.fit === 'short' ? 'F' : 'Folders & Playlists');
+        expect(active.name).toBe('Folders');
+        expect(active.label).toBe(layout.fit === 'short' ? 'F' : 'Folders');
 
         // 再拉高：回到标题 + 全名。
         await resize(page, 1100);
@@ -748,7 +748,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         const layout = await expectTidy(page);
         expect(layout.fit).toBe('titled');
         expect(layout.sections.map(entry => [entry.name, entry.active, entry.label])).toEqual([
-            ['Folders & Playlists', true, 'Folders & Playlists'],
+            ['Folders', true, 'Folders'],
             ['Albums', false, null],
             ['Artists', false, null],
             ['Playlists', false, null],
