@@ -2130,6 +2130,8 @@ export default function App() {
         playSong,
         navigateToPlayer,
         navigateToLattice,
+        togglePlayback: togglePlay,
+        enterPlaybackView: navigateFromPlayerCapsule,
         refreshOnlineProviderPlaylists: refreshActiveProviderPlaylists,
         user,
         playlists,

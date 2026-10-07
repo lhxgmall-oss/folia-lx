@@ -369,6 +369,13 @@ export type LibrarySuiteStageProps = {
      * 而不是只给首页 surface：bravais 左上角的隐藏式返回按钮在集合层上也要能用（实测反馈 1）。缺省时不画那颗按钮。
      */
     onBackToPlayer?: () => void;
+    /** fb3：暂停 / 继续正在播放的那首（首页数据的 onTogglePlayback）。正在播放的聚焦卡上的播放键用它。缺省时照旧立即播放。 */
+    onTogglePlayback?: () => void;
+    /**
+     * fb3：进入播放视图（首页数据的 onEnterPlaybackView：按「播放后进入的视图」去 Lattice 或播放页，「留在原处」时去播放页）。
+     * 正在播放的聚焦卡上的「进入」按钮用它；缺省时不画那颗按钮。
+     */
+    onEnterPlaybackView?: () => void;
 };
 
 /**
