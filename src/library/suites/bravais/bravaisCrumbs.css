@@ -47,3 +47,10 @@
 }
 
 .bravais-seam-crumb-trail.is-expanded .bravais-seam-crumb { max-width: 100%; }
+
+/* 展开出来的中间层（与它前面的分隔符）依次滑进来；降低动效时只淡入。fill backwards：等待错开的那一段里先藏着。 */
+.bravais-seam-crumb-trail .is-revealed { animation: bravais-seam-crumb-in 200ms cubic-bezier(.2, .7, .25, 1) backwards; }
+@keyframes bravais-seam-crumb-in { from { opacity: 0; transform: translateX(-6px); } }
+:root:is([data-reduce-motion~='lattice'], [data-reduce-motion~='collectionMorph']) .bravais-seam-crumb-trail .is-revealed {
+    animation-name: bravais-seam-fade-in;
+}

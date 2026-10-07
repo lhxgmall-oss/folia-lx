@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ChevronLeft, ChevronRight, Filter, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star, X } from 'lucide-react';
 import type { BravaisSeamCollection as BravaisSeamCollectionModel, BravaisSeamFilter, BravaisSeamStatus, BravaisSeamTone } from './bravaisSeamModels';
+import { BravaisSeamFlip, BravaisSeamFlipText } from './BravaisSeamFlip';
+import { useBravaisReducedTransitions } from './bravaisMotion';
+import { bravaisPopMotion, bravaisRevealMotion } from './bravaisSeamMotion';
 import './bravaisCollection.css';
 
 // src/library/suites/bravais/BravaisSeamCollection.tsx
@@ -10,6 +14,8 @@ import './bravaisCollection.css';
 // - 状态行：加载中、错误（重试）、空、过滤无结果（清除过滤）——图标与文案各不相同；
 // - 高频动作之外的「列表」与「⋯ 更多」（低频的集合动作，内联展开，不弹浮层）；
 // - 缝底的结果提示（几秒后由 surface 撤掉，不走 toast）。
+// 动效（设计稿 §7「缝内的过渡」）：过滤位在「入口」与「词 + 匹配数」之间翻一格（绕 X 轴）；状态行、日期换了，新的一行
+// 翻进来；「⋯ 更多」是弹出（从按钮下方长出来），结果提示淡入 / 淡出。
 
 const TONE_ICONS: Record<BravaisSeamTone, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
     loading: Loader2,
@@ -21,7 +27,7 @@ const TONE_ICONS: Record<BravaisSeamTone, React.ComponentType<{ 'aria-hidden'?: 
 /** 过滤位：高度固定，与 BravaisSeam 里过滤框锚点的位置对齐。 */
 export const BravaisSeamFilterSlot: React.FC<{ filter?: BravaisSeamFilter }> = ({ filter }) => (
     <div className="bravais-seam-filter-slot" data-bravais-seam-filter={filter?.query ? 'active' : 'idle'}>
-        {filter && (filter.query ? (
+        {filter && <BravaisSeamFlip className="bravais-seam-filter-face" axis="x" flipKey={filter.query ? 'active' : 'idle'}>{filter.query ? (
             <span className="bravais-seam-filter-chip">
                 <button type="button" className="bravais-seam-filter-query" data-bravais-seam-action="filter" onClick={filter.onOpen}>
                     <Filter aria-hidden />
@@ -38,14 +44,15 @@ export const BravaisSeamFilterSlot: React.FC<{ filter?: BravaisSeamFilter }> = (
                 <Filter aria-hidden />
                 <span>{filter.placeholder}</span>
             </button>
-        ))}
+        )}</BravaisSeamFlip>}
     </div>
 );
 
 export const BravaisSeamStatusLine: React.FC<{ status: BravaisSeamStatus }> = ({ status }) => {
     const Icon = TONE_ICONS[status.tone];
     return (
-        <div className={`bravais-seam-status-line is-${status.tone}`} data-bravais-seam-status={status.tone}>
+        <BravaisSeamFlipText as="div" flipKey={`${status.tone}|${status.text}`} className={`bravais-seam-status-line is-${status.tone}`}
+            data-bravais-seam-status={status.tone}>
             <Icon aria-hidden className={status.tone === 'loading' ? 'animate-spin' : undefined} />
             <span>{status.text}</span>
             {status.action && (
@@ -53,7 +60,7 @@ export const BravaisSeamStatusLine: React.FC<{ status: BravaisSeamStatus }> = ({
                     {status.action.label}
                 </button>
             )}
-        </div>
+        </BravaisSeamFlipText>
     );
 };
 
@@ -94,7 +101,7 @@ export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollec
                         onClick={daily.onPrevious} aria-label="‹">
                         <ChevronLeft aria-hidden />
                     </button>
-                    <span className="bravais-seam-daily-label" data-bravais-daily-date>{daily.label}</span>
+                    <BravaisSeamFlipText flipKey={daily.label} className="bravais-seam-daily-label" data-bravais-daily-date>{daily.label}</BravaisSeamFlipText>
                     <button type="button" className="bravais-seam-icon" data-bravais-seam-action="daily-next" disabled={daily.disabled || !daily.onNext}
                         onClick={daily.onNext} aria-label="›">
                         <ChevronRight aria-hidden />
@@ -114,6 +121,9 @@ export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollec
 /** 「列表」与「⋯ 更多」（菜单内联展开在缝里）；以及缝底的结果提示。 */
 export const BravaisSeamCollectionMenu: React.FC<{ collection: BravaisSeamCollectionModel; onOpenList?: () => void }> = ({ collection, onOpenList }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const reduced = useBravaisReducedTransitions();
+    const pop = bravaisPopMotion('below', reduced);
+    const reveal = bravaisRevealMotion(reduced);
     return (
         <>
             <div className="bravais-seam-actions">
@@ -129,31 +139,36 @@ export const BravaisSeamCollectionMenu: React.FC<{ collection: BravaisSeamCollec
                     </button>
                 )}
             </div>
-            {isOpen && (
-                <div className="bravais-seam-menu" role="menu" data-bravais-seam-menu>
-                    {collection.menu.map(item => (
-                        <button
-                            key={item.id}
-                            type="button"
-                            role="menuitem"
-                            className={item.danger ? 'is-danger' : undefined}
-                            disabled={item.disabled}
-                            data-bravais-seam-action={item.id}
-                            onClick={() => {
-                                setIsOpen(false);
-                                item.run();
-                            }}
-                        >
-                            {item.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-            {collection.notice && (
-                <div className={`bravais-seam-notice is-${collection.notice.tone}`} role="status" data-bravais-seam-notice={collection.notice.tone}>
-                    {collection.notice.text}
-                </div>
-            )}
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div key="menu" className="bravais-seam-menu" role="menu" data-bravais-seam-menu {...pop}>
+                        {collection.menu.map(item => (
+                            <button
+                                key={item.id}
+                                type="button"
+                                role="menuitem"
+                                className={item.danger ? 'is-danger' : undefined}
+                                disabled={item.disabled}
+                                data-bravais-seam-action={item.id}
+                                onClick={() => {
+                                    setIsOpen(false);
+                                    item.run();
+                                }}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            <AnimatePresence initial={false}>
+                {collection.notice && (
+                    <motion.div key="notice" className={`bravais-seam-notice is-${collection.notice.tone}`} role="status"
+                        data-bravais-seam-notice={collection.notice.tone} {...reveal}>
+                        {collection.notice.text}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </>
     );
 };

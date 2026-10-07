@@ -12,6 +12,14 @@
     align-items: center;
 }
 
+/* 过滤位里翻牌的那一格（BravaisSeamFlip）：撑满过滤位，里面照旧是一行。 */
+.bravais-seam-filter-face {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+}
+
 .bravais-seam-filter-host {
     position: absolute;
     top: 68px;

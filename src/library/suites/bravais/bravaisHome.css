@@ -143,7 +143,21 @@
 .bravais-seam-home.is-compact .bravais-seam-tabs .bravais-seam-home-tab { padding: 7px 3px; font-size: 12px; letter-spacing: 0.1em; }
 .bravais-seam-home .bravais-seam-tabs.is-short { gap: 2px; }
 .bravais-seam-home .bravais-seam-tabs.is-short .bravais-seam-home-tab { padding: 5px 4px; letter-spacing: 0; text-orientation: upright; }
-.bravais-seam-home .bravais-seam-tabs .bravais-seam-home-tab.is-active { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 14%, transparent); }
+/* 选中的填色块画在 ::before 上，换页签时旧的淡出、新的淡入（只动 opacity；页签列本身不翻，见设计稿 §7「缝内的过渡」）。 */
+.bravais-seam-home .bravais-seam-tabs .bravais-seam-home-tab { position: relative; isolation: isolate; }
+.bravais-seam-home .bravais-seam-tabs .bravais-seam-home-tab::before {
+    position: absolute;
+    z-index: -1;
+    inset: -1px;
+    border-radius: inherit;
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    content: '';
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+}
+.bravais-seam-home .bravais-seam-tabs .bravais-seam-home-tab.is-active { color: var(--text-primary, #f7f4ee); background: none; }
+.bravais-seam-home .bravais-seam-tabs .bravais-seam-home-tab.is-active::before { opacity: 1; }
 .bravais-seam-home .bravais-seam-tabs .bravais-seam-home-tab:disabled { opacity: 0.35; cursor: default; }
 
 /* 二级切换（本地四行 / Navidrome 的 section）。fb3：纵向一项一行，激活项是图标 + 竖排文字（与页签同一套竖排），
@@ -195,6 +209,13 @@
     border-radius: 1px;
     background: currentColor;
     content: '';
+    animation: bravais-seam-section-rule-in 240ms cubic-bezier(.2, .7, .25, 1);
+}
+
+/* 换激活项：侧边细线从中间长出来（只动 transform）；降低动效时只淡入。 */
+@keyframes bravais-seam-section-rule-in { from { transform: scaleY(0); } }
+:root:is([data-reduce-motion~='lattice'], [data-reduce-motion~='collectionMorph']) .bravais-seam-home .bravais-seam-section.is-active::before {
+    animation: bravais-seam-fade-in 180ms ease-out;
 }
 
 .bravais-seam-home.is-compact .bravais-seam-section { padding: 7px 6px; }

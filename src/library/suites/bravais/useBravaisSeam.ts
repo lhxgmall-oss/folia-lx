@@ -2,15 +2,11 @@ import { animate } from 'framer-motion';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import { blockSeamPlan, getSeamGeometry } from '../../../components/wall/seamPlan';
 import type { WallViewCenter } from '../../../components/wall/wallView';
-import {
-    BRAVAIS_METRICS,
-    BRAVAIS_SEAM_FLIP_IN_MS,
-    BRAVAIS_SEAM_FLIP_OUT_MS,
-    BRAVAIS_SEAM_TWEEN_S,
-} from './bravaisConstants';
+import { BRAVAIS_METRICS, BRAVAIS_SEAM_TWEEN_S } from './bravaisConstants';
 import type { BravaisLayer } from './bravaisLayer';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
-import { resolveVariantWidth, type BravaisSeamContentVariant } from './bravaisSeamTarget';
+import { resolveSeamContentIdentity, resolveVariantWidth, type BravaisSeamContentVariant } from './bravaisSeamTarget';
+import { clearSeamFlipPhase, playSeamFlipIn, playSeamFlipOut } from './bravaisSeamMotion';
 import type { BravaisFrameState } from './useBravaisFrame';
 
 // src/library/suites/bravais/useBravaisSeam.ts
@@ -18,10 +14,12 @@ import type { BravaisFrameState } from './useBravaisFrame';
 // 缝里渲染的那套内容。换层、换等级时内容原地翻转：转到 90° 才换成新内容与新的排版宽度（翻转不重排），所以
 // 「此刻渲染的内容」是单独的 state，只在换的那一刻 setState 一次。开口变宽或恢复时，锚点还在屏内就沿用它的
 // 块边界、相机只做最小让位；不在屏内就在当前视口里另取最近的块边界（B5 的 blockSeamPlan）。
+// 缝内过渡（设计稿 §7「缝内的过渡」）：内容翻转用 bravaisSeamMotion 的半圈（与墙上磁贴同一种绕 Y 轴的翻牌），降低动效
+// （B11 的同一套判断）时换成 0.18s 淡出 → 换 → 淡入；从折叠回来时开口补间、内容随之淡入（降低动效时开口不补间，内容
+// 淡入）。过渡中内容层挂 data-bravais-seam-flip。首页换页签不整条翻（页签列留在原处），中段自己翻（BravaisSeamHome）。
 
 export type BravaisRenderedSeam = { variant: BravaisSeamContentVariant; layer: BravaisLayer | null };
 
-const flipTransform = (degrees: number) => `perspective(1400px) rotateY(${degrees}deg)`;
 
 export const useBravaisSeam = ({
     frameRef,
@@ -31,6 +29,7 @@ export const useBravaisSeam = ({
     viewportWidth,
     contentRef,
     reducedMotion,
+    reducedTransitions,
     tweenCamera,
     checkCull,
 }: {
@@ -41,7 +40,10 @@ export const useBravaisSeam = ({
     target: { width: number; variant: BravaisSeamContentVariant };
     viewportWidth: number;
     contentRef: RefObject<HTMLDivElement | null>;
+    /** 开口补间降级（只看 lattice，与相机一致）。 */
     reducedMotion: boolean;
+    /** 内容翻转降级成淡入淡出（B11 的同一套判断，bravaisMotion）。 */
+    reducedTransitions: boolean;
     tweenCamera: (center: WallViewCenter) => void;
     /** 开口变了（可见的世界范围随之变了）：让相机检查要不要重新裁剪；force = 开口落定，按含开口的范围裁剪一次。 */
     checkCull: (force?: boolean) => void;
@@ -132,43 +134,74 @@ export const useBravaisSeam = ({
     }, [frameRef, isAnchorOnScreen, layer, layerKey, planOpening, setAnchor, targetWidth, tweenCamera]);
 
     // 缝里的内容：换层或换形态时翻转（转到 90° 换内容与排版宽度），同一层的数据更新就地刷新（渲染时取最新的层）。
-    const renderedLayer = rendered.layer && layer && rendered.layer.key === layer.key ? layer : rendered.layer;
-    const renderedKey = `${rendered.variant}|${rendered.layer?.key ?? ''}`;
-    const targetKey = `${targetVariant}|${layer?.key ?? ''}`;
+    // 首页换页签（同一套首页内容、只是换了 `home:<页签>` 层）不整条翻：页签列留在原处，只翻中段（BravaisSeamHome）。
+    const renderedLayer = rendered.layer && layer && resolveSeamContentIdentity(rendered.layer) === resolveSeamContentIdentity(layer) ? layer : rendered.layer;
+    const renderedKey = `${rendered.variant}|${rendered.layer ? resolveSeamContentIdentity(rendered.layer) : ''}`;
+    const targetKey = `${targetVariant}|${layer ? resolveSeamContentIdentity(layer) : ''}`;
     const latestTargetRef = useRef({ layer, targetVariant });
     latestTargetRef.current = { layer, targetVariant };
+    const pendingInRef = useRef<{ fromNone: boolean; reduced: boolean; focused: HTMLElement | null } | null>(null);
+    const inAnimationRef = useRef<Animation | null>(null);
+    /** 放完的转出段停在 90°，等新内容渲染出来、转进段开始时才取消（中间不露出转正的旧内容）。 */
+    const outAnimationRef = useRef<Animation | null>(null);
+    // 翻转途中目标又换了（A → B → C）不重来：转到 90° 时换成最新的目标（latestTargetRef）。只有「要不要翻、怎么翻」变了
+    // 才重跑（目标回到了正画着的内容、或换成了折叠）。
+    const fromNone = renderedKey.startsWith('none|');
+    const toNone = targetKey.startsWith('none|');
+    const flipMode = renderedKey === targetKey ? 'none' : fromNone || toNone ? `swap|${targetKey}` : 'flip';
     useLayoutEffect(() => {
-        if (renderedKey === targetKey) return;
+        if (flipMode === 'none') return undefined;
         const element = contentRef.current;
-        const swap = () => {
+        // 转出的半圈里旧内容 inert（BravaisSeam），焦点会被浏览器移走：记下此刻聚焦的元素，换完内容它还在（同一种内容
+        // 换了形态，React 复用了这个节点，例如书脊的「⋯」展开成窄缝）就把焦点还给它。
+        const active = document.activeElement;
+        const focused = element && active instanceof HTMLElement && element.contains(active) ? active : null;
+        const swap = (animateIn: boolean) => {
             const next = latestTargetRef.current;
+            pendingInRef.current = animateIn ? { fromNone, reduced: reducedTransitions, focused } : null;
             setRendered({ variant: next.targetVariant, layer: next.layer });
         };
-        // 折叠与展开之间、或降低动效时不翻（原型：进出 hidden 直接换）。
-        if (!element || reducedMotion || renderedKey.startsWith('none|') || targetKey.startsWith('none|')) {
-            swap();
-            return;
+        // 折叠与展开之间不翻：开口从 0 补间、内容随开口淡入（frame 的 contentOpacity）。降低动效时开口不补间，
+        // 内容在折叠回来时淡入。
+        if (!element || flipMode !== 'flip') {
+            swap(Boolean(element) && fromNone && reducedTransitions);
+            return undefined;
         }
+        inAnimationRef.current?.cancel();
+        inAnimationRef.current = null;
         let swapped = false;
-        const out = element.animate([{ transform: flipTransform(0) }, { transform: flipTransform(90) }], {
-            duration: BRAVAIS_SEAM_FLIP_OUT_MS,
-            easing: 'ease-in',
-            fill: 'forwards',
-        });
+        const out = playSeamFlipOut(element, 'y', reducedTransitions);
+        outAnimationRef.current = out;
         out.onfinish = () => {
             swapped = true;
-            swap();
-            out.cancel();
-            // 转回来的这一段不随 effect 清理取消：换内容本身就会让这个 effect 重跑。
-            element.animate([{ transform: flipTransform(-90) }, { transform: flipTransform(0) }], {
-                duration: BRAVAIS_SEAM_FLIP_IN_MS,
-                easing: 'cubic-bezier(.2,.7,.25,1)',
-            });
+            swap(true);
         };
         return () => {
-            if (!swapped) out.cancel();
+            if (!swapped) {
+                out.cancel();
+                clearSeamFlipPhase(element);
+            }
         };
-    }, [contentRef, reducedMotion, renderedKey, targetKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fromNone 由 renderedKey 决定
+    }, [contentRef, flipMode, reducedTransitions, renderedKey]);
+
+    // 换完内容：新内容转进来（降低动效时淡入）。转进这一段不随上面的 effect 清理取消：换内容本身就会让它重跑。
+    useLayoutEffect(() => {
+        const pending = pendingInRef.current;
+        if (pending === null) return;
+        pendingInRef.current = null;
+        outAnimationRef.current?.cancel();
+        outAnimationRef.current = null;
+        const element = contentRef.current;
+        if (!element) return;
+        const { focused } = pending;
+        if (focused && focused.isConnected && element.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
+        inAnimationRef.current = playSeamFlipIn(element, 'y', pending.reduced || pending.fromNone, () => { inAnimationRef.current = null; });
+    }, [contentRef, rendered]);
+    useEffect(() => () => {
+        inAnimationRef.current?.cancel();
+        outAnimationRef.current?.cancel();
+    }, []);
 
     // 排版宽度跟着「此刻渲染的那套内容」走，不跟目标宽度走。
     useLayoutEffect(() => {
@@ -195,5 +228,17 @@ export const useBravaisSeam = ({
     }, [frameRef, targetWidth]);
 
     const contentWidth = resolveVariantWidth(rendered.variant, viewportWidth);
-    return { level, anchorX, setAnchor, targetWidth, rendered: { variant: rendered.variant, layer: renderedLayer, width: contentWidth }, planOpening, isAnchorOnScreen, reopenHere, isCollapsed };
+    return {
+        level,
+        anchorX,
+        setAnchor,
+        targetWidth,
+        rendered: { variant: rendered.variant, layer: renderedLayer, width: contentWidth },
+        /** 正画着的内容正要翻走（转出的半圈、降低动效时的淡出）：缝把它藏起来，不可点、不进无障碍树。 */
+        leaving: flipMode === 'flip',
+        planOpening,
+        isAnchorOnScreen,
+        reopenHere,
+        isCollapsed,
+    };
 };

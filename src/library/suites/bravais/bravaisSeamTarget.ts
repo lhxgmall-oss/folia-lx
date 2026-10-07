@@ -1,5 +1,5 @@
 import { BRAVAIS_SEAM_FULL_WIDTH } from './bravaisConstants';
-import type { BravaisLayerSurface } from './bravaisLayer';
+import type { BravaisLayer, BravaisLayerSurface } from './bravaisLayer';
 import {
     resolveSeamOpenWidth,
     resolveSeamVariant,
@@ -82,3 +82,9 @@ export const resolveStageSeamTarget = (
 ): { width: number; variant: BravaisSeamContentVariant } => (
     account ? { width: BRAVAIS_SEAM_FULL_WIDTH, variant: account } : resolveSeamTarget(input)
 );
+
+/**
+ * 缝里的内容换不换（整条翻不翻）的身份：首页各页签（`home:<页签>`）是同一套首页内容——换页签时页签列留在原处、只翻
+ * 中段（设计稿 §7「缝内的过渡」）；集合与歌手页按层 key。
+ */
+export const resolveSeamContentIdentity = (layer: Pick<BravaisLayer, 'key' | 'surface'>) => (layer.surface === 'home' ? 'home' : layer.key);

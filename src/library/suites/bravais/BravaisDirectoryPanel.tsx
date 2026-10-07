@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, CircleDot, ListPlus, Minus, Play, Plus, RefreshCw, Trash2, Undo2, X } from 'lucide-react';
 import { List, type RowComponentProps } from 'react-window';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisDirectoryActionId, BravaisDirectoryPanel as BravaisDirectoryPanelModel, BravaisDirectoryRow } from './bravaisHomeModels';
@@ -8,6 +9,9 @@ import type { BravaisPanelActions } from './BravaisListPanel';
 import { BravaisSeamFilterSlot } from './BravaisSeamCollection';
 import BravaisSeamFormView from './BravaisSeamFormView';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
+import { BravaisSeamFlip, BravaisSeamFlipText } from './BravaisSeamFlip';
+import { useBravaisReducedTransitions } from './bravaisMotion';
+import { bravaisRevealMotion } from './bravaisSeamMotion';
 
 // src/library/suites/bravais/BravaisDirectoryPanel.tsx
 // 目录树面板（设计稿 §5「目录树 = GridMap 的批量模式」）：首页「本地」窄缝的 ▤ 打开，缝加宽成面板。顶上面包屑
@@ -15,6 +19,7 @@ import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 // 全选框、可滚动的树（本地文件夹：展开 / 收起、三态与「仅本层」；专辑 / 歌手：平铺的勾选行），根节点行悬停时有
 // 「重新扫描」「移除根」，被忽略的文件夹有「恢复」；底部是批量操作（播放 / 入队 / 建歌单 / 移除 / 清空选择），
 // 建歌单与移除（含移除根）在底部翻成表单态 / 确认态。打开面板是导航（B7 的面板 history），关掉 = 退出批量模式。
+// 底部在批量操作与表单之间翻一格（绕 X 轴，BravaisSeamFlip），结果提示淡入 / 淡出，「已选 / 共」变了翻进新的一行。
 
 const ROW_HEIGHT = 48;
 
@@ -98,6 +103,7 @@ const BravaisDirectoryPanel: React.FC<{ layer: BravaisLayer; actions: BravaisPan
     const { t } = useTranslation();
     const panel = layer.home?.panel ?? null;
     const rowProps = useMemo<RowProps | null>(() => (panel ? { rows: panel.rows, panel } : null), [panel]);
+    const reveal = bravaisRevealMotion(useBravaisReducedTransitions());
     if (!panel || !rowProps) return null;
     const selectAll = panel.selectAll;
     return (
@@ -114,7 +120,7 @@ const BravaisDirectoryPanel: React.FC<{ layer: BravaisLayer; actions: BravaisPan
             </div>
             <BravaisSeamFilterSlot filter={panel.filter} />
             <h2 className="bravais-panel-title" data-bravais-seam-title>{panel.title}</h2>
-            <div className="bravais-seam-meta" data-bravais-directory-summary>{panel.summary}</div>
+            <BravaisSeamFlipText as="div" flipKey={panel.summary} className="bravais-seam-meta" data-bravais-directory-summary>{panel.summary}</BravaisSeamFlipText>
             <button
                 type="button"
                 role="checkbox"
@@ -139,34 +145,39 @@ const BravaisDirectoryPanel: React.FC<{ layer: BravaisLayer; actions: BravaisPan
                     />
                 ) : <p className="bravais-form-message">{panel.emptyLabel}</p>}
             </div>
-            {panel.form ? (
-                <div className="bravais-dir-form">
-                    <BravaisSeamFormView form={panel.form} />
-                </div>
-            ) : (
-                <div className="bravais-seam-actions is-directory">
-                    {panel.actions.map(action => {
-                        const Icon = ACTION_ICONS[action.id];
-                        return (
-                            <button
-                                key={action.id}
-                                type="button"
-                                className={`bravais-chrome-button${action.id === 'play' ? ' is-primary' : ''}${action.danger ? ' is-danger' : ''}`}
-                                data-bravais-dir-action={action.id}
-                                disabled={action.disabled}
-                                onClick={action.run}
-                            >
-                                <Icon aria-hidden />{action.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-            {panel.notice && (
-                <div className={`bravais-seam-notice is-${panel.notice.tone}`} role="status" data-bravais-seam-notice={panel.notice.tone}>
-                    {panel.notice.text}
-                </div>
-            )}
+            <BravaisSeamFlip axis="x" flipKey={panel.form ? `form:${panel.form.formId}` : 'actions'}>
+                {panel.form ? (
+                    <div className="bravais-dir-form">
+                        <BravaisSeamFormView form={panel.form} />
+                    </div>
+                ) : (
+                    <div className="bravais-seam-actions is-directory">
+                        {panel.actions.map(action => {
+                            const Icon = ACTION_ICONS[action.id];
+                            return (
+                                <button
+                                    key={action.id}
+                                    type="button"
+                                    className={`bravais-chrome-button${action.id === 'play' ? ' is-primary' : ''}${action.danger ? ' is-danger' : ''}`}
+                                    data-bravais-dir-action={action.id}
+                                    disabled={action.disabled}
+                                    onClick={action.run}
+                                >
+                                    <Icon aria-hidden />{action.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </BravaisSeamFlip>
+            <AnimatePresence initial={false}>
+                {panel.notice && (
+                    <motion.div key="notice" className={`bravais-seam-notice is-${panel.notice.tone}`} role="status"
+                        data-bravais-seam-notice={panel.notice.tone} {...reveal}>
+                        {panel.notice.text}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

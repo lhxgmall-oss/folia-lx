@@ -395,6 +395,24 @@
 :root[data-reduce-motion~='lattice'] .bravais-tile.is-reflowing,
 :root[data-reduce-motion~='lattice'] .bravais-tile-face { transition: none; }
 
+/* ---------- 缝里的小块出现（设计稿 §7「缝内的过渡」）：只动 transform / opacity ---------- */
+
+@keyframes bravais-seam-fade-in { from { opacity: 0; } }
+@keyframes bravais-seam-rise-in { from { opacity: 0; transform: translateY(6px); } }
+/* 边缘标签 / 悬浮按钮出现：从屏幕边缘滑进来（它常驻的 transform 是 translateY(-50%)，关键帧里带上）。 */
+@keyframes bravais-seam-tab-in-left { from { opacity: 0; transform: translate(-100%, -50%); } }
+@keyframes bravais-seam-tab-in-right { from { opacity: 0; transform: translate(100%, -50%); } }
+
+/* display 从 none 变回来时动画重新放一遍：标签每次出现都滑进来。 */
+.bravais-seam-tab[data-side='left'] { animation: bravais-seam-tab-in-left 240ms cubic-bezier(.2, .7, .25, 1); }
+.bravais-seam-tab[data-side='right'] { animation: bravais-seam-tab-in-right 240ms cubic-bezier(.2, .7, .25, 1); }
+.bravais-seam .bravais-form-error { animation: bravais-seam-rise-in 200ms cubic-bezier(.2, .7, .25, 1); }
+
+/* 降低动态效果（与换层翻牌同一套判断：lattice 或 collectionMorph）：只淡入。 */
+:root:is([data-reduce-motion~='lattice'], [data-reduce-motion~='collectionMorph']) :is(.bravais-seam-tab[data-side], .bravais-seam .bravais-form-error) {
+    animation: bravais-seam-fade-in 180ms ease-out;
+}
+
 /* ---------- 透光（B6b③，设计稿 §11）：实色底板、窗、全透明的标题磁贴、半透明的缝 ---------- */
 
 /* 墙面（与 wall.css 的 .lattice-root 同一身：两团主题光晕 + 底色）。实色档画在根节点上；透明档根节点不画底，

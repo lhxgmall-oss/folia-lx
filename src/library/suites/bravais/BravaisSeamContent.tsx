@@ -13,6 +13,7 @@ import BravaisDirectoryPanel from './BravaisDirectoryPanel';
 import BravaisSeamArtist from './BravaisSeamArtist';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import BravaisSeamAccount from './BravaisSeamAccount';
+import { BravaisSeamFlipText } from './BravaisSeamFlip';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
 // 缝里的四套内容（设计稿 §5）：首页窄缝（竖排「书库」+ 竖排页签）、首页书脊、完整信息条（面包屑行、竖排标题、
@@ -21,6 +22,7 @@ import BravaisSeamAccount from './BravaisSeamAccount';
 // B9：首页窄缝 / 书脊换成 BravaisSeamHome（页签、二级切换、工具按钮、管理隐藏、账户位），另有全局搜索框（search）；
 // 首页层的面板是目录树（BravaisDirectoryPanel），集合层的面板仍是歌曲列表。
 // B10：账户的登录态 / 确认态（login / confirm）不属于任何一层，内容来自 bravaisAccountStore（BravaisSeamAccount）。
+// 换层 / 换形态由外层整条翻（useBravaisSeam）；同一层里元数据（计数、匹配数）与状态文字变了，新的一行翻进来（BravaisSeamFlipText）。
 
 export type BravaisSeamActions = {
     setLevel: (level: BravaisSeamLevel) => void;
@@ -80,10 +82,10 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
             </div>
             <div className="bravais-seam-quote is-closing" aria-hidden>“</div>
             <div className="bravais-seam-rule" />
-            <div className="bravais-seam-meta">{seam.meta}</div>
+            <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-seam-meta">{seam.meta}</BravaisSeamFlipText>
             {seam.artist && <BravaisSeamArtist artist={seam.artist} />}
             {collection && <BravaisSeamCollectionMeta collection={collection} />}
-            {seam.status && <div className="bravais-seam-status" data-bravais-seam-status>{seam.status}</div>}
+            {seam.status && <BravaisSeamFlipText as="div" flipKey={seam.status} className="bravais-seam-status" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
             {collection?.status && <BravaisSeamStatusLine status={collection.status} />}
             <div className="bravais-seam-actions">
                 {seam.onPlayScope && (
@@ -119,7 +121,7 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
                 title={t('libraryBravais.seamExpand')}>
                 {seam.title}
             </button>
-            <div className="bravais-seam-vcount">{seam.meta}</div>
+            <BravaisSeamFlipText as="div" axis="y" flipKey={seam.meta} className="bravais-seam-vcount">{seam.meta}</BravaisSeamFlipText>
             <div className="bravais-seam-spacer" />
             {seam.onPlayScope && (
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}
