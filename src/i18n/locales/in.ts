@@ -661,6 +661,7 @@ export default {
       "settings-playback-entry-view": { "title": "Tampilan saat diputar", "description": "Langsung ke pengaturan tampilan yang dibuka saat menekan putar" },
       "playback-entry-view-player": { "title": "Saat diputar: Visualizer", "description": "Menekan putar membuka pemutar dan visualizer-nya" },
       "playback-entry-view-lattice": { "title": "Saat diputar: Lattice", "description": "Menekan putar membuka kolase antrean" },
+      "playback-entry-view-stay": { "title": "Saat diputar: Tetap di sini", "description": "Menekan putar hanya memulai lagu dan Anda tetap di tempat" },
       "settings-library-suite": { "title": "Antarmuka pustaka", "description": "Langsung ke pengaturan antarmuka yang dipakai pustaka" },
       "library-suite-picker": { "title": "Pilih antarmuka pustaka", "description": "Ganti antarmuka untuk menjelajah pustaka" },
       "library-wall-look-picker": { "title": "Pilih transparansi dinding", "description": "Pilih seberapa banyak visualizer yang terlihat menembus dinding pustaka" },
@@ -3213,7 +3214,7 @@ export default {
   },
   "playbackEntryView": {
     "title": "Ke mana Putar harus membawa Anda?",
-    "description": "Kedua tampilan sama-sama memutar dan menampilkan lirik, hanya penekanannya berbeda. Pilih salah satu sebagai tujuan default saat menekan putar.",
+    "description": "Kedua tampilan sama-sama memutar dan menampilkan lirik, hanya penekanannya berbeda. Pilih salah satu sebagai tujuan default saat menekan putar, atau tetap di tempat.",
     "settingsHint": "Anda bisa mengubahnya kapan saja di Opsi \u2192 Antarmuka \u2192 Tampilan yang dibuka Putar.",
     "confirm": "Pakai ini",
     "player": {
@@ -3223,6 +3224,10 @@ export default {
     "lattice": {
       "title": "Lattice (kolase antrean)",
       "description": "Seluruh antrean putar sebagai dinding poster, dengan lagu yang sedang diputar ditonjolkan."
+    },
+    "stay": {
+      "title": "Tetap di sini",
+      "description": "Putar hanya memulai lagu. Anda tetap di pustaka, dan tombol putar pada kartu yang ditekan berubah menjadi jeda / lanjut."
     }
   },
   "userGuide": {

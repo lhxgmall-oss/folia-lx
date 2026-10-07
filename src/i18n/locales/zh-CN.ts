@@ -663,6 +663,7 @@ export default {
       "settings-playback-entry-view": { "title": "播放后进入的视图", "description": "直接跳到「播放后进入的视图」设置" },
       "playback-entry-view-player": { "title": "播放后进入：可视化", "description": "点击播放后进入播放器与可视化视图" },
       "playback-entry-view-lattice": { "title": "播放后进入：Lattice", "description": "点击播放后进入队列拼贴视图" },
+      "playback-entry-view-stay": { "title": "播放后：留在原处", "description": "点击播放只开始播放，不跳转到别的视图" },
       "settings-library-suite": { "title": "资料库界面", "description": "直接跳到「资料库界面」设置" },
       "library-suite-picker": { "title": "选择资料库界面", "description": "切换浏览资料库所用的界面" },
       "library-wall-look-picker": { "title": "选择透光档位", "description": "海报墙透出多少下面的可视化" },
@@ -3327,7 +3328,7 @@ export default {
   },
   "playbackEntryView": {
     "title": "点击播放后进入哪个视图？",
-    "description": "两个视图都能正常播放和显示歌词，只是重点不同。选一个作为点击播放后的默认落点。",
+    "description": "两个视图都能正常播放和显示歌词，只是重点不同。选一个作为点击播放后的默认落点，或者留在原处。",
     "settingsHint": "之后可以在「设置 → 界面设置 → 播放后进入的视图」里随时更改。",
     "confirm": "就这样",
     "player": {
@@ -3337,6 +3338,10 @@ export default {
     "lattice": {
       "title": "Lattice（队列拼贴）",
       "description": "整条播放队列铺成海报墙，正在播放的那首会被放大。"
+    },
+    "stay": {
+      "title": "留在原处",
+      "description": "点击播放只开始播放，不跳转；留在资料库里，按过的卡片上的播放键变成暂停 / 继续。"
     }
   },
   "userGuide": {

@@ -79,6 +79,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-playback-entry-view",
   "playback-entry-view-player",
   "playback-entry-view-lattice",
+  "playback-entry-view-stay",
   "settings-library-suite",
   "library-suite-picker",
   "library-wall-look-picker",

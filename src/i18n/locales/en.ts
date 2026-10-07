@@ -663,6 +663,7 @@ export default {
       "settings-playback-entry-view": { "title": "Play opens", "description": "Jump to which view pressing play opens" },
       "playback-entry-view-player": { "title": "Play opens: Visualizer", "description": "Pressing play opens the player and its visualizer" },
       "playback-entry-view-lattice": { "title": "Play opens: Lattice", "description": "Pressing play opens the queue collage" },
+      "playback-entry-view-stay": { "title": "Play opens: Stay here", "description": "Pressing play only starts the song and leaves you where you are" },
       "settings-library-suite": { "title": "Library interface", "description": "Jump to which interface the library uses" },
       "library-suite-picker": { "title": "Pick a library interface", "description": "Switch the interface the library is browsed in" },
       "library-wall-look-picker": { "title": "Pick wall transparency", "description": "Choose how much of the visualizer shows through the library wall" },
@@ -3328,7 +3329,7 @@ export default {
   },
   "playbackEntryView": {
     "title": "Where should Play take you?",
-    "description": "Both views play and show lyrics; they just put the emphasis in different places. Pick the one Play should open by default.",
+    "description": "Both views play and show lyrics; they just put the emphasis in different places. Pick the one Play should open by default, or stay where you pressed it.",
     "settingsHint": "You can change this any time under Options \u2192 Interface \u2192 View opened by Play.",
     "confirm": "Use this",
     "player": {
@@ -3338,6 +3339,10 @@ export default {
     "lattice": {
       "title": "Lattice (queue collage)",
       "description": "The whole play queue as a poster wall, with the playing song lifted out of it."
+    },
+    "stay": {
+      "title": "Stay here",
+      "description": "Play only starts the song. You stay in the library, and the card you pressed turns into pause / resume."
     }
   },
   "userGuide": {

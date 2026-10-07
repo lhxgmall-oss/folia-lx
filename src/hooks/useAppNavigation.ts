@@ -24,7 +24,7 @@ import {
 import { useAppViewStore } from '../stores/useAppViewStore';
 import type { AppView } from '../stores/useAppViewStore';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
-import { usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
+import { resolvePlaybackSurface, usePlaybackEntryViewStore, type PlaybackEntryView } from '../stores/usePlaybackEntryViewStore';
 import { setStatusMessage } from '../stores/useStatusMessageStore';
 import i18n from '../i18n/config';
 
@@ -77,11 +77,12 @@ export const shouldReplacePlayerNavigation = (
 
 export const resolvePlayerCapsuleNavigationTarget = (
     view: ViewState,
-    playbackEntryView: 'player' | 'lattice',
+    playbackEntryView: PlaybackEntryView,
     isFmMode: boolean,
 ): 'player' | 'lattice' | null => {
     if (view === 'lattice') return null;
-    return playbackEntryView === 'lattice' && !isFmMode ? 'lattice' : 'player';
+    // fb3：「留在原处」没有自己的视图，显式要求进入播放视图（胶囊、启动、bravais 的「进入」）时去播放页。
+    return resolvePlaybackSurface(playbackEntryView) === 'lattice' && !isFmMode ? 'lattice' : 'player';
 };
 
 const getSearchHistorySnapshot = (): NavigationHistoryState['search'] => {
@@ -107,7 +108,7 @@ export const resolveStartupView = ({
     queueLength,
 }: {
     openPlayerOnLaunch: boolean;
-    playbackEntryView: 'player' | 'lattice';
+    playbackEntryView: PlaybackEntryView;
     isFmMode: boolean;
     queueLength: number;
 }): 'home' | 'player' | 'lattice' => {
@@ -123,7 +124,7 @@ export const isStartupLatticeDeferred = ({
     isFmMode,
 }: {
     openPlayerOnLaunch: boolean;
-    playbackEntryView: 'player' | 'lattice';
+    playbackEntryView: PlaybackEntryView;
     isFmMode: boolean;
 }): boolean => openPlayerOnLaunch && playbackEntryView === 'lattice' && !isFmMode;
 
@@ -400,6 +401,9 @@ export function useAppNavigation() {
         const view = useAppViewStore.getState().view;
         if (view === 'lattice') return;
         const entryView = usePlaybackEntryViewStore.getState().playbackEntryView;
+        // fb3「留在原处」：播放不带人去任何地方——资料库的卡片 / 墙自己显示正在播放（暂停 / 继续）。
+        // 已经在播放页上（例如自动切歌）时照旧走下面的 navigateToPlayer，与另外两个值一致。
+        if (entryView === 'stay' && view !== 'player') return;
         if (entryView === 'lattice' && view !== 'player' && !usePlaybackStore.getState().isFmMode) {
             navigateToLattice();
             return;

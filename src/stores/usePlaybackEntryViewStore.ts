@@ -8,15 +8,36 @@
 import { create } from 'zustand';
 import { getStoredBoolean, getStoredString, setStoredBoolean } from './storagePrimitives';
 
-/** The two surfaces a song can start on. `player` is the visualizer page. */
-export type PlaybackEntryView = 'player' | 'lattice';
+/**
+ * Where pressing play lands. `player` is the visualizer page, `lattice` the queue collage, and
+ * `stay` leaves the listener where they pressed it (the library card or wall just shows that the
+ * song is playing). `stay` was added later (fb3, 2026-10-07): stored values from before still read
+ * back as what they were, and anything unknown falls back to `player`.
+ */
+export type PlaybackEntryView = 'player' | 'lattice' | 'stay';
+
+export const PLAYBACK_ENTRY_VIEWS: readonly PlaybackEntryView[] = ['player', 'lattice', 'stay'];
+
+export const isPlaybackEntryView = (value: unknown): value is PlaybackEntryView => (
+    typeof value === 'string' && (PLAYBACK_ENTRY_VIEWS as readonly string[]).includes(value)
+);
+
+/**
+ * The surface an explicit "open the playback view" lands on (the player capsule, the startup view,
+ * bravais' enter button on the playing card). `stay` has no surface of its own, so it opens the
+ * player — the listener asked to go somewhere, and the visualizer is the default somewhere.
+ */
+export const resolvePlaybackSurface = (view: PlaybackEntryView): 'player' | 'lattice' => (
+    view === 'lattice' ? 'lattice' : 'player'
+);
 
 const ENTRY_VIEW_KEY = 'playback_entry_view';
 const ENTRY_VIEW_CHOSEN_KEY = 'playback_entry_view_chosen';
 
-const readEntryView = (): PlaybackEntryView => (
-    getStoredString(ENTRY_VIEW_KEY, 'player') === 'lattice' ? 'lattice' : 'player'
-);
+const readEntryView = (): PlaybackEntryView => {
+    const stored = getStoredString(ENTRY_VIEW_KEY, 'player');
+    return isPlaybackEntryView(stored) ? stored : 'player';
+};
 
 export type PlaybackEntryViewState = {
     playbackEntryView: PlaybackEntryView;

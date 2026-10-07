@@ -73,6 +73,20 @@ export const settingsCommands: CommandPaletteCommand[] = [
             return true;
         },
     },
+    // fb3：第三个值「留在原处」——点播放只开始播放、不跳转（资料库卡片 / 墙上的按钮变成暂停 / 继续）。
+    {
+        id: 'playback-entry-view-stay',
+        isAvailable: context => (context ? context.settings.playbackEntryView !== 'stay' : true),
+        group: 'settings',
+        title: 'Play opens: Stay here',
+        description: 'Pressing play only starts the song and leaves you where you are',
+        keywords: ['entry view stay', 'stay on play', 'play in place', 'do not navigate', '播放后留在原处', '原地播放', '不跳转'],
+        execute: (_input, context) => {
+            if (context.settings.playbackEntryView === 'stay') return false;
+            context.settings.setPlaybackEntryView('stay');
+            return true;
+        },
+    },
     // 资料库界面（Library UI suite）：锚点跳到界面设置里的那一节，picker 直接切换。两条都只在可用的 suite 不止一套时出现，
     // 与设置节用同一个判断（hasLibrarySuiteChoice，经 context 透出）。
     createSettingsAnchorCommand(
