@@ -153,7 +153,7 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         run: notice.run,
         describe: notice.describe,
     });
-    const { seamCollection, wall, entries, matchLabel } = useBravaisCollectionSeam({
+    const { seamCollection, filter: seamFilter, wall, entries, matchLabel } = useBravaisCollectionSeam({
         collection,
         mutations,
         snapshot,
@@ -239,8 +239,9 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         meta: view.isFilterActive ? matchLabel : t('libraryBravais.trackCount', { count: allItems.length }),
         onPlayScope: declaresScope && scopeEnabled ? callbacks.onPlayScope : undefined,
         onEnqueueScope: declaresEnqueueScope && scopeEnabled ? callbacks.onEnqueueScope : undefined,
+        filter: seamFilter,
         collection: seamCollection,
-    }), [allItems.length, callbacks, declaresEnqueueScope, declaresScope, displayTitle, matchLabel, scopeEnabled, seamCollection, t, view.isFilterActive]);
+    }), [allItems.length, callbacks, declaresEnqueueScope, declaresScope, displayTitle, matchLabel, scopeEnabled, seamCollection, seamFilter, t, view.isFilterActive]);
 
     const layer = useMemo<BravaisLayer>(() => ({
         key: sessionKey,

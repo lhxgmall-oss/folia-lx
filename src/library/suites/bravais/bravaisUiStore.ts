@@ -5,8 +5,11 @@ import { create } from 'zustand';
 // - panelFor：列表面板开在哪一层（层 key）。面板是导航状态（设计稿 §5「面板」）：打开时写一条 history 记录
 //   （bravaisPanelHistory），浏览器后退、Esc、‹ 都先关它；换到别的层不清掉——压栈后返回时面板仍开着，与 history 一致。
 // - linkedKey / wallHoverKey：列表 ↔ 墙的联动（悬停列表行高亮墙上的副本；悬停磁贴高亮并滚到列表行）。
-// - filterHost：缝里给命令面板内联过滤框的锚点（stage 画，集合 surface 注册过滤时用它做 anchor）。
-// - focusFirst：stage 注册的「把键盘焦点交给墙上第 1 项」（过滤框里按 ↓）。
+// - filterEditing：缝里的过滤输入位正在输入（打字触发、点输入位、命令面板的 openCommandFilter 请求）：书脊 / 折叠的缝
+//   临时展开（bravaisSeamTarget 的 filterOpen），输入位挂载时拿焦点；Esc（空词时）、↓ / Enter、点别处结束。
+// - filterComposing：输入位里正在输入法组词（墙用的过滤词停在组词开始前的那一个）。
+// - filterInput：此刻挂着的输入位（翻牌途中新旧两份同时在，后挂上的那份是要换上的；inert 的不算）。
+// - focusFirst：stage 注册的「把键盘焦点交给墙上第 1 项」（输入位里按 ↓ / Enter、命令面板过滤框里按 ↓）。
 // - removalOrigin：聚焦卡「⋯ → 移出」时记下的 slot，移除的两段翻牌从它开始。
 
 export type BravaisRemovalOrigin = { layerKey: string; slotKey: string };
@@ -15,7 +18,9 @@ export type BravaisUiState = {
     panelFor: string | null;
     linkedKey: string | null;
     wallHoverKey: string | null;
-    filterHost: HTMLElement | null;
+    filterEditing: boolean;
+    filterComposing: boolean;
+    filterInput: HTMLInputElement | null;
     focusFirst: (() => boolean) | null;
     removalOrigin: BravaisRemovalOrigin | null;
 };
@@ -24,20 +29,27 @@ export const useBravaisUiStore = create<BravaisUiState>(() => ({
     panelFor: null,
     linkedKey: null,
     wallHoverKey: null,
-    filterHost: null,
+    filterEditing: false,
+    filterComposing: false,
+    filterInput: null,
     focusFirst: null,
     removalOrigin: null,
 }));
 
-export const setBravaisFilterHost = (element: HTMLElement | null) => {
-    if (useBravaisUiStore.getState().filterHost !== element) useBravaisUiStore.setState({ filterHost: element });
+export const setBravaisFilterEditing = (editing: boolean) => {
+    if (useBravaisUiStore.getState().filterEditing !== editing) useBravaisUiStore.setState({ filterEditing: editing });
 };
 
-/** 给 useGridCommandFilter 的 anchorRef：每次现读 store（缝换了 DOM 节点也跟得上）。 */
-export const bravaisFilterAnchorRef = {
-    get current(): HTMLElement | null {
-        return useBravaisUiStore.getState().filterHost;
-    },
+export const setBravaisFilterComposing = (composing: boolean) => {
+    if (useBravaisUiStore.getState().filterComposing !== composing) useBravaisUiStore.setState({ filterComposing: composing });
+};
+
+/** 输入位挂上时登记自己；返回注销（只注销自己，后挂上的那份不被先卸载的旧份清掉）。 */
+export const registerBravaisFilterInput = (input: HTMLInputElement) => {
+    useBravaisUiStore.setState({ filterInput: input });
+    return () => {
+        if (useBravaisUiStore.getState().filterInput === input) useBravaisUiStore.setState({ filterInput: null, filterComposing: false });
+    };
 };
 
 export const setBravaisLinkedKey = (key: string | null) => {

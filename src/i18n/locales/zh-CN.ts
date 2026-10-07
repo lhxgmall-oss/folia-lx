@@ -39,6 +39,9 @@ export default {
     "helpTabs": "切换首页页签",
     "helpLocate": "定位正在播放",
     "helpCommands": "打开命令面板",
+    "helpFilter": "直接打字：过滤当前页",
+    "helpSearch": "搜索在线平台（首页）",
+    "filterPlaceholder": "过滤当前页",
     "kind": {"track": "歌曲", "playlist": "歌单", "album": "专辑", "artist": "歌手", "folder": "文件夹", "feed": "电台"}
   },
   "libraryBravaisHome": {
@@ -46,13 +49,14 @@ export default {
     "unhide": "取消隐藏",
     "directory": "目录",
     "directoryCrumb": "目录",
-    "filterPlaceholder": "过滤目录",
     "clearSelection": "清空选择",
     "manageHidden": "管理隐藏",
     "hiddenOnly": "只看隐藏",
     "manageDone": "完成",
     "search": "搜索",
-    "searchPlaceholder": "搜索歌曲、歌手、专辑",
+    "searchPlaceholder": "搜索在线平台",
+    "searchHint": "联网搜索歌曲、歌手、专辑，结果在搜索页里打开；不会收窄当前这面墙。",
+    "searchOnline": "搜索在线平台",
     "searchSubmit": "搜索",
     "searchClose": "关闭搜索",
     "openQueue": "打开播放队列",
@@ -61,7 +65,8 @@ export default {
     "settings": "设置",
     "more": "更多",
     "scanProgress": "扫描 {{percent}}%",
-    "connect": "连接在线平台"
+    "connect": "连接在线平台",
+    "noMatch": "没有匹配的条目"
   },
   "libraryTui": {
     "back": "返回",
@@ -142,7 +147,6 @@ export default {
     "artistHints": "↑↓ 移动 · Tab 歌曲/专辑 · Enter 播放/打开 · Shift+Enter 入队 · Ctrl+Enter 全部播放 · Ctrl+Shift+Enter 热门歌曲入队 · Esc 返回"
   },
   "libraryBravaisCollection": {
-    "filterPlaceholder": "过滤这个集合",
     "matchCount": "{{matches}} / {{total}}",
     "clearFilter": "清除过滤",
     "more": "更多",

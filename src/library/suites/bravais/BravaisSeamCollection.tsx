@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, ChevronLeft, ChevronRight, Filter, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star, X } from 'lucide-react';
-import type { BravaisSeamCollection as BravaisSeamCollectionModel, BravaisSeamFilter, BravaisSeamStatus, BravaisSeamTone } from './bravaisSeamModels';
-import { BravaisSeamFlip, BravaisSeamFlipText } from './BravaisSeamFlip';
+import { AlertCircle, ChevronLeft, ChevronRight, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star } from 'lucide-react';
+import type { BravaisSeamCollection as BravaisSeamCollectionModel, BravaisSeamStatus, BravaisSeamTone } from './bravaisSeamModels';
+import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { bravaisPopMotion, bravaisRevealMotion } from './bravaisSeamMotion';
 import './bravaisCollection.css';
 
 // src/library/suites/bravais/BravaisSeamCollection.tsx
 // 完整信息条里集合层的那几块（设计稿 §10.1 放置原则、§10.2、§10.6）：
-// - 过滤位：命令面板的内联过滤框画在它上面（锚点在缝里，见 BravaisSeam）；框收起但还有过滤词时显示词、匹配数与清除；
+// （过滤输入位每面墙都有，在 BravaisSeamFilterField。）
 // - 标题下的收藏星标（subscribing 时转圈）；元数据行的补页进度（中断时整行是「续传」）；每日推荐的日期步进；
 // - 状态行：加载中、错误（重试）、空、过滤无结果（清除过滤）——图标与文案各不相同；
 // - 高频动作之外的「列表」与「⋯ 更多」（低频的集合动作，内联展开，不弹浮层）；
 // - 缝底的结果提示（几秒后由 surface 撤掉，不走 toast）。
-// 动效（设计稿 §7「缝内的过渡」）：过滤位在「入口」与「词 + 匹配数」之间翻一格（绕 X 轴）；状态行、日期换了，新的一行
-// 翻进来；「⋯ 更多」是弹出（从按钮下方长出来），结果提示淡入 / 淡出。
+// 动效（设计稿 §7「缝内的过渡」）：状态行、日期换了，新的一行翻进来；「⋯ 更多」是弹出（从按钮下方长出来），结果提示淡入 / 淡出。
 
 const TONE_ICONS: Record<BravaisSeamTone, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
     loading: Loader2,
@@ -23,30 +22,6 @@ const TONE_ICONS: Record<BravaisSeamTone, React.ComponentType<{ 'aria-hidden'?: 
     empty: Inbox,
     'no-match': SearchX,
 };
-
-/** 过滤位：高度固定，与 BravaisSeam 里过滤框锚点的位置对齐。 */
-export const BravaisSeamFilterSlot: React.FC<{ filter?: BravaisSeamFilter }> = ({ filter }) => (
-    <div className="bravais-seam-filter-slot" data-bravais-seam-filter={filter?.query ? 'active' : 'idle'}>
-        {filter && <BravaisSeamFlip className="bravais-seam-filter-face" axis="x" flipKey={filter.query ? 'active' : 'idle'}>{filter.query ? (
-            <span className="bravais-seam-filter-chip">
-                <button type="button" className="bravais-seam-filter-query" data-bravais-seam-action="filter" onClick={filter.onOpen}>
-                    <Filter aria-hidden />
-                    <span>{filter.query}</span>
-                    <em>{filter.matchLabel}</em>
-                </button>
-                <button type="button" className="bravais-seam-icon" data-bravais-seam-action="clear-filter" onClick={filter.onClear}
-                    aria-label={filter.clearLabel} title={filter.clearLabel}>
-                    <X aria-hidden />
-                </button>
-            </span>
-        ) : (
-            <button type="button" className="bravais-seam-filter-open" data-bravais-seam-action="filter" onClick={filter.onOpen}>
-                <Filter aria-hidden />
-                <span>{filter.placeholder}</span>
-            </button>
-        )}</BravaisSeamFlip>}
-    </div>
-);
 
 export const BravaisSeamStatusLine: React.FC<{ status: BravaisSeamStatus }> = ({ status }) => {
     const Icon = TONE_ICONS[status.tone];

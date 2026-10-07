@@ -1,5 +1,5 @@
 import type { LibraryDirectoryVisibilityMode } from '../../core/contracts/directory';
-import type { BravaisSeamFilter, BravaisSeamForm, BravaisSeamMenuItem, BravaisSeamNotice } from './bravaisSeamModels';
+import type { BravaisSeamForm, BravaisSeamMenuItem, BravaisSeamNotice } from './bravaisSeamModels';
 import type { BravaisAccountRow } from './bravaisAccountModel';
 
 // src/library/suites/bravais/bravaisHomeModels.ts
@@ -17,6 +17,7 @@ export type BravaisHomeSection = { key: string; label: string; active: boolean }
  */
 export type BravaisHomeToolId =
     | 'search'
+    | 'filter'
     | 'directory'
     | 'manage-hidden'
     | 'refresh-navidrome'
@@ -49,10 +50,14 @@ export type BravaisHomeManage = {
 /**
  * 全局搜索（设计稿 §10.5「全局搜索的过渡方案」）：缝里 ⌕ 展开成完整宽度的搜索框，提交走宿主的 onSearchCommitted，
  * 跳到 SearchWorkspace——过渡期唯一的离墙路径（计划完成标准 5）。search surface 落地后改成墙内的搜索层。
+ * 与当前页过滤明确区分（§7.6）：搜索发 provider 请求、换到搜索结果；过滤不发请求，只收窄当前墙。
  */
 export type BravaisHomeSearch = {
     title: string;
+    /** 「搜索在线平台」（与过滤输入位的「过滤当前页」区分）。 */
     placeholder: string;
+    /** 输入框下面一行说明：搜的是在线平台、结果去搜索页（不是收窄这面墙）。 */
+    hint: string;
     submitLabel: string;
     closeLabel: string;
     onSubmit: (query: string) => void;
@@ -133,7 +138,6 @@ export type BravaisDirectoryPanel = {
     /** 「已选 N / 共 M · K 首」。 */
     summary: string;
     crumb: string;
-    filter: BravaisSeamFilter;
     rows: readonly BravaisDirectoryRow[];
     emptyLabel: string;
     selectAll: { state: 'none' | 'partial' | 'all'; label: string; toggle: () => void };

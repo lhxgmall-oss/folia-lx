@@ -3,13 +3,12 @@ import { useTranslation } from 'react-i18next';
 import type { LibraryArtistSnapshot } from '../../core/contracts/artist';
 import type { LibraryArtistActionId, LibraryArtistSurfaceProps } from '../../core/contracts/suite';
 import type { ArtistView } from '../../core/bindings/useArtistView';
-import { openCommandFilter } from '../../../stores/useAppViewStore';
 import { projectArtistStatus, resolveArtistWallPeriod } from './bravaisArtistModel';
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamMenuItem } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
 
 // src/library/suites/bravais/useBravaisArtistSeam.ts
-// 歌手页在缝与墙上的投影（设计稿 §10.4 / §10.6）：缝里的歌手信息块（头像、别名、简介、统计）、过滤位（只筛专辑名）、
+// 歌手页在缝与墙上的投影（设计稿 §10.4 / §10.6）：缝里的歌手信息块（头像、别名、简介、统计）、过滤输入位（只筛专辑名）、
 // 专辑分页进度 / 续页、状态行（加载、错误 + 重试、空、过滤无结果）、「⋯ 更多」（重新拉取、编辑本地歌手实体）与缝底的
 // 提示；墙的内容规则（专辑分页期间的循环周期、有限拼贴的规划条目数、过滤身份、首屏呼吸）；列表面板。
 // 缝里的集合块（BravaisSeamCollection）与集合页同一套组件，所以这里产出同一个形状。入口只在「声明 ∩ 能力」时出现。
@@ -90,27 +89,26 @@ export const useBravaisArtistSeam = (input: BravaisArtistSeamInput) => {
     }, [offers, reloadEnabled, t]);
 
     const matchLabel = t('libraryBravaisArtist.albumMatchCount', { matches: input.shownAlbumCount, total: albumCount });
-    const filter = useMemo<BravaisSeamCollection['filter']>(() => (offers('filter') ? {
+    // 缝里的过滤输入位（只筛专辑名，core 约定；占位文字照实说「过滤专辑」）。
+    const filter = useMemo<BravaisSeamFilter | undefined>(() => (offers('filter') ? {
         query: input.query,
         placeholder: t('libraryBravaisArtist.filterPlaceholder'),
         matchLabel,
         clearLabel: t('libraryBravaisCollection.clearFilter'),
-        onOpen: openCommandFilter,
-        onClear: () => latest.current.setQuery(''),
+        setQuery: (query: string) => latest.current.setQuery(query),
     } : undefined), [input.query, matchLabel, offers, t]);
 
     const seamCollection = useMemo<BravaisSeamCollection>(() => ({
         sync,
         status,
         notice: notice.notice,
-        filter,
         menu,
         moreLabel: t('libraryBravaisCollection.more'),
         listLabel: t('libraryBravaisCollection.list'),
         form: null,
     // status / sync 是每次渲染新算的小对象：按它们的文案比较，免得层描述白换身份。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [filter, menu, notice.notice, status?.tone, status?.text, sync?.state, sync?.label, t]);
+    }), [menu, notice.notice, status?.tone, status?.text, sync?.state, sync?.label, t]);
 
     // 缝里的歌手信息块（ArtistGridView 的头像、简介、统计，加上别名）。
     const seamArtist = useMemo<BravaisSeamArtist | undefined>(() => {
@@ -154,5 +152,5 @@ export const useBravaisArtistSeam = (input: BravaisArtistSeamInput) => {
         ? matchLabel
         : t('libraryBravaisArtist.wallCounts', { songs: topSongCount, albums: albumCount });
 
-    return { seamCollection, seamArtist, wall, entries, meta, isFilterActive };
+    return { seamCollection, seamArtist, filter, wall, entries, meta, isFilterActive };
 };

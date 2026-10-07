@@ -10,7 +10,7 @@ import type { LibraryMutationResult } from '../../core/contracts/mutations';
 import { canRunDirectoryBatchAction } from '../../core/model/directoryBatch';
 import type { BravaisDirectoryPanel, BravaisHomeBatch } from './bravaisHomeModels';
 import { projectDirectoryRows, resolveSelectAllState, type BravaisHomeEntry } from './bravaisHomeProjection';
-import type { BravaisSeamFilter, BravaisSeamForm } from './bravaisSeamModels';
+import type { BravaisSeamForm } from './bravaisSeamModels';
 import { useBravaisMutationNotice } from './useBravaisMutationNotice';
 
 // src/library/suites/bravais/useBravaisDirectoryPanel.ts
@@ -39,7 +39,6 @@ export type BravaisDirectoryPanelInput = {
     setSelected: (ids: readonly string[], selected: boolean) => void;
     toggleSelected: (id: string) => void;
     replaceSelection: (ids: readonly string[]) => void;
-    filter: BravaisSeamFilter;
     /** 面板没开时先打开它（命令面板的全选 / 移除可以从关着的面板发起）。 */
     openPanel: () => void;
 };
@@ -175,7 +174,6 @@ export const useBravaisDirectoryPanel = (input: BravaisDirectoryPanelInput) => {
                 tracks: trackCount,
             }),
             crumb: t('libraryBravaisHome.directoryCrumb'),
-            filter: input.filter,
             rows: projected.rows,
             emptyLabel: query ? t('home.gridSearchNoResults') : t('home.gridFolderTreeEmpty'),
             selectAll: {
@@ -228,7 +226,7 @@ export const useBravaisDirectoryPanel = (input: BravaisDirectoryPanelInput) => {
             form,
             notice: notice.notice,
         };
-    }, [batchConfig, capabilities, context.items.length, displayItems.length, form, input.filter, input.title, notice.notice, openForm, pending, projected, query, runAction, selectedIds.size, t, trackCount]);
+    }, [batchConfig, capabilities, context.items.length, displayItems.length, form, input.title, notice.notice, openForm, pending, projected, query, runAction, selectedIds.size, t, trackCount]);
 
     return {
         panel,

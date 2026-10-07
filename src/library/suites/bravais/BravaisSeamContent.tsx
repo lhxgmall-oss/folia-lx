@@ -1,10 +1,12 @@
 import React from 'react';
-import { ChevronLeft, FoldHorizontal, ListPlus, Maximize2, Play } from 'lucide-react';
+import { ChevronLeft, FoldHorizontal, ListFilter, ListPlus, Maximize2, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
-import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamFilterSlot, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import BravaisSeamFilterField from './BravaisSeamFilterField';
+import { openBravaisFilter } from './useBravaisSeamFilter';
 import BravaisListPanel, { type BravaisPanelActions } from './BravaisListPanel';
 import BravaisSeamFormView from './BravaisSeamFormView';
 import BravaisSeamHome from './BravaisSeamHome';
@@ -23,6 +25,8 @@ import { BravaisSeamFlipText } from './BravaisSeamFlip';
 // 首页层的面板是目录树（BravaisDirectoryPanel），集合层的面板仍是歌曲列表。
 // B10：账户的登录态 / 确认态（login / confirm）不属于任何一层，内容来自 bravaisAccountStore（BravaisSeamAccount）。
 // 换层 / 换形态由外层整条翻（useBravaisSeam）；同一层里元数据（计数、匹配数）与状态文字变了，新的一行翻进来（BravaisSeamFlipText）。
+// 当前页过滤（设计稿 §7.6）：完整信息条的面包屑行下面是缝自己的过滤输入位（BravaisSeamFilterField）；书脊放不下输入框，
+// 过滤中只留一个过滤图标（点它或在墙上打字，缝临时展开成完整信息条）。
 
 export type BravaisSeamActions = {
     setLevel: (level: BravaisSeamLevel) => void;
@@ -75,7 +79,7 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
                     {t('libraryBravais.seamFold')}
                 </button>
             </div>
-            {collection && <BravaisSeamFilterSlot filter={collection.filter} />}
+            {seam.filter && <BravaisSeamFilterField filter={seam.filter} />}
             <div className="bravais-seam-quote" aria-hidden>”</div>
             <div className="bravais-seam-vtitle-wrap">
                 <h2 className="bravais-seam-vtitle" data-bravais-seam-title style={{ fontSize: verticalTitleSize(seam.title, 52, 26) }}>{seam.title}</h2>
@@ -122,6 +126,13 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
                 {seam.title}
             </button>
             <BravaisSeamFlipText as="div" axis="y" flipKey={seam.meta} className="bravais-seam-vcount">{seam.meta}</BravaisSeamFlipText>
+            {/* 过滤中：一个强调色的过滤图标（点它把缝临时展开、焦点进输入位；书脊上放不下输入框）。 */}
+            {seam.filter?.query && (
+                <button type="button" className="bravais-seam-icon is-filtering" data-bravais-seam-action="filter" onClick={openBravaisFilter}
+                    aria-label={seam.filter.placeholder} title={`${seam.filter.placeholder} · ${seam.filter.query}`}>
+                    <ListFilter aria-hidden />
+                </button>
+            )}
             <div className="bravais-seam-spacer" />
             {seam.onPlayScope && (
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}

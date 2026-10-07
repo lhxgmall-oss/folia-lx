@@ -3,7 +3,8 @@ import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronLeft, ListPlus, Play } f
 import { List, useListRef, type RowComponentProps } from 'react-window';
 import { useTranslation } from 'react-i18next';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
-import { BravaisSeamFilterSlot, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamStatusLine } from './BravaisSeamCollection';
+import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { setBravaisLinkedKey, useBravaisUiStore } from './bravaisUiStore';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 
@@ -105,7 +106,7 @@ const BravaisListPanel: React.FC<{ layer: BravaisLayer; depth: number; actions: 
                     {t('libraryBravais.seamFold')}
                 </button>
             </div>
-            <BravaisSeamFilterSlot filter={collection?.filter} />
+            {layer.seam.filter && <BravaisSeamFilterField filter={layer.seam.filter} variant="panel" />}
             <h2 className="bravais-panel-title" data-bravais-seam-title>{seam.title}</h2>
             <div className="bravais-seam-meta">{seam.meta}</div>
             {sort && (

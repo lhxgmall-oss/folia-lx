@@ -1,4 +1,4 @@
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamFilter } from './bravaisSeamModels';
 import type { BravaisHomeLayer, BravaisHomeSeam } from './bravaisHomeModels';
 
 // src/library/suites/bravais/bravaisLayer.ts
@@ -61,7 +61,12 @@ export type BravaisSeamModel = {
     /** 播放 / 加入当前范围；没声明或不可用时不给。 */
     onPlayScope?: () => void;
     onEnqueueScope?: () => void;
-    /** B7 集合页：收藏星标、补页进度、状态与结果提示、过滤位、日期步进、「⋯ 更多」、表单态（见 bravaisSeamModels）。 */
+    /**
+     * 这面墙的「当前页过滤」输入位（设计稿 §7.6）：首页各页签、集合、歌手页、目录面板都有；suite 没声明过滤时不给。
+     * 完整信息条、面板与首页窄缝把它画成缝自己的输入框（BravaisSeamFilterField）。
+     */
+    filter?: BravaisSeamFilter;
+    /** B7 集合页：收藏星标、补页进度、状态与结果提示、日期步进、「⋯ 更多」、表单态（见 bravaisSeamModels）。 */
     collection?: BravaisSeamCollection;
     /** B9 首页：二级切换、工具按钮、「⋯」、管理隐藏、扫描进度、搜索、账户位（见 bravaisHomeModels）。 */
     home?: BravaisHomeSeam;

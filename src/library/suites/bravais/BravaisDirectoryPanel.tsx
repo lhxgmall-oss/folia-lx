@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisDirectoryActionId, BravaisDirectoryPanel as BravaisDirectoryPanelModel, BravaisDirectoryRow } from './bravaisHomeModels';
 import type { BravaisPanelActions } from './BravaisListPanel';
-import { BravaisSeamFilterSlot } from './BravaisSeamCollection';
+import BravaisSeamFilterField from './BravaisSeamFilterField';
 import BravaisSeamFormView from './BravaisSeamFormView';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import { BravaisSeamFlip, BravaisSeamFlipText } from './BravaisSeamFlip';
@@ -15,7 +15,7 @@ import { bravaisRevealMotion } from './bravaisSeamMotion';
 
 // src/library/suites/bravais/BravaisDirectoryPanel.tsx
 // 目录树面板（设计稿 §5「目录树 = GridMap 的批量模式」）：首页「本地」窄缝的 ▤ 打开，缝加宽成面板。顶上面包屑
-// 「书库 › 目录」与折叠，下面是目录过滤（命令面板的内联过滤框画在过滤位上，directory-filter）、标题与「已选 / 共」、
+// 「书库 › 目录」与折叠，下面是这一页的过滤输入位（缝自己的，directory-filter；与首页窄缝里的是同一个 query）、标题与「已选 / 共」、
 // 全选框、可滚动的树（本地文件夹：展开 / 收起、三态与「仅本层」；专辑 / 歌手：平铺的勾选行），根节点行悬停时有
 // 「重新扫描」「移除根」，被忽略的文件夹有「恢复」；底部是批量操作（播放 / 入队 / 建歌单 / 移除 / 清空选择），
 // 建歌单与移除（含移除根）在底部翻成表单态 / 确认态。打开面板是导航（B7 的面板 history），关掉 = 退出批量模式。
@@ -118,7 +118,7 @@ const BravaisDirectoryPanel: React.FC<{ layer: BravaisLayer; actions: BravaisPan
                     {t('libraryBravais.seamFold')}
                 </button>
             </div>
-            <BravaisSeamFilterSlot filter={panel.filter} />
+            {layer.seam.filter && <BravaisSeamFilterField filter={layer.seam.filter} variant="panel" />}
             <h2 className="bravais-panel-title" data-bravais-seam-title>{panel.title}</h2>
             <BravaisSeamFlipText as="div" flipKey={panel.summary} className="bravais-seam-meta" data-bravais-directory-summary>{panel.summary}</BravaisSeamFlipText>
             <button

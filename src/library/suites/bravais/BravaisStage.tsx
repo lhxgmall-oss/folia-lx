@@ -26,11 +26,11 @@ import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
-import { closeCommandFilter, useAppViewStore } from '../../../stores/useAppViewStore';
+import { closeCommandFilter } from '../../../stores/useAppViewStore';
 import { findDisplayItemSlot } from './bravaisItemSlots';
 import { closeBravaisPanel, openBravaisPanel, syncPanelWithHistory } from './bravaisPanelHistory';
 import { resolveStageSeamTarget, type BravaisSeamTargetInput } from './bravaisSeamTarget';
-import { useBravaisUiStore } from './bravaisUiStore';
+import { setBravaisFilterEditing, useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisPanelActions } from './BravaisListPanel';
 import { useBravaisWallLook } from './useBravaisWallLook';
 import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStore';
@@ -104,11 +104,12 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const { layer, owned } = resolveCurrentLayer({ depth: navigation.depth, home, top, previous: previousLayerRef.current });
     previousLayerRef.current = layer;
 
-    // B7：缝此刻的开口——等级之上还有表单态、列表面板与命令面板过滤框的临时展开（bravaisSeamTarget）。
+    // B7：缝此刻的开口——等级之上还有表单态、列表面板与过滤输入位的临时展开（bravaisSeamTarget；正在输入过滤词时
+    // 书脊 / 折叠的缝展开成完整信息条，首页是窄缝）。
     const seamLevel = useBravaisSeamStore(state => state.level);
     const panelFor = useBravaisUiStore(state => state.panelFor);
     const linkedKey = useBravaisUiStore(state => state.linkedKey);
-    const isFilterOpen = useAppViewStore(state => state.isCommandFilterOpen);
+    const isFilterOpen = useBravaisUiStore(state => state.filterEditing);
     const isSearchOpen = useBravaisHomeUiStore(state => state.searchOpen);
     // B10：账户的登录态 / 确认态（account surface 经 bravaisAccountStore 交来）压过层上的一切开口。
     const accountVariant = useBravaisAccountStore(selectBravaisAccountVariant);
@@ -119,7 +120,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         const current = live ?? {
             level: useBravaisSeamStore.getState().level,
             panelFor: useBravaisUiStore.getState().panelFor,
-            filterOpen: useAppViewStore.getState().isCommandFilterOpen,
+            filterOpen: useBravaisUiStore.getState().filterEditing,
             searchOpen: useBravaisHomeUiStore.getState().searchOpen,
         };
         return {
@@ -128,7 +129,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             viewportWidth: frameRef.current.view?.width ?? window.innerWidth,
             formOpen: Boolean(target.seam.collection?.form),
             panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
-            filterOpen: current.filterOpen && target.surface !== 'home',
+            filterOpen: current.filterOpen,
             searchOpen: current.searchOpen,
         };
     }, [frameRef]);
@@ -269,17 +270,25 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             useBravaisUiStore.setState({ panelFor: null });
         }
     }, [navigation.depth]);
+    // 过滤输入：换了层（push、返回、换页签）或 stage 卸载时结束（过滤词留在各层的会话里）。
+    const layerKey = layer?.key ?? null;
+    useEffect(() => {
+        setBravaisFilterEditing(false);
+    }, [layerKey]);
+    useEffect(() => () => setBravaisFilterEditing(false), []);
     // B9 全局搜索框：折叠缝、离开首页层（打开了集合）时关上；stage 卸载（离开首页、换 suite）时也关上。
     useEffect(() => {
         if (seamLevel === 'hidden' || navigation.depth > 0) setBravaisSearchOpen(false);
     }, [navigation.depth, seamLevel]);
     useEffect(() => () => setBravaisSearchOpen(false), []);
-    // 过滤框里按 ↓：收起过滤框（过滤词保留），键盘焦点交给墙上的第 1 项（有限拼贴的 rank 0）。
+    // 过滤输入位里按 ↓ / Enter（或命令面板浮层过滤框里按 ↓）：结束输入（过滤词保留，缝缩回原等级），键盘焦点交给墙上的
+    // 第 1 项（有限拼贴的 rank 0）。
     const { handleAction, focusWall } = interactions;
     useEffect(() => {
         if (!active) return;
         const focusFirst = () => {
             closeCommandFilter();
+            setBravaisFilterEditing(false);
             focusWall();
             return handleAction({ type: 'first' }, null);
         };

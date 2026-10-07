@@ -46,11 +46,14 @@ export const resolveHomeWallMode = ({
     visibilityMode: LibraryDirectoryVisibilityMode;
     /** 目录树面板开着（批量模式）。 */
     batch: boolean;
-    /** 目录过滤词（只在批量模式里生效）。 */
+    /** 这一页的过滤词（目录会话的 query；浏览、管理隐藏、批量模式里都生效）。 */
     query: string;
 }): BravaisHomeWallMode => {
-    if (batch) return { mode: 'finite', filterKey: `${section}|batch|${query.trim()}` };
-    if (visibilityMode === 'manage-hidden-only') return { mode: 'finite', filterKey: `${section}|hidden-only` };
+    const text = query.trim();
+    if (batch) return { mode: 'finite', filterKey: `${section}|batch|${text}` };
+    // 当前页过滤（设计稿 §7.6 / §4）：过滤中退化为以缝为中心的有限拼贴（不重复）；过滤身份带上词，换词就从缝的两侧翻。
+    if (visibilityMode === 'manage-hidden-only') return { mode: 'finite', filterKey: `${section}|hidden-only${text ? `|${text}` : ''}` };
+    if (text) return { mode: 'finite', filterKey: `${section}|${visibilityMode}|filter|${text}` };
     if (visibilityMode === 'manage') return { mode: 'infinite', filterKey: `${section}|manage` };
     return { mode: 'infinite', filterKey: section };
 };

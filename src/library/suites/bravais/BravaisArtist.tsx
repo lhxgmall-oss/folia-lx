@@ -71,7 +71,7 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
     const popTo = useBravaisPopTo(onPopTo);
     useLibraryArtistSurfaceRegistration({ isInteractive: isActive, getState: view.surfaceState, run: view.runSurface });
 
-    // 过滤：命令面板的内联过滤框（锚点在缝里），墙用防抖、组词按住之后的过滤词，只筛专辑名。
+    // 过滤：缝里自己的输入位（墙上直接打字，useBravaisCollectionFilter），墙用防抖、组词按住之后的过滤词，只筛专辑名。
     const filter = useBravaisCollectionFilter({ sessionKey, isActive });
     const hasDetail = snapshot?.status === 'ready' && Boolean(snapshot.detail);
     const topSongs = hasDetail ? view.topSongs : NO_SONGS;
@@ -108,7 +108,7 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
         [items, queuedPlaybackKeys],
     );
 
-    const { seamCollection, seamArtist, wall, entries, meta, isFilterActive } = useBravaisArtistSeam({
+    const { seamCollection, seamArtist, filter: seamFilter, wall, entries, meta, isFilterActive } = useBravaisArtistSeam({
         collection,
         snapshot,
         view,
@@ -145,9 +145,10 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
         onPlayScope: playScopeEnabled ? callbacks.onPlayScope : undefined,
         onEnqueueScope: enqueueScopeEnabled ? callbacks.onEnqueueScope : undefined,
         scopeLabels,
+        filter: seamFilter,
         collection: seamCollection,
         artist: seamArtist,
-    }), [callbacks, enqueueScopeEnabled, meta, playScopeEnabled, scopeLabels, seamArtist, seamCollection, title]);
+    }), [callbacks, enqueueScopeEnabled, meta, playScopeEnabled, scopeLabels, seamArtist, seamCollection, seamFilter, title]);
 
     const mode = isFilterActive ? 'finite' : 'infinite';
     const layer = useMemo<BravaisLayer>(() => ({

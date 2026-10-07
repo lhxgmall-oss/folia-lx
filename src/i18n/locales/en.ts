@@ -39,6 +39,9 @@ export default {
     "helpTabs": "Switch the home tabs",
     "helpLocate": "Locate the playing song",
     "helpCommands": "Open the command palette",
+    "helpFilter": "Type to filter this page",
+    "helpSearch": "Search online platforms (home)",
+    "filterPlaceholder": "Filter this page",
     "kind": {"track": "Song", "playlist": "Playlist", "album": "Album", "artist": "Artist", "folder": "Folder", "feed": "Radio"}
   },
   "libraryBravaisHome": {
@@ -46,13 +49,14 @@ export default {
     "unhide": "Unhide",
     "directory": "Directory",
     "directoryCrumb": "Directory",
-    "filterPlaceholder": "Filter the directory",
     "clearSelection": "Clear selection",
     "manageHidden": "Manage hidden",
     "hiddenOnly": "Hidden only",
     "manageDone": "Done",
     "search": "Search",
-    "searchPlaceholder": "Search songs, artists, albums",
+    "searchPlaceholder": "Search online platforms",
+    "searchHint": "Searches songs, artists and albums online; results open on the search page. It does not narrow this wall.",
+    "searchOnline": "Search online platforms",
     "searchSubmit": "Search",
     "searchClose": "Close search",
     "openQueue": "Open the queue",
@@ -61,7 +65,8 @@ export default {
     "settings": "Settings",
     "more": "More",
     "scanProgress": "Scanning {{percent}}%",
-    "connect": "Connect a streaming service"
+    "connect": "Connect a streaming service",
+    "noMatch": "Nothing on this page matches"
   },
   "libraryTui": {
     "back": "Back",
@@ -142,7 +147,6 @@ export default {
     "artistHints": "↑↓ move · Tab songs/albums · Enter play/open · Shift+Enter queue · Ctrl+Enter play all · Ctrl+Shift+Enter queue top songs · Esc back"
   },
   "libraryBravaisCollection": {
-    "filterPlaceholder": "Filter this collection",
     "matchCount": "{{matches}} / {{total}}",
     "clearFilter": "Clear filter",
     "more": "More",
