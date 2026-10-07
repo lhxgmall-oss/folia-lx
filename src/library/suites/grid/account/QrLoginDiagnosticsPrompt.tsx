@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { Check, ClipboardCopy, ExternalLink, Loader2 } from 'lucide-react';
+import type { LibraryLoginSelfCheckView } from '../../../core/bindings/useLibraryAccount';
+import QrLoginSelfCheckSummary from './QrLoginSelfCheckSummary';
 
 // src/library/suites/grid/account/QrLoginDiagnosticsPrompt.tsx
-// 扫码登录失败后出现在登录弹窗底部：复制诊断报告，或带着报告去 GitHub 开 issue。
-// 报告要等用户点了才生成——里面有一次对主进程的 IPC，失败时自动生成没有意义。
+// 扫码登录失败后出现在登录弹窗底部：先是自动自检的结论，然后是复制诊断报告、或带着报告去 GitHub 开 issue。
+// 报告要等用户点了才生成（会等还在跑的自检）；disclosure 如实告知报告里收集了哪些数据。
 
 export type QrLoginDiagnosticsPromptProps = {
     prompt: string;
-    privacyNote: string;
+    /** 报告包含哪些数据。 */
+    disclosure: string;
+    /** 失败后的自动自检；provider 没有自检能力时不传。 */
+    selfCheck?: LibraryLoginSelfCheckView | null;
     copyLabel: string;
     copiedLabel: string;
     copyFailedLabel: string;
@@ -29,7 +34,8 @@ const openExternal = (url: string) => {
 
 const QrLoginDiagnosticsPrompt = ({
     prompt,
-    privacyNote,
+    disclosure,
+    selfCheck,
     copyLabel,
     copiedLabel,
     copyFailedLabel,
@@ -64,8 +70,9 @@ const QrLoginDiagnosticsPrompt = ({
 
     return (
         <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left">
+            {selfCheck && <QrLoginSelfCheckSummary selfCheck={selfCheck} />}
             <p className="text-[11px] leading-snug opacity-75" style={{ color: 'var(--text-primary)' }}>{prompt}</p>
-            <p className="text-[10px] leading-snug opacity-45 mt-1" style={{ color: 'var(--text-secondary)' }}>{privacyNote}</p>
+            <p className="text-[10px] leading-snug opacity-45 mt-1" style={{ color: 'var(--text-secondary)' }} data-qr-diagnostics-disclosure>{disclosure}</p>
             <div className="flex flex-wrap items-center gap-2 mt-3">
                 <button
                     type="button"

@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { OnlineProviderId, QrLoginFailureKind } from '../../../../types/onlineMusic';
+import type { LibraryLoginSelfCheckView } from '../../../core/bindings/useLibraryAccount';
 import { buildQrLoginIssueUrl } from '../../../../utils/qrLoginDiagnosticReport';
 import { resolveLoginDiagnosticsPrompt } from '../../../core/model/accountRules';
 import { translateHomeMessage } from '../../../core/model/homeSources';
@@ -12,15 +13,18 @@ export const buildQrLoginDiagnosticsProps = ({
     t,
     providerId,
     failure,
+    selfCheck = null,
     buildReport,
 }: {
     t: TFunction;
     providerId: OnlineProviderId;
     failure: QrLoginFailureKind;
+    selfCheck?: LibraryLoginSelfCheckView | null;
     buildReport: () => Promise<string>;
 }): QrLoginDiagnosticsPromptProps => ({
     prompt: translateHomeMessage(t, resolveLoginDiagnosticsPrompt(failure)),
-    privacyNote: t('home.qrDiagnosticsPrivacy'),
+    disclosure: t('home.qrDiagnosticsDisclosure'),
+    selfCheck,
     copyLabel: t('home.qrDiagnosticsCopy'),
     copiedLabel: t('home.qrDiagnosticsCopied'),
     copyFailedLabel: t('home.qrDiagnosticsCopyFailed'),

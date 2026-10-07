@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 type Request = (uri: string, data: unknown, options: Record<string, unknown>) => Promise<unknown>;
 type Identity = {
     processStartedAt: number;
+    deviceId: string | null;
     connectionResets: number;
     rotations: number;
     lastRotatedAt: number | null;
@@ -26,7 +27,8 @@ const QR_CHECK = '/api/login/qrcode/client/login';
 const setup = (tokens: Array<string | Error> = ['fresh-token\n']) => {
     let clock = 1_000;
     let devices = 0;
-    const setDeviceId = vi.fn();
+    let currentDeviceId = 'device-at-load';
+    const setDeviceId = vi.fn((deviceId: string) => { currentDeviceId = deviceId; });
     // 依次返回给定的 token 文件内容；用完后重复最后一个。
     let reads = 0;
     const readAnonymousToken = () => {
@@ -39,6 +41,7 @@ const setup = (tokens: Array<string | Error> = ['fresh-token\n']) => {
         readAnonymousToken,
         initialAnonymousToken: 'token-at-load\n',
         setDeviceId,
+        getDeviceId: () => currentDeviceId,
         now: () => clock,
         logger: { warn: vi.fn() },
     });
@@ -53,7 +56,7 @@ describe('NetEase login identity rotation', () => {
         await identity.wrapRequest(request)(QR_CHECK, {}, options);
         expect(request).toHaveBeenCalledWith(QR_CHECK, {}, options);
         expect(identity.describe()).toEqual({
-            processStartedAt: 1_000, connectionResets: 0, rotations: 0,
+            processStartedAt: 1_000, deviceId: 'device-at-load', connectionResets: 0, rotations: 0,
             lastRotatedAt: null, lastTokenRenewed: null, pendingRotation: false,
         });
     });
@@ -76,7 +79,7 @@ describe('NetEase login identity rotation', () => {
         expect(setDeviceId).toHaveBeenCalledWith('device-1');
         expect(request).toHaveBeenLastCalledWith(QR_KEY, {}, { cookie: { MUSIC_A: 'fresh-token' } });
         expect(identity.describe()).toMatchObject({
-            connectionResets: 1, rotations: 1, lastRotatedAt: 1_500, lastTokenRenewed: true, pendingRotation: false,
+            deviceId: 'device-1', connectionResets: 1, rotations: 1, lastRotatedAt: 1_500, lastTokenRenewed: true, pendingRotation: false,
         });
 
         // 同一轮之后的请求沿用新身份，不再轮换。

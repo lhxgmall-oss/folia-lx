@@ -40,7 +40,7 @@ type OnlineProviderLoginModalProps = {
     retryDisabled?: boolean;
     loginMethods?: LoginMethodsProps;
     backendFailure?: BackendFailureProps;
-    // 只在扫码登录失败时传入，出现在重试按钮下方。
+    // 只在扫码登录失败时传入（含后端没拉起来），出现在重试 / 重启按钮下方。
     diagnostics?: QrLoginDiagnosticsPromptProps;
     onRetry: () => void;
     onClose: () => void;
@@ -81,7 +81,8 @@ const OnlineProviderLoginModal = ({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.92, opacity: 0, y: 12 }}
                 transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
-                className="bg-zinc-900/90 border border-white/10 p-8 rounded-3xl max-w-sm w-full text-center relative shadow-2xl"
+                // 失败后多了自检与诊断区块，矮窗口里放不下时在卡片内滚动，而不是被上下裁掉。
+                className="bg-zinc-900/90 border border-white/10 p-8 rounded-3xl max-w-sm w-full max-h-full overflow-y-auto text-center relative shadow-2xl"
             >
                 <button
                     type="button"
@@ -178,7 +179,8 @@ const OnlineProviderLoginModal = ({
                         {retryLabel}
                     </button>
                 )}
-                {diagnostics && !backendFailure && <QrLoginDiagnosticsPrompt {...diagnostics} />}
+                {/* 后端没拉起来时同样给诊断：报告里有拉起的每一步与错误原文，重启解决不了时用户可以直接反馈。 */}
+                {diagnostics && <QrLoginDiagnosticsPrompt {...diagnostics} />}
                 <p className="text-[10px] opacity-30 mt-6" style={{ color: 'var(--text-secondary)' }}>{note}</p>
             </motion.div>
         </motion.div>

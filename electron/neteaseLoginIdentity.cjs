@@ -37,6 +37,7 @@ function createNeteaseLoginIdentity({
   // 上游 util/request 加载时读到的那份 token，用来判断轮换时是否真的换到了新 token。
   initialAnonymousToken = '',
   setDeviceId = (deviceId) => { global.deviceId = deviceId; },
+  getDeviceId = () => global.deviceId,
   now = Date.now,
   logger = console,
 } = {}) {
@@ -95,6 +96,7 @@ function createNeteaseLoginIdentity({
 
   const describe = () => ({
     processStartedAt,
+    deviceId: typeof getDeviceId() === 'string' ? getDeviceId() : null,
     connectionResets,
     rotations,
     lastRotatedAt,

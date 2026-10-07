@@ -8,6 +8,7 @@ import type {
     LibraryAccountSnapshot,
     LibraryLoginSessionSnapshot,
     LibraryProviderSwitchRequest,
+    LoginSelfCheckItem,
 } from '../contracts/account';
 import {
     canRetryLogin,
@@ -18,6 +19,13 @@ import {
     resolveProviderSwitchCopy,
 } from '../model/accountRules';
 import { translateHomeMessage } from '../model/homeSources';
+import {
+    LOGIN_SELF_CHECK_COPY,
+    resolveLoginSelfCheckItemLabel,
+    resolveLoginSelfCheckProxyMessage,
+    resolveLoginSelfCheckVerdictMessage,
+    summarizeLoginSelfCheck,
+} from '../model/loginSelfCheckRules';
 
 // src/library/core/bindings/useLibraryAccount.ts
 // 在线账户 controller 的 React 绑定：useSyncExternalStore 订阅 controller 快照，把登录与切换确认的 i18n key
@@ -47,6 +55,22 @@ export type LibraryLoginMethodView = {
     iconKey: string;
 };
 
+/** 已翻译的失败后自检。 */
+export type LibraryLoginSelfCheckView = {
+    title: string;
+    /** 还在检查：界面显示 runningText。 */
+    running: boolean;
+    runningText: string;
+    /** 结论；还在跑或自检本身出错时为 null。 */
+    verdict: string | null;
+    /** 代理提示；没有会影响登录请求的代理时为 null。 */
+    proxyNote: string | null;
+    /** 自检本身出错时的说明。 */
+    error: string | null;
+    /** 逐项结果（标签已翻译，detail 是错误码、域名等原文）。 */
+    items: Array<LoginSelfCheckItem & { label: string }>;
+};
+
 /** 已翻译的登录界面。 */
 export type LibraryLoginView = {
     session: LibraryLoginSessionSnapshot;
@@ -71,8 +95,47 @@ export type LibraryLoginView = {
     diagnosticsPrompt: string | null;
     /** 后端故障界面的文案（只有 backend.failed 时非空）。 */
     backendFailure: { title: string; restartLabel: string; restartingLabel: string } | null;
+    /** 失败后的自检；没有时为 null。 */
+    selfCheck: LibraryLoginSelfCheckView | null;
     retryLabel: string;
     closeLabel: string;
+};
+
+/** 翻译失败后的自检（纯函数）。 */
+export const translateLoginSelfCheck = (
+    t: TFunction,
+    selfCheck: LibraryLoginSessionSnapshot['selfCheck'],
+    providerLabel: string,
+): LibraryLoginSelfCheckView | null => {
+    if (!selfCheck) return null;
+    const base = {
+        title: translateHomeMessage(t, LOGIN_SELF_CHECK_COPY.title),
+        runningText: translateHomeMessage(t, LOGIN_SELF_CHECK_COPY.running),
+    };
+    if (selfCheck.status === 'running') {
+        return { ...base, running: true, verdict: null, proxyNote: null, error: null, items: [] };
+    }
+    if (selfCheck.status === 'failed') {
+        return {
+            ...base,
+            running: false,
+            verdict: null,
+            proxyNote: null,
+            error: t(LOGIN_SELF_CHECK_COPY.failedKey, { message: selfCheck.message }),
+            items: [],
+        };
+    }
+    const proxyMessage = resolveLoginSelfCheckProxyMessage(selfCheck.verdict, providerLabel);
+    return {
+        ...base,
+        running: false,
+        verdict: translateHomeMessage(t, resolveLoginSelfCheckVerdictMessage(selfCheck.verdict, providerLabel)),
+        proxyNote: proxyMessage ? translateHomeMessage(t, proxyMessage) : null,
+        error: null,
+        items: summarizeLoginSelfCheck(selfCheck.result)
+            .filter(item => item.state !== 'skip')
+            .map(item => ({ ...item, label: translateHomeMessage(t, resolveLoginSelfCheckItemLabel(item.id, selfCheck.result.runtime)) })),
+    };
 };
 
 /** 已翻译的切换确认。 */
@@ -82,8 +145,12 @@ export type LibraryProviderSwitchView = {
     description: string;
 };
 
-/** 翻译一份登录快照（纯函数，供绑定与测试共用）。 */
-export const translateLoginSession = (t: TFunction, session: LibraryLoginSessionSnapshot): LibraryLoginView => {
+/** 翻译一份登录快照（纯函数，供绑定与测试共用）。providerLabel 是平台的显示名（自检结论里用）。 */
+export const translateLoginSession = (
+    t: TFunction,
+    session: LibraryLoginSessionSnapshot,
+    providerLabel: string = session.providerId,
+): LibraryLoginView => {
     const { copy, methods, selectedMethodId } = session;
     const selected = methods.find(method => method.id === selectedMethodId);
     return {
@@ -113,6 +180,7 @@ export const translateLoginSession = (t: TFunction, session: LibraryLoginSession
                 restartingLabel: t('home.restartingBackend'),
             }
             : null,
+        selfCheck: translateLoginSelfCheck(t, session.selfCheck, providerLabel),
         retryLabel: t('home.retryQr'),
         closeLabel: t('home.closeLogin'),
     };
@@ -138,11 +206,20 @@ export const translateProviderSwitch = (
     };
 };
 
-/** 只订阅登录会话：没有登录时为 null。 */
+// 登录平台的显示名（自检结论里用）：选出来的是字符串，provider 列表刷新而名字没变时不会让登录界面重渲染。
+const selectLoginProviderLabel = (snapshot: LibraryAccountSnapshot): string | null => (
+    snapshot.login ? providerLabelOf(snapshot.providers, snapshot.login.providerId) : null
+);
+
+/** 只订阅登录会话（和它的平台名）：没有登录时为 null。 */
 export const useLibraryAccountLogin = (controller: LibraryAccountController): LibraryLoginView | null => {
     const { t } = useTranslation();
     const session = useLibraryAccountSelector(controller, selectLogin);
-    return useMemo(() => (session ? translateLoginSession(t, session) : null), [session, t]);
+    const providerLabel = useLibraryAccountSelector(controller, selectLoginProviderLabel);
+    return useMemo(
+        () => (session ? translateLoginSession(t, session, providerLabel ?? session.providerId) : null),
+        [providerLabel, session, t],
+    );
 };
 
 /** 只订阅待确认切换（平台名要读 provider 列表，所以也订阅它）：没有待确认请求时为 null。 */

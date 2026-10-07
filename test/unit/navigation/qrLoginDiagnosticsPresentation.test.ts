@@ -30,6 +30,7 @@ const errorSession = (providerId: string, failure: QrLoginFailureKind): LibraryL
         qrImageUrl: '',
         failure,
         retryCooldownSeconds: null,
+        selfCheck: null,
         backend: { failed: false, detail: null, restarting: false, canRestart: false },
     };
     return { ...base, copy: resolveLoginSessionCopy(base) };
@@ -56,7 +57,7 @@ describe('QR login diagnostics presentation', () => {
             const prompt = failure === 'expired-after-scan' ? 'home.qrDiagnosticsPromptScanned' : 'home.qrDiagnosticsPrompt';
             expect(view.diagnosticsPrompt).toBe(prompt);
             expect(diagnostics?.prompt).toBe(prompt);
-            expect(html).toContain('home.qrDiagnosticsPrivacy');
+            expect(html).toContain('home.qrDiagnosticsDisclosure');
             expect(html).toContain('home.qrDiagnosticsCopy');
             expect(html).toContain('home.qrDiagnosticsReport');
             expect(diagnostics?.buildReport).toBe(buildReport);

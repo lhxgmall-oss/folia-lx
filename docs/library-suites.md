@@ -300,7 +300,9 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 
 失败原因与冷却：provider 能确定用户在手机上取消时，轮询结果带 `reason: 'canceled-on-device'`，会话记为 `canceled-on-device`（不给诊断入口）；请求被上游断开（连接被重置）时，轮询结果带 `reason: 'connection-reset'`，或要码错误带 `qrLoginReason: 'connection-reset'`，会话记为 `connection-reset`（照常给诊断入口，状态行提示重试、换网络或重启）。只认这两种原因（`accountRules` 的 `knownQrLoginErrorReason` / `qrLoginErrorReasonOf`），其它值按普通失败；失败带着后端要求的冷却（轮询结果的 `retryAfterMs`，或要码错误 `OnlineProviderError.retryAfterMs`）时，登录快照的 `retryCooldownSeconds` 给出秒数，冷却结束自动回到 null。冷却期间 `canRetryLogin` 为 false、`retryLogin` 返回 `rejected`（`cooling-down`），状态行说明原因与秒数；suite 照常按视图的 `canRetry` 显示重试（grid 显示为禁用按钮，TUI 不给重试）。
 
-日志：会话与 controller 里带 providerId 的错误（要码、轮询、取消、方式解析、确认后与切换后的刷新、登出）经 `accountRules` 的 `describeAccountError` 描述，轮询报 error 时附带的后端文字经 `describeLoginStateMessage`。QQ 自己在 `[QQProvider] qr-login:failed` 里写白名单过滤后的摘要，这两处对它只记 `reason: 'provider-error'`，不记原始文字。
+日志：会话与 controller 里的错误（要码、轮询、取消、方式解析、确认后与切换后的刷新、登出）经 `accountRules` 的 `describeLoginError` 描述，不分 provider：错误名与原文，加上 `OnlineProviderError` 的类别、HTTP 状态、冷却、Node 错误码、扫码原因与后端原始响应；轮询报 error 时后端原文与原始字段（`detail`）照记。轮询遇到网络层瞬时失败（`transient`）时，会话连续容忍 `PROVIDER_LOGIN_TRANSIENT_POLL_LIMIT`（2）次再算失败，每次记一条 `poll:retry`。
+
+自检：会话进入失败（在手机上取消除外）后，provider 有自检能力（`canRunQrLoginSelfCheck`）就自动跑一次 `runQrLoginSelfCheck`，快照的 `selfCheck` 先是 running，结果回来后带上结构化结果与结论（`core/model/loginSelfCheckRules` 的 `resolveLoginSelfCheckVerdict`）；新一轮开始时晚到的结果作废。生成诊断报告时会先等还在跑的自检（有上限）。
 
 寿命：controller 属于 App，换 suite 不重建，登录会话与待确认切换都在 controller 里，所以登录进行中切换 suite，新 suite 接着显示同一个会话、同一个待确认请求。账户界面宿主 `app/LibraryAccountHost.tsx` 挂在首页外壳 `components/app/Home.tsx` 里，首页整个卸载时关闭登录、把待确认切换按取消结算——待确认切换的寿命随首页宿主。启动恢复会话时直接写当前平台，不经确认。
 
@@ -315,7 +317,7 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 | `account-switch-confirm` | 确认 / 取消待确认切换 | 基础 | `useLibraryAccountPendingSwitch`；`confirmSwitch` / `cancelSwitch` |
 | `account-select` | 首页上的平台列表，选平台 | 推荐 | `useLibraryAccountProviders`；`selectProvider` |
 | `account-logout` | 首页上的登出入口 | 推荐 | `canLogoutProvider`；`logout` |
-| `account-login-diagnostics` | 失败后的诊断报告（QQ 也给：时间线只有固定类别，provider 段是它白名单过滤后的摘要） | 可选 | 视图的 `diagnosticsPrompt`；`buildLoginDiagnosticReport` |
+| `account-login-diagnostics` | 失败后的自检结论与诊断报告（后端没拉起来时也给） | 可选 | 视图的 `diagnosticsPrompt` 与 `selfCheck`；`buildLoginDiagnosticReport` |
 | `account-backend-restart` | 网易本地后端故障时重启 | 可选 | 视图的 `backendFailure`；`restartLoginBackend` |
 
 `account-select` / `account-logout` 画在 home surface 上，但和其余账户动作一起声明在 entry 的 `surfaces.account` 里。

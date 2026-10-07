@@ -11,7 +11,7 @@ import {
     ACCOUNT_QUILL,
     accountRule,
 } from '../../dev/probes/accountBehavior/accountFixtureRules';
-import type { AccountCall, AccountCallOp, AccountQrState } from '../../dev/probes/accountBehavior/probeApi';
+import type { AccountCall, AccountCallOp, AccountQrState, AccountSelfCheckScript } from '../../dev/probes/accountBehavior/probeApi';
 import '../../dev/probes/accountBehavior/probeApi';
 
 // test/component/accountBehavior.spec.ts
@@ -56,6 +56,10 @@ const scriptQr = (page: Page, providerId: string, states: AccountQrState[]) => p
 const setQrTtl = (page: Page, providerId: string, ttlMs: number | null) => page.evaluate(
     ([id, ttl]) => window.__accountProbe!.setQrTtl(id, ttl),
     [providerId, ttlMs] as const,
+);
+const setSelfCheck = (page: Page, providerId: string, script: AccountSelfCheckScript | null) => page.evaluate(
+    ([id, value]) => window.__accountProbe!.setSelfCheck(id, value),
+    [providerId, script] as const,
 );
 const setAccount = (page: Page, providerId: string, status: 'authenticated' | 'anonymous') => page.evaluate(
     ([id, value]) => window.__accountProbe!.setAccount(id, value),
@@ -567,8 +571,8 @@ test.describe(`[${suite}] QQ diagnostics`, () => {
         await mountAccount(mount, page, suite);
     });
 
-    // QQ 的扫码失败摘要经白名单过滤（PR #495），和别的平台一样给复制报告 / 反馈入口；grid 的诊断区块与
-    // TUI 的诊断行和 F4 都看 core 的 canShowLoginDiagnostics（对照组 gamma）。
+    // QQ 的扫码失败和别的平台一样给复制报告 / 反馈入口；grid 的诊断区块与 TUI 的诊断行和 F4 都看
+    // core 的 canShowLoginDiagnostics（对照组 gamma）。失败后由会话自动跑一次自检，结论显示在诊断区块里。
     test(`[${suite}] a login canceled on the phone says so and holds the retry until the backend cooldown ends`, async ({ page }) => {
         await scriptQr(page, ACCOUNT_GAMMA, ['canceled']);
         await driver.selectProvider(page, ACCOUNT_GAMMA);
@@ -630,6 +634,51 @@ test.describe(`[${suite}] QQ diagnostics`, () => {
         await expect(statusText(page, 'error')).toBeVisible();
         await expect(diagnosticsButton(page)).toBeVisible();
     });
+
+    test(`[${suite}] a failed sign-in runs the automatic check once and shows where the connection broke`, async ({ page }) => {
+        await setSelfCheck(page, ACCOUNT_GAMMA, 'tls-reset');
+        await scriptQr(page, ACCOUNT_GAMMA, ['error']);
+        await driver.selectProvider(page, ACCOUNT_GAMMA);
+        await expect(statusText(page, 'error')).toBeVisible();
+
+        const verdict = loginDialog(page).getByText(/The connection to the Gamma servers was cut during the encryption handshake \(probe\.example 203\.0\.113\.7 \(IPv4\): ECONNRESET\)/);
+        await expect(verdict).toBeVisible();
+        await expect(loginDialog(page).getByText(/IPv4 connection: probe\.example: ECONNRESET \(tls\)/)).toBeVisible();
+        await expect(diagnosticsButton(page)).toBeVisible();
+        expect(await countCalls(page, 'self-check', ACCOUNT_GAMMA)).toBe(1);
+
+        // 报告里带着同一个结论与逐层的结果。
+        await page.evaluate(() => {
+            Object.defineProperty(navigator, 'clipboard', {
+                configurable: true,
+                value: { writeText: async (text: string) => { (window as unknown as { __copied?: string }).__copied = text; } },
+            });
+        });
+        if (isGrid) await diagnosticsButton(page).click();
+        else await page.keyboard.press('F4');
+        await expect.poll(() => page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '')).toContain('verdict: tls-reset');
+        const copied = await page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '');
+        expect(copied).toContain('v4 203.0.113.7: tcp 10ms → ECONNRESET at tls: read ECONNRESET');
+        expect(copied).toContain('probe: acct-gamma diagnostics');
+    });
+
+    test(`[${suite}] no automatic check for a login canceled on the phone, and a check that fails says so`, async ({ page }) => {
+        await setSelfCheck(page, ACCOUNT_GAMMA, 'network-ok');
+        await scriptQr(page, ACCOUNT_GAMMA, ['canceled']);
+        await driver.selectProvider(page, ACCOUNT_GAMMA);
+        await expect(loginDialog(page).getByText(/^Login was canceled on your phone\./)).toBeVisible();
+        await page.waitForTimeout(300);
+        expect(await countCalls(page, 'self-check', ACCOUNT_GAMMA)).toBe(0);
+        await driver.closeLogin(page);
+        await expect(loginDialog(page)).toHaveCount(0);
+
+        await setSelfCheck(page, ACCOUNT_QQ, 'error');
+        await scriptQr(page, ACCOUNT_QQ, ['error']);
+        await driver.selectProvider(page, ACCOUNT_QQ);
+        await expect(statusText(page, 'error')).toBeVisible();
+        await expect(loginDialog(page).getByText('The automatic check could not finish: probe: self-check unavailable')).toBeVisible();
+        await expect(diagnosticsButton(page)).toBeVisible();
+    });
 });
 
 test.describe(`[${suite}] closing`, () => {
@@ -675,10 +724,11 @@ test.describe(`[${suite}] NetEase backend`, () => {
         await expect(loginDialog(page).getByText('The local NetEase service is not running')).toBeVisible();
         await expect(loginDialog(page).getByText('probe: xeapi key missing')).toBeVisible();
         await driver.expectRestartLabel(page, 'Restart backend');
-        // 要码照常发出（后端没起来所以失败），但失败被后端故障盖住：没有重试、没有诊断、没有状态文案。
+        // 要码照常发出（后端没起来所以失败）：重试与状态文案被后端故障盖住，诊断照样给——
+        // 报告里有拉起的每一步与错误原文，重启解决不了时用户可以直接反馈。
         await expect.poll(() => countCalls(page, 'create', ACCOUNT_NETEASE)).toBe(1);
         await expect(retryButton(page)).toHaveCount(0);
-        await expect(diagnosticsButton(page)).toHaveCount(0);
+        await expect(diagnosticsButton(page)).toBeVisible();
         await expect(statusText(page, 'error')).toHaveCount(0);
         await expect(qrImage(page)).toHaveCount(0);
 

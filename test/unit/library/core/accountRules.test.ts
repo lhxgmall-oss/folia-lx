@@ -7,8 +7,7 @@ import {
     canRetryLogin,
     canShowLoginDiagnostics,
     isLoginRetryCoolingDown,
-    describeAccountError,
-    describeLoginStateMessage,
+    describeLoginError,
     isAwaitingLoginMethod,
     isLoginDialogVisible,
     resolveActiveProviderId,
@@ -22,11 +21,10 @@ import {
     resolveLogoutEligibility,
     resolveProviderSelectLabel,
     resolveProviderSelection,
-    providerOwnsLoginFailureSummary,
     resolveProviderSwitchCopy,
     shouldResumeLoginAfterBackendRestart,
 } from '@/library/core/model/accountRules';
-import type { ProviderAccountSummary, QrLoginMethod } from '@/types/onlineMusic';
+import { OnlineProviderError, type ProviderAccountSummary, type QrLoginMethod } from '@/types/onlineMusic';
 
 // test/unit/library/accountRules.test.ts
 // 在线账户的纯规则：选平台的三支（未配置 / 直接切 / 扫码）、当前平台回落、登录文案与状态 key（未知 provider 回落网易）、
@@ -284,22 +282,12 @@ describe('login session derivations', () => {
         expect(retry('error', { failed: true })).toBe(false);
     });
 
-    it('offers diagnostics for any failure unless the backend is down', () => {
-        expect(canShowLoginDiagnostics({ failure: 'check-error', backend: OK_BACKEND })).toBe(true);
-        expect(canShowLoginDiagnostics({ failure: 'account-refresh-failed', backend: OK_BACKEND })).toBe(true);
-        expect(canShowLoginDiagnostics({ failure: null, backend: OK_BACKEND })).toBe(false);
-        expect(canShowLoginDiagnostics({ failure: 'start-error', backend: FAILED_BACKEND })).toBe(false);
-    });
-
-    // 诊断入口不看 provider：QQ 自己接管失败摘要，只决定时间线里记什么，不决定给不给入口。
-    it('marks QQ as owning its failure summary without gating diagnostics on it', () => {
-        for (const failure of ['start-error', 'check-error', 'expired-after-scan', 'account-refresh-failed'] as const) {
-            expect(canShowLoginDiagnostics({ failure, backend: OK_BACKEND }), failure).toBe(true);
+    // 后端没拉起来时同样给诊断：报告里有拉起的每一步和错误原文。
+    it('offers diagnostics for any failure, including a backend that never started', () => {
+        for (const failure of ['start-error', 'check-error', 'expired-after-scan', 'account-refresh-failed', 'connection-reset'] as const) {
+            expect(canShowLoginDiagnostics({ failure }), failure).toBe(true);
         }
-        expect(providerOwnsLoginFailureSummary('qq')).toBe(true);
-        expect(providerOwnsLoginFailureSummary('netease')).toBe(false);
-        // 只认自有成员：原型链上的名字不算。
-        expect(providerOwnsLoginFailureSummary('constructor')).toBe(false);
+        expect(canShowLoginDiagnostics({ failure: null })).toBe(false);
     });
 
     it('shows the login dialog except while methods resolve and after the scan is confirmed', () => {
@@ -339,23 +327,39 @@ describe('login backend state', () => {
     });
 });
 
-describe('account error descriptions', () => {
-    const secret = 'private-token https://private.example/?cookie=private-cookie';
-
-    it('keeps name and message for ordinary providers', () => {
-        const error = new TypeError(secret);
-        expect(describeAccountError('netease', error)).toEqual({ name: 'TypeError', message: secret });
-        expect(describeAccountError('folium.example', 'plain failure')).toEqual({ name: 'Error', message: 'plain failure' });
-        expect(describeLoginStateMessage('kugou', secret)).toEqual({ message: secret });
-        expect(describeLoginStateMessage('kugou', undefined)).toEqual({});
+describe('login error descriptions', () => {
+    it('keeps name and message, the same for every provider', () => {
+        expect(describeLoginError(new TypeError('Failed to fetch'))).toEqual({ name: 'TypeError', message: 'Failed to fetch' });
+        expect(describeLoginError('plain failure')).toEqual({ name: 'Error', message: 'plain failure' });
     });
 
-    it('reduces QQ errors to a fixed category without the raw text or a custom name', () => {
-        const error = new Error(secret);
-        error.name = 'private-name';
-        expect(describeAccountError('qq', error)).toEqual({ reason: 'provider-error' });
-        expect(describeAccountError('qq', secret)).toEqual({ reason: 'provider-error' });
-        expect(describeLoginStateMessage('qq', secret)).toEqual({});
+    it('adds the provider error category, HTTP status, cooldown and the raw backend response', () => {
+        const body = { code: 429, message: 'QR login is temporarily backed off', failureStage: 'qr-key', failureReason: 'local-backoff' };
+        const error = new OnlineProviderError('network', 'QQMusicApi login_qr_key failed: HTTP 429', 'qq', body, 429, 30_000);
+        expect(describeLoginError(error)).toEqual({
+            name: 'OnlineProviderError',
+            message: 'QQMusicApi login_qr_key failed: HTTP 429',
+            code: 'network',
+            httpStatus: 429,
+            retryAfterMs: 30_000,
+            cause: body,
+        });
+    });
+
+    it('adds the Node error code, the structured QR reason and a nested cause', () => {
+        const error = Object.assign(new Error('NetEase QR key request failed: code 502: read ECONNRESET', { cause: new Error('socket closed') }), {
+            code: 'ECONNRESET',
+            qrLoginReason: 'connection-reset',
+            transient: true,
+        });
+        expect(describeLoginError(error)).toEqual({
+            name: 'Error',
+            message: 'NetEase QR key request failed: code 502: read ECONNRESET',
+            code: 'ECONNRESET',
+            reason: 'connection-reset',
+            transient: true,
+            cause: 'Error: socket closed',
+        });
     });
 });
 
@@ -370,9 +374,9 @@ describe('cancel on the phone and backend cooldown', () => {
     });
 
     it('offers no diagnostics for a login the user canceled on the phone', () => {
-        expect(canShowLoginDiagnostics({ failure: 'canceled-on-device', backend: OK_BACKEND })).toBe(false);
-        expect(canShowLoginDiagnostics({ failure: 'check-error', backend: OK_BACKEND })).toBe(true);
-        expect(canShowLoginDiagnostics({ failure: 'connection-reset', backend: OK_BACKEND })).toBe(true);
+        expect(canShowLoginDiagnostics({ failure: 'canceled-on-device' })).toBe(false);
+        expect(canShowLoginDiagnostics({ failure: 'check-error' })).toBe(true);
+        expect(canShowLoginDiagnostics({ failure: 'connection-reset' })).toBe(true);
     });
 
     it('says why the login stopped and how long the retry waits', () => {

@@ -4,7 +4,7 @@ import type { LibraryLoginView } from '../../core/bindings/useLibraryAccount';
 
 // src/library/suites/tui/LibraryTuiAccountLogin.tsx
 // TUI 的扫码登录框（只做展示）：等宽方框，标题嵌在上边框里；多方式时上面一排登录方式（↑↓ 移动高亮、Enter 选），
-// 中间是二维码图片 / 选方式的占位 / 后端故障原因，下面是状态行、主动作（重试或重启后端）、失败后的诊断入口、
+// 中间是二维码图片 / 选方式的占位 / 后端故障原因，下面是状态行、主动作（重试或重启后端）、失败后的自检结论与诊断入口、
 // provider 的说明与按键提示。数据全部来自 useLibraryAccountLogin 翻译好的快照，动作经回调交给 account surface
 // （LibraryTuiAccount）调账户 controller；按键在 account surface 的捕获监听里处理，这里的按钮给鼠标用。
 
@@ -166,8 +166,22 @@ const LibraryTuiAccountLogin: React.FC<LibraryTuiAccountLoginProps> = ({
 
             {diagnostics ? (
                 <div className="mt-3 border-t border-current/15 pt-2 text-[12px]" data-tui-login-diagnostics>
+                    {view.selfCheck ? (
+                        <div className="mb-2" data-tui-login-self-check={view.selfCheck.running ? 'running' : 'done'}>
+                            <p className="font-bold opacity-75">{view.selfCheck.title}</p>
+                            {view.selfCheck.running ? <p className="opacity-60">{view.selfCheck.runningText}</p> : null}
+                            {view.selfCheck.verdict ? <p data-tui-login-self-check-verdict>{view.selfCheck.verdict}</p> : null}
+                            {view.selfCheck.proxyNote ? <p className="text-[11px] opacity-60">{view.selfCheck.proxyNote}</p> : null}
+                            {view.selfCheck.error ? <p className="opacity-70">{view.selfCheck.error}</p> : null}
+                            {view.selfCheck.items.map(item => (
+                                <p key={item.id} className="text-[11px] opacity-70" data-tui-login-self-check-item={item.id}>
+                                    {`${item.state === 'ok' ? '[ok]' : item.state === 'fail' ? '[!!]' : '[??]'} ${item.label}${item.detail && item.state !== 'ok' ? `: ${item.detail}` : ''}`}
+                                </p>
+                            ))}
+                        </div>
+                    ) : null}
                     <p className="opacity-75">{diagnostics}</p>
-                    <p className="text-[11px] opacity-45">{t('home.qrDiagnosticsPrivacy')}</p>
+                    <p className="text-[11px] opacity-45">{t('home.qrDiagnosticsDisclosure')}</p>
                     <button
                         type="button"
                         data-tui-login-diagnostics-copy={copyState}
