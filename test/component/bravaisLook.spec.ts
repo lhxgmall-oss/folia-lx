@@ -5,7 +5,8 @@ import '../../dev/probes/homeBehavior/probeApi';
 
 // test/component/bravaisLook.spec.ts
 // bravais 的透光（B6b③，设计稿 §11），挂真实的 Home（homeBehavior 探针）切到 bravais：
-// - 部分透明（默认）：每块 k 个窗，窗不可点、方向键跳过，实色底板只在窗位挖洞；
+// - 默认实色（2026-10-08 起）：没有窗、没有底板，stage 报遮挡；其余用例先把存储种成部分透明再挂载；
+// - 部分透明：每块 k 个窗，窗不可点、方向键跳过，实色底板只在窗位挖洞；
 // - 外观动作换窗数与循环三档：窗数跟着变，全透明时墙上只剩标题（聚焦卡照常有封面），实色档没有底板；
 // - 聚焦卡让位期间局部底板顶上，落定后收起；
 // - 拖动只改底板遮罩的位置，不重建遮罩、不重渲染磁贴。
@@ -21,7 +22,9 @@ const plateHoleCounts = (page: Page) => page.evaluate(() => [...new Set([...docu
 const runChrome = (page: Page, id: string) => page.evaluate(actionId => window.__homeProbe!.runChrome(actionId), id);
 const chromeAvailable = (page: Page) => page.evaluate(() => window.__homeProbe!.chrome()?.available ?? []);
 
-const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page) => {
+/** 挂 bravais 首页；`look` 非 null 时先把透光档位种进存储（store 在 import 时读存储），null 表示不种、走默认档。 */
+const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page, look: 'solid' | 'partial' | 'clear' | null = 'partial') => {
+    if (look) await page.addInitScript(value => localStorage.setItem('library_wall_look', value), look);
     await page.route(LOCAL_MUSIC_SERVICE_ROUTE, route => route.fulfill({
         contentType: 'text/javascript',
         body: buildServiceStubModule(),
@@ -118,12 +121,30 @@ const watchPlateWrites = (page: Page, blockKey: string) => page.evaluate((key) =
     }).observe(document.querySelector('[data-library-stage="bravais"]')!, { attributes: true, subtree: true, attributeFilter: ['d'] });
 }, blockKey);
 
+test.describe('[bravais] default look', () => {
+    test('with nothing stored the wall is solid: no windows, no plates, the root paints the wall', async ({ mount, page }) => {
+        await mountBravais(mount, page, null);
+        await expect(stage(page)).toHaveAttribute('data-bravais-look', 'solid');
+        await expect(stage(page)).not.toHaveClass(/is-see-through/);
+        await expect(plates(page)).toHaveCount(0);
+        await expect.poll(() => windowsPerRenderedBlock(page)).toEqual([0]);
+        await expect(page.locator('.bravais-tile[data-bravais-see-through], .bravais-tile[data-bravais-kind="window"]')).toHaveCount(0);
+        expect(await stage(page).evaluate(element => getComputedStyle(element).backgroundImage)).toContain('radial-gradient');
+        // 窗数动作只在部分透明时可用；循环档位从实色进到部分透明。
+        await expect.poll(() => chromeAvailable(page)).toContain('wall-look');
+        expect(await chromeAvailable(page)).not.toContain('more-windows');
+        expect(await runChrome(page, 'wall-look')).toBe(true);
+        await expect(stage(page)).toHaveAttribute('data-bravais-look', 'partial');
+        await expect.poll(() => windowsPerRenderedBlock(page)).toEqual([3]);
+    });
+});
+
 test.describe('[bravais] see-through wall', () => {
     test.beforeEach(async ({ mount, page }) => {
         await mountBravais(mount, page);
     });
 
-    test('the default partial look inserts three windows per block that cannot be focused', async ({ page }) => {
+    test('the partial look inserts three windows per block that cannot be focused', async ({ page }) => {
         await expect(stage(page)).toHaveAttribute('data-bravais-look', 'partial');
         await expect(stage(page)).toHaveClass(/is-see-through/);
         expect(await stage(page).evaluate(element => getComputedStyle(element).backgroundImage)).toBe('none');

@@ -6,7 +6,7 @@ import {
 } from '../utils/libraryWallLook';
 
 // src/stores/useLibraryWallLookStore.ts
-// bravais 资料库界面的「透光」偏好：档位 look（实色 / 部分透明 / 全透明，默认部分透明）与部分透明时每块的窗数
+// bravais 资料库界面的「透光」偏好：档位 look（实色 / 部分透明 / 全透明，默认实色）与部分透明时每块的窗数
 // windowsPerBlock（1–6，默认 3）。放在 app 层而不是 suite 里，因为设置 UI（components/modal/settings）不能 import suite；
 // bravais 的 stage 读这里。只在 bravais 是生效 suite 时才有界面入口（library/app/bravaisLibraryActive）。
 //
