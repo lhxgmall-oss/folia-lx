@@ -8,7 +8,7 @@ export type LibraryWallLook = 'solid' | 'partial' | 'clear';
 /** 设置分区与命令面板列出的顺序。 */
 export const LIBRARY_WALL_LOOKS: readonly LibraryWallLook[] = Object.freeze(['solid', 'partial', 'clear'] as const);
 
-export const DEFAULT_LIBRARY_WALL_LOOK: LibraryWallLook = 'partial';
+export const DEFAULT_LIBRARY_WALL_LOOK: LibraryWallLook = 'solid';
 
 /** 一个 12×8 块里的 slot 数，与 `src/components/wall/blockTemplates.ts` 的 SLOTS_PER_BLOCK 相同（单测钉住）。 */
 export const LIBRARY_WALL_SLOTS_PER_BLOCK = 12;

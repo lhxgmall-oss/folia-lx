@@ -460,7 +460,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 
 **透光与遮挡播放页**
 
-- 三档：实色 / 部分透明（默认，每块 12 个 slot 里固定 k 个是透明的「窗」，k = 1–6，默认 3）/ 全透明（墙上的磁贴只画标题，聚焦卡照常画封面）。窗是 wall 引擎的保留位（`blockReservedSlots`），rank→slot 跳过它们，不可聚焦、不可点。
+- 三档：实色（默认；2026-10-08 起，此前默认部分透明，已存的选择不迁移）/ 部分透明（每块 12 个 slot 里固定 k 个是透明的「窗」，k = 1–6，默认 3）/ 全透明（墙上的磁贴只画标题，聚焦卡照常画封面）。窗是 wall 引擎的保留位（`blockReservedSlots`），rank→slot 跳过它们，不可聚焦、不可点。
 - 偏好是 app 层的 `src/stores/useLibraryWallLookStore.ts`（`look`、`windowsPerBlock`，localStorage `library_wall_look` / `library_wall_windows_per_block`）——设置 UI 不能 import suite，所以不放在 suite 里。设置在界面设置「资料库界面」分区里的 `LibraryWallLookSettings`（只在生效 suite 是 bravais 时显示），命令面板有 `library-wall-look-picker` 与 `library-wall-windows-picker`（窗数只在部分透明时可用），外观动作 `wall-look` / `more-windows` / `fewer-windows` 写同一个 store。**不进外观配置的导入导出**（用户决定，是 `skills/settings-feature-integration` 视觉设置规则的明确例外，store 的 `@note` 写明）。
 - 两个透明档下，墙面由按块的实色底板铺（每个已挂载的 12×8 块一张内联 SVG，只在窗位挖洞，随相机平移；聚焦卡让位时只逐帧重画那一块），详见设计稿 §11。
 - 实色档时 stage `reportPlayerOcclusion(true)`，首页停稳后 visualizer 卸载（与 Lattice 一致）；其余档报 `false`，visualizer 照常在墙下渲染。

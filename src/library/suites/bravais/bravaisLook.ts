@@ -1,6 +1,7 @@
 import { clampReservedPerBlock, getBlockReservedMask } from '../../../components/wall/blockReservedSlots';
 import { getBlockSlots, parseWallSlotKey } from '../../../components/wall/wallSlots';
 import {
+    DEFAULT_LIBRARY_WALL_LOOK,
     LIBRARY_WALL_LOOKS,
     MAX_LIBRARY_WALL_WINDOWS_PER_BLOCK,
     MIN_LIBRARY_WALL_WINDOWS_PER_BLOCK,
@@ -92,7 +93,7 @@ export const occludesPlayerFor = (look: LibraryWallLook) => look === 'solid';
 /** 外观动作「透光」：实色 → 部分透明 → 全透明 → 实色。 */
 export const nextWallLook = (look: LibraryWallLook): LibraryWallLook => {
     const index = LIBRARY_WALL_LOOKS.indexOf(look);
-    return LIBRARY_WALL_LOOKS[(index + 1) % LIBRARY_WALL_LOOKS.length] ?? 'partial';
+    return LIBRARY_WALL_LOOKS[(index + 1) % LIBRARY_WALL_LOOKS.length] ?? DEFAULT_LIBRARY_WALL_LOOK;
 };
 
 /** 外观动作「多开 / 少开一个窗」：只在部分透明且没到边界时可用，不可用时为 null。 */

@@ -48,15 +48,16 @@ afterEach(() => {
 });
 
 describe('library wall look rules', () => {
-    it('lists the three looks in display order and defaults to partial', () => {
+    it('lists the three looks in display order and defaults to solid', () => {
         expect(LIBRARY_WALL_LOOKS).toEqual(['solid', 'partial', 'clear']);
-        expect(DEFAULT_LIBRARY_WALL_LOOK).toBe('partial');
+        expect(DEFAULT_LIBRARY_WALL_LOOK).toBe('solid');
         expect(LIBRARY_WALL_LOOKS.every(isLibraryWallLook)).toBe(true);
         expect(isLibraryWallLook('frosted')).toBe(false);
         expect(normalizeLibraryWallLook('clear')).toBe('clear');
-        expect(normalizeLibraryWallLook('Solid')).toBe('partial');
-        expect(normalizeLibraryWallLook(null)).toBe('partial');
-        expect(normalizeLibraryWallLook(2)).toBe('partial');
+        expect(normalizeLibraryWallLook('partial')).toBe('partial');
+        expect(normalizeLibraryWallLook('Partial')).toBe('solid');
+        expect(normalizeLibraryWallLook(null)).toBe('solid');
+        expect(normalizeLibraryWallLook(2)).toBe('solid');
     });
 
     it('offers one to six windows per block, three by default', () => {
@@ -88,10 +89,10 @@ describe('library wall look rules', () => {
 });
 
 describe('useLibraryWallLookStore', () => {
-    it('starts at partial with three windows and writes nothing until the listener chooses', async () => {
+    it('starts solid with three windows kept for partial and writes nothing until the listener chooses', async () => {
         const store = await loadStore();
 
-        expect(store.getState().look).toBe('partial');
+        expect(store.getState().look).toBe('solid');
         expect(store.getState().windowsPerBlock).toBe(3);
         expect(storage.size).toBe(0);
     });
@@ -112,7 +113,7 @@ describe('useLibraryWallLookStore', () => {
     it('falls back to the default look for an unknown stored value', async () => {
         const store = await loadStore({ [LOOK_KEY]: 'frosted' });
 
-        expect(store.getState().look).toBe('partial');
+        expect(store.getState().look).toBe('solid');
     });
 
     it.each([
@@ -139,9 +140,10 @@ describe('useLibraryWallLookStore', () => {
         expect(store.getState().windowsPerBlock).toBe(3);
         expect(storage.get(WINDOWS_KEY)).toBe('3');
 
+        store.getState().setLook('clear');
         store.getState().setLook('opaque' as never);
-        expect(store.getState().look).toBe('partial');
-        expect(storage.get(LOOK_KEY)).toBe('partial');
+        expect(store.getState().look).toBe('solid');
+        expect(storage.get(LOOK_KEY)).toBe('solid');
     });
 
     it('keeps the window count when the look moves away from partial and back', async () => {
@@ -155,28 +157,28 @@ describe('useLibraryWallLookStore', () => {
 
     it('re-reads storage on hydrate', async () => {
         const store = await loadStore();
-        storage.set(LOOK_KEY, 'solid');
+        storage.set(LOOK_KEY, 'clear');
         storage.set(WINDOWS_KEY, '7');
 
         store.getState().hydrate();
 
-        expect(store.getState().look).toBe('solid');
+        expect(store.getState().look).toBe('clear');
         expect(store.getState().windowsPerBlock).toBe(6);
     });
 
     it('uses the defaults when storage cannot be read', async () => {
         const store = await loadStore({ [LOOK_KEY]: 'clear' }, { throwOnGet: true });
 
-        expect(store.getState().look).toBe('partial');
+        expect(store.getState().look).toBe('solid');
         expect(store.getState().windowsPerBlock).toBe(3);
     });
 
     it('keeps a choice for the session when storage cannot be written', async () => {
         const store = await loadStore({}, { throwOnSet: true });
 
-        expect(() => store.getState().setLook('solid')).not.toThrow();
+        expect(() => store.getState().setLook('clear')).not.toThrow();
         expect(() => store.getState().setWindowsPerBlock(6)).not.toThrow();
-        expect(store.getState().look).toBe('solid');
+        expect(store.getState().look).toBe('clear');
         expect(store.getState().windowsPerBlock).toBe(6);
         expect(storage.size).toBe(0);
     });
@@ -184,8 +186,8 @@ describe('useLibraryWallLookStore', () => {
     it('neither reads nor writes storage outside a browser', async () => {
         const store = await loadStore({ [LOOK_KEY]: 'clear' }, { noWindow: true });
 
-        expect(store.getState().look).toBe('partial');
-        store.getState().setLook('solid');
+        expect(store.getState().look).toBe('solid');
+        store.getState().setLook('partial');
         expect(storage.get(LOOK_KEY)).toBe('clear');
     });
 });

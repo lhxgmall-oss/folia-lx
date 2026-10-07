@@ -3,6 +3,7 @@ import { installBaseState, mockNeteaseApi, openApp } from './helpers/appFixtures
 
 // test/ui/bravaisVisualizerMount.spec.ts
 // bravais 透光档与播放页 visualizer 的挂载（B6b③，plan「实色档卸载 visualizer」的验证）：
+// - 没存过档位时默认实色，首页停稳后 visualizer 卸载；
 // - 实色档停在首页时 DOM 里没有 visualizer（canvas 也没有）；
 // - 切到部分透明后 visualizer 重新挂上；
 // - 从实色首页回播放页 visualizer 正常出现；
@@ -16,11 +17,12 @@ const surface = (page: Page) => page.getByTestId('player-visual-surface');
 /** visualizer 挂着没有：它是播放页视觉层里唯一的子树。 */
 const visualizerMounted = (page: Page) => surface(page).evaluate(element => element.childElementCount > 0);
 
-const bootHome = async (page: Page, suite: 'bravais' | 'grid', look: 'solid' | 'partial') => {
+/** `look` 为 null 时不种透光档位，走 store 的默认档（实色）。 */
+const bootHome = async (page: Page, suite: 'bravais' | 'grid', look: 'solid' | 'partial' | null) => {
     await installBaseState(page, { neteaseMode: 'guest' });
     await page.addInitScript(([suiteId, wallLook]) => {
         localStorage.setItem('library_suite', suiteId);
-        localStorage.setItem('library_wall_look', wallLook);
+        if (wallLook) localStorage.setItem('library_wall_look', wallLook);
         // 打开设置弹窗要这两个桥接方法（与 homeCardPosition 同一份最小桥）。
         Object.assign((window as Window & { electron?: Record<string, unknown> }).electron ?? {}, {
             getSettings: async () => ({}),
@@ -42,6 +44,14 @@ const setView = (page: Page, view: 'home' | 'player') => page.evaluate(async (ne
     const { useAppViewStore } = await import(path);
     useAppViewStore.getState().setView(next);
 }, view);
+
+test('with no stored look the bravais home defaults to solid and unmounts the visualizer', async ({ page }) => {
+    await bootHome(page, 'bravais', null);
+    await expect(page.locator('[data-library-stage="bravais"]')).toHaveAttribute('data-bravais-look', 'solid');
+    await expect.poll(() => visualizerMounted(page)).toBe(false);
+    await expect(surface(page).locator('canvas')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('library_wall_look'))).toBeNull();
+});
 
 test('the solid bravais home unmounts the visualizer; see-through looks, the player and settings bring it back', async ({ page }) => {
     await bootHome(page, 'bravais', 'solid');

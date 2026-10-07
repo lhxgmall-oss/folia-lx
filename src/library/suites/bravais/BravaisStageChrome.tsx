@@ -6,13 +6,14 @@ import WallToolsButton, { type WallToolsEntry } from '../../../components/wall/W
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import type { LibraryWallLook } from '../../../utils/libraryWallLook';
+import { BRAVAIS_HELP_ROWS } from './bravaisHelp';
 import { nextWallLook } from './bravaisLook';
 
 // src/library/suites/bravais/BravaisStageChrome.tsx
 // bravais 墙上的两颗浮层控件（实测反馈 1，设计稿 §7.5「浮层控件」），与 Lattice 共用 components/wall 的同一套：
 // - 左上角隐藏式返回（WallBackButton concealed）：回到播放页（宿主的 onBackToPlayer），首页与集合层都在；
 //   与缝里的 ‹（层返回 / onDone）不是一回事。z-index 在缝之下：缝正好开在左上角时让缝的按钮在上面。
-// - 右下角工具按钮（WallToolsButton）：定位正在播放、透光档位，加上共享的叠色开关、开灯 / 关灯、帮助；滑动打开命令面板。
+// - 右下角工具按钮（WallToolsButton）：定位正在播放、透光档位，加上共享的叠色开关、开灯 / 关灯、帮助（行在 bravaisHelp，每行「说明 + 按键」）；滑动打开命令面板。
 // 不碰相机与显示：定位走外观动作 locate-playing 的同一个实现，透光写 app 层偏好（与命令面板的 wall-look 同一条路）。
 
 const LOOK_LABEL_KEYS: Record<LibraryWallLook, string> = {
@@ -66,27 +67,12 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({ isDaylight, onB
                 label={t('libraryBravais.tools')}
                 isDaylight={isDaylight}
                 entries={entries}
-                help={(
-                    <>
-                        <li>
-                            <span>{t('libraryBravais.helpEnter')}</span>
-                            <span className="lattice-tools-help-key"><kbd>ESC</kbd>{t('libraryBravais.helpEscape')}</span>
-                        </li>
-                        <li><span>{t('libraryBravais.helpMove')}</span></li>
-                        <li>
-                            <span>{t('libraryBravais.helpSeam')}</span>
-                            <kbd>Tab</kbd>
-                        </li>
-                        <li>
-                            <span>{t('libraryBravais.helpTabs')}</span>
-                            <kbd>F6</kbd>
-                        </li>
-                        <li>
-                            <span>{t('home.latticeHelpCommands')}</span>
-                            <span className="lattice-tools-help-key"><kbd>S</kbd><kbd>{PRIMARY_MODIFIER_LABEL} + K</kbd></span>
-                        </li>
-                    </>
-                )}
+                help={BRAVAIS_HELP_ROWS.map(row => (
+                    <li key={row.id} data-bravais-help={row.id}>
+                        <span>{t(row.labelKey)}</span>
+                        <kbd>{row.kbd(PRIMARY_MODIFIER_LABEL)}</kbd>
+                    </li>
+                ))}
             />
         </>
     );
