@@ -3,7 +3,9 @@ import { useAppViewStore } from '../../../src/stores/useAppViewStore';
 import { useCollectionNavigationStore } from '../../../src/stores/useCollectionNavigationStore';
 import { useSearchNavigationStore } from '../../../src/stores/useSearchNavigationStore';
 import type { HomeViewTab, SongResult } from '../../../src/types';
-import { setPlayQueue } from '../../../src/stores/usePlaybackStore';
+import { setCurrentSong, setPlayerState, setPlayQueue } from '../../../src/stores/usePlaybackStore';
+import { usePlaybackEntryViewStore } from '../../../src/stores/usePlaybackEntryViewStore';
+import { PlayerState } from '../../../src/types';
 import DesktopGrid3DSurface from '../../../src/library/suites/grid/home/DesktopGrid3DSurface';
 import { Grid3DSlider, type Grid3DSliderItem } from '../../../src/library/suites/grid/home/Grid3DSlider';
 import { GridViewTabs } from '../../../src/library/suites/grid/home/GridViewTabs';
@@ -126,6 +128,15 @@ type TuiDirectoryProps = {
 
 /** 此刻渲染首页的 suite（选中的 suite 没实现首页时回退网格）。 */
 const homeSuite = () => resolveLibrarySurface('home', useLibrarySuiteStore.getState().suite).suiteId;
+
+/** 一首只有身份的在线歌（playback key `online:<provider>:<id>`），给播放队列与正在播放的那首用。 */
+const probeOnlineSong = (key: string): SongResult => {
+    const [, providerId, mediaId] = key.split(':');
+    return {
+        id: mediaId, name: mediaId, artists: [], album: { id: 0, name: '' }, durationMs: 0,
+        sourceRef: { kind: 'online', providerId, mediaId },
+    } as SongResult;
+};
 const isTuiHome = () => homeSuite() === 'tui';
 const tuiDirectoryProps = () => (isTuiHome() ? propsOf<TuiDirectoryProps>(findPresentComponent(LibraryTuiDirectory)) : null);
 const isBravaisHome = () => homeSuite() === 'bravais';
@@ -273,13 +284,12 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
             return { suiteId: handle.suiteId, available: declared.map(action => action.id).filter(id => handle.isAvailable(id)) };
         },
         runChrome: actionId => useLibrarySuiteChromeStore.getState().chrome?.run(actionId) ?? false,
-        setPlayQueue: playbackKeys => setPlayQueue(playbackKeys.map(key => {
-            const [, providerId, mediaId] = key.split(':');
-            return {
-                id: mediaId, name: mediaId, artists: [], album: { id: 0, name: '' }, durationMs: 0,
-                sourceRef: { kind: 'online', providerId, mediaId },
-            } as SongResult;
-        })),
+        setPlayQueue: playbackKeys => setPlayQueue(playbackKeys.map(probeOnlineSong)),
+        setNowPlaying: (playbackKey, playing = true) => {
+            setCurrentSong(playbackKey ? probeOnlineSong(playbackKey) : null);
+            setPlayerState(playbackKey ? (playing ? PlayerState.PLAYING : PlayerState.PAUSED) : PlayerState.IDLE);
+        },
+        setEntryView: view => usePlaybackEntryViewStore.getState().setPlaybackEntryView(view),
         paletteRequest: () => {
             const { seq, kind } = useAppViewStore.getState().commandPaletteRequest;
             return { seq, kind };

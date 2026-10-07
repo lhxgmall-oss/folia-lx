@@ -30,7 +30,10 @@ export type ProbeCallKind =
     | 'service'
     | 'searchCommitted'
     // 回到播放页（宿主的 onBackToPlayer：bravais 左上角的隐藏式返回、首页缝里的「回到播放页」）。
-    | 'backToPlayer';
+    | 'backToPlayer'
+    // fb3：暂停 / 继续（宿主的播放开关：正在播放的卡片上的播放键）与进入播放视图（bravais 聚焦卡的「进入」）。
+    | 'togglePlayback'
+    | 'enterPlaybackView';
 
 export type ProbeCall = {
     seq: number;

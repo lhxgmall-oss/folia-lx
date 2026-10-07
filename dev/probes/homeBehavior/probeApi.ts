@@ -189,6 +189,13 @@ export type HomeProbeApi = {
      * 用例要「已在队列」的状态（bravais 聚焦卡的队列按钮）时用它。
      */
     setPlayQueue: (playbackKeys: string[]) => void;
+    /**
+     * fb3：把正在播放的那首换成这首在线歌（playback key；null 清空），并摆好播放 / 暂停状态。探针的播放回调只记账，
+     * 用例要「正在播放」的卡片（暂停 / 继续、进入按钮、回来时展开）时用它模拟应用的播放器。
+     */
+    setNowPlaying: (playbackKey: string | null, playing?: boolean) => void;
+    /** fb3：「播放后进入的视图」（与设置页、命令面板同一个 setter）。 */
+    setEntryView: (view: 'player' | 'lattice' | 'stay') => void;
 
     // ---- 环境 ----
     /** 重新挂载整个首页（宿主 + Grid3D），模拟重启后回到首页（隐藏 store 先从存储重读）。 */
