@@ -622,6 +622,8 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         // 缝开到目标宽度（开合补间放完）再量。
         await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(width);
         const toolSize = width === 120 ? 40 : 36;
+        // 缝里的过渡（整条翻、中段翻）放完再量（设计稿 §7「缝内的过渡」：过渡中的元素挂 data-bravais-seam-flip）。
+        await expect(seam(page).locator('[data-bravais-seam-flip]')).toHaveCount(0);
         // 内容翻转（换成书脊 / 窄缝那一套）放完：工具按钮回到原尺寸。
         await expect.poll(async () => (await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action]').first().boundingBox())?.width ?? 0)
             .toBeGreaterThanOrEqual(toolSize - 0.5);
