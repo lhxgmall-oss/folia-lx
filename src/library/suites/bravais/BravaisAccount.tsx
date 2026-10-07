@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { LibraryAccountSurfaceProps } from '../../core/contracts/account';
 import { useLibraryAccountLogin, useLibraryAccountPendingSwitch } from '../../core/bindings/useLibraryAccount';
 import { useExclusiveKeyLayer } from '../../../hooks/useExclusiveKeyLayer';
+import { buildQrLoginIssueUrl } from '../../../utils/qrLoginDiagnosticReport';
 import { resolveBravaisAccountForm, type BravaisAccountForm, type BravaisLoginFeatures } from './bravaisAccountModel';
 import { bravaisAccountElementRef, publishBravaisAccount, type BravaisAccountActions } from './bravaisAccountStore';
 
@@ -14,10 +15,20 @@ import { bravaisAccountElementRef, publishBravaisAccount, type BravaisAccountAct
 // - 按键：表单显示、且首页外壳可交互时，独占不带修饰键的按键（useExclusiveKeyLayer）。Esc 先撤销表单态（关闭登录 /
 //   取消切换）；Enter 是此刻的主动作（确认切换；登录态里重试或重启后端），焦点在表单自己的按钮上时交还给按钮；
 //   ←→↑↓ 在登录方式之间移动焦点（QQ 两步式），Enter 选它。
+// - 失败帮助（account-login-diagnostics）：诊断报告等用户点了才生成；反馈先把报告放进剪贴板，再开 GitHub 的 issue 页。
 // - 确认后立即翻回：controller 同步清掉待确认请求，不 await confirmSwitch 的事务（清理、刷新在后台走完）。
 // - 寿命：controller 属于 App，换 suite 只换这个组件——登录会话与待确认切换都保持，换回来接着显示。卸载时清空 store
 //   （关闭登录、取消切换的逻辑在宿主 LibraryAccountHost，不在这里）。
 // - 可选动作按声明显示：没声明 account-login-diagnostics / account-backend-restart 就不给那个入口。
+
+// Electron 里 window.open 会开一个新的 BrowserWindow，必须走主进程交给系统浏览器。
+const openExternal = (url: string) => {
+    if (window.electron?.openExternalUrl) {
+        void window.electron.openExternalUrl(url);
+        return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+};
 
 const METHOD_SELECTOR = '[data-bravais-login-method]';
 
@@ -49,21 +60,30 @@ const BravaisAccount: React.FC<LibraryAccountSurfaceProps> = ({ account, isInter
 
     const accountRef = useRef(account);
     accountRef.current = account;
+    const tRef = useRef(t);
+    tRef.current = t;
     const actions = useMemo<BravaisAccountActions>(() => ({
         selectMethod: methodId => void accountRef.current.selectLoginMethod(methodId),
         retry: () => void accountRef.current.retryLogin(),
         restart: () => void accountRef.current.restartLoginBackend(),
         copyDiagnostics: async () => {
+            let report: string | null = null;
             try {
                 const result = await accountRef.current.buildLoginDiagnosticReport();
                 if (result.status !== 'ok') throw new Error('no login session to report');
-                await navigator.clipboard.writeText(result.report);
-                return true;
+                report = result.report;
+                await navigator.clipboard.writeText(report);
+                return { report, copied: true };
             } catch (error) {
                 console.warn('[ProviderQrLogin] diagnostics:copy-failed', error);
-                return false;
+                return { report, copied: false };
             }
         },
+        openIssue: (providerId, report) => openExternal(buildQrLoginIssueUrl({
+            providerId,
+            report: report ?? '',
+            pasteHint: tRef.current('home.qrDiagnosticsPasteHint'),
+        })),
         close: () => void accountRef.current.closeLogin(),
         // 不 await：controller 同步清掉待确认请求，缝随之翻回；清理与刷新在后台走完。
         confirm: requestId => void accountRef.current.confirmSwitch(requestId),

@@ -5,7 +5,7 @@
 
 /* ---------- 表单态：登录 / 确认 ---------- */
 
-/* 登录态内容多（方式、二维码、状态、按钮、诊断、说明）：顶部留白比表单态小，内容超出时缝内滚动。 */
+/* 登录态内容多（方式、二维码、状态、按钮、失败帮助、说明）：顶部留白比表单态小，内容超出时缝内滚动。 */
 .bravais-seam-form.bravais-account-form {
     gap: 12px;
     padding: 28px 22px 16px;
@@ -146,22 +146,86 @@
 .bravais-account-form .bravais-form-buttons .bravais-chrome-button svg { width: 15px; height: 15px; }
 .bravais-login-cooldown { font-variant-numeric: tabular-nums; opacity: 0.8; }
 
-.bravais-login-diagnostics {
+/* 失败帮助：缝里没有二维码旁边的位置，排在状态与按钮下面，一块浅底；三段之间用细线隔开，字号压到 10–11px。 */
+.bravais-login-help {
     display: flex;
+    flex: none;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    padding: 10px 12px;
+    padding: 2px 12px;
     border-radius: 14px;
     font-size: 11px;
-    line-height: 1.5;
+    line-height: 1.45;
     background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
-.bravais-login-diagnostics p { margin: 0; }
-.bravais-login-diagnostics .is-soft { color: var(--bravais-seam-ink-soft); font-size: 10px; }
-.bravais-login-diagnostics .bravais-chrome-button { min-height: 32px; margin-top: 4px; padding: 0 10px; font-size: 12px; }
-.bravais-login-diagnostics .bravais-chrome-button svg { width: 13px; height: 13px; }
+.bravais-login-help-section { display: flex; flex-direction: column; gap: 3px; padding: 8px 0; }
+.bravais-login-help-section + .bravais-login-help-section { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.bravais-login-help p { margin: 0; }
+.bravais-login-help .is-soft { color: var(--bravais-seam-ink-soft); font-size: 10px; }
+
+.bravais-login-help .is-label {
+    color: var(--bravais-seam-ink-soft);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.bravais-login-tips { margin: 0; padding-left: 16px; list-style: decimal; }
+
+.bravais-login-help .is-summary { display: flex; align-items: flex-start; gap: 5px; }
+.bravais-login-help .is-summary svg { width: 11px; height: 11px; flex: none; margin-top: 3px; }
+.bravais-login-help .is-summary.is-running,
+.bravais-login-help .is-summary.is-failed { color: var(--bravais-seam-ink-soft); }
+
+/* 逐项结果：一栏，失败项的错误码与域名可以折行（窄缝里截断会把最要紧的那段截掉）。 */
+.bravais-login-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 3px 0 0;
+    padding: 0;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 10px;
+    line-height: 1.35;
+    list-style: none;
+}
+
+.bravais-login-checks li { display: flex; min-width: 0; align-items: flex-start; gap: 4px; overflow-wrap: anywhere; }
+.bravais-login-checks svg { width: 10px; height: 10px; flex: none; margin-top: 1px; }
+.bravais-login-checks .is-ok svg { color: #4ade80; }
+.bravais-login-checks .is-fail svg { color: #f87171; }
+.bravais-login-checks .is-warn svg { color: #fbbf24; }
+.bravais-login-checks .is-skip svg { opacity: 0.3; }
+.bravais-root.is-daylight .bravais-login-checks .is-ok svg { color: #16a34a; }
+.bravais-root.is-daylight .bravais-login-checks .is-fail svg { color: #dc2626; }
+.bravais-root.is-daylight .bravais-login-checks .is-warn svg { color: #d97706; }
+
+/* 「还是不行？」：一行文字式的展开项，不做成按钮的样子，免得比重试还显眼。 */
+.bravais-seam .bravais-login-escalation {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    font-size: 11px;
+    line-height: 1.45;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+    opacity: 0.65;
+}
+
+.bravais-seam .bravais-login-escalation:hover,
+.bravais-seam .bravais-login-escalation[aria-expanded='true'] { opacity: 1; }
+.bravais-login-escalation svg { width: 12px; height: 12px; flex: none; margin-top: 2px; }
+
+.bravais-login-diagnostics { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+/* 两个按钮在 256px 里并不下，一列靠左；复制是主动作（浅底），反馈跟在后面。 */
+.bravais-login-diagnostics-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 4px; }
+.bravais-login-diagnostics .bravais-chrome-button { gap: 6px; min-height: 28px; padding: 0 10px; font-size: 11px; }
+.bravais-login-diagnostics .bravais-chrome-button svg { width: 12px; height: 12px; }
 
 .bravais-login-note { margin: 0; color: var(--bravais-seam-ink-soft); font-size: 10px; line-height: 1.5; text-align: center; opacity: 0.8; }
 

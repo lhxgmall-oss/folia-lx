@@ -4,15 +4,20 @@ import type {
     LibraryAccountLogoutState,
     LibraryLoginPhase,
     LibraryProviderSwitchReason,
+    LoginSelfCheckItem,
 } from '../../core/contracts/account';
-import type { LibraryLoginView, LibraryProviderSwitchView } from '../../core/bindings/useLibraryAccount';
+import type {
+    LibraryLoginSelfCheckView,
+    LibraryLoginView,
+    LibraryProviderSwitchView,
+} from '../../core/bindings/useLibraryAccount';
 import { canLogoutProvider, isAwaitingLoginMethod, resolveProviderSelectLabel } from '../../core/model/accountRules';
 import { canSwitchToProviderDirectly } from '../../core/model/onlineProviderAccountView';
 import { translateHomeMessage } from '../../core/model/homeSources';
 
 // src/library/suites/bravais/bravaisAccountModel.ts
 // B10 账户（设计稿 §10.7）的纯投影：
-// - 缝里的表单态：登录态（二维码 / 选登录方式 / 后端故障、状态行、重试 / 重启 / 关闭、诊断提示）与确认态（切换 / 取消），
+// - 缝里的表单态：登录态（二维码 / 选登录方式 / 后端故障、状态行、重试 / 重启 / 关闭、失败帮助）与确认态（切换 / 取消），
 //   由 account surface 从账户 controller 的已翻译视图投影出来，交给 stage 画；
 // - 首页在线页签窄缝里的平台切换（account-select / account-logout）的行：当前标记、账户状态、选它会做什么、能不能登出。
 // 这里只有数据（已翻译的文案与判定），回调另给；规则都来自 core/model/accountRules，与 grid 的弹窗 / 切换器一致。
@@ -27,6 +32,37 @@ export type BravaisLoginQr =
     | { kind: 'backend-failure'; title: string; detail: string | null };
 
 export type BravaisLoginMethodOption = { id: string; label: string; iconKey: string; selected: boolean };
+
+/** 自检的一项：失败 / 提示项的文字带上错误码与域名，悬停提示是完整内容（与 grid 的自检摘要同一取法）。 */
+export type BravaisLoginSelfCheckItem = {
+    id: LoginSelfCheckItem['id'];
+    state: LoginSelfCheckItem['state'];
+    text: string;
+    title: string;
+};
+
+/**
+ * 失败后的自检：running 时 summary 是「正在检查」，自检本身出错时是出错说明，跑完是结论（卡在哪一层、该怎么做）；
+ * 代理提示与逐项结果只在跑完时有。
+ */
+export type BravaisLoginSelfCheck = {
+    state: 'running' | 'failed' | 'done';
+    title: string;
+    summary: string;
+    proxyNote: string | null;
+    items: readonly BravaisLoginSelfCheckItem[];
+};
+
+/**
+ * 失败帮助（account-login-diagnostics）：按用户该做的顺序——简单办法（重启；换网络再重启）→ 自检结论 →
+ * 收在「还是不行？」下面的诊断与反馈（escalation 的 label 是展开项的文字，prompt 是展开后的那句提示，
+ * 扫过码才过期时单独一句）。
+ */
+export type BravaisLoginFailureHelp = {
+    tips: { title: string; items: readonly string[] };
+    selfCheck: BravaisLoginSelfCheck | null;
+    escalation: { label: string; prompt: string };
+};
 
 export type BravaisLoginForm = {
     kind: 'login';
@@ -49,8 +85,11 @@ export type BravaisLoginForm = {
     retry: { label: string; disabled: boolean; cooldownSeconds: number | null } | null;
     /** 网易本地后端故障时的重启（account-backend-restart 声明了才有）；重启中禁用。 */
     restart: { label: string; restarting: boolean } | null;
-    /** 失败后的诊断提示（account-login-diagnostics 声明了、且视图给了 diagnosticsPrompt 才有）。 */
-    diagnosticsPrompt: string | null;
+    /**
+     * 失败后的帮助（account-login-diagnostics 声明了、且视图给了 failureTips / diagnosticsPrompt 才有——什么时候给由
+     * core 的 canShowLoginDiagnostics 决定，不按 provider 判断；后端没拉起来时也给）。
+     */
+    failureHelp: BravaisLoginFailureHelp | null;
     closeLabel: string;
 };
 
@@ -65,6 +104,38 @@ const resolveLoginTone = (view: LibraryLoginView): BravaisLoginForm['tone'] => {
     if (phase === 'confirmed') return 'success';
     if (phase === 'error' || (phase === 'expired' && failure)) return 'error';
     return 'normal';
+};
+
+/** 已翻译的自检 → 缝里的自检摘要（没有自检时为 null）。 */
+export const projectBravaisSelfCheck = (selfCheck: LibraryLoginSelfCheckView | null): BravaisLoginSelfCheck | null => {
+    if (!selfCheck) return null;
+    if (selfCheck.running) {
+        return { state: 'running', title: selfCheck.title, summary: selfCheck.runningText, proxyNote: null, items: [] };
+    }
+    if (selfCheck.error) {
+        return { state: 'failed', title: selfCheck.title, summary: selfCheck.error, proxyNote: null, items: [] };
+    }
+    return {
+        state: 'done',
+        title: selfCheck.title,
+        summary: selfCheck.verdict ?? '',
+        proxyNote: selfCheck.proxyNote,
+        items: selfCheck.items.map(item => {
+            const full = item.detail ? `${item.label}: ${item.detail}` : item.label;
+            return { id: item.id, state: item.state, text: item.state === 'ok' ? item.label : full, title: full };
+        }),
+    };
+};
+
+/** 失败帮助：suite 声明了诊断、且视图此刻给了简单办法与诊断提示时才有。 */
+export const projectBravaisFailureHelp = (view: LibraryLoginView, features: BravaisLoginFeatures): BravaisLoginFailureHelp | null => {
+    const { failureTips, diagnosticsPrompt } = view;
+    if (!features.diagnostics || !failureTips || !diagnosticsPrompt) return null;
+    return {
+        tips: { title: failureTips.title, items: failureTips.items },
+        selfCheck: projectBravaisSelfCheck(view.selfCheck),
+        escalation: { label: failureTips.escalation, prompt: diagnosticsPrompt },
+    };
 };
 
 /** 一份已翻译的登录视图 → 缝里的登录态（与 grid 登录弹窗同一套显示条件）。 */
@@ -115,7 +186,7 @@ export const projectBravaisLoginForm = (view: LibraryLoginView, features: Bravai
                 restarting: session.backend.restarting,
             }
             : null,
-        diagnosticsPrompt: features.diagnostics ? view.diagnosticsPrompt : null,
+        failureHelp: projectBravaisFailureHelp(view, features),
         closeLabel: view.closeLabel,
     };
 };

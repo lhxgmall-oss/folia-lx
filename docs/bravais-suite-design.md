@@ -664,7 +664,13 @@ bravais 声明全部 7 个动作，登录与确认都在**缝里**完成（已�
   - QQ 先在缝里选登录方式（`choosing-method`）。
   - 冷却期间重试按钮禁用，并显示剩余秒数（`retryCooldownSeconds`）。
 - `account-switch-confirm`：缝翻成确认态，按钮为「切换 / 取消」。确认后立即翻回，不 `await confirmSwitch`。
-- `account-login-diagnostics` / `account-backend-restart`：登录失败后的次级按钮，只看视图的 `diagnosticsPrompt` / `backendFailure`。
+- `account-backend-restart`：网易本地后端故障时，二维码位换成故障原因，重试换成「重启后端」，只看视图的 `backendFailure`。
+- `account-login-diagnostics`：失败帮助。缝里没有二维码旁边的位置，排在状态行与按钮下面，一块浅底，三段从上到下：
+  1. 简单办法（视图的 `failureTips`：重启；换网络再重启）；
+  2. 自检（视图的 `selfCheck`）：跑着时转圈加「正在检查」，跑完是结论、可能的代理提示与逐项结果（一栏，失败项的错误码与域名跟在标签后面、可折行），自检出错时是出错说明；
+  3. 「还是不行？」（`failureTips.escalation`）：一行文字式的展开项，默认收起；展开后才有提示（`diagnosticsPrompt`，扫过码才过期时单独一句）、报告内容的告知、「复制诊断」与「去 GitHub 反馈」（先复制报告，再开 issue 页）。
+
+  什么时候给只看视图（`failureTips` / `diagnosticsPrompt` 非空，由 core 的 `canShowLoginDiagnostics` 决定），不按 provider 判断：QQ 与别的平台一样给，后端没拉起来时也给，在手机上取消不给。重试后失败形态清空，这块卸载，下一次失败重新收起。投影在 `bravaisAccountModel`（`projectBravaisFailureHelp` / `projectBravaisSelfCheck`），画在 `BravaisLoginFailureHelp`。
 - 账户层：不接 `accountLayerRef`，登录态就是缝的一个内容态。登录态或确认态显示时，缝挂上 `data-folia-keyboard-window`，独占不带修饰键的按键。
 - 寿命：controller 属于 App，切换 suite 时登录会话和待确认切换都保持。`accountBehavior` 的 `[switch]` 用例也要对 bravais 跑通。
 

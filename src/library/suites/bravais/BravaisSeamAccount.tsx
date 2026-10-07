@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Check, ClipboardCopy, Loader2, RotateCcw, ServerCog, X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { AlertTriangle, Check, Loader2, RotateCcw, ServerCog, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisAccountForm, BravaisConfirmForm, BravaisLoginForm } from './bravaisAccountModel';
 import { setBravaisAccountElement, useBravaisAccountStore, type BravaisAccountActions } from './bravaisAccountStore';
 import type { BravaisAccountSeamVariant } from './bravaisSeamTarget';
+import BravaisLoginFailureHelpView from './BravaisLoginFailureHelp';
 import qqIcon from '../../../assets/providers/qq.svg';
 import wechatIcon from '../../../assets/providers/wechat.svg';
 import './bravaisAccount.css';
@@ -12,7 +13,7 @@ import './bravaisAccount.css';
 // 缝里的账户表单态（B10，设计稿 §10.7、§10.1「表单态」）：不弹浮层，缝原地翻成
 // - 登录态（account-login / account-login-method）：标题与关闭、QQ 式多方式时先选方式（不要码）、200px 的二维码位
 //   （二维码 / 要码中 / 选方式的占位 / 网易后端故障的原因）、状态行、重试（冷却时禁用并显示秒数）或重启后端、
-//   失败后的诊断复制（account-login-diagnostics）、provider 的说明；
+//   失败后的帮助（account-login-diagnostics：简单办法 → 自检 → 收起的诊断与反馈，BravaisLoginFailureHelp）、provider 的说明；
 // - 确认态（account-switch-confirm）：「切换 / 取消」，确认按钮拿到焦点。答复后立即翻回（不等 confirmSwitch 的事务）。
 // 表单数据与动作来自 bravaisAccountStore（account surface 投影好的）；按键由 account surface 的独占监听处理，这里的
 // 按钮给鼠标与原生 Enter / 空格用。翻出去的那半圈（已答复 / 已关掉）仍画最后一份同类的表单，但对读屏与指针都藏起来，
@@ -22,33 +23,6 @@ import './bravaisAccount.css';
 const LOGIN_METHOD_ICONS: Record<string, string> = {
     qq: qqIcon,
     wechat: wechatIcon,
-};
-
-type DiagnosticsCopyState = 'idle' | 'working' | 'copied' | 'failed';
-
-/** 失败后的诊断：提示 + 隐私说明 + 复制报告（报告要等点了才生成）。反馈只属于这一轮会话。 */
-const LoginDiagnostics: React.FC<{ prompt: string; sessionId: number; copy: BravaisAccountActions['copyDiagnostics'] }> = ({ prompt, sessionId, copy }) => {
-    const { t } = useTranslation();
-    const [state, setState] = useState<{ sessionId: number; value: DiagnosticsCopyState } | null>(null);
-    const value = state?.sessionId === sessionId ? state.value : 'idle';
-    const run = async () => {
-        setState({ sessionId, value: 'working' });
-        setState({ sessionId, value: (await copy()) ? 'copied' : 'failed' });
-    };
-    const label = value === 'copied'
-        ? t('home.qrDiagnosticsCopied')
-        : value === 'failed' ? t('home.qrDiagnosticsCopyFailed') : t('home.qrDiagnosticsCopy');
-    const Icon = value === 'working' ? Loader2 : value === 'copied' ? Check : ClipboardCopy;
-    return (
-        <div className="bravais-login-diagnostics" data-bravais-login-diagnostics>
-            <p>{prompt}</p>
-            <p className="is-soft">{t('home.qrDiagnosticsPrivacy')}</p>
-            <button type="button" className="bravais-chrome-button" data-bravais-form-action="copy-diagnostics"
-                data-bravais-copy-state={value} disabled={value === 'working'} onClick={() => void run()}>
-                <Icon aria-hidden className={value === 'working' ? 'animate-spin' : undefined} />{label}
-            </button>
-        </div>
-    );
 };
 
 const LoginQr: React.FC<{ qr: BravaisLoginForm['qr'] }> = ({ qr }) => (
@@ -144,8 +118,9 @@ const LoginView: React.FC<{ form: BravaisLoginForm; actions: BravaisAccountActio
                     )}
                 </span>
             )}
-            {form.diagnosticsPrompt && (
-                <LoginDiagnostics prompt={form.diagnosticsPrompt} sessionId={form.sessionId} copy={actions.copyDiagnostics} />
+            {form.failureHelp && (
+                // 按会话代次换实例：重试后的下一次失败重新收起，复制的反馈也只属于这一轮。
+                <BravaisLoginFailureHelpView key={form.sessionId} help={form.failureHelp} providerId={form.providerId} actions={actions} />
             )}
             <p className="bravais-login-note">{form.note}</p>
         </section>
