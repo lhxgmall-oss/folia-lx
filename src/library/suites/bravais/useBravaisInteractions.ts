@@ -8,6 +8,7 @@ import { resolveEscapeStep, type BravaisKeyAction } from './bravaisKeyboardModel
 import type { BravaisHomeKeyAction } from './bravaisHomeKeys';
 import { findAdjacentSlot } from './bravaisNavigation';
 import { setBravaisPendingOrigin } from './bravaisStageStore';
+import { armBravaisPlayingCard } from './bravaisPlayingCard';
 import { closeBravaisPanel } from './bravaisPanelHistory';
 import { setBravaisWallHoverKey, useBravaisUiStore } from './bravaisUiStore';
 import { setBravaisSearchOpen } from './bravaisHomeUiStore';
@@ -24,8 +25,16 @@ import type { useBravaisFocus } from './useBravaisFocus';
 // B9 首页：批量模式（目录树面板开着）里点卡片 / Enter 只切换选中、绝不进入文件夹（拖动后的残余点击在磁贴里已吞掉）；
 // 私人 FM 卡直接播放、不记起点；歌单类卡片的眼睛按钮；F6 切页签与批量按键（bravaisHomeKeys）；Esc 阶梯的「视图」一级
 // 退出管理隐藏。
+// fb3：聚焦卡的「立即播放」（点按钮或展开后再按 Enter）在正在播放的那首上是暂停 / 继续（宿主的播放开关）；其余的照旧
+// 交给 surface 播放，并记下「回来时展开这一项」（bravaisPlayingCard）。「进入」按钮按设置进入播放视图。
 
 type BravaisFocus = ReturnType<typeof useBravaisFocus>;
+
+/** fb3：宿主经 stage 契约交来的播放开关与「进入播放视图」（最新值放 ref 里，磁贴的 handlers 才能保持同一个对象）。 */
+export type BravaisStagePlayback = {
+    toggle?: () => void;
+    enter?: () => void;
+};
 
 /** 墙上的按键动作：通用的（bravaisKeyboardModel）与首页的（bravaisHomeKeys）。 */
 export type BravaisWallKeyAction = BravaisKeyAction | BravaisHomeKeyAction;
@@ -50,6 +59,9 @@ export const useBravaisInteractions = ({
     rootRef,
     fieldRef,
     seamRef,
+    playbackRef,
+    togglesCurrent,
+    hasEnter,
 }: {
     displayRef: MutableRefObject<BravaisDisplay | null>;
     focus: BravaisFocus;
@@ -59,6 +71,11 @@ export const useBravaisInteractions = ({
     rootRef: RefObject<HTMLElement | null>;
     fieldRef: RefObject<HTMLDivElement | null>;
     seamRef: RefObject<HTMLDivElement | null>;
+    playbackRef: MutableRefObject<BravaisStagePlayback>;
+    /** 宿主给了播放开关（正在播放的那首上，play 改为暂停 / 继续）。 */
+    togglesCurrent: boolean;
+    /** 宿主给了「进入播放视图」。 */
+    hasEnter: boolean;
 }) => {
     // 只取 focus 里身份稳定的成员：磁贴的 handlers 要跨渲染保持同一个对象，否则每张磁贴的 memo 都会失效。
     const { focusSlot, expand, collapse, expandedRef, focusedRef, drawnRect } = focus;
@@ -107,8 +124,18 @@ export const useBravaisInteractions = ({
         },
         play: slotKey => {
             const item = itemAt(slotKey);
-            if (item) displayRef.current?.layer.onPlayItem?.(item.key);
+            const layer = displayRef.current?.layer;
+            if (!item || !layer) return;
+            const toggle = playbackRef.current.toggle;
+            if (toggle && layer.nowPlayingKey === item.key) {
+                toggle();
+                return;
+            }
+            armBravaisPlayingCard(layer.key, item.key);
+            layer.onPlayItem?.(item.key);
         },
+        togglesCurrent,
+        enterPlayback: hasEnter ? () => playbackRef.current.enter?.() : undefined,
         enqueue: slotKey => {
             const item = itemAt(slotKey);
             if (item) displayRef.current?.layer.onEnqueueItem?.(item.key);
@@ -145,7 +172,7 @@ export const useBravaisInteractions = ({
             if (!layer || useBravaisUiStore.getState().panelFor !== layer.key) return;
             setBravaisWallHoverKey(slotKey ? itemAt(slotKey)?.key ?? null : null);
         },
-    }), [collapse, displayRef, expand, expandedRef, focusSlot, itemAt, openFrom]);
+    }), [collapse, displayRef, expand, expandedRef, focusSlot, hasEnter, itemAt, openFrom, playbackRef, togglesCurrent]);
 
     const hasContent = useCallback((slot: WallSlot) => resolveSlotItem(displayRef.current, slot) !== null, [displayRef]);
 

@@ -1,7 +1,10 @@
 import React, { useState, type MouseEvent } from 'react';
-import { Check, MoreHorizontal, Play, Plus } from 'lucide-react';
+import { Check, Maximize2, MoreHorizontal, Pause, Play, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { WallTitle } from '../../../components/wall/WallTitle';
+import { PlayerState } from '../../../types';
+import { selectDisplayPlayerState, usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { resolvePlaybackSurface, usePlaybackEntryViewStore } from '../../../stores/usePlaybackEntryViewStore';
 import type { BravaisItem } from './bravaisLayer';
 import type { BravaisEntryMenuItem } from './bravaisSeamModels';
 
@@ -12,6 +15,9 @@ import type { BravaisEntryMenuItem } from './bravaisSeamModels';
 // 实测反馈 1：「立即播放」改成与 Lattice 展开海报同样的纯图标按钮（无文字，可访问名与 title 仍是「立即播放」）；
 // 队列按钮在「已在队列」时悬停 / 键盘聚焦显示「插入队列」——点它走的是应用的入队规则（applyQueueAddBehavior），
 // 已在队列里的歌会被挪到队尾或下一首（按播放设置里的「加入队列的默认位置」），并不是什么都不做。正在播放的那首点了不动，不换文案。
+// 实测反馈 fb3：正在播放的那张卡上，播放键变成暂停 / 继续（宿主的播放开关，同一个纯图标按钮；Enter 同样），旁边多一个
+// 同族的纯图标「进入」按钮——按「播放后进入的视图」去 Lattice 或播放页（「留在原处」时去播放页）。只有展开的这一张订阅
+// 播放状态与那项设置（离散值，暂停 / 继续时才重渲染）。
 
 export type BravaisFocusCardActions = {
     play: (slotKey: string) => void;
@@ -25,6 +31,10 @@ export type BravaisFocusCardActions = {
     runMenu: (slotKey: string, actionId: string) => void;
     /** 悬停磁贴（列表面板开着时联动高亮列表行）。 */
     hover: (slotKey: string | null) => void;
+    /** fb3：宿主给了播放开关——正在播放的那首上，play 是暂停 / 继续（按钮按播放状态画）。 */
+    togglesCurrent: boolean;
+    /** fb3：进入播放视图（宿主给了才有）；只画在正在播放的那张卡上。 */
+    enterPlayback?: () => void;
 };
 
 type BravaisFocusCardBodyProps = {
@@ -50,6 +60,13 @@ const BravaisFocusCardBody: React.FC<BravaisFocusCardBodyProps> = ({ slotKey, it
     // B7：右上角「⋯」——条目动作（声明 ∩ 控制器能力，由 surface 给出；没有就不显示）。
     const menu = actions.menuFor(item.key);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const toggles = current && actions.togglesCurrent;
+    const isPlaying = usePlaybackStore(state => toggles && selectDisplayPlayerState(state) === PlayerState.PLAYING);
+    const entersLattice = usePlaybackEntryViewStore(state => resolvePlaybackSurface(state.playbackEntryView) === 'lattice');
+    const playLabel = toggles
+        ? t(isPlaying ? 'libraryBravais.pausePlayback' : 'libraryBravais.resumePlayback')
+        : t('libraryBravais.playNow');
+    const enterLabel = t(entersLattice ? 'libraryBravais.enterLattice' : 'libraryBravais.enterPlayer');
     return (
         <>
         {menu.length > 0 && (
@@ -121,13 +138,27 @@ const BravaisFocusCardBody: React.FC<BravaisFocusCardBodyProps> = ({ slotKey, it
                     type="button"
                     className="bravais-chrome-button is-icon"
                     data-bravais-action="play"
-                    disabled={item.unavailable}
-                    aria-label={t('libraryBravais.playNow')}
-                    title={t('libraryBravais.playNow')}
+                    data-bravais-playback={toggles ? (isPlaying ? 'playing' : 'paused') : undefined}
+                    disabled={item.unavailable && !toggles}
+                    aria-label={playLabel}
+                    title={playLabel}
                     onClick={handled(() => actions.play(slotKey))}
                 >
-                    <Play fill="currentColor" aria-hidden />
+                    {toggles && isPlaying ? <Pause fill="currentColor" aria-hidden /> : <Play fill="currentColor" aria-hidden />}
                 </button>
+                {current && actions.enterPlayback && (
+                    <button
+                        type="button"
+                        className="bravais-chrome-button is-icon"
+                        data-bravais-action="enter"
+                        data-bravais-enter={entersLattice ? 'lattice' : 'player'}
+                        aria-label={enterLabel}
+                        title={enterLabel}
+                        onClick={handled(() => actions.enterPlayback?.())}
+                    >
+                        <Maximize2 aria-hidden />
+                    </button>
+                )}
                 <button
                     type="button"
                     className={`bravais-chrome-button${queued && !current ? ' has-hover-label' : ''}`}

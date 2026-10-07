@@ -19,7 +19,8 @@ import { useBravaisChromeActions } from './useBravaisChromeActions';
 import { useBravaisDisplay } from './useBravaisDisplay';
 import { useBravaisFocus } from './useBravaisFocus';
 import { useBravaisFrame } from './useBravaisFrame';
-import { bravaisSlotFromKey, useBravaisInteractions } from './useBravaisInteractions';
+import { bravaisSlotFromKey, useBravaisInteractions, type BravaisStagePlayback } from './useBravaisInteractions';
+import { useBravaisPlayingCard } from './useBravaisPlayingCard';
 import { useBravaisKeyboard } from './useBravaisKeyboard';
 import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
@@ -54,6 +55,8 @@ import './bravaisAppearance.css';
 // B10：账户的登录态 / 确认态是缝的内容态（bravaisAccountStore → login / confirm 变体），不接 accountLayerRef。
 // 实测反馈 1：灯光（is-lights-out）与叠色同 Lattice 一样读 useLatticeSettingsStore（一套墙面外观设置）；左上角隐藏式返回
 // （回到播放页）与右下角工具按钮在 BravaisStageChrome，与 Lattice 共用 components/wall 的同一套控件。
+// 实测反馈 fb3：宿主的播放开关与「进入播放视图」交给聚焦卡（正在播放的那首：暂停 / 继续 + 进入）；从墙上播放后那首的
+// 聚焦卡在回来 / 返回这一层时重新展开（useBravaisPlayingCard）。
 
 const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
     left: bounds.left - by,
@@ -62,7 +65,15 @@ const expandBounds = (bounds: { left: number; right: number; top: number; bottom
     bottom: bounds.bottom + by,
 });
 
-const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDaylight, navigation, reportPlayerOcclusion, onBackToPlayer }) => {
+const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
+    isInteractive,
+    isDaylight,
+    navigation,
+    reportPlayerOcclusion,
+    onBackToPlayer,
+    onTogglePlayback,
+    onEnterPlaybackView,
+}) => {
     const { t } = useTranslation();
     const rootRef = useRef<HTMLElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
@@ -191,6 +202,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
     const getFocusedSlotKey = useCallback(() => focus.focusedRef.current, [focus.focusedRef]);
     useBravaisBeforePush(displayRef, getFocusedSlotKey);
 
+    const playbackRef = useRef<BravaisStagePlayback>({});
+    playbackRef.current = { toggle: onTogglePlayback, enter: onEnterPlaybackView };
     const interactions = useBravaisInteractions({
         displayRef,
         focus,
@@ -200,7 +213,11 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({ isInteractive, isDayli
         rootRef,
         fieldRef,
         seamRef,
+        playbackRef,
+        togglesCurrent: Boolean(onTogglePlayback),
+        hasEnter: Boolean(onEnterPlaybackView),
     });
+    useBravaisPlayingCard({ display, isSettling, focus, frameRef });
     // 透光以墙上此刻显示的档位为准（换档时与翻牌同一次提交）；还没有显示时看偏好。
     const seeThrough = (display?.look ?? wallLook.look) !== 'solid';
     const plates = useBravaisBlockPlates({
