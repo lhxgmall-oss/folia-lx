@@ -19,10 +19,12 @@ import './bravaisHome.css';
 // - 从上到下：导航区（页头 + 二级切换 + 管理隐藏，唯一可伸缩的一段，放不下时可滚）→ 扫描进度 → 账户位 → 状态
 //   → 工具格（BravaisSeamHomeTools：常驻图标两列，次要的收进「⋯」）。各段是自然高度、互不重叠，
 //   整体在播放条安全区之上（缝内容的底部内边距）。
-// - 页头：页签竖排（writing-mode: vertical-rl，与竖排标题同一套排版语言），一列一个页签。窄缝里折叠按钮与页签那一列
-//   排在标题左边（竖排从右往左读：先标题、后页签），书脊上依次是折叠、标题、页签。
+// - 页头：页签竖排（writing-mode: vertical-rl，与缝里竖排标题同一套排版语言），一列一个页签。最上面一行是「书库」
+//   小字；窄缝里折叠按钮在页签那一列右边，书脊上在页签上面。
 // - 纵向放不下全名时页签缩成一个字（bravaisSeamTabLabels），按测量决定（useBravaisSeamTabsFit），全名留在
 //   title / aria-label。
+// - fb2 第二轮：「书库」是页头最上面一行小字，折叠按钮紧挨在它下面。缩减顺序：先视觉隐藏这行标题（读屏仍读得到，
+//   页签列的 aria-label 也是它）→ 再把页签缩成一个字 → 再不够导航区在里面滚。三级都按测量（useBravaisSeamTabsFit）。
 
 /**
  * B10 账户位：首页在线页签窄缝里的平台切换（account-select / account-logout）放在这里。B9 只给一个空容器，挂着
@@ -36,20 +38,25 @@ export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount; com
 );
 
 /**
- * 页头：竖排标题与竖排页签（真按钮），或它的全名测量副本（span，不可聚焦、不进无障碍树）。`lead` 是页签那一列顶上的
- * 东西（折叠按钮；测量副本里是同尺寸的占位）：窄缝里它与页签一起排在标题左边，省出单独一行；书脊上排回最上面。
+ * 页头：标题与竖排页签（真按钮），或它的全名测量副本（span，不可聚焦、不进无障碍树）。`lead` 是页签那一列旁边的
+ * 东西（折叠按钮；测量副本里是同尺寸的占位）：窄缝里排在页签列右边、与页签同一行起头，书脊上排在页签上面。
+ * fb2 第二轮（用户看了截图）：「书库」改成页头最上面一行小字（横排），不再与页签列并排占一大块；折叠按钮紧挨在它
+ * 下面、页签那一列的右边（书脊上在页签上面）。空间不够时先隐藏这行标题（`hideTitle`：视觉隐藏，读屏仍读得到），
+ * 再不够才把页签缩成一个字。
  */
 const HomeSeamHead: React.FC<{
     title: string;
-    titleSize: number;
+    hideTitle: boolean;
     tabs: readonly BravaisSeamTab[];
     shorts: readonly string[] | null;
     lead: React.ReactNode;
     onSelectTab?: (key: string) => void;
     measure?: boolean;
-}> = ({ title, titleSize, tabs, shorts, lead, onSelectTab, measure = false }) => (
+}> = ({ title, hideTitle, tabs, shorts, lead, onSelectTab, measure = false }) => (
     <div className="bravais-seam-home-head">
-        <div className="bravais-seam-vtitle" style={{ fontSize: titleSize }}>{title}</div>
+        <div className={`bravais-seam-home-title${hideTitle ? ' is-hidden' : ''}`} data-bravais-home-title={measure ? undefined : hideTitle ? 'hidden' : 'shown'}>
+            {title}
+        </div>
         <div className="bravais-seam-home-side">
             {lead}
             {tabs.length > 0 && (measure ? (
@@ -93,13 +100,12 @@ const BravaisSeamHome: React.FC<{
     const navRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const headRef = useRef<HTMLDivElement>(null);
-    const fullHeadRef = useRef<HTMLDivElement>(null);
-    const { short, overflowing } = useBravaisSeamTabsFit({ navRef, contentRef, headRef, fullHeadRef });
+    const titledHeadRef = useRef<HTMLDivElement>(null);
+    const bareHeadRef = useRef<HTMLDivElement>(null);
+    const { level, overflowing } = useBravaisSeamTabsFit({ navRef, contentRef, headRef, titledHeadRef, bareHeadRef });
+    const short = level === 'short';
     const labelsKey = tabs.map(tab => tab.label).join('\u0000');
     const shortLabels = useMemo(() => abbreviateSeamTabLabels(labelsKey.split('\u0000')), [labelsKey]);
-    // 页签缩成一个字时标题也收一号（英文等长标题竖排时比页签那一列还高）；测量副本始终按全名、原字号量。
-    const fullTitleSize = compact ? 26 : 40;
-    const titleSize = short ? (compact ? 22 : 32) : fullTitleSize;
     // 元数据行：平时是来源（在线平台名 / 本地 / Navidrome），本地导入 / 重扫时换成扫描进度。
     // fb2：来源名与账户位（在线平台名）、当前页签（本地 / Navidrome）重复，窄缝里纵向空间最紧，平时不画，只在扫描时
     // 显示进度；页签缩成一个字时全名在页签的 title / aria-label 里。
@@ -111,11 +117,12 @@ const BravaisSeamHome: React.FC<{
         </button>
     );
     return (
-        <div className={`bravais-seam-home${compact ? ' is-compact' : ''}${short ? ' has-short-tabs' : ''}`} data-bravais-home-seam>
+        <div className={`bravais-seam-home${compact ? ' is-compact' : ''}${short ? ' has-short-tabs' : ''}`} data-bravais-home-seam
+            data-bravais-home-fit={level}>
             <div ref={navRef} className={`bravais-seam-home-nav${overflowing ? ' is-overflowing' : ''}`}>
                 <div ref={contentRef} className="bravais-seam-home-nav-content">
                     <div ref={headRef}>
-                        <HomeSeamHead title={seam.title} titleSize={titleSize} tabs={tabs} shorts={short ? shortLabels : null}
+                        <HomeSeamHead title={seam.title} hideTitle={level !== 'titled'} tabs={tabs} shorts={short ? shortLabels : null}
                             lead={foldButton} onSelectTab={seam.onSelectTab} />
                     </div>
                     {home?.sections && home.sections.length > 0 && (
@@ -147,9 +154,14 @@ const BravaisSeamHome: React.FC<{
                     )}
                 </div>
             </div>
-            {/* 全名页头的测量副本：与页头同宽、绝对定位不占位（useBravaisSeamTabsFit 量它）。 */}
-            <div ref={fullHeadRef} className="bravais-seam-home-measure" aria-hidden>
-                <HomeSeamHead title={seam.title} titleSize={fullTitleSize} tabs={tabs} shorts={null} measure
+            {/* 全名页头的测量副本：与页头同宽、绝对定位不占位（useBravaisSeamTabsFit 量它）。
+                fb2 第二轮：两份——带标题的全名页头、不带标题的全名页头。 */}
+            <div ref={titledHeadRef} className="bravais-seam-home-measure" aria-hidden>
+                <HomeSeamHead title={seam.title} hideTitle={false} tabs={tabs} shorts={null} measure
+                    lead={<span className="bravais-seam-icon" />} />
+            </div>
+            <div ref={bareHeadRef} className="bravais-seam-home-measure" aria-hidden>
+                <HomeSeamHead title={seam.title} hideTitle tabs={tabs} shorts={null} measure
                     lead={<span className="bravais-seam-icon" />} />
             </div>
             {meta}

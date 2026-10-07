@@ -8,21 +8,26 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
 // 放得下 = 导航区内容高 − 此刻页头高 + 全名页头高 ≤ 导航区高——与此刻是哪一种无关，所以不会来回跳。
 // ResizeObserver 只在结果变了时 setState（窗口高度、播放条安全区、账户列表开合、字体加载都会触发重量）。
 // 另给出「缩成一个字也放不下、导航区在里面滚」（overflowing）：导航区底边淡出提示下面还有。
+// fb2 第二轮：扩成两级。先看「带标题的全名页头」放不放得下（titled）；不行再看「不带标题的全名页头」（untitled，
+// 标题视觉隐藏）；都不行才缩成一个字（short）。两份副本各量各的，判定式同上，所以同样不会来回跳。
+
+/** 页头的缩减级别：带标题 + 全名 → 不带标题 + 全名 → 不带标题 + 一个字。 */
+export type BravaisSeamHeadLevel = 'titled' | 'untitled' | 'short';
 
 export type BravaisSeamTabsFit = {
-    /** 全名放不下：页签缩成一个字。 */
-    short: boolean;
+    level: BravaisSeamHeadLevel;
     /** 此刻的内容也放不下：导航区在里面滚。 */
     overflowing: boolean;
 };
 
-const FITS: BravaisSeamTabsFit = { short: false, overflowing: false };
+const FITS: BravaisSeamTabsFit = { level: 'titled', overflowing: false };
 
 export const useBravaisSeamTabsFit = ({
     navRef,
     contentRef,
     headRef,
-    fullHeadRef,
+    titledHeadRef,
+    bareHeadRef,
 }: {
     /** 可伸缩的导航区（flex 剩余空间，溢出时可滚）。 */
     navRef: RefObject<HTMLElement | null>;
@@ -30,8 +35,10 @@ export const useBravaisSeamTabsFit = ({
     contentRef: RefObject<HTMLElement | null>;
     /** 此刻渲染的页头（标题 + 页签）。 */
     headRef: RefObject<HTMLElement | null>;
-    /** 全名页头的测量副本。 */
-    fullHeadRef: RefObject<HTMLElement | null>;
+    /** 带标题的全名页头的测量副本。 */
+    titledHeadRef: RefObject<HTMLElement | null>;
+    /** 不带标题的全名页头的测量副本。 */
+    bareHeadRef: RefObject<HTMLElement | null>;
 }): BravaisSeamTabsFit => {
     const [fit, setFit] = useState<BravaisSeamTabsFit>(FITS);
 
@@ -39,21 +46,26 @@ export const useBravaisSeamTabsFit = ({
         const nav = navRef.current;
         const content = contentRef.current;
         const head = headRef.current;
-        const fullHead = fullHeadRef.current;
-        if (!nav || !content || !head || !fullHead || typeof ResizeObserver === 'undefined') return undefined;
+        const titledHead = titledHeadRef.current;
+        const bareHead = bareHeadRef.current;
+        if (!nav || !content || !head || !titledHead || !bareHead || typeof ResizeObserver === 'undefined') return undefined;
         const measure = () => {
             const available = nav.clientHeight + 0.5;
-            const short = content.offsetHeight - head.offsetHeight + fullHead.offsetHeight > available;
+            const rest = content.offsetHeight - head.offsetHeight;
+            const level: BravaisSeamHeadLevel = rest + titledHead.offsetHeight <= available
+                ? 'titled'
+                : rest + bareHead.offsetHeight <= available ? 'untitled' : 'short';
             const overflowing = content.offsetHeight > available;
-            setFit(current => (current.short === short && current.overflowing === overflowing ? current : { short, overflowing }));
+            setFit(current => (current.level === level && current.overflowing === overflowing ? current : { level, overflowing }));
         };
         measure();
         const observer = new ResizeObserver(measure);
         observer.observe(nav);
         observer.observe(content);
-        observer.observe(fullHead);
+        observer.observe(titledHead);
+        observer.observe(bareHead);
         return () => observer.disconnect();
-    }, [contentRef, fullHeadRef, headRef, navRef]);
+    }, [bareHeadRef, contentRef, headRef, navRef, titledHeadRef]);
 
     return fit;
 };

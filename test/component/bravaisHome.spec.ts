@@ -533,8 +533,11 @@ test.describe('[bravais-only] the account seam over layer shifts', () => {
 // fb2：首页窄缝（120px）重排。页签竖排、一列一个；纵向放不下全名时（按测量，不按断点）缩成一个字，全名留在
 // title / aria-label；工具格两列 40px，常驻的只有搜索、本页签的入口与「回到播放页」，app 级的次要入口（设置等）
 // 收进「⋯」；导航区、账户位、工具格互不重叠，整体在播放条安全区之上。
+// fb2 第二轮：「书库」是页头最上面一行小字。缩减顺序（都按测量）：先隐藏标题（视觉隐藏，读屏仍有）→ 再缩页签
+// → 再不够导航区内部滚动。大高度：标题 + 全名；中等：无标题 + 全名；小：无标题 + 一个字。
 test.describe('[bravais-only] the narrow home seam layout', () => {
     type Box = { left: number; top: number; right: number; bottom: number };
+    const root = (page: Page) => page.locator('[data-bravais-home-seam]');
     const overlaps = (a: Box, b: Box) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
 
     /** 窄缝里各段的矩形、页签的文字与全名、工具格的按钮。 */
@@ -553,6 +556,13 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             nav: box(root.querySelector('.bravais-seam-home-nav')),
             account: box(root.querySelector('[data-bravais-account-slot]')),
             dock: box(root.querySelector('.bravais-seam-dock')),
+            fit: root.getAttribute('data-bravais-home-fit'),
+            title: (() => {
+                const title = root.querySelector<HTMLElement>('[data-bravais-home-title]')!;
+                const rect = title.getBoundingClientRect();
+                return { state: title.dataset.bravaisHomeTitle, text: title.textContent, width: rect.width, height: rect.height };
+            })(),
+            tablistName: root.querySelector('[role="tablist"]')?.getAttribute('aria-label') ?? null,
             tabs: [...root.querySelectorAll<HTMLElement>('[data-bravais-tab]')].map(tab => ({
                 key: tab.dataset.bravaisTab!,
                 text: tab.textContent,
@@ -593,9 +603,20 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await mountBravais(mount, page);
     });
 
-    test('vertical tabs shrink to one letter when the height runs out, and the tools never crowd', async ({ page }) => {
-        // 1440×1100：全名放得下。
+    /** 改窗口高度，等两帧（ResizeObserver 量完、React 提交）。 */
+    const resize = async (page: Page, height: number) => {
+        await page.setViewportSize({ width: 1440, height });
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    };
+
+    test('the title goes first, then the tabs shrink to one letter, and the tools never crowd', async ({ page }) => {
+        // 1440×1100：标题 + 全名。
         let layout = await expectTidy(page);
+        expect(layout.fit).toBe('titled');
+        expect(layout.title).toMatchObject({ state: 'shown', text: 'Library' });
+        expect(layout.title.height).toBeGreaterThan(10);
+        // 标题是横排的一行小字，不再与页签列并排占一大块。
+        expect(layout.title.height).toBeLessThan(30);
         expect(layout.tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'albums', 'local', 'navidrome']);
         expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
         // 次要的 app 入口不在常驻格里，在「⋯」里。
@@ -605,10 +626,34 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await page.keyboard.press('Escape');
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
 
-        // 矮窗口：缩成一个字，全名留在 aria-label / title。
-        await page.setViewportSize({ width: 1440, height: 560 });
-        await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short="true"]')).toHaveCount(5);
+        // 一路往下压窗口高度：级别只按 titled → untitled → short 的顺序走，三级都出现过。
+        const order = ['titled', 'untitled', 'short'];
+        const firstAt = new Map<string, number>();
+        let previous = 0;
+        for (let height = 1100; height >= 480; height -= 10) {
+            await resize(page, height);
+            const fit = await root(page).getAttribute('data-bravais-home-fit');
+            const rank = order.indexOf(fit ?? '');
+            expect(rank).toBeGreaterThanOrEqual(previous);
+            previous = rank;
+            if (!firstAt.has(fit!)) firstAt.set(fit!, height);
+        }
+        expect([...firstAt.keys()]).toEqual(order);
+
+        // 中等高度：无标题 + 全名。标题视觉隐藏，可访问名还在（标题文字与页签列的 aria-label）。
+        await resize(page, firstAt.get('untitled')!);
         layout = await expectTidy(page);
+        expect(layout.fit).toBe('untitled');
+        expect(layout.title).toMatchObject({ state: 'hidden', text: 'Library' });
+        expect(layout.title.width).toBeLessThanOrEqual(1);
+        expect(layout.tablistName).toBe('Library');
+        expect(layout.tabs.every(tab => !tab.short && tab.text === tab.title)).toBe(true);
+
+        // 小高度：无标题 + 一个字，全名留在 aria-label / title。
+        await resize(page, firstAt.get('short')!);
+        layout = await expectTidy(page);
+        expect(layout.fit).toBe('short');
+        expect(layout.title.state).toBe('hidden');
         expect(layout.tabs.map(tab => [tab.text, tab.name, tab.title])).toEqual([
             ['P', 'Playlists', 'Playlists'],
             ['R', 'Radio', 'Radio'],
@@ -616,13 +661,15 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             ['F', 'Folder', 'Folder'],
             ['N', 'Navi', 'Navi'],
         ]);
+        await resize(page, 560);
         await seam(page).getByRole('tab', { name: 'Folder' }).click();
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:local');
         await settled(page);
         await expectTidy(page);
 
-        // 再拉高：回到全名。
-        await page.setViewportSize({ width: 1440, height: 1100 });
+        // 再拉高：回到标题 + 全名。
+        await resize(page, 1100);
+        await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'titled');
         await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short]')).toHaveCount(0);
         await expectTidy(page);
     });
