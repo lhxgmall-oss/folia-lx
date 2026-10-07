@@ -112,7 +112,7 @@ node dev/mcp/ts-code-map/cli.mjs doctor    # 环境自检
   外观动作（只在命令面板里的 suite 操作）静态声明在 manifest 的 `chromeActions`，运行时用 `useLibrarySuiteChromeRegistration`。
   接口细节见 `docs/library-suites.md`。
 - `src/components/wall/` 是与内容无关的墙面引擎（几何、slot / rank、有限墙、缝的选线、翻牌计划、相机、`WallTitle`、
-  海报样式 `wall.css`），Lattice 与 bravais 共用。它不依赖 `src/components/app/**`（含 Lattice）与 `src/library/**`，
+  海报样式 `wall.css`、浮层控件 `WallBackButton` / `WallToolsButton`），Lattice 与 bravais 共用。它不依赖 `src/components/app/**`（含 Lattice）与 `src/library/**`，
   连 `import type` 与动态 import 一起查（`test/unit/wall/wallBoundaries.test.ts`，codemap 的 `BOUNDARY_RULES` 同一条）；
   新几何写成不 import React 的纯函数放这里。透光 / 底板等 bravais 专属的东西不放 wall，Lattice 的队列模型、键盘焦点、
   播放展开也不放 wall。CSS 类名与变量沿用 `.lattice-*` / `--lattice-*`（测试选择器依赖它们），bravais 的 DOM 也用这些类名。
@@ -132,7 +132,8 @@ LSP 会老老实实找到死文件和历史命名，这几个需要人工标注�
 - `buildCommandPaletteContext` —— 现在是 `useCommandPaletteContext`（hook，不是 build 函数）。
 - Lattice 里抽出去的墙面引擎：`components/app/lattice/` 下的 `layout` / `blockTemplates` / `blockReflows` /
   `wallNavigation` / `useWallCameraPan` / `useWallPointerPan` 现在在 `src/components/wall/`；`useLatticePosterArtwork` →
-  `useWallPosterArtwork`，`LatticeTitle` → `WallTitle`。几何类型名（`QueueInstance`、`LatticeGeometry`、`LatticeCamera`）
+  `useWallPosterArtwork`，`LatticeTitle` → `WallTitle`；`LatticeFocusButton` 的按钮 / 面板外壳 → `WallToolsButton`（`LatticeFocusButton`
+  只剩 Lattice 自己的条目），左上角返回 → `WallBackButton`，熄灯规则从 `Lattice.css` 搬进 `wall.css`。几何类型名（`QueueInstance`、`LatticeGeometry`、`LatticeCamera`）
   没改名。`useWallKeyboardFocus` 名字带 Wall，但和队列模型耦合，仍在 Lattice 目录。
 - bravais 透光的「纱层」与「全屏遮罩底板」（`bravaisPlateMask`、`useBravaisPlate`、`useBravaisLivePlate`）都已删除，
   现在是按块的内联 SVG 底板：`BravaisBlockPlates`、`useBravaisBlockPlates`（纯函数 `bravaisBlockPlate`）、让位时的

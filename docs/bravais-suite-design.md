@@ -302,7 +302,7 @@ type BravaisTileKind =
 
 ## 7.5 视觉风格：对齐 Lattice（已定）
 
-bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不另起调色板：墙面、海报各状态与 `--lattice-*` 派生量在共享的 `src/components/wall/wall.css`（类名保留 `lattice-` 前缀），按钮与工具面板的样式在 `src/components/app/lattice/LatticeChrome.css` / `LatticeFocusButton.css`。
+bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不另起调色板：墙面、海报各状态与 `--lattice-*` 派生量在共享的 `src/components/wall/wall.css`（类名保留 `lattice-` 前缀），按钮的样式在 `src/components/app/lattice/LatticeChrome.css`；左上角返回与右下角工具按钮 / 面板是共享组件 `src/components/wall/WallBackButton` / `WallToolsButton`（样式在同名 `.css`，类名仍是 `.lattice-back` / `.lattice-tools*`）。
 
 - **主题**：只用 folia 的主题变量（`buildAppStyle` 写入的 `--bg-color` / `--text-primary` / `--text-secondary` / `--text-accent`）。派生量与 `.lattice-root` 相同（`--lattice-poster-background`、`--lattice-shade-rgb` 等），日光模式（`is-daylight`）切换整套派生量。
 - **墙面**：`--bg-color` 底，左上 accent 16%、右下 secondary 20% 两团光晕；soft-light 颗粒噪点（暗色 .13 / 日光 .07；只在实色档画，透明档下它会压在窗上、给 visualizer 蒙一层噪点，见 §11）；浅暗角（78% → 52%，日光 16%）。
@@ -316,9 +316,13 @@ bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不�
   - 键盘聚焦 = `.lattice-poster.is-focused`：发丝线 + 4px 主色环 + 发丝线 + 抬升投影（日光模式发丝线换浅色），顶部 10% 白色渐变高光，不染色。正在播放的卡不叠第二道环，只把强调色内发光加强（`inset 0 0 26px -6px`，62%）。环画在海报外侧，所以带 `contain: paint` 的元素必须是画环的那个元素本身（Lattice 的做法）；原型因为环画在内层，聚焦时要解除外框的 paint containment，否则环会被裁掉。
   - 列表联动、批量选中 = Lattice 键盘聚焦环（发丝线 + 4px 主色环 + 发丝线）。
   - 空画框只画一道主色 7% 的发丝线。
-- **聚焦卡 = `is-expanded`**：`0 42px 110px` 深投影，左 + 底双向压暗，标题 `clamp(48px, 6vw, 82px)`。「立即播放」「加入队列」走 LatticeChrome 的按钮：无卡片底，静止时无描边，悬停出现 12px 圆角框，主按钮常驻 16% 底色。
+- **聚焦卡 = `is-expanded`**：`0 42px 110px` 深投影，左 + 底双向压暗，标题 `clamp(48px, 6vw, 82px)`。「立即播放」「加入队列」走 LatticeChrome 的按钮：无卡片底，静止时无描边，悬停出现 12px 圆角框；「立即播放」是纯图标的 44px 方格（实测反馈 1，与 Lattice 展开海报上的播放键相同，不再是常驻 16% 底色的文字按钮）。
 - **缝**：默认 Lattice 主题材质，底色 `color-mix(bg 90%, primary)`，文字为主色，标题改为 Inter / Noto Sans 800（不再用衬线）；按钮、tab、排序控件同样走 LatticeChrome 的悬停框；输入框聚焦时下划线用强调色。图 1 的纸张材质保留为原型对照项。
-- **浮层控件**：返回 = `.lattice-back`（40px 圆、白 8%、模糊）；工具面板 = `.lattice-tools-panel`（24px 圆角、黑 40%、模糊 24px）。
+- **浮层控件**（实测反馈 1 落地，与 Lattice 共用 `src/components/wall/` 的同一套控件）：
+  - 左上角返回 = `WallBackButton`（`.lattice-back`：40px 圆、白 8%、模糊）。bravais 用隐藏式：平时不显示，鼠标进入左上角 120px 热区或键盘聚焦时出现（与播放页 VisualizerShell 左上角那颗相同；触屏常驻）。语义是**回到播放页**（宿主经 stage 契约的 `onBackToPlayer` 交来，首页与集合层都在），不是缝里 ‹ 的层返回（`onDone`）；层级在缝之下（缝开在左上角时缝的按钮在上面）。Lattice 那颗常驻显示，行为不变。
+  - 右下角工具按钮 = `WallToolsButton`（`SlideActionButton`：点按打开 `.lattice-tools-panel`，24px 圆角、黑 40%、模糊 24px；向左滑打开命令面板；底距随播放胶囊，同 Lattice）。共享部分：点外部 / Esc 收起（Esc 只收面板，墙的 Esc 阶梯不处理这一下）、海报叠色开关、开灯 / 关灯、帮助的展开；条目与帮助内容由使用方给。bravais 的条目：定位正在播放（外观动作 `locate-playing` 的同一个实现）、透光（循环三档，面板不收起）；帮助列方向键、Enter、Esc 阶梯、Tab 进出缝、F6、`s` / Ctrl+K。
+  - 灯光与叠色读 Lattice 的同一个 `useLatticeSettingsStore`（一套墙面外观设置同时作用于两边；设置页「队列拼贴与资料库墙」、命令面板「海报墙叠色 / 边缘暗角」）。熄灯：内容磁贴压 82% 黑（日光白），正在播放、聚焦卡、悬停、键盘焦点、列表联动 / 批量选中的不熄；部分透明档的窗与空画框没有熄灯层；全透明档的内容磁贴本身是窗，熄灯不涂黑，只把标题、徽标与封面底条压到 0.28。叠色只画在不透的内容磁贴上（窗与全透明档的磁贴没有叠色层），熄灯时归零。
+  - 聚焦卡的「立即播放」是与 Lattice 展开海报同样的纯图标按钮（无文字，可访问名「立即播放」）；队列按钮「已在队列」时悬停 / 键盘聚焦显示「插入队列」（点它按「加入队列的默认位置」把这首挪到队尾或下一首）。
 - **相机缩放**：与 `PosterWall.getScale` 相同（<640: .52，<1100: .64，否则 .76）。
 
 原型 ⚙ 里可以切换主题（午夜墨染 / 日光素白 / 接近图 2 的示例自定义）、信息条材质、海报染色。
