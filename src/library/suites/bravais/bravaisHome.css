@@ -496,15 +496,13 @@
     border-radius: 999px;
     color: #fff;
     background: rgb(0 0 0 / 45%);
-    opacity: 0;
     cursor: pointer;
-    transition: opacity 140ms ease, background-color 140ms ease;
+    transition: background-color 140ms ease;
 }
 
+/* 眼睛按钮只在「管理隐藏」模式里出现（实测反馈：平时悬停不该冒出隐藏按钮）；平时不渲染也不进焦点序列。 */
+.bravais-root:not(.is-managing-hidden) .bravais-tile-eye { display: none; }
 .bravais-tile-eye svg { width: 16px; height: 16px; }
-.bravais-tile:hover .bravais-tile-eye,
-.bravais-tile-eye:focus-visible,
-.bravais-root.is-managing-hidden .bravais-tile-eye { opacity: 1; }
 .bravais-tile-eye:hover { background: rgb(0 0 0 / 70%); }
 .bravais-tile-eye.is-hidden { color: var(--text-accent, #fff); }
 
@@ -576,10 +574,10 @@
 /* 直达入口（fb11，用户实测：只有图标和窄缝其它部分不统一、孤零零浮在中段）：
    - 位置：中段的第二块（.bravais-seam-home-jumps），贴在中段底部；中段内层（二级切换、扫描进度、状态）用上下自动外边距
      在剩下的空间里居中。入口一块的上内边距等于段间距（与中段的上内边距相同），所以中段内层到页签、到入口的留白相等；有二级切换时再加一道短分隔线。
-   - 样子：竖排文字（vertical-rl，与页签、激活的二级切换同一套），并排成几列（一页签最多两个，高度只占最长那一列）。
+   - 样子：横排文字（用户定，2026-10-09：竖排并排两列读起来别扭），一行一个、上下排列、居中；窄缝里放不下时折成两行。
      与激活的二级切换区分：小一号（11px，书脊 10px）、字重常规、副文色、没有侧边细线——是一组普通按钮，不是又一组页签。
      悬停与二级切换同一种浅底 + 字变深，键盘焦点用缝里按钮共用的 focus-visible 环；静止时无框（fb9/fb10a 去掉了描边）。
-   - 长名字：一列最多 7em（「我喜欢的音乐」六个字放得下），再长截断成省略号（英文、印尼文侧着排时）。 */
+   - 长名字：最多两行，再长截断（-webkit-line-clamp）。 */
 .bravais-seam-home .bravais-seam-home-body { margin-block: auto; }
 
 .bravais-seam-home-jumps { display: flex; width: 100%; flex: none; flex-direction: column; align-items: center; }
@@ -595,11 +593,11 @@
     background: color-mix(in srgb, var(--text-primary, #f7f4ee) 22%, transparent);
 }
 
-.bravais-seam-shortcuts { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 2px; }
+.bravais-seam-shortcuts { display: flex; width: 100%; flex-direction: column; align-items: stretch; gap: 2px; }
 
 .bravais-seam-home .bravais-seam-shortcut {
     display: block;
-    padding: 8px 5px;
+    padding: 6px 6px;
     border: 0;
     border-radius: 10px;
     color: var(--bravais-seam-ink-soft);
@@ -609,23 +607,22 @@
 }
 
 .bravais-seam-home .bravais-seam-shortcut .is-label {
-    display: block;
-    max-height: 7em;
+    display: -webkit-box;
     overflow: hidden;
     font-size: 11px;
     font-weight: 500;
-    line-height: 1.2;
-    letter-spacing: 0.1em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    writing-mode: vertical-rl;
+    line-height: 1.3;
+    text-align: center;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .bravais-seam-home span.bravais-seam-shortcut { cursor: default; }
 .bravais-seam-home button.bravais-seam-shortcut:hover { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 8%, transparent); }
 
-.bravais-seam-home.is-compact .bravais-seam-shortcut { padding: 6px 3px; }
-.bravais-seam-home.is-compact .bravais-seam-shortcut .is-label { font-size: 10px; letter-spacing: 0.06em; }
+.bravais-seam-home.is-compact .bravais-seam-shortcut { padding: 5px 2px; }
+.bravais-seam-home.is-compact .bravais-seam-shortcut .is-label { font-size: 10px; }
 .bravais-seam-home.is-compact .bravais-seam-shortcuts { gap: 0; }
 .bravais-seam-home.is-compact .bravais-seam-shortcuts-rule { margin-bottom: 8px; }
 

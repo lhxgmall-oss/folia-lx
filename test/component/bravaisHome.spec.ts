@@ -181,13 +181,16 @@ test.describe('[bravais-only] home', () => {
     });
 
     test('manage hidden flips the hidden cards up greyed; hidden-only narrows it; Escape leaves the view', async ({ page }) => {
-        // 平时悬停有眼睛按钮：隐藏一张，它从墙上消失。
-        await card(page, 'card:playlist:owned').locator('[data-bravais-action="toggle-hidden"]').dispatchEvent('click');
-        await expect.poll(() => page.evaluate(() => window.__homeProbe!.storedHidden())).toEqual({ [`online:${PROBE_PROVIDER_A}`]: ['owned'] });
-        await settled(page);
-        await expect(page.locator('.bravais-tile[data-library-card="card:playlist:owned"]')).toHaveCount(0);
+        // 平时没有眼睛按钮（悬停也不出现），只有「管理隐藏」里才有。
+        await card(page, 'card:playlist:owned').hover();
+        await expect(card(page, 'card:playlist:owned').locator('[data-bravais-action="toggle-hidden"]')).toBeHidden();
 
         await runMenuItem(page, 'manage-hidden');
+        // 管理模式里点眼睛隐藏一张：变灰留在原地。
+        await settled(page);
+        await expect(card(page, 'card:playlist:owned').locator('[data-bravais-action="toggle-hidden"]')).toBeVisible();
+        await card(page, 'card:playlist:owned').locator('[data-bravais-action="toggle-hidden"]').click();
+        await expect.poll(() => page.evaluate(() => window.__homeProbe!.storedHidden())).toEqual({ [`online:${PROBE_PROVIDER_A}`]: ['owned'] });
         await expect(seam(page).locator('[data-bravais-manage]')).toHaveAttribute('data-bravais-manage', 'manage');
         await expect(stage(page)).toHaveClass(/is-managing-hidden/);
         await settled(page);

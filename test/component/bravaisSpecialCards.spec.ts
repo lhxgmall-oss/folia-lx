@@ -137,7 +137,7 @@ test.describe('[bravais-only] special collections', () => {
     });
 
     test('online tabs offer jump-ins only for the special collections that exist', async ({ page }) => {
-        // 歌单页签：我喜欢的音乐、云盘；竖排文字是种类的短名（fb11），卡片全名在 aria-label / title；与二级切换不同，它们是一组普通按钮。
+        // 歌单页签：我喜欢的音乐、云盘；横排文字是种类的短名（fb11；2026-10-09 改横排），卡片全名在 aria-label / title；与二级切换不同，它们是一组普通按钮。
         await expect(shortcutsGroup(page)).toHaveAttribute('role', 'group');
         await expect(shortcutsGroup(page)).toHaveAccessibleName('Jump to');
         expect(await shortcutKinds(page)).toEqual([
@@ -147,17 +147,19 @@ test.describe('[bravais-only] special collections', () => {
         await expect(shortcut(page, 'liked')).toHaveText('Liked Songs');
         await expect(shortcut(page, 'cloud')).toHaveText('Cloud Drive');
         await expect(shortcut(page, 'liked').locator('svg')).toHaveCount(0);
-        // 竖排、并排成两列（同一行起头），无描边。
+        // 无描边、11px。
         const look = await shortcut(page, 'liked').evaluate(node => {
             const label = node.querySelector('.is-label')!;
             const style = getComputedStyle(label);
             return { writing: style.writingMode, border: getComputedStyle(node).borderTopWidth, size: style.fontSize };
         });
-        expect(look).toEqual({ writing: 'vertical-rl', border: '0px', size: '11px' });
+        // 横排（用户定，2026-10-09）。
+        expect(look).toEqual({ writing: 'horizontal-tb', border: '0px', size: '11px' });
         const likedBox = (await shortcut(page, 'liked').boundingBox())!;
         const cloudBox = (await shortcut(page, 'cloud').boundingBox())!;
-        expect(Math.abs(likedBox.y - cloudBox.y)).toBeLessThan(1);
-        expect(cloudBox.x).toBeGreaterThanOrEqual(likedBox.x + likedBox.width - 0.5);
+        // 一行一个、上下排列（同一列居中）。
+        expect(cloudBox.y).toBeGreaterThanOrEqual(likedBox.y + likedBox.height - 0.5);
+        expect(Math.abs((likedBox.x + likedBox.width / 2) - (cloudBox.x + cloudBox.width / 2))).toBeLessThan(1);
         // 靠下：入口一块的底边贴着账户入口（一个段间距，18px），不在中段中间。
         const jumpsBottom = await seam(page).locator('[data-bravais-home-jumps]').evaluate(node => node.getBoundingClientRect().bottom);
         const accountTop = await seam(page).locator('[data-bravais-account-slot]').evaluate(node => node.getBoundingClientRect().top);
