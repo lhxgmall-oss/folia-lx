@@ -590,6 +590,18 @@ type BravaisLayer = {
 
 **已定：Lattice 队列墙保持独立的 app 视图**（`AppView = 'lattice'`），不并入 bravais 的层栈。两者共享同一个 wall 引擎组件：把 `src/components/app/lattice/` 里和内容无关的部分抽成共享的 wall 引擎，现在位于 `src/components/wall/`：`layout.ts` / `blockTemplates.ts` / `blockReflows.ts` / `wallNavigation.ts`、相机（`useWallCameraPan` / `useWallPointerPan`）、`useWallPosterArtwork`（原 `useLatticePosterArtwork`）、`WallTitle` + `titleLayoutWidth`（原 `LatticeTitle`）。Lattice 的 `PosterWall`、键盘焦点（`useWallKeyboardFocus`，与队列模型耦合）、播放展开和 chrome 仍在 `components/app/lattice/`。
 
+**相机的平移输入（两面墙共用 `useWallPointerPan`，参数与判别一处定义在 `src/components/wall/wallPanMotion.ts`）**：
+
+- **拖动**：跟手；松手按速度走 framer `inertia`（`WALL_PAN_INERTIA`：时间常数 280ms，速度上限 4000px/s，松手前 80ms 内没动过不滑行）。
+- **鼠标滚轮：平滑**（2026-10-09 起；之前每格当帧跳到位）。每格的位移累加进「待走的位移」，相机每帧按指数曲线追上去（`WALL_WHEEL_SMOOTHING.timeConstantMs` = 80：每过 80ms 剩余缩到 1/e，一格 100px 约 240ms 走完 95%，剩余不到 0.5px 时落到目标）。与松手惯性是同一类减速曲线，只是时间常数短，一格不拖泥带水。连续滚动时位移叠加在同一个目标上，速度与剩余距离成正比，所以不卡顿、也不会越积越慢；单帧时长按 50ms 封顶（标签页切回来不一帧跳完）。总位移与输入精确相等。
+- **触控板：直接跟手**（不变）。触控板自带连续的小增量与系统惯性，再平滑一次只会发飘、拖后。
+- **判别**（`createWallWheelClassifier`，每面墙一个，带一次手势的记忆）：`deltaMode` 为行 / 页 → 鼠标滚轮；像素模式下两轴同时有增量、或单轴增量小于 50px → 触控板（Chromium 的滚轮一格约 100px，Linux 约 53px，且只沿一个轴；触控板每个事件多是个位数到几十像素）；相邻事件间隔不超过 120ms 算同一次手势，手势里一旦出现过触控板式的事件，整次都按触控板算（快速一划、系统惯性的峰值也会有单轴大增量，不能半路改成平滑）。高分辨率滚轮（无级滚轮）报的是小增量，按触控板直接跟手，它本身已经是细分的。按行的一行 16px、按页的一页一个视口高；Shift + 竖向滚轮改走横向；Ctrl / Meta + 滚轮留给浏览器缩放。
+- **与其他相机运动的关系**：平滑滚动占用相机共享的动画句柄（Lattice 的 `useWallCameraPan.animationRef`、bravais 的 `useBravaisCamera.animationRef`），所以聚焦 / 展开的补间（`panTo` / `tweenTo`，含缝开合的相机让位、键盘焦点移动的相机跟随）、按下拖动、键盘输入（只按修饰键不算——按住 Shift 横向滚动时 Shift 会自动重复 keydown）一开始，平滑滚动就停在原地；反过来鼠标滚轮与触控板输入也打断这些补间与惯性。触控板输入打断正在进行的平滑滚动时，把还没走完的位移一并补上、当帧到位。
+- **有限拼贴**：相机每帧仍经 bravais 的硬钳制（滚轮不走拖动时的弹性）；被钳住的那个轴上剩下的位移作废，顶在边上多滚的不攒着，反向一格立刻离开边缘。
+- **降低动效**（`useReducedMotionFor('lattice')`，两面墙都读它）：滚轮一律当帧到位，与触控板相同。
+- **翻牌交接**（`data-wall-handoff` 挂在墙的根节点上期间）：不接滚轮，正在进行的平滑滚动停下（交接按此刻的相机量磁贴位置）。
+- 用例：`test/unit/wall/wallPanMotion.test.ts`（判别与每帧的步进）、`test/component/wallWheelSmoothing.spec.ts`（两面墙逐帧采样相机：鼠标滚轮多帧单调趋近、最终到位；触控板当帧跟手；降低动效一帧到位；有限拼贴钳制与反向立即离开边缘）。
+
 需要新增：
 
 - slot 打分和 rank 分配
