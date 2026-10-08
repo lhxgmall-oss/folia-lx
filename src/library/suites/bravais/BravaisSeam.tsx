@@ -2,6 +2,7 @@ import React, { type RefObject } from 'react';
 import { motion, type MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
+import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
 import type { BravaisPanelActions } from './BravaisListPanel';
@@ -48,6 +49,8 @@ type BravaisSeamProps = {
     /** B7：完整信息条的「列表」与列表面板的动作。 */
     openList?: () => void;
     panel?: BravaisPanelActions;
+    /** 首页窄缝的直达入口（特殊集合）。 */
+    openShortcut?: (shortcut: BravaisHomeShortcut) => void;
 };
 
 const BravaisSeam: React.FC<BravaisSeamProps> = ({
@@ -67,6 +70,7 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     onTab,
     openList,
     panel,
+    openShortcut,
 }) => {
     const { t } = useTranslation();
     const width = contentWidth;
@@ -93,7 +97,7 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
                         data-bravais-seam-leaving={hideLeaving || undefined}
                     >
                         <BravaisSeamNavigation.Provider value={navigation}>
-                            <BravaisSeamContent variant={variant} layer={layer} depth={navigation.depth} actions={{ setLevel, openList, panel }} />
+                            <BravaisSeamContent variant={variant} layer={layer} depth={navigation.depth} actions={{ setLevel, openList, panel, openShortcut }} />
                         </BravaisSeamNavigation.Provider>
                     </motion.div>
                 </div>

@@ -65,7 +65,8 @@ export default {
     "more": "Lainnya",
     "scanProgress": "Memindai {{percent}}%",
     "connect": "Hubungkan layanan streaming",
-    "noMatch": "Tidak ada yang cocok di halaman ini"
+    "noMatch": "Tidak ada yang cocok di halaman ini",
+    "shortcuts": "Langsung ke"
   },
   "libraryTui": {
     "back": "Kembali",

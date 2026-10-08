@@ -1,6 +1,7 @@
 import type { LibraryDirectoryVisibilityMode } from '../../core/contracts/directory';
 import type { BravaisSeamForm, BravaisSeamMenuItem, BravaisSeamNotice } from './bravaisSeamModels';
 import type { BravaisAccountRow } from './bravaisAccountModel';
+import type { LibraryHomeSpecialKind } from '../../core/model/homeSpecialCards';
 
 // src/library/suites/bravais/bravaisHomeModels.ts
 // B9 首页挂在层描述上的扩展类型（设计稿 §10.5、§5「面板」的目录树）：首页窄缝里的二级切换、工具按钮（搜索、目录、
@@ -10,6 +11,24 @@ import type { BravaisAccountRow } from './bravaisAccountModel';
 
 /** 缝里的二级切换：本地四行（文件夹 / 专辑 / 歌手 / 歌单）、Navidrome 的 section。切换 = 整面翻牌，不换层。 */
 export type BravaisHomeSection = { key: string; label: string; active: boolean };
+
+/**
+ * 直达入口（特殊集合：我喜欢的音乐、云盘、私人 FM、每日推荐、全部歌曲、本地「我喜欢」、Navidrome 随机 / 收藏）：
+ * 首页窄缝中段、二级切换下面的一列图标（与二级切换之间有分隔线）。点了直接进入那张集合，与点墙上那张卡同一条打开路径——
+ * stage 先在墙上找这一项（屏内离缝最近的一份），找得到就把它记成起点磁贴、走层描述的 onOpenItem；找不到（别的 section、
+ * 被过滤掉、在屏外）就调 open，新层以缝为中心排序。只有此刻真有的那几张才有入口（bravaisHomeProjection 的 projectHomeShortcuts）。
+ */
+export type BravaisHomeShortcut = {
+    special: LibraryHomeSpecialKind;
+    /** 全名（只显示图标，全名进 aria-label / title）。 */
+    label: string;
+    /** 这张卡在墙上的条目 key。 */
+    itemKey: string;
+    /** 点了直接播放、不进新层（私人 FM）：不记起点。 */
+    direct: boolean;
+    /** 不经墙打开（与点那张卡同一个打开动作：openOnlineCard / openLocalGroup / openNavidromeCard）。 */
+    open: () => void;
+};
 
 /**
  * 首页窄缝的工具（文案是标题与读屏名）。fb3：底部工具格固定四格——搜索、设置、播放队列、「⋯」；其余（本页签的目录、
@@ -102,6 +121,10 @@ export type BravaisHomeSeam = {
     /** 二级切换（在线页签没有）。 */
     sections?: readonly BravaisHomeSection[];
     onSelectSection?: (key: string) => void;
+    /** 直达入口（没有特殊集合时为空）；放不下时先于二级切换让位，挪进「⋯」菜单（useBravaisSeamTabsFit）。 */
+    shortcuts?: readonly BravaisHomeShortcut[];
+    /** 直达入口那一列的读屏名（「直达」）。 */
+    shortcutsLabel?: string;
     tools: readonly BravaisHomeTool[];
     /** 本地「⋯」：导入文件夹、刷新、导入歌单文件。 */
     menu?: readonly BravaisSeamMenuItem[];

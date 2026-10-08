@@ -167,6 +167,8 @@ export type HomeProbeApi = {
     providers: () => string[];
     activeProvider: () => string;
     switchProvider: (providerId: string) => Promise<boolean>;
+    /** 让这个 provider 回到未登录（账户 store 的 clearAccount）：首页在线页签变成 guest。 */
+    signOut: (providerId: string) => void;
 
     // ---- suite ----
     /** 选中的 suite（core/state/useLibrarySuiteStore）。 */

@@ -6,7 +6,13 @@ import type {
 } from '../../core/contracts/directory';
 import type { LibraryHomeCard, LibraryHomeTabView } from '../../core/contracts/homeModel';
 import { homeCardToDirectoryItem } from '../../core/model/directoryItems';
-import { isHideableDirectoryItem } from '../../core/model/directoryVisibility';
+import { isDirectoryItemHidden, isHideableDirectoryItem } from '../../core/model/directoryVisibility';
+import {
+    LIBRARY_HOME_SPECIAL_ORDER,
+    resolveLibraryHomeSpecial,
+    type LibraryHomeCardSource,
+    type LibraryHomeSpecialKind,
+} from '../../core/model/homeSpecialCards';
 import { resolveDirectoryRows } from '../../core/model/directoryTree';
 import { resolveDirectoryNodeSelection, resolveNextDirectoryNodeSelectionTarget } from '../../core/model/directoryBatch';
 import type { BravaisItem } from './bravaisLayer';
@@ -22,6 +28,8 @@ import { homeCardItemKey, homeCardKind, type HomeCardLabels } from './bravaisPro
 // - 目录树面板的行：core 的 resolveDirectoryRows 排树，三态与「仅本层」沿用 resolveDirectoryNodeSelection /
 //   resolveNextDirectoryNodeSelectionTarget（与 GridMap 的批量面板同一套）；
 // - F6 切页签：跳过不可用的页签，绕回。
+// - 特殊集合（core 的 resolveLibraryHomeSpecial）：磁贴带 special（类型标签换样式）；缝里的直达入口（projectHomeShortcuts）
+//   只列此刻真有的那几张——数据里有、没被隐藏——按固定先后排。
 
 /** 首页的一个目录条目：带着原卡片与它在墙上的条目 key。 */
 export type BravaisHomeEntry = LibraryDirectoryItem & { card: LibraryHomeCard; itemKey: string };
@@ -67,7 +75,13 @@ export const createHomeItemCache = (): BravaisHomeItemCache => new Map();
 
 const flagsKey = (flags: HomeItemFlags) => [flags.hideable, flags.hidden, flags.selected, flags.dimmed, flags.direct].map(Number).join('');
 
-const projectHomeItem = (card: LibraryHomeCard, itemKey: string, labels: HomeCardLabels, flags: HomeItemFlags): BravaisItem => {
+const projectHomeItem = (
+    card: LibraryHomeCard,
+    itemKey: string,
+    labels: HomeCardLabels,
+    flags: HomeItemFlags,
+    special: LibraryHomeSpecialKind | null,
+): BravaisItem => {
     const kind = homeCardKind(card.type);
     const count = typeof card.trackCount === 'number' && card.trackCount > 0 ? labels.trackCount(card.trackCount) : '';
     const item: BravaisItem = {
@@ -81,6 +95,7 @@ const projectHomeItem = (card: LibraryHomeCard, itemKey: string, labels: HomeCar
     (Object.keys(flags) as (keyof HomeItemFlags)[]).forEach(key => {
         if (flags[key]) item[key] = true;
     });
+    if (special) item.special = special;
     return item;
 };
 
@@ -97,12 +112,15 @@ export const projectHomeWallItems = (
         visibilityMode,
         selectedIds,
         isDirect,
+        source,
     }: {
         hiddenIds: ReadonlySet<string>;
         visibilityMode: LibraryDirectoryVisibilityMode;
         /** 批量模式的选择；不在批量模式时为 null。 */
         selectedIds: ReadonlySet<string> | null;
         isDirect: (card: LibraryHomeCard) => boolean;
+        /** 卡片来源（特殊集合的判定按来源解释身份字段）。 */
+        source: LibraryHomeCardSource;
     },
     labels: HomeCardLabels,
     cache?: BravaisHomeItemCache,
@@ -121,10 +139,51 @@ export const projectHomeWallItems = (
     const key = flagsKey(flags);
     const cached = cache?.get(entry.itemKey);
     if (cached && cached.card === entry.card && cached.flags === key && cached.labels === labels) return cached.item;
-    const item = projectHomeItem(entry.card, entry.itemKey, labels, flags);
+    const item = projectHomeItem(entry.card, entry.itemKey, labels, flags, resolveLibraryHomeSpecial(entry.card, source));
     cache?.set(entry.itemKey, { card: entry.card, flags: key, labels, item });
     return item;
 });
+
+/** 缝里一个直达入口要的东西（还没接上「打开」：surface 拿 card 去开，stage 拿 itemKey 去墙上找起点）。 */
+export type BravaisHomeShortcutSpec = {
+    special: LibraryHomeSpecialKind;
+    /** 全名（卡片名，已翻译）：入口只显示图标，它进 aria-label / title。 */
+    label: string;
+    card: LibraryHomeCard;
+    /** 这张卡在墙上的条目 key（此刻不一定在墙上：本地别的 section、被过滤掉）。 */
+    itemKey: string;
+    /** 点了直接播放、不进新层（私人 FM）。 */
+    direct: boolean;
+};
+
+/**
+ * 直达入口：这个来源里（不限当前 section）此刻真有的特殊集合，每种一个，按固定先后。被隐藏的不列（隐藏的条目不出现在
+ * 浏览里，入口同理）；过滤词不影响（入口不是墙的内容）。
+ */
+export const projectHomeShortcuts = (
+    cards: readonly LibraryHomeCard[],
+    {
+        source,
+        hiddenIds,
+        isDirect,
+    }: {
+        source: LibraryHomeCardSource;
+        hiddenIds: ReadonlySet<string>;
+        isDirect: (card: LibraryHomeCard) => boolean;
+    },
+): BravaisHomeShortcutSpec[] => {
+    const found = new Map<LibraryHomeSpecialKind, BravaisHomeShortcutSpec>();
+    for (const card of cards) {
+        const special = resolveLibraryHomeSpecial(card, source);
+        if (!special || found.has(special)) continue;
+        if (isDirectoryItemHidden(homeCardToDirectoryItem(card), hiddenIds)) continue;
+        found.set(special, { special, label: card.name, card, itemKey: homeCardItemKey(card), direct: isDirect(card) });
+    }
+    return LIBRARY_HOME_SPECIAL_ORDER.flatMap(special => {
+        const spec = found.get(special);
+        return spec ? [spec] : [];
+    });
+};
 
 export type BravaisDirectoryRowLabels = {
     ignored: string;

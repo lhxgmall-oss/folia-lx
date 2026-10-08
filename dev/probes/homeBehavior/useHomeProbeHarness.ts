@@ -261,6 +261,7 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
         providers: () => latestRef.current.account.getSnapshot().providers.map(provider => provider.providerId),
         activeProvider: () => latestRef.current.account.getSnapshot().activeProviderId,
         switchProvider: providerId => switchAndConfirm(latestRef.current.account, providerId),
+        signOut: providerId => useOnlineProviderAccountStore.getState().clearAccount(providerId),
     }), []);
 
     return { model, mountKey };

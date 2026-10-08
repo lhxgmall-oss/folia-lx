@@ -6,6 +6,7 @@ import {
     createHomeItemCache,
     cycleHomeTab,
     projectDirectoryRows,
+    projectHomeShortcuts,
     projectHomeWallItems,
     resolveHomeWallMode,
     resolveSelectAllState,
@@ -25,7 +26,7 @@ import {
 // test/unit/library/bravais/bravaisHomeModels.test.ts
 // B9 首页的纯规则：墙的模式与过滤身份（本地四行切换、管理隐藏、批量模式都整面翻；只有批量与「只看隐藏」退化为有限
 // 拼贴）、磁贴的标记（眼睛、已隐藏、选中 / 未选中、FM 直接播放）与投影缓存、目录树的三态与「仅本层」、全选框、
-// F6 切页签、首页的批量按键与 Esc 阶梯的视图一级、换页签的整墙出场 / 入场计划。
+// F6 切页签、首页的批量按键与 Esc 阶梯的视图一级、换页签的整墙出场 / 入场计划；特殊集合的标记与缝里的直达入口。
 
 const metrics = { cellSize: 128, gap: 8 };
 const labels = { kindLabel: (kind: string) => `[${kind}]`, trackCount: (count: number) => `${count} tracks` };
@@ -68,7 +69,7 @@ describe('projectHomeWallItems', () => {
     const isDirect = (target: LibraryHomeCard) => target.id === 'fm';
 
     it('marks hideable cards and only shows hidden ones as dimmed in the manage view', () => {
-        const browse = projectHomeWallItems(entries, { hiddenIds: hidden, visibilityMode: 'browse', selectedIds: null, isDirect }, labels);
+        const browse = projectHomeWallItems(entries, { hiddenIds: hidden, visibilityMode: 'browse', selectedIds: null, isDirect, source: 'online' }, labels);
         expect(browse.map(item => [item.key, Boolean(item.hideable), Boolean(item.hidden), Boolean(item.dimmed)])).toEqual([
             ['card:playlist:a', true, false, false],
             ['card:cloud:b', true, false, false],
@@ -76,25 +77,72 @@ describe('projectHomeWallItems', () => {
             ['card:album:al', false, false, false],
         ]);
         expect(browse[2].direct).toBe(true);
-        const manage = projectHomeWallItems(entries, { hiddenIds: hidden, visibilityMode: 'manage', selectedIds: null, isDirect }, labels);
+        const manage = projectHomeWallItems(entries, { hiddenIds: hidden, visibilityMode: 'manage', selectedIds: null, isDirect, source: 'online' }, labels);
         expect(manage.filter(item => item.dimmed).map(item => item.key)).toEqual(['card:playlist:a']);
         expect(manage[0].hidden).toBe(true);
     });
 
     it('dims every card that is not selected in batch mode and ticks the selected ones', () => {
         const folders = [card('x', 'folder'), card('y', 'folder')].map(toHomeEntry);
-        const items = projectHomeWallItems(folders, { hiddenIds: new Set(), visibilityMode: 'browse', selectedIds: new Set(['y']), isDirect }, labels);
+        const items = projectHomeWallItems(folders, { hiddenIds: new Set(), visibilityMode: 'browse', selectedIds: new Set(['y']), isDirect, source: 'local' }, labels);
         expect(items.map(item => [Boolean(item.selected), Boolean(item.dimmed)])).toEqual([[false, true], [true, false]]);
     });
 
     it('reuses the previous object for a card whose flags did not change', () => {
         const cache = createHomeItemCache();
-        const options = { hiddenIds: new Set<string>(), visibilityMode: 'browse' as const, isDirect };
+        const options = { hiddenIds: new Set<string>(), visibilityMode: 'browse' as const, isDirect, source: 'local' as const };
         const folders = [card('x', 'folder'), card('y', 'folder')].map(toHomeEntry);
         const first = projectHomeWallItems(folders, { ...options, selectedIds: new Set<string>() }, labels, cache);
         const second = projectHomeWallItems(folders, { ...options, selectedIds: new Set(['y']) }, labels, cache);
         expect(second[0]).toBe(first[0]);
         expect(second[1]).not.toBe(first[1]);
+    });
+
+    it('marks special collections by identity and leaves ordinary cards alone', () => {
+        const online = [
+            card('liked', 'playlist', { raw: { isLiked: true } }),
+            card('plain', 'playlist', { name: 'My Liked Music' }),
+            card('personal_fm', 'radio'),
+        ].map(toHomeEntry);
+        const items = projectHomeWallItems(online, { hiddenIds: new Set(), visibilityMode: 'browse', selectedIds: null, isDirect, source: 'online' }, labels);
+        expect(items.map(item => item.special ?? null)).toEqual(['liked', null, 'personal-fm']);
+        // 类型标签的文字照旧是种类。
+        expect(items.map(item => item.badge)).toEqual(['[playlist]', '[playlist]', '[feed]']);
+        const local = [card('folder-__all-songs__', 'folder', { isVirtual: true }), card('folder-x', 'folder')].map(toHomeEntry);
+        expect(projectHomeWallItems(local, { hiddenIds: new Set(), visibilityMode: 'browse', selectedIds: null, isDirect, source: 'local' }, labels)
+            .map(item => item.special ?? null)).toEqual(['all-songs', null]);
+    });
+});
+
+describe('projectHomeShortcuts', () => {
+    const isDirect = (target: LibraryHomeCard) => target.id === 'personal_fm';
+
+    it('lists the special collections that exist, one per kind, in the fixed order', () => {
+        const cards = [
+            card('daily_recommendations', 'daily_recommendations', { name: 'Daily' }),
+            card('rec', 'playlist'),
+            card('personal_fm', 'radio', { name: 'FM' }),
+            card('liked', 'playlist', { name: 'Liked', raw: { isLiked: true } }),
+            card('liked-2', 'playlist', { raw: { isLiked: true } }),
+        ];
+        const shortcuts = projectHomeShortcuts(cards, { source: 'online', hiddenIds: new Set(), isDirect });
+        expect(shortcuts.map(entry => [entry.special, entry.label, entry.itemKey, entry.direct])).toEqual([
+            ['liked', 'Liked', 'card:playlist:liked', false],
+            ['personal-fm', 'FM', 'card:radio:personal_fm', true],
+            ['daily', 'Daily', 'card:daily_recommendations:daily_recommendations', false],
+        ]);
+        expect(projectHomeShortcuts([card('rec', 'playlist'), card('al', 'album')], { source: 'online', hiddenIds: new Set(), isDirect })).toEqual([]);
+    });
+
+    it('leaves out hidden ones and reads the identity per source', () => {
+        const cards = [card('liked', 'playlist', { raw: { isLiked: true } }), card('cloud', 'cloud')];
+        expect(projectHomeShortcuts(cards, { source: 'online', hiddenIds: new Set(['liked']), isDirect }).map(entry => entry.special)).toEqual(['cloud']);
+        const navidrome = [card('__navi_random__', 'playlist', { isVirtual: true }), card('__navi_favorites__', 'playlist', { isVirtual: true })];
+        expect(projectHomeShortcuts(navidrome, { source: 'navidrome', hiddenIds: new Set(), isDirect }).map(entry => entry.special))
+            .toEqual(['navidrome-random', 'navidrome-favorites']);
+        // 同样的卡在本地来源里只算一张「我喜欢」（每种一个）。
+        expect(projectHomeShortcuts(navidrome, { source: 'local', hiddenIds: new Set(), isDirect }).map(entry => entry.special))
+            .toEqual(['local-favorites']);
     });
 });
 

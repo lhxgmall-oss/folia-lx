@@ -16,17 +16,50 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
 // 无关，所以不会来回跳。
 // fb4：账户入口挪出中段、贴在工具格上方（导航区之外的自然高度一段），平台列表往上弹出、绝对定位盖在导航区上，
 // 所以列表开合不再改变任何被量的东西——页签的级别与它无关。
+// 直达入口（特殊集合，二级切换下面隔一道分隔线的一列图标）：与二级切换同在中段的「切换位」（slotRef）里。退让时入口
+// 先于二级切换让位：带标题 + 入口 → 不带标题 + 入口 → 不带标题、入口挪进「⋯」菜单 → 缩成一个字（入口仍在菜单里）→ 在里面滚。
+// 理由：入口是捷径（集合本身在墙上、在别的 section 里都找得到），页签与二级切换是首页唯一的导航，先保住它们的全名。
+// 量的是切换位的两份测量副本（全名二级切换 + 入口、全名二级切换不带入口），所需高度 = 页头副本 + 中段内边距 +
+// （中段内层高 − 此刻切换位高 + 副本高）。切换位只要有二级切换或入口就一直渲染（入口挪走后可能是空的），所以中段内层的
+// 段间距在各级之间不变，算出来的级别与此刻是哪一级无关，不会来回跳。
 
 /** 页头的缩减级别：带标题 + 全名 → 不带标题 + 全名 → 不带标题 + 一个字（页签与激活的二级切换一起缩）。 */
 export type BravaisSeamHeadLevel = 'titled' | 'untitled' | 'short';
 
 export type BravaisSeamTabsFit = {
     level: BravaisSeamHeadLevel;
+    /** 直达入口留在中段（否则挪进「⋯」菜单）。没有入口时无意义。 */
+    shortcuts: boolean;
     /** 此刻的内容也放不下：导航区在里面滚。 */
     overflowing: boolean;
 };
 
-const FITS: BravaisSeamTabsFit = { level: 'titled', overflowing: false };
+const FITS: BravaisSeamTabsFit = { level: 'titled', shortcuts: true, overflowing: false };
+
+/**
+ * 由测量值定级（纯函数）：各级所需高度只看副本，与此刻是哪一级无关。入口先于页签 / 二级切换的缩写让位（见文件头）。
+ * `withShortcuts` / `withoutShortcuts` 是中段内层换成对应切换位副本后的高。
+ */
+export const resolveSeamTabsFit = ({
+    available,
+    pad,
+    titledHead,
+    bareHead,
+    withShortcuts,
+    withoutShortcuts,
+}: {
+    available: number;
+    pad: number;
+    titledHead: number;
+    bareHead: number;
+    withShortcuts: number;
+    withoutShortcuts: number;
+}): Pick<BravaisSeamTabsFit, 'level' | 'shortcuts'> => {
+    if (titledHead + pad + withShortcuts <= available) return { level: 'titled', shortcuts: true };
+    if (bareHead + pad + withShortcuts <= available) return { level: 'untitled', shortcuts: true };
+    if (bareHead + pad + withoutShortcuts <= available) return { level: 'untitled', shortcuts: false };
+    return { level: 'short', shortcuts: false };
+};
 
 /** 元素的上下内边距之和。 */
 const paddingBlock = (element: HTMLElement) => {
@@ -39,10 +72,11 @@ export const useBravaisSeamTabsFit = ({
     headRef,
     middleRef,
     bodyRef,
-    sectionsRef,
+    slotRef,
     titledHeadRef,
     bareHeadRef,
-    fullSectionsRef,
+    fullSlotRef,
+    bareSlotRef,
 }: {
     /** 可伸缩的导航区（flex 剩余空间，溢出时可滚）。 */
     navRef: RefObject<HTMLElement | null>;
@@ -52,14 +86,16 @@ export const useBravaisSeamTabsFit = ({
     middleRef: RefObject<HTMLElement | null>;
     /** 中段里自然高度的内层。 */
     bodyRef: RefObject<HTMLElement | null>;
-    /** 此刻渲染的二级切换（没有时为 null）。 */
-    sectionsRef: RefObject<HTMLElement | null>;
+    /** 此刻渲染的切换位：二级切换 + 直达入口（都没有时为 null）。 */
+    slotRef: RefObject<HTMLElement | null>;
     /** 带标题的全名页头的测量副本。 */
     titledHeadRef: RefObject<HTMLElement | null>;
     /** 不带标题的全名页头的测量副本。 */
     bareHeadRef: RefObject<HTMLElement | null>;
-    /** 全名二级切换的测量副本（容器常在，没有二级切换时是空的）。 */
-    fullSectionsRef: RefObject<HTMLElement | null>;
+    /** 切换位的测量副本：全名二级切换 + 直达入口（容器常在，都没有时是空的）。 */
+    fullSlotRef: RefObject<HTMLElement | null>;
+    /** 切换位的测量副本：全名二级切换、不带直达入口。 */
+    bareSlotRef: RefObject<HTMLElement | null>;
 }): BravaisSeamTabsFit => {
     const [fit, setFit] = useState<BravaisSeamTabsFit>(FITS);
 
@@ -70,19 +106,28 @@ export const useBravaisSeamTabsFit = ({
         const body = bodyRef.current;
         const titledHead = titledHeadRef.current;
         const bareHead = bareHeadRef.current;
-        const fullSections = fullSectionsRef.current;
-        if (!nav || !head || !middle || !body || !titledHead || !bareHead || !fullSections || typeof ResizeObserver === 'undefined') return undefined;
+        const fullSlot = fullSlotRef.current;
+        const bareSlot = bareSlotRef.current;
+        if (!nav || !head || !middle || !body || !titledHead || !bareHead || !fullSlot || !bareSlot || typeof ResizeObserver === 'undefined') return undefined;
         const measure = () => {
             const available = nav.clientHeight + 0.5;
             const pad = paddingBlock(middle);
-            const sections = sectionsRef.current?.offsetHeight ?? 0;
-            // 中段换成全名二级切换后的高。
-            const fullBody = body.offsetHeight - sections + fullSections.offsetHeight;
-            const level: BravaisSeamHeadLevel = titledHead.offsetHeight + pad + fullBody <= available
-                ? 'titled'
-                : bareHead.offsetHeight + pad + fullBody <= available ? 'untitled' : 'short';
+            // 中段内层去掉此刻的切换位，再换成两份副本之一。
+            const rest = body.offsetHeight - (slotRef.current?.offsetHeight ?? 0);
+            const { level, shortcuts } = resolveSeamTabsFit({
+                available,
+                pad,
+                titledHead: titledHead.offsetHeight,
+                bareHead: bareHead.offsetHeight,
+                withShortcuts: rest + fullSlot.offsetHeight,
+                withoutShortcuts: rest + bareSlot.offsetHeight,
+            });
             const overflowing = head.offsetHeight + pad + body.offsetHeight > available;
-            setFit(current => (current.level === level && current.overflowing === overflowing ? current : { level, overflowing }));
+            setFit(current => (
+                current.level === level && current.shortcuts === shortcuts && current.overflowing === overflowing
+                    ? current
+                    : { level, shortcuts, overflowing }
+            ));
         };
         measure();
         const observer = new ResizeObserver(measure);
@@ -91,9 +136,10 @@ export const useBravaisSeamTabsFit = ({
         observer.observe(body);
         observer.observe(titledHead);
         observer.observe(bareHead);
-        observer.observe(fullSections);
+        observer.observe(fullSlot);
+        observer.observe(bareSlot);
         return () => observer.disconnect();
-    }, [bareHeadRef, bodyRef, fullSectionsRef, headRef, middleRef, navRef, sectionsRef, titledHeadRef]);
+    }, [bareHeadRef, bareSlotRef, bodyRef, fullSlotRef, headRef, middleRef, navRef, slotRef, titledHeadRef]);
 
     return fit;
 };

@@ -481,6 +481,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                 onTab={onSeamTab}
                 openList={openList}
                 panel={panelActions}
+                openShortcut={interactions.openShortcut}
             />
             <BravaisStageChrome
                 isDaylight={isDaylight}

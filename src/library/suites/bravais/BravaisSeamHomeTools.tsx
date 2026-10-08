@@ -12,7 +12,8 @@ import {
     Search,
     Settings,
 } from 'lucide-react';
-import type { BravaisHomeSeam, BravaisHomeTool, BravaisHomeToolId } from './bravaisHomeModels';
+import type { BravaisHomeSeam, BravaisHomeShortcut, BravaisHomeTool, BravaisHomeToolId } from './bravaisHomeModels';
+import { BRAVAIS_SPECIAL_ICONS } from './bravaisSpecialIcons';
 import { closeBravaisHomePopover, setBravaisHomeOpenRequest, setBravaisHomePopover, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { bravaisPopMotion } from './bravaisSeamMotion';
@@ -31,6 +32,7 @@ import { bravaisPopMotion } from './bravaisSeamMotion';
 // 账户位加了 position: relative + z-index: 3，工具格（dock）没有层级，菜单的 z-index: 2 只在窄缝这一层里比，于是被账户
 // 入口盖在上面。修法：dock 的层级抬到账户位之上（bravaisHome.css）；菜单两侧比工具格各宽一些、项不折行。
 // 菜单与账户的平台列表互斥：开着哪个记在 bravaisHomeUiStore 的 popover，开一个就收另一个。
+// 直达入口（特殊集合）在窄缝中段放不下时挪进菜单（menuShortcuts）：排在最前，图标 + 全名，与后面的项隔一道分隔线。
 
 const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
     search: Search,
@@ -57,14 +59,22 @@ export const splitHomeTools = (tools: readonly BravaisHomeTool[]) => ({
     app: tools.filter(tool => APP_TOOLS.has(tool.id)),
 });
 
-const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; onExpand: () => void }> = ({ home, compact, onExpand }) => {
+const BravaisSeamHomeTools: React.FC<{
+    home: BravaisHomeSeam;
+    compact: boolean;
+    onExpand: () => void;
+    /** 中段放不下、挪进菜单的直达入口（在中段时为 null）。 */
+    menuShortcuts?: readonly BravaisHomeShortcut[] | null;
+    onOpenShortcut?: (shortcut: BravaisHomeShortcut) => void;
+}> = ({ home, compact, onExpand, menuShortcuts, onOpenShortcut }) => {
     const menuOpen = useBravaisHomeUiStore(state => state.popover === 'menu');
     const dockRef = useRef<HTMLDivElement>(null);
     const moreRef = useRef<HTMLButtonElement>(null);
     const request = useBravaisHomeUiStore(state => state.openRequest);
     const { dock, page, app } = splitHomeTools(home.tools);
     const local = home.menu ?? [];
-    const hasMenu = page.length > 0 || local.length > 0 || app.length > 0;
+    const jumps = menuShortcuts ?? [];
+    const hasMenu = jumps.length > 0 || page.length > 0 || local.length > 0 || app.length > 0;
     const open = menuOpen && hasMenu && !compact;
     const pop = bravaisPopMotion('above', useBravaisReducedTransitions());
 
@@ -134,6 +144,17 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; 
             <AnimatePresence>
                 {open && (
                     <motion.div key="menu" className="bravais-seam-menu is-home" role="menu" aria-label={home.menuLabel} data-bravais-seam-menu {...pop}>
+                        {jumps.map(shortcut => {
+                            const Icon = BRAVAIS_SPECIAL_ICONS[shortcut.special];
+                            return (
+                                <button key={shortcut.special} type="button" role="menuitem" className="is-shortcut"
+                                    data-bravais-seam-action={`shortcut-${shortcut.special}`} data-bravais-shortcut={shortcut.special}
+                                    onClick={() => runItem(() => (onOpenShortcut ? onOpenShortcut(shortcut) : shortcut.open()))}>
+                                    <Icon aria-hidden />{shortcut.label}
+                                </button>
+                            );
+                        })}
+                        {jumps.length > 0 && (page.length > 0 || local.length > 0 || app.length > 0) && <div className="bravais-seam-menu-rule" role="separator" />}
                         {page.map(menuTool)}
                         {local.map(item => (
                             <button key={item.id} type="button" role="menuitem" disabled={item.disabled} data-bravais-seam-action={item.id}
