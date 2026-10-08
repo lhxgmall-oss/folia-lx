@@ -556,8 +556,10 @@
 
 .lattice-poster-badge.is-special > .bravais-badge-icon { width: 12px; height: 12px; flex: none; stroke-width: 2.6; }
 
-/* 直达入口：二级切换（选中态是强调色 + 侧边细线的 tab）下面一道短分隔线，再下面一列只有图标的按钮。按钮带一圈细框、
-   图标用强调色——它们是「打开那张集合」，不是「换这面墙看什么」；全名在 aria-label / title。 */
+/* 直达入口：二级切换（选中态是强调色 + 侧边细线的 tab）下面一道短分隔线，再下面一列只有图标的按钮。图标用强调色——
+   它们是「打开那张集合」，不是「换这面墙看什么」；全名在 aria-label / title。
+   fb9 追加（用户实测）：不要描边。静止时无框（透明边只占位，尺寸不变），悬停只出强调色浅底，键盘焦点用缝里按钮共用的
+   focus-visible 环（.bravais-seam button:focus-visible），书脊形态（is-compact）同一套。 */
 .bravais-seam-shortcuts-rule {
     display: block;
     width: 18px;
@@ -574,19 +576,17 @@
     height: 32px;
     place-items: center;
     padding: 0;
-    border: 1px solid color-mix(in srgb, var(--text-accent, var(--text-primary, #f7f4ee)) 38%, transparent);
+    border: 1px solid transparent;
     border-radius: 10px;
     color: var(--text-accent, var(--text-primary, #f7f4ee));
     background: none;
     cursor: pointer;
-    transition: background-color 140ms ease, border-color 140ms ease;
+    transition: background-color 140ms ease;
 }
 
 .bravais-seam-home span.bravais-seam-shortcut { cursor: default; }
 .bravais-seam-home .bravais-seam-shortcut svg { width: 15px; height: 15px; }
-.bravais-seam-home button.bravais-seam-shortcut:hover,
-.bravais-seam-home button.bravais-seam-shortcut:focus-visible {
-    border-color: var(--text-accent, var(--text-primary, #f7f4ee));
+.bravais-seam-home button.bravais-seam-shortcut:hover {
     background: color-mix(in srgb, var(--text-accent, var(--text-primary, #f7f4ee)) 14%, transparent);
 }
 
