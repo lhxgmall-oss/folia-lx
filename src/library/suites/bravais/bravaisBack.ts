@@ -5,6 +5,12 @@
 //   否则是这一层的「完成」（onDone：翻牌、N1 折叠往返都由宿主的同一条路径处理）；
 // - 首页根层（缝里没有 ‹）：有正在播放 / 已加载的歌才回播放页，没有就不显示这颗按钮（null）。
 
+/**
+ * 「有没有可回的播放页」：有正在播放 / 已加载的歌（usePlaybackStore.currentSong）。左上角返回与首页「⋯」里的「回到播放页」
+ * 都按它显示 / 隐藏（fb8：「⋯」里的那项原来总是显示，没有歌时点它进的是空的播放页）。
+ */
+export const selectBravaisHasCurrentSong = (state: { currentSong: unknown }): boolean => state.currentSong !== null;
+
 export type BravaisBackStep = 'panel' | 'form' | 'layer' | 'player';
 
 export const resolveBravaisBackStep = ({

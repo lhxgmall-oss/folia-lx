@@ -793,6 +793,13 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
         // 工具格固定的几格（探针没有队列入口）；本页签的与 app 级的入口都在「⋯」里，本页签的在前、分隔线、app 级的在后。
         expect(layout.tools.map(tool => tool.id)).toEqual(['search', 'settings', 'more']);
+        // 「回到播放页」只在有当前歌曲时出现（与左上角返回同一个判断，selectBravaisHasCurrentSong）：探针起始没有歌。
+        await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
+        await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
+        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden']);
+        await page.keyboard.press('Escape');
+        await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
         await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
         expect(await menuItems(page)).toEqual(['filter', 'manage-hidden', 'rule', 'player']);
@@ -874,7 +881,8 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             expect(layout.sections[i].top).toBeGreaterThanOrEqual(layout.sections[i - 1].bottom - 0.5);
             expect(Math.abs((layout.sections[i].left + layout.sections[i].right) - (layout.sections[0].left + layout.sections[0].right))).toBeLessThanOrEqual(2);
         }
-        // 本地页签的「⋯」：目录与导入等在分隔线前，app 级的在后。
+        // 本地页签的「⋯」：目录与导入等在分隔线前，app 级的在后（有当前歌曲才有「回到播放页」）。
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
         await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
         const items = await menuItems(page);
         expect(items.indexOf('directory')).toBeGreaterThanOrEqual(0);
@@ -894,7 +902,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
         await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
-        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden', 'rule', 'player']);
+        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden']);
         await page.keyboard.press('Escape');
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
@@ -1164,5 +1172,27 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         const alpha = /rgba?\(([^)]+)\)/.exec(background)?.[1].split(/[ ,/]+/).filter(Boolean)[3];
         expect(alpha === undefined || Number(alpha) === 1).toBe(true);
         expect(await menu.evaluate(node => getComputedStyle(node).boxShadow)).not.toBe('none');
+    });
+    // fb8：「⋯」里的「回到播放页」与左上角返回同一个判断——没有当前歌曲时不显示（点了会进空的播放页），有了才出现、点了回播放页。
+    test('the more menu offers back to the player only while a song is loaded', async ({ page }) => {
+        const more = seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]');
+        const menu = seam(page).locator('[data-bravais-seam-menu]');
+        const player = menu.locator('[data-bravais-seam-action="player"]');
+        await more.click();
+        await expect(menu).toBeVisible();
+        await expect(player).toHaveCount(0);
+        await expect(menu.locator('[role="separator"]')).toHaveCount(0);
+        // 菜单开着时歌加载进来：那一项（与分隔线）出现。
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
+        await expect(player).toBeVisible();
+        await expect(player).toHaveText('Back to the player');
+        await page.evaluate(() => window.__homeProbe!.clearLog());
+        await player.click();
+        await expect.poll(() => calls(page, 'backToPlayer')).toHaveLength(1);
+        // 歌没了：又不显示。
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying(null));
+        await more.click();
+        await expect(menu).toBeVisible();
+        await expect(player).toHaveCount(0);
     });
 });

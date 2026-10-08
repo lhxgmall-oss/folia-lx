@@ -8,6 +8,8 @@ import type { BravaisHomeSearch, BravaisHomeTool } from './bravaisHomeModels';
 import { cycleHomeTab } from './bravaisHomeProjection';
 import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
+import { selectBravaisHasCurrentSong } from './bravaisBack';
+import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 
 // src/library/suites/bravais/useBravaisHomeChrome.ts
 // 首页缝里与来源无关的那一部分（设计稿 §10.5）：五个一级页签与 F6 的循环、全局搜索框（提交走 onSearchCommitted
@@ -92,7 +94,9 @@ export const useBravaisHomeChrome = ({
     const hasLattice = Boolean(onOpenLattice);
     const hasStage = Boolean(onOpenStagePlayer && stageEnabled);
     const hasSettings = Boolean(onOpenSettings);
-    const hasPlayer = Boolean(onBackToPlayer);
+    // 「回到播放页」与左上角返回同一个判断：有当前歌曲才显示（没有歌时去的是空的播放页）。
+    const hasCurrentSong = usePlaybackStore(selectBravaisHasCurrentSong);
+    const hasPlayer = Boolean(onBackToPlayer) && hasCurrentSong;
     const appTools = useMemo<BravaisHomeTool[]>(() => {
         const tools: BravaisHomeTool[] = [];
         if (hasLattice) tools.push({ id: 'queue', label: t('home.lattice'), run: () => latest.current.props.onOpenLattice?.() });
