@@ -95,8 +95,8 @@ test.describe('[bravais-only] special collections', () => {
             await expect(badge(itemKey)).toHaveClass(/\bis-special\b/);
             await expect(badge(itemKey)).toHaveAttribute('data-bravais-special', special);
             await expect(badge(itemKey).locator('svg')).toHaveCount(1);
-            // 文字仍是种类。
-            await expect(badge(itemKey)).toHaveText(text);
+            // 文字仍是种类；集合的曲目数已知时带在后面（「Playlist · 12」，设计稿 §7.7）。
+            await expect(badge(itemKey)).toHaveText(new RegExp(`^${text}( · \\d+)?$`));
         };
         const expectPlain = async (itemKey: string) => {
             await expect(card(page, itemKey)).not.toHaveAttribute('data-bravais-special', /.*/);
@@ -107,32 +107,32 @@ test.describe('[bravais-only] special collections', () => {
         await expectSpecial('card:playlist:public', 'liked', 'Playlist');
         await expectSpecial('card:cloud:cloud', 'cloud', 'Playlist');
         await expectPlain('card:playlist:owned');
-        // 强调色底、在叠色层之上：与普通标签的底色不同。
+        // 强调色底：与普通标签的底色不同；层级与普通标签相同（2026-10-09 起叠色与熄灯一律盖住集合的标记）。
         const look = (itemKey: string) => badge(itemKey).evaluate(node => ({ background: getComputedStyle(node).backgroundColor, z: getComputedStyle(node).zIndex }));
         const special = await look('card:playlist:public');
         const plain = await look('card:playlist:owned');
         expect(special.background).not.toBe(plain.background);
-        expect(special.z).toBe('4');
+        expect(special.z).toBe('auto');
 
-        // 种类区分（设计稿 §7.7）：歌单类的特殊卡照样有书脊，标签右移让开它。
-        await expect(card(page, 'card:playlist:public')).toHaveAttribute('data-bravais-form', 'spine');
-        expect(await badge('card:playlist:public').evaluate(node => getComputedStyle(node).left)).toBe('30px');
+        // 种类区分（设计稿 §7.7）：歌单类的特殊卡照样是集合（叠页边），标签在普通位置。
+        await expect(card(page, 'card:playlist:public')).toHaveAttribute('data-bravais-form', 'stack');
+        expect(await badge('card:playlist:public').evaluate(node => getComputedStyle(node).left)).toBe('14px');
 
         await showTab(page, 'radio');
         await expectSpecial('card:radio:personal_fm', 'personal-fm', 'Radio');
         await expectSpecial('card:daily_recommendations:daily_recommendations', 'daily', 'Radio');
         await expectPlain(`card:playlist:rec-${PROBE_PROVIDER_A}-0`);
-        // 私人 FM 是直接播放的电台流，没有书脊；每日推荐是一张曲目表，有书脊。
+        // 私人 FM 是直接播放的电台流，不是集合；每日推荐是一张曲目表，是集合。
         await expect(card(page, 'card:radio:personal_fm')).not.toHaveAttribute('data-bravais-form', /.*/);
-        await expect(card(page, 'card:daily_recommendations:daily_recommendations')).toHaveAttribute('data-bravais-form', 'spine');
+        await expect(card(page, 'card:daily_recommendations:daily_recommendations')).toHaveAttribute('data-bravais-form', 'stack');
 
         await showTab(page, 'local');
         await expectSpecial(`card:folder:${HOME_ALL_SONGS_ID}`, 'all-songs', 'Folder');
         await expectPlain('card:folder:folder-Extra');
-        // 文件夹是集合：书脊上写曲目数（副标题不再重复）。
+        // 文件夹是集合：曲目数写进类型标签（副标题不再重复）。
         const allSongs = card(page, `card:folder:${HOME_ALL_SONGS_ID}`);
-        await expect(allSongs).toHaveAttribute('data-bravais-form', 'spine');
-        await expect(allSongs.locator('.bravais-tile-spine')).toHaveText(`${HOME_LOCAL_SONGS.length} tracks`);
+        await expect(allSongs).toHaveAttribute('data-bravais-form', 'stack');
+        await expect(allSongs.locator('.lattice-poster-badge')).toHaveText(`Folder · ${HOME_LOCAL_SONGS.length}`);
         await expect(allSongs.locator('.lattice-poster-copy small')).not.toContainText('tracks');
     });
 

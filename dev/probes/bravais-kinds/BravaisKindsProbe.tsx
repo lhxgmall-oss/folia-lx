@@ -17,6 +17,7 @@ import { buildKindsItems, KINDS_DEFAULT_CURRENT, loadKindsCovers, type KindsCove
 //   theme=midnight|daylight|vivid  主题（午夜墨染 / 日光素白 / 一套彩色强调色的暗色主题）
 //   look=solid|partial|clear       透光三档（写 useLibraryWallLookStore 的内存值，不写存储）
 //   lights=on|off  tint=on|off     熄灯、海报叠色（写 useLatticeSettingsStore 的内存值）
+//   edges=on|off                   集合叠页边（设置「集合叠页边」，写 useLibraryWallLookStore 的内存值；默认开）
 //   current=<条目 key>|none        正在播放的那一项（默认第 2 首歌；给歌手 / 专辑的 key 可以强行让它挂 is-current）
 //   mix=mixed|artists              混排，或整面墙只有歌手（双色调开销的最坏情况）
 // 自动化入口 window.__bravaisKindsProbe：ready() 封面画好、层已登记。
@@ -28,6 +29,7 @@ export type BravaisKindsProbeProps = {
     look?: LibraryWallLook;
     lights?: 'on' | 'off';
     tint?: 'on' | 'off';
+    edges?: 'on' | 'off';
     current?: string;
     mix?: 'mixed' | 'artists';
     /** 再加一位歌手、头像是这个地址（只从 props 给）。 */
@@ -70,6 +72,7 @@ const readParams = (props: BravaisKindsProbeProps): Required<BravaisKindsProbePr
         look: pick('look', ['solid', 'partial', 'clear'] as const, 'solid'),
         lights: pick('lights', ['on', 'off'] as const, 'on'),
         tint: pick('tint', ['on', 'off'] as const, 'off'),
+        edges: pick('edges', ['on', 'off'] as const, 'on'),
         current: props.current ?? params.get('current') ?? KINDS_DEFAULT_CURRENT,
         mix: pick('mix', ['mixed', 'artists'] as const, 'mixed'),
         extraArtistCover: props.extraArtistCover ?? '',
@@ -127,8 +130,8 @@ const BravaisKindsProbe: React.FC<BravaisKindsProbeProps> = (props) => {
 
     // 外观偏好只写 store 的内存值（不经 setter，不写 localStorage）。
     useEffect(() => {
-        useLibraryWallLookStore.setState({ look: options.look });
-    }, [options.look]);
+        useLibraryWallLookStore.setState({ look: options.look, collectionStackEdges: options.edges === 'on' });
+    }, [options.edges, options.look]);
     useEffect(() => {
         useLatticeSettingsStore.setState({ latticeLightsOn: options.lights === 'on', latticePosterTintEnabled: options.tint === 'on' });
     }, [options.lights, options.tint]);

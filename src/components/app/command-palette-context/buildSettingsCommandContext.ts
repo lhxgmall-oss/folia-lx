@@ -96,6 +96,10 @@ export const buildSettingsCommandContext = (
         setLibraryWallLook: look => useLibraryWallLookStore.getState().setLook(look),
         libraryWallWindowsPerBlock: () => useLibraryWallLookStore.getState().windowsPerBlock,
         setLibraryWallWindowsPerBlock: windowsPerBlock => useLibraryWallLookStore.getState().setWindowsPerBlock(windowsPerBlock),
+        toggleLibraryWallStackEdges: () => {
+            const wall = useLibraryWallLookStore.getState();
+            wall.setCollectionStackEdges(!wall.collectionStackEdges);
+        },
         ponderHintVisibility: ponder.ponderHintVisibility,
         setPonderHintVisibility: ponder.setPonderHintVisibility,
         togglePonderTouchButton: () => {

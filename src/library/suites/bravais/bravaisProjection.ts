@@ -1,7 +1,7 @@
 import type { SongResult } from '../../../types';
 import type { LibraryHomeCard } from '../../core/contracts/homeModel';
 import type { BravaisItem, BravaisItemKind } from './bravaisLayer';
-import { resolveBravaisTileForm, resolveSpineTrackCount } from './bravaisTileForm';
+import { formatCollectionBadge, resolveBravaisTileForm, resolveCollectionTrackCount } from './bravaisTileForm';
 
 // src/library/suites/bravais/bravaisProjection.ts
 // core 数据 → 磁贴条目（BravaisItem）的纯投影，surface 用它们拼层描述。曲目的展示字段（歌手、封面、时长、
@@ -30,8 +30,9 @@ export type HomeCardLabels = {
 };
 
 /**
- * 一张首页卡片 → 磁贴条目（首页 surface 与性能探针共用）。画书脊的集合（resolveBravaisTileForm）把曲目数写在书脊上
- * （trackCountLabel），副标题只留描述；其余的曲目数仍拼在副标题前面。direct：点了直接播放（私人 FM），不画书脊。
+ * 一张首页卡片 → 磁贴条目（首页 surface 与性能探针共用）。集合（resolveBravaisTileForm 判为 stack）的曲目数并进类型标签
+ * （「歌单 · 124」），可访问名里另有「N 首」（trackCountLabel），副标题只留描述；其余的曲目数仍拼在副标题前面。
+ * direct：点了直接播放（私人 FM），不是集合。
  */
 export const projectHomeCardItem = (
     card: LibraryHomeCard,
@@ -39,17 +40,17 @@ export const projectHomeCardItem = (
     { key = homeCardItemKey(card), direct = false }: { key?: string; direct?: boolean } = {},
 ): BravaisItem => {
     const kind = homeCardKind(card.type);
-    const spineCount = resolveSpineTrackCount(resolveBravaisTileForm({ kind, direct }), card.trackCount, labels.trackCount);
-    const count = !spineCount && typeof card.trackCount === 'number' && card.trackCount > 0 ? labels.trackCount(card.trackCount) : '';
+    const collectionCount = resolveCollectionTrackCount(resolveBravaisTileForm({ kind, direct }), card.trackCount);
+    const count = collectionCount === undefined && typeof card.trackCount === 'number' && card.trackCount > 0 ? labels.trackCount(card.trackCount) : '';
     const item: BravaisItem = {
         key,
         kind,
         title: card.name,
         subtitle: [count, card.description].filter(Boolean).join(' · '),
         coverUrl: card.coverUrl,
-        badge: labels.kindLabel(kind),
+        badge: formatCollectionBadge(labels.kindLabel(kind), collectionCount),
     };
-    if (spineCount) item.trackCountLabel = spineCount;
+    if (collectionCount !== undefined) item.trackCountLabel = labels.trackCount(collectionCount);
     return item;
 };
 

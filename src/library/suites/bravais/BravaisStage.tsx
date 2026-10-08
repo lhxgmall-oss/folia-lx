@@ -5,6 +5,7 @@ import { FLIP_MAX_TILES } from '../../../components/wall/flipPlan';
 import { useDevicePixelRatio } from '../../../hooks/useMediaQuery';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
+import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import type { LibrarySuiteStageProps } from '../../core/contracts/suite';
 import { BRAVAIS_METRICS, BRAVAIS_OVERSCAN, BRAVAIS_SEAM_ACRYLIC_BLUR } from './bravaisConstants';
 import { BRAVAIS_REFLOW_EASING_CSS, BRAVAIS_REFLOW_MS } from './bravaisReflowMotion';
@@ -63,6 +64,7 @@ import './bravaisHandoff.css';
 // 实测反馈 1：灯光（is-lights-out）与叠色同 Lattice 一样读 useLatticeSettingsStore（一套墙面外观设置）；左上角隐藏式返回
 // 与右下角工具按钮在 BravaisStageChrome，与 Lattice 共用 components/wall 的同一套控件。左上角返回的去处（bravaisBack）：
 // 不在首页根层时与缝里的 ‹ 同一个返回，首页根层有歌时回到播放页、没有歌时不画。
+// 2026-10-09：叠色与熄灯也作用到缝（bravaisAppearance.css）；集合的叠页边由根节点的 has-stack-edges 打开（设置可关）。
 // 实测反馈 fb3：宿主的播放开关与「进入播放视图」交给聚焦卡（正在播放的那首：暂停 / 继续 + 进入）；从墙上播放后那首的
 // 聚焦卡在回来 / 返回这一层时重新展开（useBravaisPlayingCard）。
 // 翻牌交接（设计稿 §7「进入队列」）：进 / 出 Lattice 时这面墙与 Lattice 叠着换内容（useBravaisWallHandoff）。交接期间
@@ -115,6 +117,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const tintCustom = useLatticeSettingsStore(state => state.latticePosterTintUseCustomColor);
     const tintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
     const tintIntensity = useLatticeSettingsStore(state => state.latticePosterTintIntensity);
+    const stackEdges = useLibraryWallLookStore(state => state.collectionStackEdges);
 
     // 当前层：首页时是首页层，集合层打开时是顶层；顶层还没到（lazy、交接、回退给 grid）时沿用上一次画的层。
     const home = useBravaisStageStore(state => state.home);
@@ -395,6 +398,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         lightsOn ? '' : 'is-lights-out',
         tintEnabled ? 'has-poster-tint' : '',
         tintCustom ? 'uses-custom-poster-tint' : '',
+        stackEdges ? 'has-stack-edges' : '',
         layer?.wall?.loading ? 'is-loading' : '',
         seeThrough ? 'is-see-through' : '',
         seeThrough && BRAVAIS_SEAM_ACRYLIC_BLUR ? 'has-seam-blur' : '',

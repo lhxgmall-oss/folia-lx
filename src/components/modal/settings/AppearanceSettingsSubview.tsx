@@ -36,6 +36,7 @@ import { useTypographySettingsStore } from '../../../stores/useTypographySetting
 import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
+import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 
 // src/components/modal/settings/AppearanceSettingsSubview.tsx
 // Visual settings subview for theme presets, lyric renderer entry, layout settings, and configurations import/export.
@@ -594,6 +595,10 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (has('stageTrackPillOnHome')) {
                 onToggleStageTrackPillOnHome(Boolean(config.stageTrackPillOnHome));
+            }
+            // bravais 的集合叠页边（界面设置的「Bravais 墙面」分组里那个开关的同一个 setter）。
+            if (has('libraryWallStackEdges')) {
+                useLibraryWallLookStore.getState().setCollectionStackEdges(Boolean(config.libraryWallStackEdges));
             }
 
             setStatusMessage({ type: 'success', text: t('options.importSuccess') });

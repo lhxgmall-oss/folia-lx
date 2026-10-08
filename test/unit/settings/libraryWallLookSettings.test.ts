@@ -4,9 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/settings/libraryWallLookSettings.test.ts
-// 「资料库界面」分区里的透光设置（B6b②）：只在生效 suite 是 bravais 时渲染；三档单选，部分透明时才出现
-// 1–6 档的每块窗数（带百分比）；点击写进 useLibraryWallLookStore。谓词本身在 bravaisLibraryActive.test 里测，
-// 这里用替身控制它；文案用 key 原样输出。
+// 界面设置「Bravais 墙面」分组（BravaisSettingsSection）与其中的透光设置（B6b②）：整组只在生效 suite 是 bravais 时渲染；
+// 透光三档单选，部分透明时才出现 1–6 档的每块窗数（带百分比）；集合叠页边是一个开关（默认开）；点击都写进
+// useLibraryWallLookStore。谓词本身在 bravaisLibraryActive.test 里测，这里用替身控制它；文案用 key 原样输出。
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -45,8 +45,15 @@ afterEach(async () => {
     vi.unstubAllGlobals();
     gate.isBravaisActive = false;
     const { useLibraryWallLookStore } = await import('@/stores/useLibraryWallLookStore');
-    useLibraryWallLookStore.setState({ look: 'partial', windowsPerBlock: 3 });
+    useLibraryWallLookStore.setState({ look: 'partial', windowsPerBlock: 3, collectionStackEdges: true });
 });
+
+const renderGroup = async () => {
+    const { default: BravaisSettingsSection } = await import('@/components/modal/settings/BravaisSettingsSection');
+    act(() => {
+        root.render(createElement(BravaisSettingsSection, { isDaylight: false, settingsCardClass: '' }));
+    });
+};
 
 const render = async () => {
     const { default: LibraryWallLookSettings } = await import('@/components/modal/settings/LibraryWallLookSettings');
@@ -58,14 +65,43 @@ const render = async () => {
 const lookButtons = () => [...container.querySelectorAll<HTMLButtonElement>('[data-library-wall-look]')];
 const windowButtons = () => [...container.querySelectorAll<HTMLButtonElement>('[data-library-wall-windows]')];
 
-describe('LibraryWallLookSettings', () => {
+describe('BravaisSettingsSection', () => {
     it('renders nothing unless bravais is the effective suite', async () => {
         gate.isBravaisActive = false;
-        await render();
+        await renderGroup();
 
         expect(container.innerHTML).toBe('');
     });
 
+    it('groups the transparency, the windows per block and the stack edges under one heading', async () => {
+        gate.isBravaisActive = true;
+        await renderGroup();
+
+        expect(container.querySelector('h3')?.textContent).toContain('options.bravaisSettings');
+        expect(container.querySelector('[data-bravais-settings]')).not.toBeNull();
+        expect(lookButtons()).toHaveLength(3);
+        expect(windowButtons()).toHaveLength(6);
+        expect(container.querySelector('[data-bravais-stack-edges-toggle]')).not.toBeNull();
+    });
+
+    it('turns the collection stack edges off and on again', async () => {
+        gate.isBravaisActive = true;
+        await renderGroup();
+        const { useLibraryWallLookStore } = await import('@/stores/useLibraryWallLookStore');
+        const toggle = () => container.querySelector<HTMLButtonElement>('[data-bravais-stack-edges-toggle]')!;
+
+        expect(toggle().getAttribute('aria-checked')).toBe('true');
+        act(() => toggle().click());
+        expect(useLibraryWallLookStore.getState().collectionStackEdges).toBe(false);
+        expect(storage.get('library_wall_stack_edges')).toBe('false');
+        expect(toggle().getAttribute('aria-checked')).toBe('false');
+        act(() => toggle().click());
+        expect(useLibraryWallLookStore.getState().collectionStackEdges).toBe(true);
+        expect(storage.get('library_wall_stack_edges')).toBe('true');
+    });
+});
+
+describe('LibraryWallLookSettings', () => {
     it('shows the three looks with the stored one checked, and the window counts under partial', async () => {
         gate.isBravaisActive = true;
         await render();
