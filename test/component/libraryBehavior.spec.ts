@@ -1711,7 +1711,8 @@ test.describe('[bravais-only] collection page', () => {
     test('typing on the spine opens the seam to the full strip for the input, and it folds back once the input ends', async ({ mount, page }) => {
         await openPublic(mount, page);
         const seam = page.locator('[data-library-stage="bravais"] [data-bravais-seam]');
-        await page.locator('[data-bravais-seam-action="spine"]').click();
+        // fb10：点标题区域收成书脊（原来是面包屑行右侧的「收起」）。
+        await page.locator('[data-library-stage="bravais"] .bravais-seam-full .bravais-seam-title-area').click();
         await expect(seam).toHaveAttribute('data-bravais-seam', 'spine');
         await pressOnGrid(page, 'a');
         // 书脊上没有输入框：这一下先追加进过滤词，缝临时展开成完整信息条，输入位挂上后拿焦点（光标在末尾）。
@@ -1842,7 +1843,7 @@ test.describe('[bravais-only] collection page', () => {
         expect(await description(page).evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true);
         await expectSeamButtonsInView(page);
 
-        await page.locator('[data-bravais-seam-action="spine"]').click();
+        await page.locator('[data-library-stage="bravais"] .bravais-seam-full .bravais-seam-title-area').click();
         await expect(page.locator('[data-library-stage="bravais"] .bravais-seam-spine')).toBeVisible();
         await expect(description(page)).toHaveCount(0);
     });
@@ -1877,8 +1878,8 @@ test.describe('[bravais-only] collection page', () => {
             lineHeight: parseFloat(getComputedStyle(element).lineHeight),
         }));
         expect(collapsed.scroll).toBeGreaterThan(collapsed.client);
-        // 收起时 4 行。
-        expect(collapsed.client).toBeLessThanOrEqual(Math.ceil(collapsed.lineHeight * 4) + 1);
+        // 收起时 6 行（fb10：星标挪进按钮行，让出来的两行给了描述）；矮视口里与竖排标题一起让位，可能更少。
+        expect(collapsed.client).toBeLessThanOrEqual(Math.ceil(collapsed.lineHeight * 6) + 1);
         await expectSeamButtonsInView(page);
 
         await text.click();
@@ -1898,6 +1899,126 @@ test.describe('[bravais-only] collection page', () => {
         await text.click();
         await expect(text).toHaveAttribute('data-bravais-collection-description', 'collapsed');
         expect(await text.evaluate(element => element.clientHeight)).toBe(collapsed.client);
+    });
+
+    // fb10（用户实测「面包屑被截得很短」）：面包屑行只剩 ‹ 与面包屑，「收起」改成点标题区域、「折叠」挪进「⋯ 更多」。
+    const seamOf = (page: Page) => page.locator('[data-library-stage="bravais"] [data-bravais-seam]');
+    const titleArea = (page: Page) => seamOf(page).locator('.bravais-seam-full .bravais-seam-title-area');
+    const spineTitle = (page: Page) => seamOf(page).locator('.bravais-seam-spine [data-bravais-seam-title]');
+    const noFlips = (page: Page) => expect(seamOf(page).locator('[data-bravais-seam-flip]')).toHaveCount(0);
+
+    test('the crumb row keeps only back and the crumbs, which take the whole row', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const row = seamOf(page).locator('.bravais-seam-full .bravais-seam-crumbs');
+        await expect(row.locator('[data-bravais-seam-action="spine"], [data-bravais-seam-action="hide"], .bravais-seam-level')).toHaveCount(0);
+        const rowBox = await boxOf(page, '.bravais-seam-full .bravais-seam-crumbs');
+        const back = await boxOf(page, '.bravais-seam-full .bravais-seam-crumbs [data-bravais-seam-action="back"]');
+        const trail = await boxOf(page, '.bravais-seam-full [data-bravais-crumbs]');
+        // ‹ 之后的整行都是面包屑（间距 6px）；原来右侧两个文字按钮占掉近一半。
+        expect(trail.width).toBeGreaterThanOrEqual(rowBox.width - back.width - 6 - 1);
+        expect(trail.width).toBeGreaterThan(200);
+        // 根（书库）不截断，当前层的名字完整放得下。
+        const root = row.locator('[data-bravais-crumb="root"]');
+        expect(await root.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+        const current = row.locator('[data-bravais-crumb="current"]');
+        await expect(current).toHaveText(PUBLIC.name);
+        expect(await current.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+    });
+
+    test('clicking the title area collapses the strip to the spine; clicking the spine title opens it again', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = seamOf(page);
+        const area = titleArea(page);
+        // 可感知：原生按钮、读屏名与悬停提示是「收起信息条」，标题文字作为描述读得到；指针是手形，悬停有浅底。
+        await expect(area).toHaveJSProperty('tagName', 'BUTTON');
+        await expect(area).toHaveAccessibleName('Collapse the info strip');
+        await expect(area).toHaveAttribute('title', 'Collapse the info strip');
+        await expect(area).toHaveAccessibleDescription(PUBLIC.name);
+        await expect(area).toHaveCSS('cursor', 'pointer');
+        // 引号与竖排标题都在这个按钮里。
+        await expect(area.locator('.bravais-seam-quote')).toHaveCount(2);
+        await expect(area.locator('[data-bravais-seam-title]')).toHaveText(PUBLIC.name);
+        const restBackground = await area.evaluate(node => getComputedStyle(node).backgroundColor);
+        await area.hover();
+        await expect.poll(() => area.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe(restBackground);
+
+        // 点引号（标题区域的一角）也算。
+        await area.locator('.bravais-seam-quote').first().click();
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'spine');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'spine');
+        await noFlips(page);
+        await expect(spineTitle(page)).toHaveAccessibleName('Expand the info strip');
+        await expect(spineTitle(page)).toHaveAccessibleDescription(PUBLIC.name);
+
+        await spineTitle(page).click();
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+        await noFlips(page);
+        expect(await stack(page)).toEqual(['Public Playlist']);
+    });
+
+    test('dragging across the title does not toggle the strip', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = seamOf(page);
+        const box = await boxOf(page, '.bravais-seam-full [data-bravais-seam-title]');
+        const x = box.x + box.width / 2;
+        await page.mouse.move(x, box.y + 10);
+        await page.mouse.down();
+        await page.mouse.move(x + 2, box.y + 30, { steps: 3 });
+        await page.mouse.move(x + 6, box.y + 60, { steps: 4 });
+        await page.mouse.up();
+        await page.waitForTimeout(400);
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+        // 原地点一下照常收起。
+        await page.mouse.click(x, box.y + 30);
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'spine');
+    });
+
+    test('folding moved into the more menu, last, and the edge tab brings the strip back', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = seamOf(page);
+        await seam.locator('.bravais-seam-full [data-bravais-seam-action="more"]').click();
+        const menu = seam.locator('[data-bravais-seam-menu]');
+        await expect(menu).toBeVisible();
+        const fold = menu.locator('[data-bravais-seam-action="hide"]');
+        await expect(fold).toHaveAccessibleName('Fold the info strip');
+        await expect(fold).toHaveAttribute('role', 'menuitem');
+        // 它是菜单的最后一项，与集合动作之间一道分隔线。
+        expect(await menu.locator('[role="menuitem"]').last().getAttribute('data-bravais-seam-action')).toBe('hide');
+        await expect(menu.locator('[role="separator"]')).toHaveCount(1);
+        await fold.click();
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'hidden');
+        const tab = page.locator('.bravais-seam-tab[data-bravais-seam-tab="hidden"]');
+        await expect(tab).toBeVisible();
+        await tab.click();
+        // 恢复到折叠前的等级（完整信息条）。
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+    });
+
+    test('the star sits at the end of the play / enqueue row instead of a row of its own', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const row = seamOf(page).locator('.bravais-seam-full .bravais-seam-actions.is-scope');
+        const star = row.locator('[data-bravais-seam-action="subscribe"]');
+        await expect(star).toBeVisible();
+        await expect(star).toHaveAccessibleName('Subscribe Playlist');
+        await expect(star).toHaveAttribute('aria-pressed', 'false');
+        // 同一行：与「播放全部」竖直方向重叠；靠右（这一行的最后一个，右边缘贴着行尾）。
+        const play = await boxOf(page, '.bravais-seam-full [data-bravais-seam-action="play-scope"]');
+        const starBox = await boxOf(page, '.bravais-seam-full [data-bravais-seam-action="subscribe"]');
+        const rowBox = await boxOf(page, '.bravais-seam-full .bravais-seam-actions.is-scope');
+        expect(starBox.y).toBeLessThan(play.y + play.height);
+        expect(starBox.y + starBox.height).toBeGreaterThan(play.y);
+        expect(starBox.x).toBeGreaterThan(play.x + play.width);
+        expect(Math.abs(starBox.x + starBox.width - (rowBox.x + rowBox.width))).toBeLessThanOrEqual(1);
+        expect(rowBox.height).toBeLessThanOrEqual(Math.max(play.height, starBox.height) + 1);
+        // 行为不变：按下去发上游请求，按下状态翻转。
+        await clearLog(page);
+        await star.click();
+        await expect.poll(() => requests(page, 'subscribePlaylist')).toHaveLength(1);
+        await expect(star).toHaveAttribute('aria-pressed', 'true');
+        await expect(star).toHaveAccessibleName('Unsubscribe Playlist');
     });
 });
 

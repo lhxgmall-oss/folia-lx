@@ -189,4 +189,39 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         await page.keyboard.press('Shift+Tab');
         expect(await focusArea(page)).toBe('wall');
     });
+
+    // fb10：「收起」改成点标题区域。它是缝里方向键序列里的一个按钮（‹、面包屑之后）；Enter / Space 切换，
+    // 缝整条翻完焦点交给新内容里的标题，再按一次切回去。
+    test('collection: the title area is in the arrow sequence, Enter / Space toggle full and spine and the focus follows', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        await page.locator('.bravais-field').focus();
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('Enter');
+        await expect.poll(() => stack(page)).toHaveLength(1);
+        await expect(page.locator('.bravais-tile[data-library-card]')).toHaveCount(0, { timeout: 10_000 });
+        await settled(page);
+        const seam = stage(page).locator('[data-bravais-seam]');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+
+        await page.keyboard.press('Tab');
+        expect(await focusedName(page)).toBe('action:back');
+        for (let press = 0; press < 6 && await focusedName(page) !== 'action:spine'; press++) await page.keyboard.press('ArrowDown');
+        expect(await focusedName(page)).toBe('action:spine');
+
+        await page.keyboard.press('Enter');
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'spine');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'spine');
+        await expect.poll(() => focusedName(page)).toBe('action:expand');
+        expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-bravais-seam-title') ?? false)).toBe(true);
+
+        await page.keyboard.press('Space');
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
+        await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+        await expect.poll(() => focusedName(page)).toBe('action:spine');
+        expect(await stack(page)).toHaveLength(1);
+
+        // 两站规则不变：Tab 回墙。
+        await page.keyboard.press('Tab');
+        expect(await focusArea(page)).toBe('wall');
+    });
 });

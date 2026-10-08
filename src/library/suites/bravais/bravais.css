@@ -342,6 +342,36 @@
 .bravais-seam-quote { font-size: 28px; line-height: 0.6; opacity: 0.35; text-align: right; }
 .bravais-seam-quote.is-closing { text-align: left; }
 
+/* fb10：标题区域（引号 + 竖排大标题）整块是「收起信息条」按钮（BravaisSeamTitle）。排版与原来三块直接排在信息条里
+ * 一样（同一个 14px 间距、一起让位）；四周外扩 6 / 10px 的内边距再用负外边距抵掉，悬停时那一圈浅底不挤动别的内容。
+ * 悬停：浅底 + 引号变深一点；没有过渡之外的动效（换形态由缝整条翻）。 */
+.bravais-seam .bravais-seam-title-area {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 14px;
+    margin: -6px -10px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 14px;
+    color: inherit;
+    text-align: inherit;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 140ms ease;
+}
+
+.bravais-seam .bravais-seam-title-area:hover { background: color-mix(in srgb, currentColor 6%, transparent); }
+.bravais-seam-title-area .bravais-seam-quote { transition: opacity 140ms ease; }
+.bravais-seam-title-area:hover .bravais-seam-quote { opacity: 0.6; }
+.bravais-seam .bravais-seam-vtitle.is-button { border-radius: 8px; transition: background-color 140ms ease, box-shadow 140ms ease; }
+/* 书脊上的竖排标题（「展开信息条」）：同一种浅底，用外扩的阴影铺开一圈，不改书脊的排版。 */
+.bravais-seam .bravais-seam-vtitle.is-button:hover {
+    background: color-mix(in srgb, currentColor 6%, transparent);
+    box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 6%, transparent);
+}
+
 .bravais-seam-vtitle-wrap {
     display: flex;
     min-height: 0;
@@ -354,14 +384,15 @@
 .bravais-seam-meta { color: var(--bravais-seam-ink-soft); font-size: 12px; line-height: 1.6; }
 .bravais-seam-status { font-size: 12px; line-height: 1.6; }
 
-/* 说明文字（歌手简介、集合描述，BravaisSeamBlurb）：收起时 4 行截断，点开后封顶 14em、再长在块内滚动。
+/* 说明文字（歌手简介、集合描述，BravaisSeamBlurb）：收起时按 --bravais-blurb-lines 截断（默认 4 行；集合描述 6 行，
+ * fb10 星标挪进按钮行后让出来的那两行给了它，见 bravaisAbout.css），点开后封顶 14em、再长在块内滚动。
  * 纵向空间不够时它和竖排标题一起让位（flex-shrink，至少留一行），所以展开不会把下面的按钮挤出缝。
  * 它是个按钮：.bravais-seam button { font: inherit } 统一过缝里的按钮，规则要带上 .bravais-seam 才压得住。 */
 .bravais-seam .bravais-seam-blurb {
     display: -webkit-box;
     flex: 0 1 auto;
     min-height: 1.5em;
-    max-height: 7.2em;
+    max-height: calc(var(--bravais-blurb-lines, 4) * 1.8em);
     overflow: hidden;
     padding: 0;
     border: 0;
@@ -375,7 +406,7 @@
     background: transparent;
     cursor: pointer;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
+    -webkit-line-clamp: var(--bravais-blurb-lines, 4);
 }
 
 .bravais-seam .bravais-seam-blurb.is-open {
