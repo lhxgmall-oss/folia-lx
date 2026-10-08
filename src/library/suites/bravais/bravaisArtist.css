@@ -57,33 +57,4 @@
 
 .bravais-seam-artist-stats { font-weight: 650; letter-spacing: 0.02em; }
 
-.bravais-seam .bravais-seam-artist-bio {
-    display: -webkit-box;
-    max-height: 7.2em;
-    overflow: hidden;
-    padding: 0;
-    border: 0;
-    color: var(--bravais-seam-ink-soft);
-    font: inherit;
-    font-size: 12px;
-    line-height: 1.5;
-    text-align: left;
-    white-space: pre-wrap;
-    word-break: break-word;
-    background: transparent;
-    cursor: pointer;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
-}
-
-.bravais-seam .bravais-seam-artist-bio.is-open {
-    display: block;
-    max-height: 14em;
-    overflow-y: auto;
-    -webkit-line-clamp: unset;
-}
-
-.bravais-seam .bravais-seam-artist-bio:focus-visible {
-    outline: 2px solid var(--text-accent, currentColor);
-    outline-offset: 3px;
-}
+/* 简介的截断 / 展开在 bravais.css 的 .bravais-seam-blurb（与集合页的描述共用）。 */

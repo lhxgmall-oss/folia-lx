@@ -1,19 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Disc } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import type { BravaisSeamArtist as BravaisSeamArtistModel } from './bravaisSeamModels';
+import BravaisSeamBlurb from './BravaisSeamBlurb';
 import './bravaisArtist.css';
 
 // src/library/suites/bravais/BravaisSeamArtist.tsx
 // 完整信息条里歌手页的信息块（设计稿 §10.4「缝承载 ArtistGridView 的信息」）：圆形头像、别名、统计与简介。
-// 简介默认收成几行，点一下展开 / 收起（只在缝里，不弹浮层）。文案都由 surface 翻译好。
+// 简介默认收成几行，点一下展开 / 收起（只在缝里，不弹浮层；与集合页的描述共用 BravaisSeamBlurb）。文案都由 surface 翻译好。
 
 const AVATAR_PX = 56;
 
 const BravaisSeamArtist: React.FC<{ artist: BravaisSeamArtistModel }> = ({ artist }) => {
-    const { t } = useTranslation();
-    const [isBioOpen, setIsBioOpen] = useState(false);
     return (
         <div className="bravais-seam-artist" data-bravais-seam-artist>
             <div className="bravais-seam-artist-head">
@@ -30,16 +28,7 @@ const BravaisSeamArtist: React.FC<{ artist: BravaisSeamArtistModel }> = ({ artis
                 </span>
             </div>
             {artist.description && (
-                <button
-                    type="button"
-                    className={`bravais-seam-artist-bio${isBioOpen ? ' is-open' : ''}`}
-                    data-bravais-artist-bio={isBioOpen ? 'expanded' : 'collapsed'}
-                    aria-expanded={isBioOpen}
-                    title={isBioOpen ? t('libraryTui.bioLess') : t('libraryTui.bioMore')}
-                    onClick={() => setIsBioOpen(open => !open)}
-                >
-                    {artist.description}
-                </button>
+                <BravaisSeamBlurb text={artist.description} className="bravais-seam-artist-bio" dataAttribute="data-bravais-artist-bio" />
             )}
         </div>
     );

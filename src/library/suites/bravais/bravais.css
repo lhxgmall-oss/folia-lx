@@ -346,6 +346,43 @@
 .bravais-seam-meta { color: var(--bravais-seam-ink-soft); font-size: 12px; line-height: 1.6; }
 .bravais-seam-status { font-size: 12px; line-height: 1.6; }
 
+/* 说明文字（歌手简介、集合描述，BravaisSeamBlurb）：收起时 4 行截断，点开后封顶 14em、再长在块内滚动。
+ * 纵向空间不够时它和竖排标题一起让位（flex-shrink，至少留一行），所以展开不会把下面的按钮挤出缝。
+ * 它是个按钮：.bravais-seam button { font: inherit } 统一过缝里的按钮，规则要带上 .bravais-seam 才压得住。 */
+.bravais-seam .bravais-seam-blurb {
+    display: -webkit-box;
+    flex: 0 1 auto;
+    min-height: 1.5em;
+    max-height: 7.2em;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    color: var(--bravais-seam-ink-soft);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: transparent;
+    cursor: pointer;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+}
+
+.bravais-seam .bravais-seam-blurb.is-open {
+    display: block;
+    max-height: 14em;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-line-clamp: unset;
+}
+
+.bravais-seam .bravais-seam-blurb:focus-visible {
+    outline: 2px solid var(--text-accent, currentColor);
+    outline-offset: 3px;
+}
+
 .bravais-seam-actions {
     display: flex;
     flex-wrap: wrap;

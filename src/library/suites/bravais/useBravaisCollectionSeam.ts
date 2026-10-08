@@ -5,6 +5,7 @@ import type { LibraryActionId, LibraryCollectionSurfaceProps } from '../../core/
 import type { CollectionMutationController, CollectionMutationSnapshot, LibraryMutationResult } from '../../core/contracts/mutations';
 import type { CollectionResourceSnapshot } from '../../core/contracts/resource';
 import { resolveCollectionSyncCounts } from '../../core/model/collectionProgress';
+import { resolveCollectionDescription } from '../../core/model/collectionDescription';
 import type { CollectionActions } from '../../core/bindings/useCollectionActions';
 import type { CollectionView } from '../../core/bindings/useCollectionView';
 import type { LocalSongFolderSortDirection, LocalSongFolderSortField } from '../../../utils/localSongSorting';
@@ -14,7 +15,7 @@ import type { useBravaisCollectionForms } from './useBravaisCollectionForms';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
 
 // src/library/suites/bravais/useBravaisCollectionSeam.ts
-// 集合层在缝与墙上的投影（设计稿 §10.2 / §10.6）：缝里的收藏星标、补页进度 / 续传、状态行、过滤输入位、每日推荐的日期步进、
+// 集合层在缝与墙上的投影（设计稿 §10.2 / §10.6）：缝里标题下的描述、收藏星标、补页进度 / 续传、状态行、过滤输入位、每日推荐的日期步进、
 // 「⋯ 更多」与表单态；墙的内容规则（补页期间的循环周期、有限拼贴的规划条目数、过滤身份、首屏呼吸）；列表面板的排序
 // 与聚焦卡「⋯」的条目动作。入口只在「suite 声明 ∩ 控制器能力」时出现（与 TUI、网格同一条规则）。
 // 回调一律经 latest ref 读最新的视图、动作与控制器，层描述只在显示的东西变了时换身份。
@@ -231,7 +232,10 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         };
     }, [collection.name, formState, forms, input.displayTitle, isLocalFolder, offers, pending, playlists, t]);
 
+    // 标题下的描述：详情盖在集合描述上（与网格信息面板同一条规则），空的不给。
+    const description = resolveCollectionDescription(collection, snapshot?.detail);
     const seamCollection = useMemo<BravaisSeamCollection>(() => ({
+        description,
         subscribe,
         sync: syncLine,
         status,
@@ -243,7 +247,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         form,
     // status / syncLine 是每次渲染新算的小对象：按它们的文案比较，免得层描述白换身份。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [daily, form, menu, notice.notice, status?.tone, status?.text, subscribe, syncLine?.state, syncLine?.label, t]);
+    }), [daily, description, form, menu, notice.notice, status?.tone, status?.text, subscribe, syncLine?.state, syncLine?.label, t]);
 
     // 墙的内容规则：补页期间的循环周期（新页只翻新 slot）、有限拼贴的规划条目数、过滤身份、首屏呼吸。
     const periodCount = resolveWallPeriodCount({ itemCount: input.itemCount, totalCount, sync });
