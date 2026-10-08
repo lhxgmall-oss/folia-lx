@@ -376,11 +376,13 @@
     box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 6%, transparent);
 }
 
+/* 竖排大标题在上下引号之间的区域里水平、垂直都居中（实测反馈）；比区域还长时 safe 退回顶端对齐，不从两头裁。 */
 .bravais-seam-vtitle-wrap {
     display: flex;
     min-height: 0;
     flex: 1 1 auto;
-    justify-content: center;
+    align-items: safe center;
+    justify-content: safe center;
     overflow: hidden;
 }
 
