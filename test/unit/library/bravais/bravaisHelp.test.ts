@@ -10,7 +10,8 @@ import id from '@/i18n/locales/in';
 
 // test/unit/library/bravais/bravaisHelp.test.ts
 // 工具面板「操作提示」的行与实际键位一致：墙上的键过一遍 bravaisKeyboardModel / bravaisHomeKeys 的规则，
-// 「定位正在播放」核对执行模式的 `:` 与外观动作的执行键，三种语言都有每行的文案。
+// 「定位正在播放」核对执行模式的 `:` 与外观动作的执行键，「队列洗牌」「前往 Lattice」核对命令的执行键与全局键，
+// 三种语言都有每行的文案。
 
 const press = (input: Partial<BravaisKeyInput> & { key: string }): BravaisKeyInput => ({
     shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, repeat: false, ...input,
@@ -32,6 +33,8 @@ describe('bravais help rows', () => {
             ['seam', 'Tab'],
             ['tabs', 'F6'],
             ['locate', ': + C'],
+            ['shuffle', ': + R'],
+            ['lattice', 'Ctrl + B'],
             ['commands', 'Ctrl + K'],
         ]);
     });
@@ -60,6 +63,11 @@ describe('bravais help rows', () => {
     it('locates the playing song through execute mode and the chrome action key', () => {
         expect(COMMAND_PALETTE_COMMANDS.find(command => command.id === 'execute-mode')?.openHotkey).toEqual({ key: ':' });
         expect(bravais.chromeActions?.find(action => action.id === 'locate-playing')?.executeShortcut).toBe('c');
+    });
+
+    it('shuffles through execute mode and opens Lattice with the global hotkey (the tools panel quick actions)', () => {
+        expect(COMMAND_PALETTE_COMMANDS.find(command => command.id === 'playback-shuffle')?.executeShortcut).toBe('r');
+        expect(COMMAND_PALETTE_COMMANDS.find(command => command.id === 'navigate-lattice')?.openHotkey).toEqual({ key: 'b', ctrl: true });
     });
 
     it('has a label for every row in each locale', () => {

@@ -171,6 +171,8 @@ export type HomeProbeApi = {
     signOut: (providerId: string) => void;
     /** fb11：宿主的舞台模式（stageEnabled + onOpenStagePlayer，active 是 stageIsActive）；点舞台入口记一笔 openStagePlayer。 */
     setStage: (stage: { enabled: boolean; active?: boolean }) => void;
+    /** 宿主给不给「前往 Lattice」（onOpenLattice，缺省不给）；给了之后点它记一笔 openLattice。 */
+    setLattice: (enabled: boolean) => void;
 
     // ---- suite ----
     /** 选中的 suite（core/state/useLibrarySuiteStore）。 */
@@ -200,6 +202,13 @@ export type HomeProbeApi = {
     setNowPlaying: (playbackKey: string | null, playing?: boolean) => void;
     /** fb3：「播放后进入的视图」（与设置页、命令面板同一个 setter）。 */
     setEntryView: (view: 'player' | 'lattice' | 'stay') => void;
+    /**
+     * bravais 工具面板的宿主端口（probeStageTools）：摆可用性（合并；null 复位成「没有歌」）。生成主题、洗牌、音量预览
+     * 只记账（generateTheme / shuffleQueue / previewVolume）。
+     */
+    setStageTools: (snapshot: { themeGeneration?: 'ready' | 'busy' | 'unavailable'; canShuffleQueue?: boolean } | null) => void;
+    /** 应用的音量 store（useAudioSettingsStore：播放条、播放页面板、工具面板读写的同一份）。 */
+    volume: () => { volume: number; isMuted: boolean };
 
     // ---- 环境 ----
     /** 重新挂载整个首页（宿主 + Grid3D），模拟重启后回到首页（隐藏 store 先从存储重读）。 */

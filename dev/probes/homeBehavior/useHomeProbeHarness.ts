@@ -33,6 +33,7 @@ import {
 import { readHomeLibrary, seedHomeLibrary } from './homeLocalFixtures';
 import { installHomeServiceHook } from './serviceStubs';
 import { installHomeProbeApi } from './homeProbeApi';
+import { PROBE_STAGE_TOOLS } from './probeStageTools';
 import type { HomeProbeDescriptor } from './probeApi';
 
 // dev/probes/homeBehavior/useHomeProbeHarness.ts
@@ -208,6 +209,9 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
     }, []);
 
     const activeCollections = activeProvider?.collections;
+    // 前往 Lattice（首页工具格「队列拼贴」、bravais 工具面板）：只记账。缺省不给（首页工具格与原来一样），用例经 setLattice 打开。
+    const [latticeEnabled, setLatticeEnabled] = useState(false);
+    const openLattice = useCallback(() => recordProbeCall({ kind: 'openLattice', ids: [] }), []);
     const surfaceProps = useMemo<HomeSurfaceProps>(() => ({
         ...PROBE_SURFACE_CALLBACKS,
         onRefreshUser: () => void refreshUser(),
@@ -228,6 +232,8 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
         stageEnabled: stage.enabled,
         stageIsActive: Boolean(stage.active),
         onOpenStagePlayer: stage.enabled ? () => recordProbeCall({ kind: 'openStagePlayer', ids: [] }) : undefined,
+        onOpenLattice: latticeEnabled ? openLattice : undefined,
+        stageTools: PROBE_STAGE_TOOLS,
         theme: DEFAULT_THEME,
     }), [
         stage,
@@ -240,6 +246,8 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
         activeProvider?.user,
         refreshLocal,
         refreshUser,
+        openLattice,
+        latticeEnabled,
     ]);
 
     const model = useMemo<HomeViewModel>(() => ({
@@ -268,6 +276,7 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
         switchProvider: providerId => switchAndConfirm(latestRef.current.account, providerId),
         signOut: providerId => useOnlineProviderAccountStore.getState().clearAccount(providerId),
         setStage,
+        setLattice: setLatticeEnabled,
     }), []);
 
     return { model, mountKey };

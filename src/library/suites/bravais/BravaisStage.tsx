@@ -84,6 +84,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     onBackToPlayer,
     onTogglePlayback,
     onEnterPlaybackView,
+    onOpenLattice,
+    tools,
 }) => {
     const { t } = useTranslation();
     // 交接会话：缝的开口、veil、颗粒与暗角、磁贴藏不藏都按它（纯计算）；排动画的 hook 在下面（要等显示）。
@@ -488,6 +490,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                 toolsClaimed={(isInteractive && owned) || handoff.role === 'out'}
                 back={back}
                 locatePlaying={chromeHandlers['locate-playing']}
+                onOpenLattice={onOpenLattice}
+                tools={tools}
             />
         </section>
     );

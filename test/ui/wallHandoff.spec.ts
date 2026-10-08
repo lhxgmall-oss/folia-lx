@@ -170,6 +170,28 @@ test('[bravais] entering and leaving Lattice flips one wall into the other, with
     await bravaisSettled(page);
 });
 
+test('[bravais] the tools panel goes to Lattice through the host entry: the same flip handoff and the same tools button', async ({ page }) => {
+    await boot(page, { suite: 'bravais', look: 'solid', motion: 'full' });
+    await seedQueue(page);
+    await bravaisSettled(page);
+    const before = await toolsRect(page);
+
+    // 工具面板顶部「前往 Lattice」：宿主的 onOpenLattice（首页工具格「队列拼贴」同一个入口），面板先收起。
+    await page.getByRole('button', { name: 'Wall tools', exact: true }).click();
+    const lattice = page.getByRole('menu', { name: 'Wall tools', exact: true }).locator('[data-wall-tools-quick="open-lattice"]');
+    await expect(lattice).toHaveAccessibleName('Go to Lattice');
+    await startSampling(page);
+    await lattice.click();
+    await expect(stage(page)).toHaveCount(0, { timeout: 10_000 });
+    await expect(latticeRoot(page)).not.toHaveAttribute('data-wall-handoff', /.*/);
+    const samples = await stopSampling(page);
+    expect(samples.filter(sample => sample.homeRole === 'out' && sample.latticeRole === 'in').length).toBeGreaterThan(0);
+    expect(new Set(samples.map(sample => sample.homePhase))).toEqual(new Set(['closing', 'flipping', null]));
+    expectToolsSteady(samples, before);
+    await expect(page.getByRole('menu', { name: 'Wall tools', exact: true })).toHaveCount(0);
+    expect(await page.evaluate(() => window.location.hash)).toBe('#lattice');
+});
+
 test('[bravais] with reduced motion the walls cross-fade instead of flipping', async ({ page }) => {
     await boot(page, { suite: 'bravais', look: 'solid', motion: 'reduced' });
     await seedQueue(page);

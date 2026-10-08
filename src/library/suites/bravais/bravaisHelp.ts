@@ -32,5 +32,9 @@ export const BRAVAIS_HELP_ROWS: readonly BravaisHelpRow[] = Object.freeze<Bravai
     { id: 'tabs', labelKey: 'libraryBravais.helpTabs', kbd: () => 'F6', probe: { input: { key: 'F6' }, action: 'cycle-tab' } },
     // 执行模式 `:` + 外观动作 locate-playing 的执行键 `c`（bravais entry.ts）。
     { id: 'locate', labelKey: 'libraryBravais.helpLocate', kbd: () => ': + C' },
+    // 工具面板顶部的「队列洗牌」「前往 Lattice」的键（命令面板的全局键，单测核对）：执行模式 `:` + 洗牌命令的执行键 `r`，
+    // 与 navigate-lattice 的 Ctrl / Cmd+B。
+    { id: 'shuffle', labelKey: 'libraryBravais.helpShuffle', kbd: () => ': + R' },
+    { id: 'lattice', labelKey: 'libraryBravais.helpLattice', kbd: mod => `${mod} + B` },
     { id: 'commands', labelKey: 'libraryBravais.helpCommands', kbd: mod => `${mod} + K` },
 ]);
