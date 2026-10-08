@@ -148,9 +148,11 @@ const bravaisToggle = (page: Page) => page.locator('[data-bravais-account-toggle
 /** fb3：未登录时只有一个「连接在线平台」入口，点了才展开平台列表（guest → guest-panel）。 */
 const bravaisConnect = (page: Page) => page.locator('[data-bravais-account-toggle="connect"]');
 const bravaisAccountList = (page: Page) => page.locator('[data-bravais-account="panel"], [data-bravais-account="guest-panel"]');
-const bravaisAccountRow = (page: Page, providerId: string) => bravaisAccountList(page).locator(`[data-bravais-account-provider="${providerId}"]`);
+/** 2026-10-09：平台列表从缝的侧面弹出、挂在 stage 根节点上（不在账户位的容器里），行按列表找。 */
+const bravaisAccountRows = (page: Page) => page.locator('[data-bravais-account-list]');
+const bravaisAccountRow = (page: Page, providerId: string) => bravaisAccountRows(page).locator(`[data-bravais-account-provider="${providerId}"]`);
 /** fb4：登出是当前那一行右侧的小图标按钮（可访问名是登出文案「Logout」），不再单独排在行下面。 */
-const bravaisLogoutButtons = (page: Page) => bravaisAccountList(page).getByRole('button', { name: 'Logout', exact: true });
+const bravaisLogoutButtons = (page: Page) => bravaisAccountRows(page).getByRole('button', { name: 'Logout', exact: true });
 const bravaisLogoutButton = (page: Page, providerId: string) => bravaisAccountRow(page, providerId).getByRole('button', { name: 'Logout', exact: true });
 const bravaisConfirm = (page: Page) => page.locator('[data-bravais-account-confirm]:not([aria-hidden="true"])');
 /** 打开平台列表：已登录时点账户位的按钮，未登录时点「连接在线平台」入口。 */
@@ -336,7 +338,7 @@ const BRAVAIS_DRIVER: AccountDriver = {
     expectCurrent: async (page, providerId) => {
         await bravaisOpenAccounts(page);
         await expect(bravaisAccountRow(page, providerId)).toHaveAttribute('data-current', 'true');
-        await expect(bravaisAccountList(page).locator('[data-current="true"]')).toHaveCount(1);
+        await expect(bravaisAccountRows(page).locator('[data-current="true"]')).toHaveCount(1);
         await expect(bravaisAccountRow(page, providerId).getByRole('menuitemradio')).toHaveAttribute('aria-checked', 'true');
     },
     openLogoutEntries: async page => {

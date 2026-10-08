@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { LogIn, LogOut, Plug } from 'lucide-react';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
@@ -28,37 +29,86 @@ import './bravaisAccount.css';
 // - 列表行：头像 / 徽章 + 平台名，下面一行小字只留区分所必需的（昵称、「无需登录」「未配置」，与 grid 一致）；要登录才能
 //   选的行尾是 LogIn 图标（同 grid），「登录到 X / 切换至 X」与完整状态进行的 aria-label / title。登出图标不变。
 // - 列表与工具格的「⋯」菜单互斥：开着哪个记在 bravaisHomeUiStore 的 popover。
+// 2026-10-09（用户实测：窄缝里的列表太挤）：列表改成从缝的**侧面**弹出到墙上，像 grid 的账户切换器——宽 288px、
+// 行高与头像按 grid 的尺寸。挂到 .bravais-root 上（portal：缝本身 overflow: hidden，挂在缝里会被裁掉），
+// 绝对定位：底边与入口底边对齐、往上长；朝缝两侧空间大的那一边弹（缝在屏幕右半边时往左）。
 
-/** 列表离首页窄缝顶端至少留这么多（列表比可用高度高时在里面滚）。 */
+/** 列表离 stage 顶端至少留这么多（列表比可用高度高时在里面滚）。 */
 const LIST_TOP_GAP = 12;
+/** 列表与缝之间的间距。 */
+const LIST_SIDE_GAP = 10;
+/** 列表宽度（与 grid 账户切换器的 w-72 相同）；两侧都放不下时缩到能放下的宽度，最窄 200。 */
+const LIST_WIDTH = 288;
+const LIST_MIN_WIDTH = 200;
+
+type BravaisAccountListPlacement = {
+    host: HTMLElement;
+    side: 'left' | 'right';
+    left: number;
+    bottom: number;
+    width: number;
+    maxHeight: number;
+};
+
+/** 按入口、缝与 stage 根节点的位置算列表放在哪：朝空间大的一侧，底边与入口底边对齐。 */
+const placeAccountList = (entry: HTMLElement, seam: HTMLElement, host: HTMLElement): BravaisAccountListPlacement => {
+    const hostRect = host.getBoundingClientRect();
+    const seamRect = seam.getBoundingClientRect();
+    const entryRect = entry.getBoundingClientRect();
+    const roomRight = hostRect.right - seamRect.right - LIST_SIDE_GAP * 2;
+    const roomLeft = seamRect.left - hostRect.left - LIST_SIDE_GAP * 2;
+    const side = roomRight >= LIST_WIDTH || roomRight >= roomLeft ? 'right' : 'left';
+    const width = Math.max(LIST_MIN_WIDTH, Math.min(LIST_WIDTH, side === 'right' ? roomRight : roomLeft));
+    const left = side === 'right'
+        ? seamRect.right - hostRect.left + LIST_SIDE_GAP
+        : seamRect.left - hostRect.left - LIST_SIDE_GAP - width;
+    return {
+        host,
+        side,
+        left: Math.round(left),
+        bottom: Math.round(hostRect.bottom - entryRect.bottom),
+        width: Math.round(width),
+        maxHeight: Math.max(0, Math.floor(entryRect.bottom - hostRect.top - LIST_TOP_GAP)),
+    };
+};
 
 /** 列表行的可访问名与 title：平台名 · 账户状态 · 选它会做什么（界面上只显示平台名与必要的小字）。 */
 const describeRow = (row: BravaisHomeAccount['rows'][number]) => [row.label, row.detail, row.actionLabel].filter(Boolean).join(' · ');
 
 /**
- * 弹出的平台列表。收起动画途中（useIsPresent 为 false）挂 inert，不再接点击与焦点。
- * `maxHeight` 是按钮上沿到首页窄缝顶端的可用高度（打开时量一次）。
+ * 弹出的平台列表（挂在 .bravais-root 上，位置由 placement 给）。收起动画途中（useIsPresent 为 false）挂 inert，
+ * 不再接点击与焦点。
  */
 const BravaisAccountList: React.FC<{
     account: BravaisHomeAccount;
     reduced: boolean;
-    maxHeight: number | null;
+    placement: BravaisAccountListPlacement;
+    listRef: RefObject<HTMLDivElement | null>;
     onClose: () => void;
-}> = ({ account, reduced, maxHeight, onClose }) => {
+}> = ({ account, reduced, placement, listRef, onClose }) => {
     const present = useIsPresent();
     const pop = resolveBravaisAccountPopMotion(reduced);
     return (
         <motion.div
+            ref={listRef}
             className="bravais-account-list"
             role="menu"
             aria-label={account.title}
             data-bravais-account-list
+            data-bravais-account-list-side={placement.side}
             inert={!present}
             initial={pop.initial}
             animate={pop.animate}
             exit={pop.exit}
             transition={pop.transition}
-            style={{ transformOrigin: pop.transformOrigin, maxHeight: maxHeight ?? undefined }}
+            style={{
+                // 从入口那一侧的底角长出来。
+                transformOrigin: placement.side === 'right' ? '0% 100%' : '100% 100%',
+                left: placement.left,
+                bottom: placement.bottom,
+                width: placement.width,
+                maxHeight: placement.maxHeight,
+            }}
         >
             {account.rows.map(row => (
                 <div
@@ -116,8 +166,9 @@ const BravaisSeamAccountSwitcher: React.FC<{
     onExpand: () => void;
 }> = ({ account, compact, onExpand }) => {
     const open = useBravaisHomeUiStore(state => state.popover === 'accounts');
-    const [maxHeight, setMaxHeight] = useState<number | null>(null);
+    const [placement, setPlacement] = useState<BravaisAccountListPlacement | null>(null);
     const rootRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
     const request = useBravaisHomeUiStore(state => state.openRequest);
     // bravais 的缝与悬停沿用「队列拼贴」的降级；弹出菜单也算界面微动效：任一降级都只做渐变。
     const reducedLattice = useReducedMotionFor('lattice');
@@ -141,14 +192,37 @@ const BravaisSeamAccountSwitcher: React.FC<{
         rootRef.current?.querySelector<HTMLElement>('[data-bravais-account-toggle]')?.focus({ preventScroll: true });
     }, [compact, request]);
 
-    // 打开时量一次可用高度：按钮上沿到首页窄缝顶端（列表往上弹，不能顶出缝）。
+    // 打开时量一次放在哪：缝的哪一侧、底边对齐入口、可用高度；开着时缝或 stage 的尺寸变了（书脊展开成窄缝的开口
+    // 补间、窗口缩放）就跟着重量。收起后 placement 留着，让收起动画在原地放完。
     useLayoutEffect(() => {
-        if (!shown) return;
+        if (!shown) return undefined;
         const root = rootRef.current;
-        const home = root?.closest('[data-bravais-home-seam]');
-        if (!root || !home) return;
-        const room = root.getBoundingClientRect().top - home.getBoundingClientRect().top - LIST_TOP_GAP;
-        setMaxHeight(Math.max(0, Math.floor(room)));
+        const host = root?.closest<HTMLElement>('.bravais-root');
+        const seam = root?.closest<HTMLElement>('.bravais-seam') ?? root?.closest<HTMLElement>('[data-bravais-home-seam]');
+        if (!root || !host || !seam) return undefined;
+        const measure = () => setPlacement(previous => {
+            const next = placeAccountList(root, seam, host);
+            return previous && previous.host === next.host && previous.side === next.side && previous.left === next.left
+                && previous.bottom === next.bottom && previous.width === next.width && previous.maxHeight === next.maxHeight
+                ? previous
+                : next;
+        });
+        measure();
+        const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+        observer?.observe(seam);
+        observer?.observe(host);
+        window.addEventListener('resize', measure);
+        // 刚打开的那一小段缝可能还在平移 / 补间（书脊展开、相机让位），位置变而尺寸不变：逐帧跟一会儿。
+        const started = performance.now();
+        let frame = requestAnimationFrame(function follow() {
+            measure();
+            if (performance.now() - started < 700) frame = requestAnimationFrame(follow);
+        });
+        return () => {
+            cancelAnimationFrame(frame);
+            observer?.disconnect();
+            window.removeEventListener('resize', measure);
+        };
     }, [shown]);
 
     // 列表开着时点别处收起（缝里、墙上都算）；Esc 先收起它（焦点不一定在入口上——书脊展开时按钮换掉了——所以挂在
@@ -156,7 +230,7 @@ const BravaisSeamAccountSwitcher: React.FC<{
     useEffect(() => {
         if (!shown) return undefined;
         const onPointerDown = (event: PointerEvent) => {
-            if (event.target instanceof Node && rootRef.current?.contains(event.target)) return;
+            if (event.target instanceof Node && (rootRef.current?.contains(event.target) || listRef.current?.contains(event.target))) return;
             closeBravaisHomePopover('accounts');
         };
         const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -197,9 +271,15 @@ const BravaisSeamAccountSwitcher: React.FC<{
     const state = account.guest ? (open ? 'guest-panel' : 'guest') : open ? 'panel' : 'closed';
     return (
         <div ref={rootRef} className={`bravais-account-switcher${account.guest ? ' is-guest' : ''}`} data-bravais-account={state}>
-            <AnimatePresence>
-                {shown && <BravaisAccountList key="list" account={account} reduced={reduced} maxHeight={maxHeight} onClose={() => closeBravaisHomePopover('accounts')} />}
-            </AnimatePresence>
+            {placement && createPortal(
+                <AnimatePresence>
+                    {shown && (
+                        <BravaisAccountList key="list" account={account} reduced={reduced} placement={placement} listRef={listRef}
+                            onClose={() => closeBravaisHomePopover('accounts')} />
+                    )}
+                </AnimatePresence>,
+                placement.host,
+            )}
             {account.guest ? (
                 <button type="button" className="bravais-account-entry bravais-account-connect" data-bravais-account-toggle="connect"
                     aria-haspopup="menu" aria-expanded={open} aria-label={`${account.connectLabel} · ${status}`} title={`${account.connectLabel} · ${status}`}

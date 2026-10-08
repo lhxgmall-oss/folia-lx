@@ -530,7 +530,7 @@ test.describe('[bravais-only] the account seam over layer shifts', () => {
     const confirmForm = (page: Page) => seam(page).locator('[data-bravais-account-confirm]');
     const askSwitch = async (page: Page) => {
         await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
-        await seam(page).locator(`[data-bravais-account-provider="${PROBE_PROVIDER_B}"] [role="menuitemradio"]`).click();
+        await stage(page).locator(`[data-bravais-account-list] [data-bravais-account-provider="${PROBE_PROVIDER_B}"] [role="menuitemradio"]`).click();
         await expect(confirmForm(page)).toHaveAttribute('data-bravais-account-confirm', PROBE_PROVIDER_B);
     };
     const expectAccountSeam = async (page: Page) => {
@@ -927,7 +927,8 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
 
     // fb4：账户入口贴在工具格正上方；点开后平台列表从入口往上弹出（scale + 位移，从底边长出来），盖在导航区上，
     // 页签的缩减级别与页头的位置都不变；再点入口、Esc、点别处都收起。登出是当前那一行右侧的小图标。
-    const accountList = (page: Page) => seam(page).locator('[data-bravais-account-list]');
+    // 2026-10-09：列表从缝的侧面弹出到墙上（挂在 stage 根节点上，不在缝里）。
+    const accountList = (page: Page) => stage(page).locator('[data-bravais-account-list]');
     const headSnapshot = (page: Page) => root(page).evaluate(element => ({
         fit: element.getAttribute('data-bravais-home-fit'),
         tabs: [...element.querySelectorAll<HTMLElement>('[data-bravais-tab]')].map(tab => {
@@ -954,7 +955,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
     });
     const listFrames = (page: Page) => page.evaluate(() => (window as Window & { __accountFrames?: ListFrame[] }).__accountFrames ?? []);
 
-    /** 列表在入口上方、在缝里、盖在导航区上（等弹出动画放完再量）。 */
+    /** 列表在缝的侧面（墙上，与缝不重叠）、底边与入口底边对齐、往上长、不出 stage 顶端（等弹出动画放完再量）。 */
     const expectListAbove = async (page: Page) => {
         await expect.poll(async () => {
             const frames = await listFrames(page);
@@ -962,15 +963,14 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             return last ? Math.abs(last.scale - 1) < 0.001 && last.opacity > 0.999 : false;
         }).toBe(true);
         const toggle = (await seam(page).locator('[data-bravais-account-slot] [data-bravais-account-toggle]').boundingBox())!;
-        const nav = (await root(page).locator('.bravais-seam-home-nav').boundingBox())!;
         const seamBox = (await seam(page).boundingBox())!;
+        const stageBox = (await stage(page).boundingBox())!;
         const list = (await accountList(page).boundingBox())!;
-        expect(list.y + list.height).toBeLessThanOrEqual(toggle.y + 0.5);
-        expect(list.y).toBeGreaterThanOrEqual(seamBox.y - 0.5);
-        expect(list.x).toBeGreaterThanOrEqual(seamBox.x - 0.5);
-        expect(list.x + list.width).toBeLessThanOrEqual(seamBox.x + seamBox.width + 0.5);
-        // 盖在导航区上（与它重叠），而不是把导航区推开。
-        expect(list.y).toBeLessThan(nav.y + nav.height);
+        const side = await accountList(page).getAttribute('data-bravais-account-list-side');
+        if (side === 'right') expect(list.x).toBeGreaterThanOrEqual(seamBox.x + seamBox.width - 0.5);
+        else expect(list.x + list.width).toBeLessThanOrEqual(seamBox.x + 0.5);
+        expect(Math.abs((list.y + list.height) - (toggle.y + toggle.height))).toBeLessThanOrEqual(1);
+        expect(list.y).toBeGreaterThanOrEqual(stageBox.y - 0.5);
     };
 
     test('typing on the home spine opens the narrow seam for the page filter and folds back once the input ends', async ({ page }) => {
@@ -997,7 +997,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(seam(page).locator('[data-bravais-seam-action="filter"]')).toHaveCount(0);
     });
 
-    test('the account entry sits right above the tools and its list pops upwards over the tabs without changing their fit', async ({ page }) => {
+    test('the account entry sits right above the tools and its list pops out sideways onto the wall without changing the tab fit', async ({ page }) => {
         const layout = await expectTidy(page);
         expect(layout.account).not.toBeNull();
         const before = await headSnapshot(page);
@@ -1043,7 +1043,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(await headSnapshot(page)).toEqual(before);
     });
 
-    test('at a short height the open list scrolls inside the seam and the one-letter tabs stay as they were', async ({ page }) => {
+    test('at a short height the open list scrolls inside itself and the one-letter tabs stay as they were', async ({ page }) => {
         await resize(page, 520);
         await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'short');
         await expectTidy(page);
@@ -1074,7 +1074,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(frames.every(frame => Math.abs(frame.scale - 1) < 0.001)).toBe(true);
     });
 
-    test('on the spine the account icon sits above the tools and opens the narrow seam with the list popped upwards', async ({ page }) => {
+    test('on the spine the account icon sits above the tools and opens the narrow seam with the list popped out sideways', async ({ page }) => {
         await resize(page, 900, 820);
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home-spine');
         const layout = await expectTidy(page, 64);
