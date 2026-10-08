@@ -5,6 +5,8 @@ import { overlaps } from '../../../components/wall/layout';
 import { getWallSlot, parseWallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import { findNearestSlot, resolveSlotFace, resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
+import { findDisplayItemSlot } from './bravaisItemSlots';
+import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import { resolveEscapeStep, type BravaisKeyAction } from './bravaisKeyboardModel';
 import type { BravaisHomeKeyAction } from './bravaisHomeKeys';
 import { findAdjacentSlot } from './bravaisNavigation';
@@ -380,5 +382,37 @@ export const useBravaisInteractions = ({
         return true;
     }, [collapse, displayRef, drawnRect, expand, expandedRef, focusSlot, focusWall, focusedRef, frameRef, handleTab, handlers, hasContent, isInSeam, itemAt, moveInSeam, seedSlot, tweenTo]);
 
-    return { handlers, handleAction, itemAt, seedSlot, focusWall, focusSeamWhenOpen };
+    /**
+     * 缝里的直达入口（特殊集合）：与点墙上那张卡同一条打开路径。先在墙上找这一项此刻屏内离缝最近的一份，找得到就把它记成
+     * 起点磁贴、走层描述的 onOpenItem（与点它一样）；找不到（别的 section、被过滤掉、在屏外）就不经墙打开，并明确记下
+     * 「这次没有起点」：新层不沿用它自己布局记忆里的起点（上次 Esc 离开时留下的），也不拿键盘焦点那张补，以缝为中心排序。
+     * 私人 FM 直接播放，不记起点。聚焦卡先收起（与点非歌曲磁贴一样）。
+     */
+    const openShortcut = useCallback((shortcut: BravaisHomeShortcut) => {
+        const display = displayRef.current;
+        const layer = display?.layer;
+        if (!layer) {
+            shortcut.open();
+            return;
+        }
+        collapse();
+        if (shortcut.direct) {
+            shortcut.open();
+            return;
+        }
+        const { view, center, anchorX } = frameRef.current;
+        const slot = findDisplayItemSlot(display, shortcut.itemKey, { x: anchorX ?? center.x, y: center.y });
+        const visible = view ? getViewWorldBounds(center, view) : null;
+        const onScreen = slot && visible
+            && slot.centerX >= visible.left && slot.centerX <= visible.right
+            && slot.centerY >= visible.top && slot.centerY <= visible.bottom;
+        if (slot && onScreen && layer.onOpenItem && resolveSlotItem(display, slot)?.key === shortcut.itemKey) {
+            openFrom(slot.key, () => layer.onOpenItem!(shortcut.itemKey));
+            return;
+        }
+        setBravaisPendingOrigin({ fromLayerKey: layer.key, slotKey: null });
+        shortcut.open();
+    }, [collapse, displayRef, frameRef, openFrom]);
+
+    return { handlers, handleAction, itemAt, seedSlot, focusWall, focusSeamWhenOpen, openShortcut };
 };

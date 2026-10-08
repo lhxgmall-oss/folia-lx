@@ -13,7 +13,7 @@ import { resolveTileTransition, type BravaisEntrance, type BravaisFlipStep } fro
 import type { BravaisItem } from './bravaisLayer';
 import { bravaisFaceKey, type BravaisTileKind } from './bravaisLook';
 import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFocusCardBody';
-import BravaisTileMarks from './BravaisTileMarks';
+import BravaisTileMarks, { BravaisTileBadge } from './BravaisTileMarks';
 import { getWaveStagger, WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } from './bravaisWallWave';
 
 // src/library/suites/bravais/BravaisTile.tsx
@@ -286,6 +286,7 @@ function BravaisTile({
             data-bravais-linked={(linked && Boolean(display)) || undefined}
             data-bravais-dimmed={display?.dimmed || undefined}
             data-bravais-hidden={display?.hidden || undefined}
+            data-bravais-special={display?.special}
             onMouseEnter={() => handlers.hover(slotKey)}
             onMouseLeave={() => handlers.hover(null)}
         >
@@ -308,7 +309,7 @@ function BravaisTile({
                         {face.seeThrough
                             ? <span className="bravais-tile-strip" style={{ backgroundImage: cover }} />
                             : <span className="lattice-poster-tint" />}
-                        <span className={`lattice-poster-badge${isCurrent ? ' is-current' : ''}`}>{display.badge}</span>
+                        <BravaisTileBadge item={display} current={isCurrent} />
                         {(display.hideable || display.selected) && (
                             <BravaisTileMarks
                                 item={display}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { LibraryDirectoryBatchConfig, LibraryHiddenScope } from '../../core/contracts/directory';
 import type { LibraryHomeCard } from '../../core/contracts/homeModel';
 import type { LibraryDeclaredActions } from '../../core/contracts/suite';
+import type { LibraryHomeCardSource } from '../../core/model/homeSpecialCards';
 import { isHideableDirectoryItem } from '../../core/model/directoryVisibility';
 import { useLibraryDirectorySessionStore } from '../../core/state/useLibraryDirectorySessionStore';
 import { useLibraryDirectoryQuery } from '../../core/bindings/useLibraryDirectoryQuery';
@@ -12,9 +13,9 @@ import { useLibraryDirectoryScope } from '../../core/bindings/useLibraryDirector
 import { useLibraryDirectoryActions } from '../../core/bindings/useLibraryDirectoryActions';
 import { useHiddenCollections } from '../../core/bindings/useHiddenCollections';
 import type { BravaisItemKind, BravaisLayer, BravaisSeamModel } from './bravaisLayer';
-import type { BravaisHomeAccount, BravaisHomeSection, BravaisHomeTool } from './bravaisHomeModels';
+import type { BravaisHomeAccount, BravaisHomeSection, BravaisHomeShortcut, BravaisHomeTool } from './bravaisHomeModels';
 import type { BravaisLayerEntries, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
-import { createHomeItemCache, projectHomeWallItems, resolveHomeWallMode, toHomeEntry } from './bravaisHomeProjection';
+import { createHomeItemCache, projectHomeShortcuts, projectHomeWallItems, resolveHomeWallMode, toHomeEntry } from './bravaisHomeProjection';
 import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import { useBravaisDirectoryPanel } from './useBravaisDirectoryPanel';
 import { useBravaisHomeDirectorySurface } from './useBravaisHomeDirectorySurface';
@@ -36,6 +37,8 @@ import { useBravaisSeamStore } from './bravaisSeamLevel';
 // - 当前页过滤（设计稿 §7.6）：过滤词是目录会话的 query（与 GridMap、TUI 读写同一份；换页签 / section 换目录、离开首页时
 //   由 core 的目录开关规则丢掉）。墙上打字进缝里的输入位（useBravaisSeamFilter），过滤时墙退化为以缝为中心的有限拼贴。
 //   非批量模式下 `/` 留给全局搜索（「搜索在线平台」），不是过滤字符。
+// - 特殊集合（我喜欢的音乐、私人 FM、全部歌曲…）：磁贴的类型标签换样式；缝里二级切换下面是它们的直达入口，数据来自
+//   shortcutCards（这个来源里不限当前 section 的卡片），只列此刻真有、没被隐藏的（projectHomeShortcuts）。
 // 这个组件只渲染 null；被探针读 props（directoryKey、items、hiddenScope、batchConfig、layerKey、onOpen）。
 
 const NO_KEYS: ReadonlySet<string> = new Set();
@@ -53,6 +56,8 @@ export type BravaisHomeDirectoryProps = {
     chrome: BravaisHomeChrome;
     /** 首页层的身份：`home:<页签>`（本地四行、Navidrome 的 section 不换层，只整面翻牌）。 */
     layerKey: string;
+    /** 卡片来源（特殊集合按来源判定）。 */
+    source: LibraryHomeCardSource;
     /** 二级切换的 section（在线页签给页签自己）：进了墙的过滤身份。 */
     section: string;
     directoryKey: string;
@@ -79,6 +84,10 @@ export type BravaisHomeDirectoryProps = {
     onOpen: (card: LibraryHomeCard) => void;
     /** 点了直接播放、不进新层的卡（私人 FM）。 */
     isDirect?: (card: LibraryHomeCard) => boolean;
+    /** 直达入口从这些卡片里挑（不给就用 items：只看当前页签）。 */
+    shortcutCards?: readonly LibraryHomeCard[];
+    /** 不经墙打开直达入口的那张卡（不给就是 onOpen；Navidrome 要按卡片自己的 section 定集合类型）。 */
+    openShortcut?: (card: LibraryHomeCard) => void;
 };
 
 const never = () => false;
@@ -86,6 +95,7 @@ const never = () => false;
 const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     chrome,
     layerKey,
+    source,
     section,
     directoryKey,
     hiddenScope,
@@ -104,6 +114,8 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     isInteractive,
     onOpen,
     isDirect = never,
+    shortcutCards,
+    openShortcut,
 }) => {
     const { t } = useTranslation();
 
@@ -217,7 +229,8 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
         visibilityMode,
         selectedIds: panelOpen ? selectedIds : null,
         isDirect: card => isDirectRef.current(card),
-    }, labels, cacheRef.current), [displayItems, hiddenIds, labels, panelOpen, selectedIds, visibilityMode]);
+        source,
+    }, labels, cacheRef.current), [displayItems, hiddenIds, labels, panelOpen, selectedIds, source, visibilityMode]);
     const { mode, filterKey } = resolveHomeWallMode({ section, visibilityMode, batch: panelOpen, query: effectiveQuery });
     const planCount = mode === 'finite' ? visibleItems.length : undefined;
     const wall = useMemo(() => ({
@@ -227,8 +240,8 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     }), [filterKey, isLoading, items.length, planCount]);
 
     // 回调执行时读最新的映射（身份稳定，层描述不因它们换身份）。
-    const latest = useRef({ displayItems, onOpen, toggleHidden });
-    latest.current = { displayItems, onOpen, toggleHidden };
+    const latest = useRef({ displayItems, onOpen, toggleHidden, openShortcut });
+    latest.current = { displayItems, onOpen, toggleHidden, openShortcut };
     const onOpenItem = useCallback((key: string) => {
         const entry = latest.current.displayItems.find(candidate => candidate.itemKey === key);
         if (entry) latest.current.onOpen(entry.card);
@@ -239,6 +252,27 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     }, []);
 
     // ---- 缝 ----
+    // 直达入口：只随「有哪几张、叫什么、在墙上是哪个 key」变（卡片数据就地更新不换身份）。
+    const shortcutSpecs = useMemo(
+        () => projectHomeShortcuts(shortcutCards ?? items, { source, hiddenIds, isDirect: card => isDirectRef.current(card) }),
+        [hiddenIds, items, shortcutCards, source],
+    );
+    const shortcutSpecsRef = useRef(shortcutSpecs);
+    shortcutSpecsRef.current = shortcutSpecs;
+    const shortcutsKey = shortcutSpecs.map(spec => `${spec.special}\u0000${spec.label}\u0000${spec.itemKey}\u0000${spec.direct}`).join('\u0001');
+    const shortcuts = useMemo<BravaisHomeShortcut[]>(() => shortcutSpecsRef.current.map(spec => ({
+        special: spec.special,
+        label: spec.label,
+        itemKey: spec.itemKey,
+        direct: spec.direct,
+        open: () => {
+            const card = shortcutSpecsRef.current.find(candidate => candidate.special === spec.special)?.card ?? spec.card;
+            const { openShortcut: openCard, onOpen: open } = latest.current;
+            (openCard ?? open)(card);
+        },
+    // 按内容比较（specs 每次是新数组）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    })), [shortcutsKey]);
     const tools = useMemo<BravaisHomeTool[]>(() => [
         chrome.searchTool,
         // 「⋯」里的「过滤当前页」：打字之外，用鼠标也能把首页窄缝里的过滤输入位叫出来。
@@ -282,6 +316,8 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
         home: {
             sections,
             onSelectSection,
+            shortcuts,
+            shortcutsLabel: t('libraryBravaisHome.shortcuts'),
             tools,
             menu,
             menuLabel: t('libraryBravaisHome.more'),
@@ -290,7 +326,7 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
             search: chrome.search,
             account,
         },
-    }), [account, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, filter, manage, menu, meta, onSelectSection, sections, status, t, tools]);
+    }), [account, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, filter, manage, menu, meta, onSelectSection, sections, shortcuts, status, t, tools]);
 
     const entriesModel = useMemo<BravaisLayerEntries>(() => ({
         hasPanel: Boolean(batchConfig),

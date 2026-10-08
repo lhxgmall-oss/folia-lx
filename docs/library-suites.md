@@ -285,6 +285,8 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 
 页面本身（不是动作）要做的：来源与分区页签、条目列表、打开条目（`homeResources.actions.openOnlineCard` / `openLocalGroup` / `openNavidromeCard`）。core 的 hooks 是 `useLibraryHomeSources`、`useLibraryHomeOnline`、`useLibraryHomeLocal`、`useLibraryHomeNavidrome`、`useLibraryHomeDirectory`。
 
+首页的**特殊集合**（我喜欢的音乐、云盘、私人 FM、每日推荐、本地的全部歌曲与「我喜欢」、Navidrome 的随机 / 收藏）由 core 的纯函数 `resolveLibraryHomeSpecial(card, source)`（`core/model/homeSpecialCards`，先后在 `LIBRARY_HOME_SPECIAL_ORDER`）判定：只看卡片的身份字段（id、type、`isVirtual`、来源对象上 provider 给的 `isLiked`），不看显示名；`source`（`online` / `local` / `navidrome`）决定同样的字段怎么解释。全部歌曲的 id 是 `LOCAL_ALL_SONGS_ID`（`localHomeModel`）。想给它们特别标识或直达入口的 suite 用它，不要在组件里按名字判断；grid / TUI 目前不用。`useLibraryHomeNavidrome()` 另给 `cardsBySection`（五个 section 各自的卡片，不限当前 section）。
+
 | 动作 | 是什么 | 分级 | 用到的 core |
 | --- | --- | --- | --- |
 | `directory-filter` | 筛选目录条目 | 基础 | `useLibraryDirectoryQuery` |
@@ -448,6 +450,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 - 「降低动态效果」：stage 自己解析（`bravaisMotion`：「队列拼贴」或「歌单展开转场」任一降级）——翻牌换成 0.18 秒淡出淡入、整墙波次换成淡入淡出；相机、缝与悬停的补间只看 `lattice` 动效面。
 - 与 Lattice 的翻牌交接（`stageWallHandoff: true`，`useBravaisWallHandoff`）：进 Lattice 时缝合上、窗关上，从聚焦卡 / 键盘焦点 / 视口中心向外一波半圈翻牌，每块翻过去就成了 Lattice 的海报；回来时反过来，翻完缝张开、窗打开，fb3 的展开在这之后。右下角工具按钮是 App 的 `WallToolsDock` 里两面墙共用的一颗。细节见设计稿 §7「进 / 出 Lattice」。
 - 唯一的离墙路径：首页缝里的全局搜索提交走 `onSearchCommitted`，去 `SearchWorkspace`（core 的 search surface 落地后再进墙）。从搜索页 / 播放页打开集合时整墙入场，回到来源时整墙出场。
+- 特殊集合（core 的 `resolveLibraryHomeSpecial`）：墙上那张卡的类型标签是强调色底 + 小图标（`is-special`、`data-bravais-special`）；首页窄缝中段二级切换下面隔一道分隔线是它们的直达入口（只显示图标，`data-bravais-shortcut`），只在那张集合此刻真有、没被隐藏时出现，在线看当前页签的卡，本地 / Navidrome 不限当前行。点入口与点那张卡同一条打开路径（stage 的 `openShortcut`：墙上屏内找得到就以它为起点磁贴、走 `onOpenItem`；找不到就经同一个 `homeResources.actions.open*` 打开，以缝为中心）。放不下时入口先于二级切换让位，挪进「⋯」菜单。见设计稿 §10.5「特殊集合」、§7.5。
 
 **当前页过滤**（设计稿 §7.6，2026-10-08 起取代「palette 内联框 + 首页不注册过滤」）
 
@@ -481,7 +484,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 **测试**
 
 - 参数化：`libraryBehavior` / `homeBehavior` / `artistBehavior` / `accountBehavior` 的 suite 列表含 bravais（含 `[switch]`）；另有 `[bravais-only]` 用例。墙是虚拟化的，用例经列表面板或键盘焦点定位条目，翻牌期间 stage 根节点挂 `data-bravais-settling`，要等它消失再点。
-- bravais 自己的组件用例：`test/component/bravaisWall.spec.ts`、`bravaisLook.spec.ts`、`bravaisHome.spec.ts`、`bravaisPerf.spec.ts`（性能护栏：计数为主）。e2e：`test/ui/bravaisCollectionFilter.spec.ts`、`bravaisVisualizerMount.spec.ts`、`bravaisPanelFold.spec.ts`，以及 `libraryNavigation` / `libraryRendererSwitch` 里的 bravais 用例。单测在 `test/unit/library/bravais/`，wall 引擎的在 `test/unit/wall/`。
+- bravais 自己的组件用例：`test/component/bravaisWall.spec.ts`、`bravaisLook.spec.ts`、`bravaisHome.spec.ts`、`bravaisSpecialCards.spec.ts`（特殊集合的标签与直达入口）、`bravaisPerf.spec.ts`（性能护栏：计数为主）。首页探针的 probe-a 歌单列表里 public 标成 `isLiked`（`HOME_LIKED_PLAYLIST`），探针另有 `signOut(providerId)` 让在线页签回到未登录。e2e：`test/ui/bravaisCollectionFilter.spec.ts`、`bravaisVisualizerMount.spec.ts`、`bravaisPanelFold.spec.ts`，以及 `libraryNavigation` / `libraryRendererSwitch` 里的 bravais 用例。单测在 `test/unit/library/bravais/`，wall 引擎的在 `test/unit/wall/`。
 - 当前页过滤：组件探针里没有命令面板，`libraryBehavior` / `homeBehavior` 探针挂了 `dev/probes/paletteTypingStandIn.ts`（只照搬命令面板把打字交给 `ownInput` 的那一支），组件用例因此能在墙上直接打字（`libraryBehavior` 的 `[bravais-only] collection page`、`artistBehavior` 的 `[bravais-only] artist page wall`、`bravaisHome` 的首页过滤 / 搜索与过滤的区分 / 书脊下打字）；真实命令面板的那一支、`filter-view` 浮层与 `--play`、首页 `s` 与 `/` 在 e2e `bravaisCollectionFilter.spec.ts`。
 - 性能探针：`dev-probe.html?probe=bravaisPerf`（`npm run dev:probe`），整套矩阵 `npm run manual:bravais-perf`；用法与换机实测清单在 `dev/probes/bravais-perf/README.md`。
 - 探针标记统一用 `data-bravais-*`（磁贴 `data-bravais-slot` / `-kind`、聚焦卡 `data-bravais-focus-card`、缝 `data-bravais-seam` / `-seam-level` / `-seam-action`、面板 `data-bravais-list`、表单 `data-bravais-form` 等）；集合曲目磁贴另有通用的 `data-library-entry`。

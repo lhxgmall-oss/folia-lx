@@ -65,7 +65,8 @@ export default {
     "more": "More",
     "scanProgress": "Scanning {{percent}}%",
     "connect": "Connect a streaming service",
-    "noMatch": "Nothing on this page matches"
+    "noMatch": "Nothing on this page matches",
+    "shortcuts": "Jump to"
   },
   "libraryTui": {
     "back": "Back",

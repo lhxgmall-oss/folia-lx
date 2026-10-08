@@ -12,8 +12,11 @@ export type BravaisLayerSlot = 'home' | 'top';
 
 export type BravaisLayerRegistration = { token: number; layer: BravaisLayer };
 
-/** 打开一张磁贴时记下的起点：哪一层、哪个 slot。 */
-export type BravaisPendingOrigin = { fromLayerKey: string; slotKey: string };
+/**
+ * 打开一张磁贴时记下的起点：哪一层、哪个 slot。slotKey 为 null 是「这次明确没有起点磁贴」（缝里的直达入口打开的
+ * 集合不在屏内）：新层不读布局记忆里的起点、beforePush 也不拿键盘焦点补一个，以缝为中心排序。
+ */
+export type BravaisPendingOrigin = { fromLayerKey: string; slotKey: string | null };
 
 export type BravaisStageState = {
     home: BravaisLayerRegistration | null;

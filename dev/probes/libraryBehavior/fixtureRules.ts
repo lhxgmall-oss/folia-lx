@@ -224,6 +224,12 @@ export const HOME_PLAYLIST_FIXTURES: Readonly<Record<string, OnlineFixtureId[]>>
     [PROBE_PROVIDER_B]: ['collide-b'],
 };
 
+/**
+ * 首页歌单列表里 provider 标成「我喜欢的音乐」（isLiked）的那一张：probe-a 的 public。只在首页的账户歌单列表上标
+ * （集合详情探针直接打开 public 时照旧不带），bravais 首页的特殊卡片与直达入口靠它。
+ */
+export const HOME_LIKED_PLAYLIST: { providerId: string; fixture: OnlineFixtureId } = { providerId: PROBE_PROVIDER_A, fixture: 'online-public' };
+
 /** 只有 probe-a 有云盘。 */
 export const HOME_CLOUD = { providerId: PROBE_PROVIDER_A, id: 'cloud', name: 'Probe Cloud', prefix: 'cloud', count: 4 } as const;
 

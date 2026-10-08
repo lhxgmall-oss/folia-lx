@@ -6,6 +6,7 @@ import type { LibraryDirectoryBatchController, LibraryHiddenScope } from '../../
 import type { LibraryLocalCatalogSnapshot } from '../../core/contracts/home';
 import type {
     LibraryHomeActionsController,
+    LibraryHomeCard,
     LibraryHomeListState,
     LibraryHomeOnlineSource,
     LibraryHomeTabKey,
@@ -34,6 +35,9 @@ import { useBravaisHomeAccount } from './useBravaisHomeAccount';
 // 挂载（Navidrome 概览、本地文件夹树都是进页签时 ensure），数据、section、动作与打开都来自 Library Core 的首页模型与
 // 首页资源；每个来源把自己的列表交给首页 surface 句柄（useLibraryHomeListRegistration），行为探针读它。
 // 墙本身（目录会话、批量、隐藏、层描述）是 BravaisHomeDirectory。私人 FM 卡直接播放（openOnlineCard 判定），不进新层。
+// 特殊集合的直达入口：在线页签看当前页签自己的卡（我喜欢的音乐、云盘在歌单页签，私人 FM、每日推荐在电台页签——电台数据
+// 只在电台页签读，别的页签不为入口多发请求）；本地看文件夹与歌单两行（全部歌曲、「我喜欢」），Navidrome 看歌单 section
+// （随机、收藏），都不限当前 section。
 
 type BravaisHomeSourceCommonProps = {
     chrome: BravaisHomeChrome;
@@ -93,6 +97,7 @@ export const BravaisHomeOnline: React.FC<BravaisHomeSourceCommonProps & {
         <BravaisHomeDirectory
             {...common}
             layerKey={`home:${tab}`}
+            source="online"
             section={tab}
             items={showList ? list.items : []}
             isLoading={showList && list.isLoading}
@@ -196,6 +201,11 @@ export const BravaisHomeLocal: React.FC<BravaisHomeSourceCommonProps & {
     const onOpen = useMemo(() => (card: { raw?: unknown }) => {
         latest.current.homeActions.openLocalGroup(card.raw as LocalLibraryGroup, latest.current.onOpenGridView);
     }, []);
+    // 直达入口（全部歌曲、本地「我喜欢」）不限当前 section：文件夹与歌单两行的卡片。
+    const shortcutCards = useMemo(
+        () => local.sections.filter(entry => entry.key === 'folders' || entry.key === 'playlists').flatMap(entry => entry.cards),
+        [local.sections],
+    );
 
     return (
         <>
@@ -214,6 +224,7 @@ export const BravaisHomeLocal: React.FC<BravaisHomeSourceCommonProps & {
             <BravaisHomeDirectory
                 {...common}
                 layerKey="home:local"
+                source="local"
                 section={activeSection.key}
                 items={isEmptyLibrary ? [] : activeSection.cards}
                 isLoading={false}
@@ -225,6 +236,7 @@ export const BravaisHomeLocal: React.FC<BravaisHomeSourceCommonProps & {
                 batchConfig={isEmptyLibrary ? undefined : batchConfig}
                 panelTitle={activeSection.label}
                 onOpen={onOpen}
+                shortcutCards={isEmptyLibrary ? NO_CARDS : shortcutCards}
             />
         </>
     );
@@ -285,11 +297,17 @@ export const BravaisHomeNavidrome: React.FC<BravaisHomeSourceCommonProps & {
         const { navidrome: current, homeActions: actionsController, onOpenGridView: open } = latest.current;
         actionsController.openNavidromeCard(card, resolveNavidromeCollectionType(current.section, card.id), open);
     }, []);
+    // 直达入口（随机、收藏）在歌单 section 里：不经墙打开时按那张卡自己的 section 定集合类型（与在歌单墙上点它一样）。
+    const openShortcut = useMemo(() => (card: Parameters<LibraryHomeActionsController['openNavidromeCard']>[0]) => {
+        const { homeActions: actionsController, onOpenGridView: open } = latest.current;
+        actionsController.openNavidromeCard(card, resolveNavidromeCollectionType('playlists', card.id), open);
+    }, []);
 
     return (
         <BravaisHomeDirectory
             {...common}
             layerKey="home:navidrome"
+            source="navidrome"
             section={section}
             items={config ? navidrome.items : []}
             isLoading={Boolean(config) && isLoading}
@@ -300,6 +318,10 @@ export const BravaisHomeNavidrome: React.FC<BravaisHomeSourceCommonProps & {
             sourceTools={sourceTools}
             panelTitle={navidrome.title}
             onOpen={onOpen}
+            shortcutCards={config ? navidrome.cardsBySection.playlists : NO_CARDS}
+            openShortcut={openShortcut}
         />
     );
 };
+
+const NO_CARDS: LibraryHomeCard[] = [];

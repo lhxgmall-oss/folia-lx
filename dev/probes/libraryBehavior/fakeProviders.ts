@@ -12,6 +12,7 @@ import {
     HOME_FAVORITE_ALBUM_COUNTS,
     HOME_FM_COUNT,
     HOME_FM_PREFIX,
+    HOME_LIKED_PLAYLIST,
     HOME_PLAYLIST_FIXTURES,
     HOME_RECOMMENDED_COUNTS,
     homeFavoriteAlbumId,
@@ -317,7 +318,11 @@ const createHomeExtensions = (providerId: string) => ({
     library: {
         getUserPlaylists: (_userId: MediaId, limit: number, offset: number) => run(
             providerId, 'userPlaylists', `${providerId}:userPlaylists`, { offset, limit },
-            () => pageOf((HOME_PLAYLIST_FIXTURES[providerId] ?? []).map(describeOnlineFixture), limit, offset),
+            () => pageOf((HOME_PLAYLIST_FIXTURES[providerId] ?? []).map(fixtureId => (
+                providerId === HOME_LIKED_PLAYLIST.providerId && fixtureId === HOME_LIKED_PLAYLIST.fixture
+                    ? { ...describeOnlineFixture(fixtureId), isLiked: true }
+                    : describeOnlineFixture(fixtureId)
+            )), limit, offset),
         ),
         getUserAlbums: (_userId: MediaId, limit: number, offset: number) => run(
             providerId, 'userAlbums', `${providerId}:userAlbums`, { offset, limit },

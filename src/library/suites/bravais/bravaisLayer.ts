@@ -1,5 +1,6 @@
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamFilter } from './bravaisSeamModels';
 import type { BravaisHomeLayer, BravaisHomeSeam } from './bravaisHomeModels';
+import type { LibraryHomeSpecialKind } from '../../core/model/homeSpecialCards';
 
 // src/library/suites/bravais/bravaisLayer.ts
 // bravais 的层描述（设计稿 §8.1）：surface 把 core binding 的数据投影成它，推进 bravaisStageStore，stage 只读它画墙。
@@ -36,6 +37,11 @@ export type BravaisItem = {
     dimmed?: boolean;
     /** B9 首页：点了直接播放、不进新层（私人 FM）：stage 不记起点。 */
     direct?: boolean;
+    /**
+     * 首页的特殊集合（我喜欢的音乐、私人 FM、全部歌曲…，判定在 core 的 resolveLibraryHomeSpecial）：左上角的类型标签
+     * 换成强调色底 + 小图标（BravaisTile）。普通卡片没有。
+     */
+    special?: LibraryHomeSpecialKind;
 };
 
 /** 首页缝里的页签（只有首页层有）。 */

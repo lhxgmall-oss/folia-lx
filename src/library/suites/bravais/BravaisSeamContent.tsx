@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronLeft, FoldHorizontal, ListFilter, ListPlus, Maximize2, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
+import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
 import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamStatusLine } from './BravaisSeamCollection';
@@ -36,6 +37,8 @@ export type BravaisSeamActions = {
     /** B7：打开列表面板、面板里的定位 / 播放 / 关闭（stage 给）。 */
     openList?: () => void;
     panel?: BravaisPanelActions;
+    /** 首页窄缝的直达入口（特殊集合）：墙上找得到那张卡就以它为起点磁贴（useBravaisInteractions 的 openShortcut）。 */
+    openShortcut?: (shortcut: BravaisHomeShortcut) => void;
 };
 
 type BravaisSeamContentProps = {
@@ -160,8 +163,8 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
 const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer, depth, actions }) => {
     if (!layer) return null;
     switch (variant) {
-        case 'home': return <BravaisSeamHome layer={layer} compact={false} setLevel={actions.setLevel} />;
-        case 'home-spine': return <BravaisSeamHome layer={layer} compact setLevel={actions.setLevel} />;
+        case 'home': return <BravaisSeamHome layer={layer} compact={false} setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
+        case 'home-spine': return <BravaisSeamHome layer={layer} compact setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
         case 'search': return <BravaisSeamSearch layer={layer} />;
         case 'full': return <FullSeam layer={layer} depth={depth} actions={actions} />;
         case 'spine': return <SpineSeam layer={layer} actions={actions} />;

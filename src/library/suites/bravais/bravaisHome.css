@@ -73,7 +73,8 @@
     gap: 12px;
 }
 
-.bravais-seam-home-body > .bravais-seam-sections-slot { display: flex; width: 100%; justify-content: center; }
+/* 切换位：二级切换，下面隔一道分隔线是直达入口（特殊集合）；竖着排、居中。测量副本里也是这一身（不限在 body 里）。 */
+.bravais-seam-home .bravais-seam-sections-slot { display: flex; width: 100%; flex-direction: column; align-items: center; }
 
 /* fb2 第二轮：页头竖着排——最上面一行是「书库」小字（横排），下面是折叠按钮，再下面是页签那一列（第三轮：折叠按钮
    单独一行，不与第一个页签并排；窄缝与书脊一样）。空间不够时先把标题视觉隐藏（.is-hidden，读屏仍读得到；折叠按钮
@@ -536,3 +537,63 @@
 
 /* 当前页过滤（设计稿 §7.6）：正在输入或有过滤词时，输入位排在导航区与账户入口之间（自然高度）。 */
 .bravais-seam-home > .bravais-seam-home-filter { width: 100%; margin-bottom: calc(10px - var(--bravais-home-gap, 18px)); }
+
+/* ---------- 特殊集合：磁贴的类型标签与缝里的直达入口 ---------- */
+
+/* 特殊集合（我喜欢的音乐、私人 FM、全部歌曲…）的类型标签：强调色底、底色字，前面一个小图标（与直达入口同一个）。
+   底色字与强调色的对比就是主题本身「强调色写在底色上」的对比，日光 / 暗色都成立；一圈 shade 发丝线让它在同色系封面上
+   也分得开。层级抬到叠色层（3）之上、熄灯层（5）之下：叠色时它和正在播放的强调色描边一样不被染，熄灯时照样一起压暗；
+   全透明档沿用标签的 0.28 压暗规则（bravaisAppearance.css）。正在播放的卡不再换成 shade 底（强调色已经在了）。 */
+.bravais-tile-face > .lattice-poster-badge.is-special {
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--bg-color, #070707);
+    background: var(--text-accent, var(--text-primary, #f7f4ee));
+    box-shadow: 0 0 0 1px rgb(var(--lattice-shade-rgb) / 34%);
+}
+
+.lattice-poster-badge.is-special > .bravais-badge-icon { width: 12px; height: 12px; flex: none; stroke-width: 2.6; }
+
+/* 直达入口：二级切换（选中态是强调色 + 侧边细线的 tab）下面一道短分隔线，再下面一列只有图标的按钮。按钮带一圈细框、
+   图标用强调色——它们是「打开那张集合」，不是「换这面墙看什么」；全名在 aria-label / title。 */
+.bravais-seam-shortcuts-rule {
+    display: block;
+    width: 18px;
+    height: 1px;
+    margin: 8px 0;
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 22%, transparent);
+}
+
+.bravais-seam-shortcuts { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+
+.bravais-seam-home .bravais-seam-shortcut {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--text-accent, var(--text-primary, #f7f4ee)) 38%, transparent);
+    border-radius: 10px;
+    color: var(--text-accent, var(--text-primary, #f7f4ee));
+    background: none;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.bravais-seam-home span.bravais-seam-shortcut { cursor: default; }
+.bravais-seam-home .bravais-seam-shortcut svg { width: 15px; height: 15px; }
+.bravais-seam-home button.bravais-seam-shortcut:hover,
+.bravais-seam-home button.bravais-seam-shortcut:focus-visible {
+    border-color: var(--text-accent, var(--text-primary, #f7f4ee));
+    background: color-mix(in srgb, var(--text-accent, var(--text-primary, #f7f4ee)) 14%, transparent);
+}
+
+.bravais-seam-home.is-compact .bravais-seam-shortcut { width: 30px; height: 30px; }
+.bravais-seam-home.is-compact .bravais-seam-shortcuts-rule { margin: 6px 0; }
+
+/* 放不下时挪进「⋯」菜单：图标同样用强调色。 */
+.bravais-seam-menu.is-home button.is-shortcut svg { color: var(--text-accent, currentColor); opacity: 1; }
+
+:root[data-reduce-motion~='lattice'] .bravais-seam-home .bravais-seam-shortcut { transition: none; }

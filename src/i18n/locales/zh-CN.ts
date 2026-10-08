@@ -65,7 +65,8 @@ export default {
     "more": "更多",
     "scanProgress": "扫描 {{percent}}%",
     "connect": "连接在线平台",
-    "noMatch": "没有匹配的条目"
+    "noMatch": "没有匹配的条目",
+    "shortcuts": "直达"
   },
   "libraryTui": {
     "back": "返回",
