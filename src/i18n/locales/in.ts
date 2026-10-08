@@ -4114,7 +4114,7 @@ export default {
         "gridMap": "Tombol Semua membuka GridMap untuk ringkasan padat. Klik untuk memilih dan aktifkan untuk masuk; {{mod}} + F atau mengetik di GridMap memfilter koleksi.",
         "gridSearchResult": "Mengirim pencarian header membuka ruang kerja lagu terpisah. Hasil dapat diputar, dibuka lewat artis atau album, atau ditambahkan ke antrean.",
         "gridCardKeys": "Kiri dan Kanan mengganti poster tengah; Enter membukanya. Gulir dan seret horizontal melakukan perpindahan fokus yang sama.",
-        "gridPageKeys": "{{mod}} + K membuka jendela perintah, {{mod}} + B masuk Lattice saat ada antrean, dan Ctrl + G membuka Ponder halaman ini.",
+        "gridPageKeys": "Tab / Shift + Tab berpindah tab, {{mod}} + K membuka jendela perintah, {{mod}} + B masuk Lattice saat ada antrean, dan Ctrl + G membuka Ponder halaman ini.",
         "gridView": "Kisi koleksi berisi lagu, album, atau artis dari kartu yang Anda buka. Kembali membawa Anda ke kisi induk tanpa kehilangan posisi.",
         "gridViewActions": "Pilih kartu untuk memutar atau membukanya. Tindakan halaman juga menyediakan putar semua, antrean, penyuntingan, dan alat khusus koleksi bila tersedia.",
         "gridViewBack": "Tombol kiri atas meninggalkan koleksi dan membersihkan catatan navigasi sementara. Escape juga kembali bila tidak ada keadaan dalam.",
