@@ -60,7 +60,24 @@ export type OnlineFixtureRule = {
     /** 上游原始顺序（含重复）。 */
     rawIndexes: number[];
     isOwned?: boolean;
+    /** 集合详情里的描述（歌单简介）；首页列表那一份不带。 */
+    description?: string;
 };
+
+/** online-dupes 的描述：一行，原样显示。 */
+export const PROBE_SHORT_DESCRIPTION = 'Songs that show up twice, kept as the upstream sent them.';
+/** online-owned-twice 的描述：多段、带首尾空白，收起时要截断，展开后在块内滚动。 */
+export const PROBE_LONG_DESCRIPTION = [
+    '',
+    '  A long playlist description that keeps going well past the four lines the seam shows before it is opened.',
+    'It has several paragraphs, separated by line breaks, so the expanded text keeps them.',
+    '',
+    'The second paragraph repeats a few sentences to push the text past the expanded cap as well: '
+        + 'Amber, Birch, Cedar, Dune and Ember are the words every probe track borrows. '.repeat(6).trim(),
+    '',
+    'The last line ends the description.  ',
+    '',
+].join('\n');
 
 export const ONLINE_FIXTURES: Readonly<Record<OnlineFixtureId, OnlineFixtureRule>> = {
     'online-big': { providerId: PROBE_PROVIDER_A, collectionId: 'big', type: 'playlist', name: 'Big Playlist', prefix: 'big', rawIndexes: range(350) },
@@ -71,6 +88,7 @@ export const ONLINE_FIXTURES: Readonly<Record<OnlineFixtureId, OnlineFixtureRule
         name: 'Duplicate Entries',
         prefix: 'dupes',
         rawIndexes: range(220).map(position => DUPE_POSITIONS[position] ?? position),
+        description: PROBE_SHORT_DESCRIPTION,
     },
     'online-flaky': { providerId: PROBE_PROVIDER_A, collectionId: 'flaky', type: 'playlist', name: 'Flaky Paging', prefix: 'flaky', rawIndexes: range(400) },
     'online-broken': { providerId: PROBE_PROVIDER_A, collectionId: 'broken', type: 'playlist', name: 'Broken Paging', prefix: 'broken', rawIndexes: range(400) },
@@ -98,6 +116,7 @@ export const ONLINE_FIXTURES: Readonly<Record<OnlineFixtureId, OnlineFixtureRule
         prefix: 'otwice',
         rawIndexes: range(12).map(position => (position === OWNED_TWICE_POSITION ? 1 : position)),
         isOwned: true,
+        description: PROBE_LONG_DESCRIPTION,
     },
     'online-public': { providerId: PROBE_PROVIDER_A, collectionId: 'public', type: 'playlist', name: 'Public Playlist', prefix: 'public', rawIndexes: range(30) },
     'online-daily': { providerId: PROBE_PROVIDER_A, collectionId: 'daily_recommendations', type: 'daily_recommendations', name: 'Daily Picks', prefix: 'daily', rawIndexes: range(10) },

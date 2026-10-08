@@ -3312,7 +3312,6 @@ export default {
   },
   "libraryBravaisArtist": {
     "playTopSongs": "播放热门",
-    "wallCounts": "{{songs}} 首热门 · {{albums}} 张专辑",
     "songCount_one": "{{count}} 首歌",
     "songCount_other": "{{count}} 首歌",
     "albumCount_one": "{{count}} 张专辑",

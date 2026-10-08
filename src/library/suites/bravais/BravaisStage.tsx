@@ -7,6 +7,8 @@ import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import type { LibrarySuiteStageProps } from '../../core/contracts/suite';
 import { BRAVAIS_METRICS, BRAVAIS_OVERSCAN, BRAVAIS_SEAM_ACRYLIC_BLUR } from './bravaisConstants';
+import { BRAVAIS_REFLOW_EASING_CSS, BRAVAIS_REFLOW_MS } from './bravaisReflowMotion';
+import { WALL_REFLOW_CONTROLS_REVEAL } from '../../../components/wall/wallReflowMotion';
 import { resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
 import type { BravaisLayer } from './bravaisLayer';
 import { useBravaisSeamStore, type BravaisSeamLevel } from './bravaisSeamLevel';
@@ -403,6 +405,11 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             style={{
                 '--lattice-poster-tint-color': tintColor,
                 '--lattice-poster-tint-intensity': tintIntensity,
+                '--bravais-reflow-duration': `${BRAVAIS_REFLOW_MS}ms`,
+                '--bravais-reflow-ease': BRAVAIS_REFLOW_EASING_CSS,
+                '--bravais-focus-reveal-delay': `${WALL_REFLOW_CONTROLS_REVEAL.delayMs}ms`,
+                '--bravais-focus-reveal-duration': `${WALL_REFLOW_CONTROLS_REVEAL.durationMs}ms`,
+                '--bravais-focus-reveal-rise': `${WALL_REFLOW_CONTROLS_REVEAL.risePx}px`,
             } as CSSProperties}
             data-library-stage="bravais"
             data-bravais-layer={display?.layer.key}

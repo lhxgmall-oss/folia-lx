@@ -1,14 +1,25 @@
-import { cubicBezier } from 'framer-motion';
-import { BRAVAIS_REFLOW_EASE } from './bravaisConstants';
+import { BLOCK_COLS } from '../../../components/wall/blockTemplates';
+import { getPitch } from '../../../components/wall/layout';
+import { createWallReflowCurve } from '../../../components/wall/wallReflowMotion';
+import { BRAVAIS_METRICS } from './bravaisConstants';
 import type { PlateRect } from './bravaisBlockPlate';
 
 // src/library/suites/bravais/bravaisReflowMotion.ts
 // 聚焦卡块内让位时，块底板逐帧重画要知道窗磁贴此刻画在哪。让位是外框上的 CSS 过渡（.bravais-tile.is-reflowing：
-// transform / width / height，500ms，同一条 cubic-bezier）。不逐帧读样式（B6b③ 每帧对块内磁贴 getComputedStyle）：
+// transform / width / height，同一条缓动）。不逐帧读样式（B6b③ 每帧对块内磁贴 getComputedStyle）：
 // 让位开始时从浏览器建好的 CSSTransition 里读一次起止值与时长（被打断时浏览器从当时的位置起步、往回走时还会缩短
 // 时长——这些都以它为准），之后每帧只读 animation.currentTime（时间轴的量，不触发样式计算），按已知的缓动推算位置。
+// 缓动与时长和 Lattice 展开海报同一条弹簧（components/wall/wallReflowMotion，2026-10-08 起；之前是带回弹的
+// cubic-bezier(0.2, 0.9, 0.25, 1.08)、500ms）：采样成 CSS linear()，时长取弹簧把整块宽度的位移走到静止的时刻。
 
-const ease = cubicBezier(...BRAVAIS_REFLOW_EASE);
+/** 让位曲线：Lattice 的让位弹簧，以一整块的宽度（块内任何位移都不超过它）为准采样。 */
+const REFLOW_CURVE = createWallReflowCurve(BLOCK_COLS * getPitch(BRAVAIS_METRICS) - BRAVAIS_METRICS.gap);
+/** 聚焦卡块内让位的过渡时长（毫秒），经 stage 根节点的 --bravais-reflow-duration 交给 bravais.css。 */
+export const BRAVAIS_REFLOW_MS = REFLOW_CURVE.durationMs;
+/** 让位过渡的 CSS 缓动（linear()），经 stage 根节点的 --bravais-reflow-ease 交给 bravais.css。 */
+export const BRAVAIS_REFLOW_EASING_CSS = REFLOW_CURVE.css;
+/** 同一条缓动的 JS 版（与 CSS 的 linear() 逐点一致）：块底板逐帧重画时按它推算磁贴的位置。 */
+export const bravaisReflowEase = REFLOW_CURVE.ease;
 
 type ReflowProperty = 'transform' | 'width' | 'height';
 
@@ -82,7 +93,7 @@ export const sampleReflowRect = (channels: readonly ReflowChannel[], target: Pla
     const rect = { ...target };
     for (const channel of channels) {
         const progress = progressOf(channel);
-        const eased = progress >= 1 ? 1 : ease(progress);
+        const eased = progress >= 1 ? 1 : bravaisReflowEase(progress);
         const value = (index: number) => channel.from[index]! + (channel.to[index]! - channel.from[index]!) * eased;
         if (channel.property === 'transform') {
             rect.x = value(0);
