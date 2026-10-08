@@ -30,7 +30,7 @@ export default {
     "crumbPlayer": "Now Playing",
     "tools": "Wall tools",
     "toolsLocate": "Locate the playing song",
-    "helpMove": "Move the focus",
+    "helpMove": "Move the focus (wall or info strip)",
     "helpOpen": "Open a song card or a collection",
     "helpPlay": "Play the song in the open card",
     "helpEnqueue": "Add the focused song to the queue",
@@ -3312,7 +3312,6 @@ export default {
   },
   "libraryBravaisArtist": {
     "playTopSongs": "Play top songs",
-    "wallCounts": "{{songs}} top songs · {{albums}} albums",
     "songCount_one": "{{count}} song",
     "songCount_other": "{{count}} songs",
     "albumCount_one": "{{count}} album",

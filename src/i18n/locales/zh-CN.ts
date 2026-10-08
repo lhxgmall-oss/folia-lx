@@ -30,7 +30,7 @@ export default {
     "crumbPlayer": "播放页",
     "tools": "墙面工具",
     "toolsLocate": "定位正在播放",
-    "helpMove": "移动焦点",
+    "helpMove": "移动焦点（墙上 / 信息条里）",
     "helpOpen": "展开歌曲 / 打开集合",
     "helpPlay": "播放已展开的歌曲",
     "helpEnqueue": "把焦点所在的歌曲加入队列",
@@ -3311,7 +3311,6 @@ export default {
   },
   "libraryBravaisArtist": {
     "playTopSongs": "播放热门",
-    "wallCounts": "{{songs}} 首热门 · {{albums}} 张专辑",
     "songCount_one": "{{count}} 首歌",
     "songCount_other": "{{count}} 首歌",
     "albumCount_one": "{{count}} 张专辑",

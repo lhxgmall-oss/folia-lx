@@ -30,7 +30,7 @@ export default {
     "crumbPlayer": "Sedang Diputar",
     "tools": "Alat dinding",
     "toolsLocate": "Temukan lagu yang diputar",
-    "helpMove": "Pindahkan fokus",
+    "helpMove": "Pindahkan fokus (dinding atau strip info)",
     "helpOpen": "Buka kartu lagu atau koleksi",
     "helpPlay": "Putar lagu di kartu yang terbuka",
     "helpEnqueue": "Tambahkan lagu yang difokuskan ke antrean",
@@ -3197,7 +3197,6 @@ export default {
   },
   "libraryBravaisArtist": {
     "playTopSongs": "Putar lagu populer",
-    "wallCounts": "{{songs}} lagu populer · {{albums}} album",
     "songCount_one": "{{count}} lagu",
     "songCount_other": "{{count}} lagu",
     "albumCount_one": "{{count}} album",

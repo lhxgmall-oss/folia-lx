@@ -8,7 +8,8 @@ import { installBaseState, mockNeteaseApi, openApp } from './helpers/appFixtures
 // - 切到部分透明后 visualizer 重新挂上；
 // - 从实色首页回播放页 visualizer 正常出现；
 // - 打开设置弹窗时 visualizer 在（首页被盖住，播放页露出来）；
-// - grid 首页照旧挂着 visualizer（TUI 与切换的完整回归在 libraryRendererSwitch）。
+// - grid 首页照旧挂着 visualizer（TUI 与切换的完整回归在 libraryRendererSwitch）；
+// - 左上角隐藏式返回在首页根层只在有歌时出现，点它回播放页后 visualizer 挂上（没有歌时播放页是空的，深色主题下就是「黑屏」）。
 // 遮挡由 bravais 的 stage 在 effect 里报告，App 在首页完全显示 300ms 后才卸载，所以断言一律轮询。
 
 test.use({ screenshot: 'only-on-failure' });
@@ -90,4 +91,30 @@ test('the grid home keeps the visualizer mounted whatever the bravais look prefe
     await expect(page.locator('[data-library-stage="bravais"]')).toHaveCount(0);
     await page.waitForTimeout(600);
     expect(await visualizerMounted(page)).toBe(true);
+});
+
+// 用户实测「首页点左上角返回回到黑屏」：那是没有歌时的空播放页（visualizer 照常挂上，只是没有可画的东西），不是挂载链路的问题。
+// 现在首页根层没有歌时不画这颗按钮；有歌时它回到播放页，实色档卸载过的 visualizer 立即重新挂上。
+test('the bravais back button at the home root only shows with a song and brings the visualizer back on the player', async ({ page }) => {
+    await bootHome(page, 'bravais', 'solid');
+    const stage = page.locator('[data-library-stage="bravais"]');
+    await expect(stage).toHaveAttribute('data-bravais-look', 'solid');
+    await expect(stage).not.toHaveAttribute('data-bravais-settling', /.*/, { timeout: 15_000 });
+    await expect.poll(() => visualizerMounted(page)).toBe(false);
+    const back = stage.locator('.lattice-back');
+    await expect(back).toHaveCount(0);
+
+    await page.evaluate(async () => {
+        const path = '/src/stores/usePlaybackStore.ts';
+        const { usePlaybackStore } = await import(/* @vite-ignore */ path);
+        const song = { id: 5001, name: 'Back Seed', artists: [{ id: 1, name: 'Seed Artist' }], album: { id: 1, name: 'Seed Album' }, durationMs: 180_000 };
+        usePlaybackStore.setState({ playQueue: [song], currentSong: song });
+    });
+    await expect(back).toHaveAccessibleName('Back to the player');
+    await page.mouse.move(700, 500);
+    await page.mouse.move(60, 60);
+    await expect(back).toHaveClass(/\bis-revealed\b/);
+    await back.click();
+    await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#player');
+    await expect.poll(() => visualizerMounted(page)).toBe(true);
 });

@@ -8,7 +8,8 @@ import '../../dev/probes/homeBehavior/probeApi';
 // 实测反馈 1 的组件用例（homeBehavior 探针 + setSuite('bravais')）：
 // - Lattice 的墙面外观设置（灯光、叠色）作用到 bravais 根节点，三档透光下熄灯不涂黑窗；
 // - 右下角共享工具按钮（components/wall/WallToolsButton）：点按打开面板、滑动打开命令面板、Esc 只收面板；
-// - 左上角隐藏式返回（WallBackButton concealed）：热区 / 键盘聚焦出现，点了回到播放页，集合层上也在；
+// - 左上角隐藏式返回（WallBackButton concealed）：热区 / 键盘聚焦出现；首页根层有歌时回到播放页、没有歌时不画，
+//   集合层上与缝里的 ‹ 同一个返回（先关面板再退层）；
 // - 聚焦卡：立即播放是纯图标按钮，「已在队列」悬停 / 聚焦时显示「插入队列」。
 // 探针左下角的 DEV 浮层可能盖住磁贴，点磁贴用 article 的 click（磁贴都在屏幕中部）。
 
@@ -159,7 +160,7 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         expect(rows.map(row => [row.label, row.key])).toEqual([
             ['Type to filter this page', 'A–Z'],
             ['Search online platforms (home)', '/'],
-            ['Move the focus', '↑ ↓ ← →'],
+            ['Move the focus (wall or info strip)', '↑ ↓ ← →'],
             ['Open a song card or a collection', 'Enter'],
             ['Play the song in the open card', 'Enter'],
             ['Add the focused song to the queue', 'Shift + Enter'],
@@ -193,10 +194,16 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await expect(panel(page)).toHaveCount(0);
     });
 
-    test('the hidden back button shows in the top-left corner or on keyboard focus and returns to the player', async ({ mount, page }) => {
+    test('the hidden back button shows in the top-left corner or on keyboard focus; at the home root it returns to the player only with a song', async ({ mount, page }) => {
         await mountBravais(mount, page);
         const button = back(page);
+        // 首页根层、没有正在播放 / 已加载的歌：不画（播放页是空的，不能把人送过去）。
+        await expect(button).toHaveCount(0);
+
+        // 有歌：回到播放页。
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
         await expect(button).toHaveAccessibleName('Back to the player');
+        await expect(button).toHaveAttribute('title', 'Back to the player');
         await page.mouse.move(700, 500);
         await expect.poll(() => button.evaluate(node => Number(getComputedStyle(node).opacity))).toBe(0);
         await expect(button).not.toHaveClass(/\bis-revealed\b/);
@@ -218,14 +225,39 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await page.keyboard.press('Enter');
         await expect.poll(async () => (await calls(page, 'backToPlayer')).length).toBe(2);
 
-        // 集合层上也在，语义仍是回到播放页（不是缝里 ‹ 的层返回）。
+        // 歌没了：首页根层上又不画了。
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying(null));
+        await expect(button).toHaveCount(0);
+    });
+
+    test('off the home root the hidden back button is the info strip back: panel first, then the layer', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        // 集合层上有没有歌都在，语义与缝里的 ‹ 相同（返回），不是回到播放页。
         await openCard(page);
+        const button = back(page);
+        await expect(button).toHaveAccessibleName('Back');
+        await expect(button).toHaveAttribute('title', 'Back');
+
+        // 列表面板开着：先关面板（与 ‹、Esc 一致），不退层。
+        await page.locator('[data-bravais-seam-action="list"]').click();
+        await expect(stage(page).locator('[data-bravais-seam="panel"]')).toBeAttached();
+        await settled(page);
         await page.mouse.move(700, 500);
         await page.mouse.move(60, 60);
         await expect(button).toHaveClass(/\bis-revealed\b/);
+        await expect(button).toHaveAccessibleName('Back');
         await button.click();
-        await expect.poll(async () => (await calls(page, 'backToPlayer')).length).toBe(3);
+        await expect(stage(page).locator('[data-bravais-seam="full"]')).toBeAttached();
         expect(await stack(page)).toHaveLength(1);
+
+        // 再点：退回首页（缝里 ‹ 的同一个 onDone），墙翻回首页层。
+        await settled(page);
+        await button.click();
+        await expect.poll(() => stack(page)).toHaveLength(0);
+        await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:playlist', { timeout: 10_000 });
+        expect(await calls(page, 'backToPlayer')).toHaveLength(0);
+        // 回到首页根层、没有歌：按钮不画。
+        await expect(button).toHaveCount(0);
     });
 
     test('the focus card plays from an icon-only button and offers insert-into-queue on a queued song', async ({ mount, page }) => {

@@ -204,7 +204,7 @@ suite 可以为自己的「导航状态」（例如 bravais 的列表 / 目录�
 
 有的 suite 不是「首页一张图、集合层盖一张图」，而是一块横跨首页与集合层的画面（bravais 的整面墙：换层时墙上的磁贴原地翻牌，不能因为换 surface 而重挂）。这种 suite 在 manifest 上声明可选的 `stage`（类型 `LibrarySuiteStageProps`，在 `core/contracts/suite.ts`）：
 
-- **输入**：`isInteractive`（首页外壳层的值，集合层打开时仍为真；上面盖了别的层时为假）、`theme`、`isDaylight`、`navigation`（集合导航快照：`depth` / `origin` / `activeType` / `trail`，首页时 `depth` 为 0），以及回调 `reportPlayerOcclusion`（见下面「遮挡播放页」）与可选的 `onBackToPlayer`（回到播放页，与首页数据的同名回调同一个；stage 横跨首页与集合层，bravais 左上角的隐藏式返回用它）、`onTogglePlayback`（暂停 / 继续正在播放的那首，首页数据的同名回调；bravais 正在播放的聚焦卡上的播放键用它）与 `onEnterPlaybackView`（按「播放后进入的视图」去 Lattice 或播放页，「留在原处」时去播放页，与播放胶囊同一条规则；bravais 聚焦卡的「进入」用它）。播放端口另有可选的 `togglePlayback`（同一个开关），网格在「留在原处」时给正在播放的卡片用。导航快照不含当前层的数据；层身份与内容由这套 suite 的 surface 交给 stage。
+- **输入**：`isInteractive`（首页外壳层的值，集合层打开时仍为真；上面盖了别的层时为假）、`theme`、`isDaylight`、`navigation`（集合导航快照：`depth` / `origin` / `activeType` / `trail`，首页时 `depth` 为 0），以及回调 `reportPlayerOcclusion`（见下面「遮挡播放页」）与可选的 `onBackToPlayer`（回到播放页，与首页数据的同名回调同一个；bravais 左上角的隐藏式返回在首页根层、有歌时用它，不在根层时它是缝里 ‹ 的层返回）、`onTogglePlayback`（暂停 / 继续正在播放的那首，首页数据的同名回调；bravais 正在播放的聚焦卡上的播放键用它）与 `onEnterPlaybackView`（按「播放后进入的视图」去 Lattice 或播放页，「留在原处」时去播放页，与播放胶囊同一条规则；bravais 聚焦卡的「进入」用它）。播放端口另有可选的 `togglePlayback`（同一个开关），网格在「留在原处」时给正在播放的卡片用。导航快照不含当前层的数据；层身份与内容由这套 suite 的 surface 交给 stage。
 - **分工**：stage 负责画面；这套 suite 的首页 / 集合 / 歌手 surface 不画画面，只把自己的数据投影成层描述交给 suite 内部的 store，并照常注册命令面板。
 - **宿主怎么挂**：`GridViewOverlayHost` 经 `registry.resolveLibraryStage(store 的 suite)` 只挂**生效 suite** 的 stage（未知 id 生效的是 grid，grid 与 TUI 都没有 stage），挂载位 `app/LibrarySuiteStageSlot.tsx` 在首页容器之后、中性背景板与集合层之前，包 `Suspense`（fallback 为 null）。打开 / 关闭集合只换 props，不重挂；换 suite 时卸载（换成另一套带 stage 的 suite 时重挂）。首页外壳整个卸载时（播放页全屏约 350ms 后 `Home` 返回 null）stage 也卸载，跨卸载要保留的布局放进 sessionStorage 或模块级 store，并在 `layout.forget` 里能丢掉。
 - **背景板与首页**：渲染当前层（集合或歌手页）的 suite 正是挂着 stage 的那套时，宿主不渲染中性背景板，首页容器也不加 `visibility: hidden`（`aria-hidden` 与 `pointer-events: none` 照旧）；当前层回退到 grid 时与没有 stage 一样。规则是 `core/model/libraryStage.ts` 的 `resolveLibraryLayerPresentation`。
@@ -442,6 +442,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 **导航**
 
 - transitions 只声明 `beforePush`（墙上点磁贴、聚焦卡的链接已记下起点；命令面板对焦点那一项的打开用键盘焦点所在的 slot）与 `reset`（丢掉没用掉的起点与移除的翻牌起点）；钩子经 entry 的 `installBravaisTransitionHook` 由 stage 的 chunk 装上。
+- 集合页的描述（歌单简介、专辑介绍）在完整信息条的标题下方，取自 core 的 `resolveCollectionDescription`（与网格信息面板同一条合并规则：详情盖在集合描述上）；与歌手页的「关于艺术家」共用 `BravaisSeamAbout`（书勒口式的简介：不加小节标题；正文 4 行截断、点开封顶后块内滚动、纯文本保留换行；歌手页另有头像 + 名字的署名与「N 首歌 · M 张专辑」附注），书脊上没有。见设计稿 §10.2「描述」。
 - 面包屑在缝里（`BravaisSeamCrumbs`，规则 `bravaisCrumbs`）：根是书库 / 搜索 / 播放页（按 `origin`），中间层名字来自 `trail`，多于一层时折成可展开的「…」；点击调层描述上的 `onPopTo`（集合与歌手 surface 把宿主的 `onPopTo` 包成稳定回调交给 stage）。面板开着时当前层名 = 关面板。
 - 面板 history：列表面板与目录树面板是导航状态，`bravaisPanelHistory` 按「suite 自己的 history 记录」的规则 `pushState`（标记 `bravaisPanel`）；应用内返回先关面板，折叠往返与跳层越过它。
 - 「降低动态效果」：stage 自己解析（`bravaisMotion`：「队列拼贴」或「歌单展开转场」任一降级）——翻牌换成 0.18 秒淡出淡入、整墙波次换成淡入淡出；相机、缝与悬停的补间只看 `lattice` 动效面。

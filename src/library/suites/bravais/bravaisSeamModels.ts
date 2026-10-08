@@ -94,6 +94,11 @@ export type BravaisSeamForm = {
 
 /** 集合层在缝里的那一部分（首页没有）。 */
 export type BravaisSeamCollection = {
+    /**
+     * 集合的描述（歌单简介、专辑介绍……；core 的 resolveCollectionDescription，与网格信息面板同一份），完整信息条里
+     * 标题下方、可展开（BravaisSeamBlurb）；没有就不给、不占位。
+     */
+    description?: string;
     subscribe?: BravaisSeamSubscribe;
     sync?: BravaisSeamSync;
     status?: BravaisSeamStatus;

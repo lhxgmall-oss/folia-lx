@@ -8,7 +8,7 @@ import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisS
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
 
 // src/library/suites/bravais/useBravaisArtistSeam.ts
-// 歌手页在缝与墙上的投影（设计稿 §10.4 / §10.6）：缝里的歌手信息块（头像、别名、简介、统计）、过滤输入位（只筛专辑名）、
+// 歌手页在缝与墙上的投影（设计稿 §10.4 / §10.6）：缝里的「关于艺术家」（头像、名字、别名、简介、统计附注）、过滤输入位（只筛专辑名）、
 // 专辑分页进度 / 续页、状态行（加载、错误 + 重试、空、过滤无结果）、「⋯ 更多」（重新拉取、编辑本地歌手实体）与缝底的
 // 提示；墙的内容规则（专辑分页期间的循环周期、有限拼贴的规划条目数、过滤身份、首屏呼吸）；列表面板。
 // 缝里的集合块（BravaisSeamCollection）与集合页同一套组件，所以这里产出同一个形状。入口只在「声明 ∩ 能力」时出现。
@@ -110,13 +110,18 @@ export const useBravaisArtistSeam = (input: BravaisArtistSeamInput) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [menu, notice.notice, status?.tone, status?.text, sync?.state, sync?.label, t]);
 
-    // 缝里的歌手信息块（ArtistGridView 的头像、简介、统计，加上别名）。
+    // 统计只有一行：「N 首歌 · M 张专辑」（详情里的总数；专辑数没有就用上游总数或已载的条数）。热门歌曲契约里固定 10 首，
+    // 不是信息，不显示。书脊与元数据行用的也是它，完整信息条里它作为「关于艺术家」的附注，元数据行不再重复。
+    const detailTrackCount = typeof detail?.trackCount === 'number' && detail.trackCount > 0 ? detail.trackCount : 0;
+    const statsAlbumCount = albumTotal ?? albumCount;
+    const stats = [
+        detailTrackCount > 0 ? t('libraryBravaisArtist.songCount', { count: detailTrackCount }) : '',
+        statsAlbumCount > 0 || detailTrackCount === 0 ? t('libraryBravaisArtist.albumCount', { count: statsAlbumCount }) : '',
+    ].filter(Boolean).join(' · ');
+
+    // 缝里的「关于艺术家」（ArtistGridView 的头像、简介、统计，加上别名）。
     const seamArtist = useMemo<BravaisSeamArtist | undefined>(() => {
         if (!detail) return undefined;
-        const stats = [
-            typeof detail.trackCount === 'number' && detail.trackCount > 0 ? t('libraryBravaisArtist.songCount', { count: detail.trackCount }) : '',
-            typeof detail.albumCount === 'number' && detail.albumCount > 0 ? t('libraryBravaisArtist.albumCount', { count: detail.albumCount }) : '',
-        ].filter(Boolean).join(' · ');
         const aliases = (detail.aliases ?? []).map(alias => alias.trim()).filter(Boolean);
         return {
             name: detail.name,
@@ -125,7 +130,7 @@ export const useBravaisArtistSeam = (input: BravaisArtistSeamInput) => {
             description: detail.description?.trim() || undefined,
             stats: stats || undefined,
         };
-    }, [detail, t]);
+    }, [detail, stats, t]);
 
     // 墙的内容规则：专辑分页期间的循环周期（新页只翻新 slot）、有限拼贴的规划条目数、过滤身份、首屏呼吸。
     const periodCount = resolveArtistWallPeriod({ topSongCount, albumCount, albumTotal, albumSync });
@@ -147,10 +152,8 @@ export const useBravaisArtistSeam = (input: BravaisArtistSeamInput) => {
         hasForm: false,
     }), [hasQuery, t]);
 
-    // 元数据行：墙上有什么（过滤中是专辑的「匹配 / 总数」）。
-    const meta = isFilterActive
-        ? matchLabel
-        : t('libraryBravaisArtist.wallCounts', { songs: topSongCount, albums: albumCount });
+    // 元数据行：统计那一行（过滤中是专辑的「匹配 / 总数」）。
+    const meta = isFilterActive ? matchLabel : stats;
 
     return { seamCollection, seamArtist, filter, wall, entries, meta, isFilterActive };
 };
