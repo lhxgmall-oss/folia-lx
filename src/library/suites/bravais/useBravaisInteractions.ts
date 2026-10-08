@@ -15,6 +15,7 @@ import { setBravaisWallHoverKey, useBravaisUiStore } from './bravaisUiStore';
 import { setBravaisSearchOpen } from './bravaisHomeUiStore';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { canTakeSeamFocus, resolveSeamEntry, resolveSeamStep } from './bravaisSeamFocus';
+import { BRAVAIS_SEAM_FLIP_ATTRIBUTE } from './bravaisSeamMotion';
 import type { BravaisTileHandlers } from './BravaisTile';
 import type { BravaisFrameState } from './useBravaisFrame';
 import type { useBravaisFocus } from './useBravaisFocus';
@@ -29,6 +30,7 @@ import type { useBravaisFocus } from './useBravaisFocus';
 // Tab（用户实测：原先进缝后按 DOM 顺序一格格走、缝折叠时把焦点交给浏览器，焦点框跳到墙上的按钮或页面别处）：Tab / Shift+Tab
 // 只在墙与缝两站之间切换——墙上（含墙上的按钮、左上角返回）或没有焦点时进缝（bravaisSeamFocus 的落点），缝里（含过滤位等
 // 输入框、缝的边缘标签）时回墙（上次的焦点磁贴，没有就是有限拼贴的 rank 0 / 无限墙上离缝最近的一张）；缝里的控件之间用方向键走。
+// 键盘在边缘标签上按 Enter 恢复缝后，等缝张开再把焦点交进缝里（focusSeamWhenOpen，落点同 Tab 进缝），不落空到 body。
 // fb3：聚焦卡的「立即播放」（点按钮或展开后再按 Enter）在正在播放的那首上是暂停 / 继续（宿主的播放开关）；其余的照旧
 // 交给 surface 播放，并记下「回来时展开这一项」（bravaisPlayingCard）。「进入」按钮按设置进入播放视图。
 // fb2：点窗（结构窗、透明档有限墙的空 slot）什么都不做：不收起聚焦卡、不动键盘焦点、不翻牌、不动相机。只有实色空画框
@@ -243,6 +245,27 @@ export const useBravaisInteractions = ({
         return true;
     }, [focusWall, isInSeam, returnToWall, rootRef, seamRef, seamTabRef]);
 
+    /**
+     * 键盘在缝的边缘标签上按 Enter 恢复缝之后：等缝张开（开口补间放完、内容不透明、没有在翻）再把焦点交进缝里，落点与
+     * Tab 进缝相同。等待中焦点被放到了别处（不是 body、也不是那颗标签）就作罢；最多等 2 秒。
+     */
+    const focusSeamWhenOpen = useCallback(() => {
+        const startedAt = performance.now();
+        const step = () => {
+            const active = document.activeElement;
+            if (active && active !== document.body && active !== seamTabRef.current) return;
+            const seam = seamRef.current;
+            if (!seam?.isConnected || performance.now() - startedAt > 2000) return;
+            const content = seam.querySelector<HTMLElement>('.bravais-seam-content');
+            const open = content !== null && Number(content.style.opacity || '1') >= 1
+                && !seam.querySelector(`[${BRAVAIS_SEAM_FLIP_ATTRIBUTE}]`);
+            const entry = open ? resolveSeamEntry(seam, lastSeamFocusRef.current) : null;
+            if (entry) entry.focus({ preventScroll: true });
+            else requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    }, [seamRef, seamTabRef]);
+
     /** 缝里的方向键：在控件之间走（文本输入与 select 里的方向键归它们自己，到不了这里）。 */
     const moveInSeam = useCallback((target: EventTarget | null, direction: WallDirection) => {
         const next = resolveSeamStep(seamRef.current, target instanceof Element ? target : null, direction);
@@ -357,5 +380,5 @@ export const useBravaisInteractions = ({
         return true;
     }, [collapse, displayRef, drawnRect, expand, expandedRef, focusSlot, focusWall, focusedRef, frameRef, handleTab, handlers, hasContent, isInSeam, itemAt, moveInSeam, seedSlot, tweenTo]);
 
-    return { handlers, handleAction, itemAt, seedSlot, focusWall };
+    return { handlers, handleAction, itemAt, seedSlot, focusWall, focusSeamWhenOpen };
 };

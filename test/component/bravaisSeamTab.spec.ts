@@ -10,7 +10,8 @@ import '../../dev/probes/homeBehavior/probeApi';
 //   Shift+Tab 同样是换到另一站；连按不会离开 stage；
 // - 缝里的控件之间用方向键走（DOM 顺序，到头停住），Tab 回缝时还给上次停的那个；
 // - 过滤位（输入框）里 Tab 也回墙，输入结束；
-// - 缝折叠时 Tab 落在缝的边缘标签上（不再交给浏览器、跳到墙上的按钮）。
+// - 缝折叠时 Tab 落在缝的边缘标签上（不再交给浏览器、跳到墙上的按钮）；在标签上按 Enter 恢复缝后，等缝张开把焦点交进缝里
+//   （落点同 Tab 进缝），鼠标点标签不挪焦点。
 
 const stage = (page: Page) => page.locator('[data-library-stage="bravais"]');
 const settled = (page: Page) => expect(stage(page)).not.toHaveAttribute('data-bravais-settling', /.*/, { timeout: 10_000 });
@@ -99,8 +100,16 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         expect(areas).toEqual(['wall', 'seam', 'wall', 'seam', 'wall', 'seam']);
     });
 
-    test('home: with the strip folded Tab lands on its edge label instead of a button on the wall', async ({ mount, page }) => {
+    test('home: with the strip folded Tab lands on its edge label, and Enter there hands the focus into the reopened strip', async ({ mount, page }) => {
         await mountBravais(mount, page);
+        // 先在缝里停一下：Tab 进缝（选中的页签）→ ↓ 走到下一个控件 → Tab 回墙。缝记下这一个。
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('ArrowDown');
+        const remembered = await focusedName(page);
+        expect(remembered).not.toBe('tab:playlist');
+        await page.keyboard.press('Tab');
+        expect(await focusArea(page)).toBe('wall');
+
         await page.locator('[data-bravais-seam-action="hide"]').first().click();
         await expect(stage(page).locator('[data-bravais-seam]')).toHaveAttribute('data-bravais-seam-level', 'hidden');
         await expect(page.locator('.bravais-seam-tab')).toBeVisible();
@@ -113,18 +122,26 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         await page.keyboard.press('Tab');
         expect(await focusArea(page)).toBe('wall');
         expect(await focusedTile(page)).toBe(wallSlot);
-        // 边缘标签上按 Enter：缝恢复（标签藏起来，焦点随之落空）；Tab 进缝，落在页签上。
+
+        // 边缘标签上按 Enter：缝恢复（标签藏起来），等缝张开后焦点直接交进缝里，落点同 Tab 进缝（上次停过的那个）。
         await page.keyboard.press('Shift+Tab');
         expect(await focusArea(page)).toBe('seam-tab');
         await page.keyboard.press('Enter');
         await expect(stage(page).locator('[data-bravais-seam]')).not.toHaveAttribute('data-bravais-seam-level', 'hidden');
-        await settled(page);
-        // 缝的开口补间放完、页签看得见了（开口途中缝还是 visibility: hidden，Tab 留在墙上）。
-        await expect(page.locator('[data-bravais-tab="playlist"]')).toBeVisible();
-        await page.keyboard.press('Tab');
-        expect(await focusedName(page)).toBe('tab:playlist');
+        await expect.poll(() => focusedName(page)).toBe(remembered);
+        // 落在缝里时内容已经完全张开（不透明、没有在翻）。
+        expect(await page.locator('.bravais-seam-content').evaluate(node => Number((node as HTMLElement).style.opacity))).toBe(1);
+        await expect(page.locator('[data-bravais-seam] [data-bravais-seam-flip]')).toHaveCount(0);
         await page.keyboard.press('Tab');
         expect(await focusArea(page)).toBe('wall');
+
+        // 鼠标点边缘标签恢复：不替用户挪焦点。
+        await page.locator('[data-bravais-seam-action="hide"]').first().click();
+        await expect(stage(page).locator('[data-bravais-seam]')).toHaveAttribute('data-bravais-seam-level', 'hidden');
+        await page.locator('.bravais-seam-tab').click();
+        await expect(page.locator('[data-bravais-tab="playlist"]')).toBeVisible();
+        await page.waitForTimeout(400);
+        expect(await focusArea(page)).not.toBe('seam');
     });
 
     test('collection: the strip entry is its first control, the filter field hands Tab back to the wall', async ({ mount, page }) => {

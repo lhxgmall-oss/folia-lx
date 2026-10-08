@@ -43,7 +43,8 @@ type BravaisSeamProps = {
     navigation: LibraryNavigationContext;
     bottomPx: MotionValue<number>;
     setLevel: (level: BravaisSeamLevel) => void;
-    onTab: () => void;
+    /** 点边缘标签（键盘激活时 event.detail 为 0）。 */
+    onTab: (event: React.MouseEvent<HTMLButtonElement>) => void;
     /** B7：完整信息条的「列表」与列表面板的动作。 */
     openList?: () => void;
     panel?: BravaisPanelActions;
