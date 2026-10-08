@@ -134,7 +134,7 @@ core 之外，suite 还有两类自己的操作：
 | artist | `collection`、`resource`（歌手资源：详情、热门歌曲、专辑）、`playback`、导航（同上）、`onEditEntity`、`declaredActions`、`isInteractive` |
 | home | 首页数据（歌单、本地曲库……）、`account`（在线账户 controller：provider 列表、当前平台、选平台、登出）、可选的 `accountLayerRef`（账户层挂载点）、`homeResources`（收藏专辑、电台 feed、首页动作、Navidrome 概览、文件夹树）、`directoryActions`（目录批量动作）、`onOpenGridView`、`declaredActions`、`isInteractive` |
 | account | `account`（同一个 controller）、`layer`（首页 surface 交上来的账户层）、`theme`、`isDaylight`、`declaredActions`（账户动作）、`isInteractive`（首页外壳层的值） |
-| stage（可选，见「常驻舞台」） | `isInteractive`、`theme`、`isDaylight`、`navigation`（导航快照：`depth` / `origin` / `activeType` / `trail`）、`reportPlayerOcclusion`、`onBackToPlayer?`、`onTogglePlayback?`、`onEnterPlaybackView?` |
+| stage（可选，见「常驻舞台」） | `isInteractive`、`theme`、`isDaylight`、`navigation`（导航快照：`depth` / `origin` / `activeType` / `trail`）、`reportPlayerOcclusion`、`reportPlayerBackdrop`、`onBackToPlayer?`、`onTogglePlayback?`、`onEnterPlaybackView?` |
 
 `isInteractive` 为 false 时（例如另一层盖在上面、或正在退场），页面不要接键盘、不要往命令面板注册。
 
@@ -204,7 +204,7 @@ suite 可以为自己的「导航状态」（例如 bravais 的列表 / 目录�
 
 有的 suite 不是「首页一张图、集合层盖一张图」，而是一块横跨首页与集合层的画面（bravais 的整面墙：换层时墙上的磁贴原地翻牌，不能因为换 surface 而重挂）。这种 suite 在 manifest 上声明可选的 `stage`（类型 `LibrarySuiteStageProps`，在 `core/contracts/suite.ts`）：
 
-- **输入**：`isInteractive`（首页外壳层的值，集合层打开时仍为真；上面盖了别的层时为假）、`theme`、`isDaylight`、`navigation`（集合导航快照：`depth` / `origin` / `activeType` / `trail`，首页时 `depth` 为 0），以及回调 `reportPlayerOcclusion`（见下面「遮挡播放页」）与可选的 `onBackToPlayer`（回到播放页，与首页数据的同名回调同一个；bravais 左上角的隐藏式返回在首页根层、有歌时用它，不在根层时它是缝里 ‹ 的层返回）、`onTogglePlayback`（暂停 / 继续正在播放的那首，首页数据的同名回调；bravais 正在播放的聚焦卡上的播放键用它）与 `onEnterPlaybackView`（按「播放后进入的视图」去 Lattice 或播放页，「留在原处」时去播放页，与播放胶囊同一条规则；bravais 聚焦卡的「进入」用它）。播放端口另有可选的 `togglePlayback`（同一个开关），网格在「留在原处」时给正在播放的卡片用。导航快照不含当前层的数据；层身份与内容由这套 suite 的 surface 交给 stage。
+- **输入**：`isInteractive`（首页外壳层的值，集合层打开时仍为真；上面盖了别的层时为假）、`theme`、`isDaylight`、`navigation`（集合导航快照：`depth` / `origin` / `activeType` / `trail`，首页时 `depth` 为 0），以及回调 `reportPlayerOcclusion` 与 `reportPlayerBackdrop`（见下面「遮挡播放页」「透出的画面」）与可选的 `onBackToPlayer`（回到播放页，与首页数据的同名回调同一个；bravais 左上角的隐藏式返回在首页根层、有歌时用它，不在根层时它是缝里 ‹ 的层返回）、`onTogglePlayback`（暂停 / 继续正在播放的那首，首页数据的同名回调；bravais 正在播放的聚焦卡上的播放键用它）与 `onEnterPlaybackView`（按「播放后进入的视图」去 Lattice 或播放页，「留在原处」时去播放页，与播放胶囊同一条规则；bravais 聚焦卡的「进入」用它）。播放端口另有可选的 `togglePlayback`（同一个开关），网格在「留在原处」时给正在播放的卡片用。导航快照不含当前层的数据；层身份与内容由这套 suite 的 surface 交给 stage。
 - **分工**：stage 负责画面；这套 suite 的首页 / 集合 / 歌手 surface 不画画面，只把自己的数据投影成层描述交给 suite 内部的 store，并照常注册命令面板。
 - **宿主怎么挂**：`GridViewOverlayHost` 经 `registry.resolveLibraryStage(store 的 suite)` 只挂**生效 suite** 的 stage（未知 id 生效的是 grid，grid 与 TUI 都没有 stage），挂载位 `app/LibrarySuiteStageSlot.tsx` 在首页容器之后、中性背景板与集合层之前，包 `Suspense`（fallback 为 null）。打开 / 关闭集合只换 props，不重挂；换 suite 时卸载（换成另一套带 stage 的 suite 时重挂）。首页外壳整个卸载时（播放页全屏约 350ms 后 `Home` 返回 null）stage 也卸载，跨卸载要保留的布局放进 sessionStorage 或模块级 store，并在 `layout.forget` 里能丢掉。
 - **背景板与首页**：渲染当前层（集合或歌手页）的 suite 正是挂着 stage 的那套时，宿主不渲染中性背景板，首页容器也不加 `visibility: hidden`（`aria-hidden` 与 `pointer-events: none` 照旧）；当前层回退到 grid 时与没有 stage 一样。规则是 `core/model/libraryStage.ts` 的 `resolveLibraryLayerPresentation`。
@@ -219,6 +219,13 @@ stage 用 `reportPlayerOcclusion(occludes)` 告诉宿主自己此刻是否**完�
 - 宿主怎么用：挂载位把报告写进 `src/stores/useLibraryPlayerOcclusionStore.ts`，App 读 `selectLibraryOccludesPlayer`，visualizer 的挂载条件是 `handoffKeepsVisualizer || (currentView !== 'lattice' && hasLatticeExited && !(shouldShowHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled))`（`components/app/presentation/playerVisualizerMount.ts`）。`handoffKeepsVisualizer` 来自与 Lattice 的翻牌交接（`wallHandoffPresentation`）：stage 有窗时，进 Lattice 在窗关上之前、回来从 stage 报「有窗」起都挂着。App 不认识任何 suite，也不读 suite 的偏好。
 - 时序：进入时首页显示着并且遮挡持续约 0.3 秒（首页 0.25 秒淡入结束）之后才卸载 visualizer（`hooks/useLibraryOcclusionSettled.ts`），淡入过程中仍能看到它；首页一不显示（回播放页、设置弹窗 / 面板盖上）或 stage 改报 `false`，同一次渲染里就重新挂载。改报 `false` 之后 visualizer 出画面前有一小段空白（Pixi 初始化），透光的 suite 应在透光处自己垫一层底色。
 - 复位不靠 stage：挂载位卸载（包括离开首页约 350ms 后 `Home` 返回 null）、换 suite、生效 suite 没有 stage 时自动回到 `false`，stage 不需要在卸载时报 `false`；已卸载的 stage 晚到的报告不生效。grid / TUI 没有 stage，永远是 `false`，visualizer 的行为与以前相同。
+
+### 透出的画面（`reportPlayerBackdrop`）
+
+stage 用 `reportPlayerBackdrop({ lyrics, blur })` 告诉宿主：从它的透光处透出来的 visualizer 要不要画歌词文字、要不要模糊（bravais「墙后的画面」设置，2026-10-09）。只有画面有透光处时才可能报 `true`；没报过、复位后都是两项 `false`（与没有 stage 的 suite 一样）。持有者、生效与复位规则与遮挡相同（同一个 store，`selectLibraryPlayerBackdrop`，没报时返回同一个常量）。
+
+- 歌词：visualizer 的 `showText` 原来只在播放页为真；首页显示着（不被设置弹窗 / 面板盖住）且报了 `lyrics` 时首页也画（`components/app/presentation/playerVisualizerBackdrop.ts` 的 `resolveVisualizerShowText`，`useVisualizerRendererModel` 读）。播放页不受影响。
+- 模糊：首页墙露着（`shouldRevealHomeSurface`，含进 Lattice 的交接期间）且报了 `blur` 时，App 给 visualizer 那一层（`player-visual-surface`）加 `filter: blur(24px)`（过渡 300ms，`data-library-backdrop-blur`）；回播放页立即撤掉。用一次合成层模糊而不是在每个透光处放 `backdrop-filter`，开销与透光处的多少无关。
 
 ## 外观动作（suite-chrome）
 
@@ -476,10 +483,10 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 **透光与遮挡播放页**
 
 - 三档：实色（默认；2026-10-08 起，此前默认部分透明，已存的选择不迁移）/ 部分透明（每块 12 个 slot 里固定 k 个是透明的「窗」，k = 1–6，默认 3）/ 全透明（墙上的磁贴只画标题，聚焦卡照常画封面）。窗是 wall 引擎的保留位（`blockReservedSlots`），rank→slot 跳过它们，不可聚焦、不可点。
-- 偏好是 app 层的 `src/stores/useLibraryWallLookStore.ts`（`look`、`windowsPerBlock`，localStorage `library_wall_look` / `library_wall_windows_per_block`）——设置 UI 不能 import suite，所以不放在 suite 里。设置在界面设置「Bravais 墙面」分组（`BravaisSettingsSection`，紧跟「资料库界面」，只在生效 suite 是 bravais 时显示；bravais 独有的设置都放这里）里的 `LibraryWallLookSettings`，命令面板有 `library-wall-look-picker` 与 `library-wall-windows-picker`（窗数只在部分透明时可用），外观动作 `wall-look` / `more-windows` / `fewer-windows` 写同一个 store。**不进外观配置的导入导出**（用户决定，是 `skills/settings-feature-integration` 视觉设置规则的明确例外，store 的 `@note` 写明）。同一 store 的集合叠页边开关 `collectionStackEdges`（`library_wall_stack_edges`）没有这个例外，进导入导出（`libraryWallStackEdges` / 短码 `lwse`）；命令 `library-wall-stack-edges-toggle`，分组锚点命令 `settings-bravais`。
+- 偏好是 app 层的 `src/stores/useLibraryWallLookStore.ts`（`look`、`windowsPerBlock`，localStorage `library_wall_look` / `library_wall_windows_per_block`）——设置 UI 不能 import suite，所以不放在 suite 里。设置在界面设置「Bravais 墙面」分组（`BravaisSettingsSection`，紧跟「资料库界面」，只在生效 suite 是 bravais 时显示；bravais 独有的设置都放这里）里的 `LibraryWallLookSettings`，命令面板有 `library-wall-look-picker` 与 `library-wall-windows-picker`（窗数只在部分透明时可用），外观动作 `wall-look` / `more-windows` / `fewer-windows` 写同一个 store。**不进外观配置的导入导出**（用户决定，是 `skills/settings-feature-integration` 视觉设置规则的明确例外，store 的 `@note` 写明）。同一 store 的集合叠页边开关 `collectionStackEdges`（`library_wall_stack_edges`）没有这个例外，进导入导出（`libraryWallStackEdges` / 短码 `lwse`）；命令 `library-wall-stack-edges-toggle`，分组锚点命令 `settings-bravais`。信息条的材质与墙后的画面（2026-10-09）同样没有例外、同样进导入导出：`seamClear`（信息条始终透明，`library_wall_seam_clear`，`libraryWallSeamClear` / `lwsc`）、`seamStyle`（实色模式的 8 个预设，`library_wall_seam_style`，`libraryWallSeamStyle` / `lwss`，材质定义在 `utils/libraryWallSeamStyle.ts`）、`backdropLyrics` / `backdropBlur`（`library_wall_backdrop_lyrics` / `_blur`，`lwbl` / `lwbb`）；命令 `library-wall-seam-clear-toggle`、`library-wall-seam-style-picker`（透明开着时不可用）、`library-wall-backdrop-lyrics-toggle`、`library-wall-backdrop-blur-toggle`。
 - 叠色与熄灯（`useLatticeSettingsStore`，与 Lattice 共用）也作用到缝与集合的叠页边（设计稿 §7.5「缝（信息条）也受叠色与熄灯影响」、§7.7），样式在 `bravaisAppearance.css` / `bravaisTileKinds.css`，共享的 `wall.css` 不动。
 - 两个透明档下，墙面由按块的实色底板铺（每个已挂载的 12×8 块一张内联 SVG，只在窗位挖洞，随相机平移；聚焦卡让位时只逐帧重画那一块），详见设计稿 §11。
-- 实色档时 stage `reportPlayerOcclusion(true)`，首页停稳后 visualizer 卸载（与 Lattice 一致）；其余档报 `false`，visualizer 照常在墙下渲染。
+- 实色档、且信息条不是「始终透明」时 stage `reportPlayerOcclusion(true)`，首页停稳后 visualizer 卸载（与 Lattice 一致）；其余情况（透光档，或透明的缝）报 `false`，visualizer 照常在墙下渲染。墙后画面的歌词 / 模糊经 `reportPlayerBackdrop` 报给宿主（只在透着时为真）。
 
 **布局记忆**：每层的相机视图中心、缝的锚点、无限墙的起点 slot、键盘焦点 slot 存在 sessionStorage `folia_bravais_layout:v1:<会话键>`（首页的会话键是 `'home'`），`layout.forget` 整条删除；缝的开口等级是全局的（`useBravaisSeamStore`，跨层沿用、跨 stage 卸载存活），不按层记。
 

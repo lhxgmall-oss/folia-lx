@@ -46,7 +46,7 @@ subview 只是调用方；新增字段要同时改这两处，光改 subview 不
 
 已知例外（用户明确决定，不要按上面的规则补进导入导出）：
 
-- bravais 资料库墙的「透光」偏好（`src/stores/useLibraryWallLookStore.ts` 的 `look` 与 `windowsPerBlock`，设置在界面设置「Bravais 墙面」分组的 `LibraryWallLookSettings`）。它影响视觉，但用户决定不进外观配置的短码 / JSON（2026-10-06），store 头部的 `@note` 写明了这一点。它照常接命令面板（`library-wall-look-picker` / `library-wall-windows-picker`）与 bravais 的外观动作。同一 store 的集合叠页边开关 `collectionStackEdges` **不在**这个例外里，照规则进了导入导出（`libraryWallStackEdges`）。
+- bravais 资料库墙的「透光」偏好（`src/stores/useLibraryWallLookStore.ts` 的 `look` 与 `windowsPerBlock`，设置在界面设置「Bravais 墙面」分组的 `LibraryWallLookSettings`）。它影响视觉，但用户决定不进外观配置的短码 / JSON（2026-10-06），store 头部的 `@note` 写明了这一点。它照常接命令面板（`library-wall-look-picker` / `library-wall-windows-picker`）与 bravais 的外观动作。同一 store 的集合叠页边开关 `collectionStackEdges`、信息条的材质 `seamClear` / `seamStyle` 与墙后画面的 `backdropLyrics` / `backdropBlur` **不在**这个例外里，照规则进了导入导出（`libraryWallStackEdges` / `libraryWallSeamClear` / `libraryWallSeamStyle` / `libraryWallBackdropLyrics` / `libraryWallBackdropBlur`）。
 - 资料库界面（UI suite）的选择（`useLibrarySuiteStore`）是界面偏好，不是视觉调参，同样不进导入导出。
 
 新增类似的例外时，必须是用户明确的决定，并在 store 或设置组件的注释里写明，防止后来者按规则补回去。
