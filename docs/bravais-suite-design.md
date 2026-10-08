@@ -83,6 +83,32 @@ score(slot) = distanceToSeam(slot.center) − areaWeight × slot.area
 - 缝固定在视口上，墙在它两侧平移。
 - 缝里是一条纸质信息条（图 1 的说明牌），带外阴影，比墙面高出一层。纸条两侧到相邻磁贴的距离等于磁贴之间的间距（`GAP × scale`）：断开模式下墙的两半除了各让出 w/2，还要再多让半个 GAP。
 
+### 缝的材质（2026-10-09，用户要求：单一的主题纸色在墙上有些单调）
+
+缝（首页窄缝 / 书脊、集合与歌手页的完整信息条与书脊、面板、表单、边缘标签）的纸有两种互斥的状态，都在界面设置「Bravais 墙面」分组里（§10.10）：
+
+**实色模式的预设**（`seamStyle`，默认主题纸色）。材质在 `utils/libraryWallSeamStyle.ts`（纸色 + 整条背景，设置里的色样用同一份字符串画），stage 写成根节点上的 `--bravais-seam-paper` / `--bravais-seam-surface`（主题纸色不写，沿用现状）、根节点挂 `data-bravais-seam-style`；样式在 `bravaisSeamLooks.css`。全是静态背景（CSS 渐变、内联 SVG 的 data URI），不用图片资源、不做动画；图案锚在缝的水平中线与顶边（缝从中线向两侧张开，开合时图案不横向滑动）。
+
+| 预设 | 样子 | 文字色 |
+| --- | --- | --- |
+| 主题纸色 `paper`（默认） | 现状：`color-mix(bg 90%, primary)`；透光档下 80% 的半透明纸 | 主题主色 |
+| 纯白印刷 `white` | 暖白纸 `#f7f6f2`，两侧各一道 1px 版框线、往里 4px 一道更淡的线，很淡的单色纸纹（feTurbulence，180px 平铺） | 墨 `#141414`，次级墨 62%；缝里的主题变量（主色、第二色、强调色、底色）一并换成墨与纸——单色印刷，菜单 / 勾选框 / 下拉框随之成立；对比约 17:1 |
+| 纯黑印刷 `black` | 黑纸 `#101010`，同样的双细线与浅色纸纹 | 墨 `#f3f1ec`，次级墨 64%；同上，约 17:1 |
+| 磨砂主题色 `frost` | 强调色 20% 混进底色、82% 不透明的纸，上面一层强调色 → 第二色的斜向渐变（14% / 12%）与很淡的颗粒；实色档下透出墙面的光晕，透光档下隐约透出 visualizer | 主题主色 |
+| 细点阵 `dots` | 主题纸 + 主色 16% 的 1px 圆点，9px 一格 | 主题主色 |
+| 斜线 `hatch` | 主题纸 + 强调色 14% 的 1px 斜线，每 7px 一道 | 主题主色 |
+| 等高线 `contour` | 主题纸 + 两组同心椭圆环（主色 10% / 第二色 14%，1px，16px / 22px 一圈），中心偏在中线左上与右下的固定像素处，穿过缝的是一段段弧线 | 主题主色 |
+| 格纹 `check` | 主题纸 + 强调色 7% 的横竖半格条纹（gingham，交叠 14%，14px 一格）+ 第二色 10% 的 56px 细格线 | 主题主色 |
+
+- 文字色规则：印刷系是固定的纸与墨，不随主题翻转；其余跟主题，图案只用 ≤16% 的主题色细线 / 细点、不改变纸的明暗档，所以文字仍是主题主色。组件用例在午夜 / 日光 / 彩色三套主题下逐个预设量正文对比度 ≥ 4.5。
+- 墙的透光档不影响预设（除主题纸色本来就有的透光档半透明纸）；与叠色 / 熄灯两层（`::before` / `::after`）共存：预设只换纸与墨，两层照旧画在上面（熄灯的填色仍按明暗模式：暗色压黑、日光压白）。
+
+**始终透明**（`seamClear`，默认关）。缝不画实色纸，换成一层主题底色的半透明纱（64%；墙后画面开了模糊时 50%），两侧一道主色 12% 的发丝线、上沿一道很淡的主色渐变，透出后面的 visualizer。
+
+- 与预设互斥：透明开着时 stage 不写预设变量（`data-bravais-seam-style="clear"`），设置里预设整组禁用并写明原因，命令面板的样式 picker 不可用；预设的值保留，关掉透明后照旧生效。
+- 按窗处理：与全透明档的缝相同，不染叠色，熄灯只把内容压到 0.4（不往纱上涂黑）。
+- 实色墙 + 透明缝也透出播放页：根节点不画墙面（`is-backdrop-open`），墙面改由块底板铺（§11.3，实色档没有窗，底板没有洞；缝的开口下面没有底板），遮挡上报算上缝（§11.5）。墙面的颗粒噪点仍按透光档：实色档下照旧画（它在缝之下，被纱盖住大半）。
+
 ### 内容
 
 | 区域 | 内容 |
@@ -389,7 +415,7 @@ bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不�
     - 正在播放的特殊卡不再换成 shade 底（强调色已经在了）。
     - 标签带曲目数（「歌单 · 321」，§7.7），在普通标签的位置（书脊撤掉后不再右移）。
 - **聚焦卡 = `is-expanded`**：`0 42px 110px` 深投影，左 + 底双向压暗，标题 `clamp(48px, 6vw, 82px)`。「立即播放」「加入队列」走 LatticeChrome 的按钮：无卡片底，静止时无描边，悬停出现 12px 圆角框；「立即播放」是纯图标的 44px 方格（实测反馈 1，与 Lattice 展开海报上的播放键相同，不再是常驻 16% 底色的文字按钮）。
-- **缝**：默认 Lattice 主题材质，底色 `color-mix(bg 90%, primary)`，文字为主色，标题改为 Inter / Noto Sans 800（不再用衬线）；按钮、tab、排序控件同样走 LatticeChrome 的悬停框；输入框聚焦时下划线用强调色。图 1 的纸张材质保留为原型对照项。叠色与熄灯同样作用到缝（2026-10-09，见下方「灯光与叠色」）。
+- **缝**：默认 Lattice 主题材质，底色 `color-mix(bg 90%, primary)`，文字为主色，标题改为 Inter / Noto Sans 800（不再用衬线）；按钮、tab、排序控件同样走 LatticeChrome 的悬停框；输入框聚焦时下划线用强调色。图 1 的纸张材质保留为原型对照项。叠色与熄灯同样作用到缝（2026-10-09，见下方「灯光与叠色」）。2026-10-09 起纸面可换：实色模式的 8 个预设与「始终透明」，见 §5「缝的材质」。
 - **浮层控件**（实测反馈 1 落地，与 Lattice 共用 `src/components/wall/` 的同一套控件）：
   - 左上角返回 = `WallBackButton`（`.lattice-back`：40px 圆、白 8%、模糊）。bravais 用隐藏式：平时不显示，鼠标进入左上角 120px 热区或键盘聚焦时出现（与播放页 VisualizerShell 左上角那颗相同；触屏常驻）。层级在缝之下（缝开在左上角时缝的按钮在上面）。Lattice 那颗常驻显示，行为不变。**语义与缝里的 ‹ 一致**（用户实测 2026-10-08 改定，取代「首页与集合层都是回到播放页」）：
     - 不在首页根层时，就是缝里 ‹ 的那个返回（同一个实现）：这一层的面板（列表 / 目录树）开着先关面板，集合层的表单态先撤销表单，否则是这一层的「完成」（`onDone`：翻牌、N1 折叠往返、面包屑记录都走宿主的同一条路径）。可访问名 / title「返回」。缝折叠、收成书脊看不到 ‹ 时它照样是这一个返回。
@@ -407,6 +433,7 @@ bravais 和 Lattice 共用一套视觉语言，样式直接继承 Lattice，不�
   - **缝（信息条）也受叠色与熄灯影响**（2026-10-09，用户要求；`bravaisAppearance.css` 的「缝」一节）：首页窄缝 / 首页书脊、集合 / 歌手页的完整信息条与书脊、面板、表单、边缘标签都覆盖。缝自己画两层：`::before` 在内容之下只染纸，`::after` 在内容之上染文字与按钮、熄灯时压暗整条。
     - 叠色：与磁贴同一种颜色（默认渐变 / 自定义色）与同一个强度 e（`--lattice-poster-tint-effective-opacity`，日光 ×0.72）。纸最终被染 e，与磁贴的底一样；盖在内容上的那一层封顶 0.35，文字最多被染 35%（午夜主题主色字对纸约 6.6:1、副文色约 3:1，日光约 5:1；强度拉到 1 时磁贴的标题会被染没，缝不会），纸上差的部分由 `::before` 补齐：`1 − (1 − e) / (1 − min(e, 0.35))`。全透明档的磁贴没有叠色层，缝也不染；熄灯时归零。
     - 熄灯：实色与部分透明档整条压 60% 黑（日光白）。不用磁贴的 82%：缝是这一页唯一的导航，82% 时竖排标题只剩约 1.6:1、找不到它；60% 时约 3.4:1，仍明显退到墙后。全透明档的缝是半透明的纸（下面透着 visualizer），与全透明档的磁贴一样不往上涂黑，只把内容压到 0.4（同样是「暗 60%」）。
+    - 缝的材质（§5「缝的材质」）：实色预设只换纸与墨，两层照旧；「始终透明」的缝按窗处理（不染、熄灯只把内容压到 0.4），与全透明档相同。
     - 豁免（整条亮起、不染，与磁贴「悬停、聚焦的不熄」同理）：悬停在缝上、缝里有键盘焦点或聚焦的输入框（`:focus-visible`）、弹出的「⋯」菜单、表单态（集合的表单、账户登录 / 确认、首页的搜索框）。账户的平台列表 portal 到缝外、弹在墙上，本来就不在这两层之下。边缘标签悬停 / 聚焦时同样豁免。
   - 聚焦卡的「立即播放」是与 Lattice 展开海报同样的纯图标按钮（无文字，可访问名「立即播放」）；队列按钮「已在队列」时悬停 / 键盘聚焦显示「插入队列」（点它按「加入队列的默认位置」把这首挪到队尾或下一首）。
 - **相机缩放**：与 `PosterWall.getScale` 相同（<640: .52，<1100: .64，否则 .76）。
@@ -975,7 +1002,7 @@ bravais 是 library v2 的正式新 UI，以后的开发以它为主。它不走
 **设置集成**（按 `skills/settings-feature-integration`）：
 
 - 放在**界面设置**（`GeneralSettingsSubview`），在「播放进入视图」旁边（已定）。
-- bravais 独有的设置（透光、每块窗数、集合叠页边，以及以后新增的）都在紧随其后的「Bravais 墙面」分组（`BravaisSettingsSection`，锚点 `bravaisSettings`、命令 `settings-bravais`；2026-10-09 用户要求整理）。suite 的选择本身不是 bravais 独有的设置，留在「资料库界面」。与透光原来的惯例一致，分组只在生效 suite 是 bravais 时出现（侧栏目录、锚点命令同一个 `isBravaisLibraryActive`）：别的 suite 下这些设置不起作用。
+- bravais 独有的设置（透光、每块窗数、集合叠页边、信息条始终透明、信息条样式、墙后画面的歌词 / 模糊，以及以后新增的）都在紧随其后的「Bravais 墙面」分组（`BravaisSettingsSection`，锚点 `bravaisSettings`、命令 `settings-bravais`；2026-10-09 用户要求整理）。suite 的选择本身不是 bravais 独有的设置，留在「资料库界面」。与透光原来的惯例一致，分组只在生效 suite 是 bravais 时出现（侧栏目录、锚点命令同一个 `isBravaisLibraryActive`）：别的 suite 下这些设置不起作用。
 - 不进外观配置的导入导出（短码 / JSON）：suite 选择是界面偏好而不是视觉调参，避免分享外观配置时顺带改掉对方的资料库界面。
 - 命令面板：`settingsCommands` 里的 `settings-library-suite`（锚点）与 `library-suite-picker`（picker surface 列出可用 suite），`isAvailable` 与设置 UI 用同一个判断（`hasLibrarySuiteChoice`）。文案同步 en / zh-CN / in 三份 locale；关键词只写中英文，拼音由构建期插件生成（契约测试禁止手写能生成的拼音）。
 - 切换时走现有的 `app/switchLibrarySuite`：不重新请求，筛选、选中、焦点与播放队列保持；转场计划由各 suite 的 `transitions.reset` 丢弃。
@@ -1067,7 +1094,7 @@ bravais 的墙可以透出下面的播放页 visualizer。偏好是 app 层的 `
 
 - **visualizer 没有画面时**（没在播放、静止、暂停）：窗与透着的磁贴垫一层很淡的主题色光晕，不是黑洞；visualizer 有画面时被它盖过。
 - **日光主题**：底板用 `--bg-color`（跟主题翻转），scrim 用 `--lattice-shade-rgb`（日光下是白色 scrim、深色字）。
-- **缝**：纸条改用与底板同色的半透明材质（不 blur 时用较浓的一档）。要不要加 backdrop blur（亚克力）由常量 `BRAVAIS_SEAM_ACRYLIC_BLUR` 控制，先关着，按换机实测决定。实色档保持 Lattice 纸条。
+- **缝**：纸条改用与底板同色的半透明材质（不 blur 时用较浓的一档）。要不要加 backdrop blur（亚克力）由常量 `BRAVAIS_SEAM_ACRYLIC_BLUR` 控制，先关着，按换机实测决定。实色档保持 Lattice 纸条。实色模式的预设不随透光档变（主题纸色除外）；「始终透明」的缝在任何档位都是透明的纱（§5「缝的材质」）。
 - **降低动态效果**：不影响透光，只影响翻牌（直接换）与让位（没有过渡）。
 - **墙面颗粒噪点不画**：Lattice 墙面的 soft-light 噪点是全屏叠层（`.lattice-root::after`），透明档下它会压在窗上，给下面的 visualizer 蒙一层噪点（实测很明显）。透明档关掉它；实色档照旧。
 
@@ -1075,10 +1102,23 @@ bravais 的墙可以透出下面的播放页 visualizer。偏好是 app 层的 `
 
 墙完全盖住播放页时不在下面全速渲染 visualizer（与 Lattice 一致）。App 不认识 bravais，也不读透光 store，走 stage 契约：
 
-- stage 在 effect 里 `reportPlayerOcclusion(look === 'solid')`：只要有任何透光处（窗、半透明的缝）就报 false。宿主把报告写进 `useLibraryPlayerOcclusionStore`，stage 卸载或换 suite 时自动复位为 false。
+- stage 在 effect 里 `reportPlayerOcclusion(look === 'solid' && !seamClear)`（`occludesPlayerFor`）：只要有任何透光处（窗、半透明 / 透明的缝）就报 false。2026-10-09 起「信息条始终透明」也算透光处：实色墙 + 透明缝时 visualizer 不卸载；此时根节点同样不画墙面、改由块底板铺，交接时同样先盖 veil、visualizer 等窗（缝）关上才卸载（stage 内部统一用 `opensBackdropFor(look, seamClear)`）。宿主把报告写进 `useLibraryPlayerOcclusionStore`，stage 卸载或换 suite 时自动复位为 false。
 - App 的挂载条件：`handoffKeepsVisualizer || (currentView !== 'lattice' && hasLatticeExited && !(shouldShowHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled))`。首页完全显示（淡入 0.25s）且 stage 报遮挡后才卸载；回播放页、打开设置弹窗 / 面板、切到透明档时立即重挂。切到透明档时，窗在 visualizer 出画面前显示光晕底。
 - 与 Lattice 的翻牌交接（§7「进 / 出 Lattice」）：透光档进 Lattice 时窗关上（veil 盖实）之前 visualizer 一直挂着、开翻时才卸载；回来时 stage 一挂上就报「有窗」，visualizer 立即装上，赶在窗打开之前（`wallHandoffPresentation.keepsVisualizer`）。实色档整个交接都不装。
 - grid / TUI 不声明 stage，永远不报遮挡，行为不变。
+
+### 11.5b 墙后的画面：歌词与模糊（2026-10-09）
+
+透出来的 visualizer 怎么画，界面设置「Bravais 墙面」分组里两个开关（`backdropLyrics` / `backdropBlur`，都默认关，进外观配置导入导出）。stage 经契约的 `reportPlayerBackdrop({ lyrics, blur })` 报给宿主（`backdropReportFor`：只有墙或缝透着时才可能为 true），App 只认报告（`components/app/presentation/playerVisualizerBackdrop.ts`）：
+
+- **歌词文字**：首页 visualizer 原来不画文字（`showText` 只在播放页为真——首页不花、省开销）。开了之后首页显示着（不被设置弹窗 / 面板盖住）时也画。默认关：保持原来的首页。
+- **模糊**：visualizer 那一层（`player-visual-surface`）加 `filter: blur(24px)`，只在首页墙露着时（含进 Lattice 的交接期间，窗还开着），回播放页 300ms 过渡撤掉。缝的透明纱在模糊时淡一档（64% → 50%）。
+- **开销取舍**：三种做法里选了开销最小、且与透光处多少无关的那一种——
+  - visualizer 层的 `filter: blur`：合成器对这一层做一次全屏模糊（半径 ≥ 20px 时 Skia 先降采样，成本基本不随半径涨），每个 visualizer 帧一次；不需要拷贝背后的画面。
+  - 每个透光处放 `backdrop-filter`：全透明档每张磁贴都是窗，几十个元素各自要一份背景拷贝与一次模糊，透光处越多越贵；只给缝放也盖不住窗。否决。
+  - visualizer 自己的模糊参数：各渲染器（DOM / Canvas / Pixi / WebGL）没有统一的模糊或降分辨率参数，要逐个改。否决。
+  - 它仍是一次全屏模糊，Grid3D 全屏 blur 在低性能 + 高刷新率机器上过载过，所以默认关，由用户打开；只在有透出时生效（完全实色时 visualizer 已卸载，不付这笔钱）。帧率限制、静态模式照旧作用于 visualizer 本身。换机实测（§11.6）时一起看。
+- 视口边缘：模糊会把边缘向外淡开，露出 visualizer 层下面的底色，像一圈很浅的暗角（墙上本来就有暗角）；没有为此放大 visualizer 层（放大会让按 `getBoundingClientRect` 量尺寸的渲染器出错）。
 
 ### 11.6 性能与待实测
 

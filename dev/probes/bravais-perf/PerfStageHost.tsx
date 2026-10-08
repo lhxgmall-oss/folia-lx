@@ -6,6 +6,9 @@ import BravaisStage from '../../../src/library/suites/bravais/BravaisStage';
 import type { PerfJob } from './perfConfig';
 import { buildCollectionLayers, buildHomeLayers, type PerfHomeTab } from './perfLayers';
 
+
+/** 探针下面挂的 visualizer 自己决定画不画文字，不跟「墙后的画面」的报告。 */
+const NOOP_BACKDROP = () => { };
 // dev/probes/bravais-perf/PerfStageHost.tsx
 // 挂一份真实的 BravaisStage（与宿主 GridViewOverlayHost 给的 props 同形），把合成的首页层 / 集合层推进 stage store，
 // 并给测量循环一个驱动（PerfDriver）：滚轮平移走真实的 useWallPointerPan 滚轮处理；过滤进出、换页签就是换层描述
@@ -119,6 +122,7 @@ const PerfStageHost: React.FC<PerfStageHostProps> = ({ job, covers, counters, on
                     isDaylight={false}
                     navigation={navigation}
                     reportPlayerOcclusion={onOcclusion}
+                    reportPlayerBackdrop={NOOP_BACKDROP}
                 />
             </Profiler>
         </div>

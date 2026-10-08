@@ -176,7 +176,8 @@
     overflow: hidden;
     visibility: hidden;
     color: var(--text-primary, #f7f4ee);
-    background: var(--bravais-seam-paper);
+    /* 材质（预设 / 透明的缝）见 bravaisSeamLooks.css；没写 --bravais-seam-surface 时就是主题纸色。 */
+    background: var(--bravais-seam-surface, var(--bravais-seam-paper));
     box-shadow: var(--bravais-seam-shadow);
     cursor: default;
     user-select: none;
@@ -463,7 +464,7 @@
     font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.12em;
-    background: var(--bravais-seam-paper);
+    background: var(--bravais-seam-surface, var(--bravais-seam-paper));
     box-shadow: var(--bravais-seam-shadow);
     cursor: pointer;
     transform: translateY(-50%);
@@ -510,6 +511,10 @@
     --bravais-window-glow:
         radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--text-accent, #fd5c47) 9%, transparent), transparent 70%);
 }
+
+/* 2026-10-09：实色档 + 「始终透明」的缝同样不画根节点的底（is-backdrop-open，墙面由块底板铺，缝的开口下面没有底板）；
+   缝的纸与噪点仍只按透光档（is-see-through）：透明的缝自己的材质在 bravaisSeamLooks.css，墙面噪点在缝之下、被纱盖住。 */
+.bravais-root.is-backdrop-open { background: transparent; }
 
 .bravais-root.is-see-through {
     background: transparent;

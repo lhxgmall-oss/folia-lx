@@ -7,7 +7,9 @@ import type { ResolvedLibraryStage } from '@/library/registry';
 import { buildLibrarySuiteIndex, LIBRARY_ACCOUNT_ACTION_IDS } from '@/library/core/model/librarySuites';
 import type { LibraryNavigationContext, LibrarySuiteManifest, LibrarySuiteStageProps } from '@/library/core/contracts/suite';
 import {
+    NO_LIBRARY_PLAYER_BACKDROP,
     selectLibraryOccludesPlayer,
+    selectLibraryPlayerBackdrop,
     useLibraryPlayerOcclusionStore,
     type LibraryPlayerOcclusionOwner,
 } from '@/stores/useLibraryPlayerOcclusionStore';
@@ -35,11 +37,14 @@ const gridLike: LibrarySuiteManifest = {
 
 /** 每个假 stage 最近一次拿到的报告函数，测试借它模拟 stage 的报告（含卸载后晚到的报告）。 */
 const reporters: Record<string, LibrarySuiteStageProps['reportPlayerOcclusion']> = {};
+/** 同上，透出画面的报告函数（2026-10-09）。 */
+const backdropReporters: Record<string, LibrarySuiteStageProps['reportPlayerBackdrop']> = {};
 /** 挂载时就报告的初值（模拟 bravais：实色档挂载即报 true）。 */
 const initialReports: Record<string, boolean | undefined> = {};
 
 const createFakeStage = (id: string) => (props: LibrarySuiteStageProps) => {
     reporters[id] = props.reportPlayerOcclusion;
+    backdropReporters[id] = props.reportPlayerBackdrop;
     useEffect(() => {
         const initial = initialReports[id];
         if (initial !== undefined) props.reportPlayerOcclusion(initial);
@@ -58,6 +63,8 @@ const resetStore = () => useLibraryPlayerOcclusionStore.setState({
     mountedOwner: null,
     reportOwner: null,
     reportedOccludes: false,
+    backdropOwner: null,
+    reportedBackdrop: NO_LIBRARY_PLAYER_BACKDROP,
 });
 
 beforeEach(() => {
@@ -239,5 +246,40 @@ describe('library player occlusion store', () => {
         report(a, true);
         unsubscribe();
         expect(writes).toBe(0);
+    });
+});
+
+// 2026-10-09：同一个持有者还报告透出的画面（歌词 / 模糊）。生效规则与遮挡相同：只认当前挂着的 stage，卸载、换 suite 复位。
+describe('library player backdrop channel', () => {
+    const backdrop = () => selectLibraryPlayerBackdrop(useLibraryPlayerOcclusionStore.getState());
+
+    it('follows what the mounted stage reports and resets when the slot unmounts or the suite changes', async () => {
+        await renderSlot('wall');
+        expect(backdrop()).toBe(NO_LIBRARY_PLAYER_BACKDROP);
+
+        await act(async () => backdropReporters.wall({ lyrics: true, blur: false }));
+        expect(backdrop()).toEqual({ lyrics: true, blur: false });
+        const reported = backdrop();
+        await act(async () => backdropReporters.wall({ lyrics: true, blur: false }));
+        expect(backdrop()).toBe(reported);
+
+        // 换成另一套带 stage 的 suite：旧报告不再生效，旧 stage 晚到的报告也不算。
+        const stale = backdropReporters.wall;
+        await renderSlot('other');
+        expect(backdrop()).toBe(NO_LIBRARY_PLAYER_BACKDROP);
+        await act(async () => stale({ lyrics: true, blur: true }));
+        expect(backdrop()).toBe(NO_LIBRARY_PLAYER_BACKDROP);
+        await act(async () => backdropReporters.other({ lyrics: false, blur: true }));
+        expect(backdrop()).toEqual({ lyrics: false, blur: true });
+
+        // 挂载位卸载（Home 返回 null）：复位。
+        await act(async () => root.unmount());
+        root = createRoot(container);
+        expect(backdrop()).toBe(NO_LIBRARY_PLAYER_BACKDROP);
+    });
+
+    it('is always plain for a suite without a stage', async () => {
+        await renderSlot('grid');
+        expect(backdrop()).toBe(NO_LIBRARY_PLAYER_BACKDROP);
     });
 });

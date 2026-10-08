@@ -25,6 +25,7 @@ import type { CommandSyntaxSpec } from './syntax/types';
 import type { PlaybackEntryView } from '../../stores/usePlaybackEntryViewStore';
 import type { PonderHintVisibility } from '../../types/ponder';
 import type { LibraryWallLook } from '../../utils/libraryWallLook';
+import type { LibraryWallSeamStyle } from '../../utils/libraryWallSeamStyle';
 
 // src/components/command-palette/types.ts
 // Shared command palette contracts used by the registry, hook, and UI shell.
@@ -244,6 +245,15 @@ export type CommandPaletteSettingsContext = {
     setLibraryWallWindowsPerBlock: (windowsPerBlock: number) => void;
     /** bravais collection tiles' stack edges (useLibraryWallLookStore.collectionStackEdges): flips the stored value. */
     toggleLibraryWallStackEdges: () => void;
+    /** bravais info strip always see-through (useLibraryWallLookStore.seamClear); read live. */
+    libraryWallSeamClear: () => boolean;
+    toggleLibraryWallSeamClear: () => void;
+    /** bravais solid info strip preset (useLibraryWallLookStore.seamStyle); read live. Ignored while the strip is see-through. */
+    libraryWallSeamStyle: () => LibraryWallSeamStyle;
+    setLibraryWallSeamStyle: (style: LibraryWallSeamStyle) => void;
+    /** Lyrics / blur on the visualizer that shows through the bravais wall: flip the stored values. */
+    toggleLibraryWallBackdropLyrics: () => void;
+    toggleLibraryWallBackdropBlur: () => void;
     ponderHintVisibility: PonderHintVisibility;
     setPonderHintVisibility: (visibility: PonderHintVisibility) => void;
     /** 触屏上那颗思索按钮显不显示。它是触屏唯一的入口，所以关掉是一个明确的选择。 */

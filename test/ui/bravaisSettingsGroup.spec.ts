@@ -85,3 +85,42 @@ test('the Bravais group stays out of the grid interface and appears once bravais
     await expect(group(page)).toBeVisible();
     await expect(page.getByRole('switch', { name: 'Collection stack edges' })).toBeVisible();
 });
+
+// 2026-10-09：信息条的材质（始终透明 / 实色预设，互斥）与墙后画面的两个开关也在分组里。
+test('the Bravais group switches the info strip material and the backdrop', async ({ page }) => {
+    await bootHome(page, 'bravais');
+    const stage = page.locator('[data-library-stage="bravais"]');
+    await openGeneralSettings(page, 'bravaisSettings');
+    await expect(group(page)).toBeVisible();
+
+    // 预设：8 个色样，默认主题纸色；点「纯白印刷」写进存储，墙上的缝换样式。
+    const options = group(page).locator('[data-bravais-seam-style-option]');
+    await expect(options).toHaveCount(8);
+    await expect(group(page).locator('[data-bravais-seam-style-option="paper"]')).toHaveAttribute('aria-checked', 'true');
+    await group(page).locator('[data-bravais-seam-style-option="white"]').click();
+    await expect(group(page).locator('[data-bravais-seam-style-option="white"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(stage).toHaveAttribute('data-bravais-seam-style', 'white');
+    expect(await page.evaluate(() => localStorage.getItem('library_wall_seam_style'))).toBe('white');
+
+    // 始终透明：开着时预设整组禁用（值保留），缝换成透明的纱。
+    const clear = page.getByRole('switch', { name: 'See-through info strip' });
+    await expect(clear).toHaveAttribute('aria-checked', 'false');
+    await clear.click();
+    await expect(clear).toHaveAttribute('aria-checked', 'true');
+    await expect(stage).toHaveClass(/\bhas-clear-seam\b/);
+    await expect(stage).toHaveAttribute('data-bravais-seam-style', 'clear');
+    await expect(group(page).locator('[data-bravais-seam-style-option="dots"]')).toBeDisabled();
+    expect(await page.evaluate(() => [localStorage.getItem('library_wall_seam_clear'), localStorage.getItem('library_wall_seam_style')])).toEqual(['true', 'white']);
+    await clear.click();
+    await expect(stage).toHaveAttribute('data-bravais-seam-style', 'white');
+    await expect(group(page).locator('[data-bravais-seam-style-option="dots"]')).toBeEnabled();
+
+    // 墙后画面：两个开关默认关，切换写进存储。
+    for (const [name, key] of [['Lyrics behind the wall', 'library_wall_backdrop_lyrics'], ['Blur behind the wall', 'library_wall_backdrop_blur']] as const) {
+        const toggle = page.getByRole('switch', { name });
+        await expect(toggle).toHaveAttribute('aria-checked', 'false');
+        await toggle.click();
+        await expect(toggle).toHaveAttribute('aria-checked', 'true');
+        expect(await page.evaluate(storageKey => localStorage.getItem(storageKey), key)).toBe('true');
+    }
+});

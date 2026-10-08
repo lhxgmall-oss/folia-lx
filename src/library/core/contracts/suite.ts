@@ -343,6 +343,9 @@ export type LibrarySuiteTransitions = {
     reset?: () => void;
 };
 
+/** 透出的播放页画面（reportPlayerBackdrop）：画不画歌词文字、加不加模糊。 */
+export type LibraryPlayerBackdrop = { readonly lyrics: boolean; readonly blur: boolean };
+
 /**
  * stage 的输入（B1）。stage 是一套 suite 常驻在首页与集合层之间的舞台（bravais 的整面墙），横跨 surface：
  * 首页与集合 / 歌手 surface 只把自己的层描述交给 suite 内部的 store，由 stage 统一画出来。
@@ -364,6 +367,12 @@ export type LibrarySuiteStageProps = {
      * 引用在同一次挂载内稳定；值不变时重复报告没有开销。
      */
     reportPlayerOcclusion: (occludes: boolean) => void;
+    /**
+     * 报告透出的播放页画面怎么画（bravais「墙后的画面」设置）：`lyrics` 画歌词文字、`blur` 加模糊。宿主只在首页显示着时
+     * 按它调整 visualizer（文字开关、visualizer 那一层的模糊），播放页不受影响。只有画面有透光处时才可能报 true；缺省与
+     * 复位都是两项 false（首页 visualizer 不画文字、不模糊，与没有 stage 的 suite 一样）。引用同一次挂载内稳定。
+     */
+    reportPlayerBackdrop: (backdrop: LibraryPlayerBackdrop) => void;
     /**
      * 回到播放页（首页数据的 onBackToPlayer，与网格首页右下角 › 同一个回调）。stage 横跨首页与集合层，所以在这里给，
      * 而不是只给首页 surface（实测反馈 1）。bravais 左上角的隐藏式返回在首页根层、有正在播放 / 已加载的歌时用它；

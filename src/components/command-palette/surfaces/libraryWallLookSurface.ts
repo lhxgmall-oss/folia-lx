@@ -6,14 +6,17 @@ import {
     libraryWallWindowSharePercent,
     type LibraryWallLook,
 } from '../../../utils/libraryWallLook';
+import { LIBRARY_WALL_SEAM_STYLES, type LibraryWallSeamStyle } from '../../../utils/libraryWallSeamStyle';
 
 // src/components/command-palette/surfaces/libraryWallLookSurface.ts
-// bravais 透光的两个 picker：档位（实色 / 部分透明 / 全透明）与部分透明时的每块窗数（1–6）。输入框筛选，方向键移动，
+// bravais 墙面的三个 picker：透光档位（实色 / 部分透明 / 全透明）、部分透明时的每块窗数（1–6）、信息条实色模式的预设
+// （主题纸色 / 印刷 / 磨砂 / 图案）。输入框筛选，方向键移动，
 // Enter 或点击生效。当前值与 setter 都来自 settings 命名空间（useLibraryWallLookStore 经 context 透出），
 // 这里不 import store 或 registry，命令注册表保持纯 TS。两个 picker 共用一个列表视图。
 
 const LOOK_PICK_PREFIX = 'library-wall-look-pick-';
 const WINDOWS_PICK_PREFIX = 'library-wall-windows-pick-';
+const SEAM_STYLE_PICK_PREFIX = 'library-wall-seam-style-pick-';
 
 type Translate = CommandPaletteContext['shared']['t'];
 
@@ -38,6 +41,7 @@ const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, 
 export const readLibraryWallPick = (commandId: string): string => {
     if (commandId.startsWith(LOOK_PICK_PREFIX)) return commandId.slice(LOOK_PICK_PREFIX.length);
     if (commandId.startsWith(WINDOWS_PICK_PREFIX)) return commandId.slice(WINDOWS_PICK_PREFIX.length);
+    if (commandId.startsWith(SEAM_STYLE_PICK_PREFIX)) return commandId.slice(SEAM_STYLE_PICK_PREFIX.length);
     return '';
 };
 
@@ -46,6 +50,23 @@ export const libraryWallLookLabel = (look: LibraryWallLook, t: Translate): strin
 export const libraryWallWindowsLabel = (count: number, t: Translate): string => (
     t('commandPalette.libraryWallPicker.windows', 'Windows per block: {{count}}').replace('{{count}}', String(count))
 );
+
+// 与设置分区（BravaisSeamSettings）同一组标题文案键；描述按预设的类别说明文字色规则。
+const SEAM_THEME: [string, string] = ['commandPalette.libraryWallPicker.seamTheme', 'Follows your theme colours'];
+const SEAM_PRINT: [string, string] = ['commandPalette.libraryWallPicker.seamPrint', 'Fixed paper and ink, high contrast'];
+const SEAM_PATTERN: [string, string] = ['commandPalette.libraryWallPicker.seamPattern', 'A quiet pattern in your theme colours'];
+const SEAM_STYLE_TEXT: Record<LibraryWallSeamStyle, { label: [string, string]; description: [string, string] }> = {
+    paper: { label: ['options.bravaisSeamStylePaper', 'Theme paper'], description: SEAM_THEME },
+    white: { label: ['options.bravaisSeamStyleWhite', 'White print'], description: SEAM_PRINT },
+    black: { label: ['options.bravaisSeamStyleBlack', 'Black print'], description: SEAM_PRINT },
+    frost: { label: ['options.bravaisSeamStyleFrost', 'Frosted accent'], description: SEAM_THEME },
+    dots: { label: ['options.bravaisSeamStyleDots', 'Dot grid'], description: SEAM_PATTERN },
+    hatch: { label: ['options.bravaisSeamStyleHatch', 'Hatching'], description: SEAM_PATTERN },
+    contour: { label: ['options.bravaisSeamStyleContour', 'Contours'], description: SEAM_PATTERN },
+    check: { label: ['options.bravaisSeamStyleCheck', 'Gingham'], description: SEAM_PATTERN },
+};
+
+export const libraryWallSeamStyleLabel = (style: LibraryWallSeamStyle, t: Translate): string => t(...SEAM_STYLE_TEXT[style].label);
 
 const activeText = (t: Translate) => t('commandPalette.libraryWallPicker.active', 'In use');
 
@@ -147,6 +168,22 @@ const buildWindowsMatches = (context: CommandPaletteContext, query: string): Com
     return buildRowMatches(WINDOWS_PICK_PREFIX, rows, query);
 };
 
+const buildSeamStyleMatches = (context: CommandPaletteContext, query: string): CommandPaletteMatch[] => {
+    const { t } = context.shared;
+    const current = context.settings.libraryWallSeamStyle();
+    const rows = LIBRARY_WALL_SEAM_STYLES.map((style): PickerRow => {
+        const title = libraryWallSeamStyleLabel(style, t);
+        return {
+            value: style,
+            title,
+            description: style === current ? activeText(t) : t(...SEAM_STYLE_TEXT[style].description),
+            matchQuery: normalizedQuery => firstIndexIn([title, style], normalizedQuery),
+            apply: next => next.settings.setLibraryWallSeamStyle(style),
+        };
+    });
+    return buildRowMatches(SEAM_STYLE_PICK_PREFIX, rows, query);
+};
+
 const sharedProps = ({ matches, activeIndex, setActiveIndex, executeMatch, isDaylight, theme, isExecuting }: Parameters<NonNullable<CommandPaletteSurface['mapProps']>>[0]) => ({
     matches,
     activeIndex,
@@ -178,5 +215,17 @@ export const libraryWallWindowsPickerSurface: CommandPaletteSurface = {
         headerTitle: args.context.shared.t('commandPalette.commands.library-wall-windows-picker.title', 'Pick windows per block'),
         selectedValue: String(args.context.settings.libraryWallWindowsPerBlock()),
         selectedLabel: libraryWallWindowsLabel(args.context.settings.libraryWallWindowsPerBlock(), args.context.shared.t),
+    }),
+};
+
+export const libraryWallSeamStylePickerSurface: CommandPaletteSurface = {
+    load: () => import('./LibraryWallPickerSurfaceView'),
+    useLiveQuery: true,
+    buildMatches: ({ context, query }) => buildSeamStyleMatches(context, query),
+    mapProps: args => ({
+        ...sharedProps(args),
+        headerTitle: args.context.shared.t('commandPalette.commands.library-wall-seam-style-picker.title', 'Pick info strip style'),
+        selectedValue: args.context.settings.libraryWallSeamStyle(),
+        selectedLabel: libraryWallSeamStyleLabel(args.context.settings.libraryWallSeamStyle(), args.context.shared.t),
     }),
 };

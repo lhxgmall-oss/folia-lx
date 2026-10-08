@@ -18,7 +18,8 @@ const definition: ProbeDefinition = {
     id: 'bravaisKinds',
     title: 'Bravais · 磁贴种类（书脊 / 双色调人像）',
     description: '真实 BravaisStage + 歌曲 / 专辑 / 歌单 / 歌手 / 特殊卡混排的合成首页墙。参数：theme=midnight|daylight|vivid look=solid|partial|clear '
-        + 'lights=on|off tint=on|off current=<条目 key>|none mix=mixed|artists（整面墙只有歌手，双色调开销的最坏情况）',
+        + 'lights=on|off tint=on|off edges=on|off seam=paper|white|black|frost|dots|hatch|contour|check clearSeam=on|off lyrics=on|off blur=on|off '
+        + 'current=<条目 key>|none mix=mixed|artists（整面墙只有歌手，双色调开销的最坏情况）',
     Component: BravaisKindsProbeEntry as React.ComponentType,
 };
 

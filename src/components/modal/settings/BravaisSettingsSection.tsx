@@ -8,13 +8,18 @@ import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import LibraryWallLookSettings from './LibraryWallLookSettings';
+import BravaisSettingsToggleRow from './BravaisSettingsToggleRow';
+import BravaisSeamSettings from './BravaisSeamSettings';
+import BravaisBackdropSettings from './BravaisBackdropSettings';
 
 // src/components/modal/settings/BravaisSettingsSection.tsx
 // 界面设置里的「Bravais 墙面」分组（用户要求：bravais 独有的设置都整理到这里）：透光档位、每块窗数（部分透明时）、
-// 集合叠页边。挂在「资料库界面」（suite 选择，不是 bravais 独有的设置，留在原处）的下面。
+// 集合叠页边、信息条的材质（始终透明 / 实色预设，BravaisSeamSettings）与墙后的画面（歌词 / 模糊，BravaisBackdropSettings）。
+// 挂在「资料库界面」（suite 选择，不是 bravais 独有的设置，留在原处）的下面。
 // 与透光设置原来的惯例一致：只在生效 suite 是 bravais 时渲染（useIsBravaisLibraryActive，命令面板与侧栏目录用同一个
 // isBravaisLibraryActive），别的 suite 下整组不出现——那时这些设置不起作用，显示出来只会让人以为能调 grid 的样子。
-// 导入导出：透光与窗数不进（用户决定，见 useLibraryWallLookStore），叠页边进外观配置（没有用户例外，按规则）。
+// 导入导出：透光与窗数不进（用户决定，见 useLibraryWallLookStore），叠页边、信息条材质、墙后画面进外观配置（没有用户
+// 例外，按规则）。
 
 type BravaisSettingsSectionProps = {
     isDaylight: boolean;
@@ -33,8 +38,7 @@ const BravaisSettingsSection: React.FC<BravaisSettingsSectionProps> = ({ isDayli
     if (!isBravaisActive) return null;
 
     const accentColor = theme?.accentColor || (isDaylight ? '#3b82f6' : '#60a5fa');
-    const dividerColor = isDaylight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
-    const toggleOffBackgroundClass = isDaylight ? 'bg-zinc-200' : 'bg-[#2A2D35]';
+    const toggleOnColor = theme?.secondaryColor;
 
     return (
         <SettingsAnchor anchorId="bravaisSettings" label={t('options.bravaisSettings')}>
@@ -44,28 +48,17 @@ const BravaisSettingsSection: React.FC<BravaisSettingsSectionProps> = ({ isDayli
                     {t('options.bravaisSettingsDesc')}
                 </div>
                 <LibraryWallLookSettings isDaylight={isDaylight} accentColor={accentColor} />
-                <div className="flex items-center justify-between gap-4 border-t pt-4" style={{ borderColor: dividerColor }}>
-                    <div className="space-y-1">
-                        <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                            {t('options.bravaisStackEdges')}
-                        </div>
-                        <div className="text-[11px] opacity-50 max-w-[420px]" style={{ color: 'var(--text-secondary)' }}>
-                            {t('options.bravaisStackEdgesDesc')}
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        role="switch"
-                        aria-checked={stackEdges}
-                        aria-label={t('options.bravaisStackEdges')}
-                        data-bravais-stack-edges-toggle=""
-                        onClick={() => setStackEdges(!stackEdges)}
-                        className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!stackEdges ? toggleOffBackgroundClass : ''}`}
-                        style={{ backgroundColor: stackEdges ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
-                    >
-                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${stackEdges ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                </div>
+                <BravaisSettingsToggleRow
+                    label={t('options.bravaisStackEdges')}
+                    description={t('options.bravaisStackEdgesDesc')}
+                    checked={stackEdges}
+                    onChange={setStackEdges}
+                    isDaylight={isDaylight}
+                    onColor={toggleOnColor}
+                    dataAttribute="data-bravais-stack-edges-toggle"
+                />
+                <BravaisSeamSettings isDaylight={isDaylight} accentColor={accentColor} toggleOnColor={toggleOnColor} />
+                <BravaisBackdropSettings isDaylight={isDaylight} toggleOnColor={toggleOnColor} />
             </div>
         </SettingsAnchor>
     );

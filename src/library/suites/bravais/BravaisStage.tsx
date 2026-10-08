@@ -36,6 +36,8 @@ import { resolveStageSeamTarget, type BravaisSeamTargetInput } from './bravaisSe
 import { setBravaisFilterEditing, useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisPanelActions } from './BravaisListPanel';
 import { useBravaisWallLook } from './useBravaisWallLook';
+import { opensBackdropFor } from './bravaisLook';
+import { libraryWallSeamStyleVars } from '../../../utils/libraryWallSeamStyle';
 import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { useBravaisBeforePush } from './bravaisTransitions';
@@ -48,6 +50,7 @@ import '../../../components/wall/wall.css';
 import './bravais.css';
 import './bravaisAppearance.css';
 import './bravaisHandoff.css';
+import './bravaisSeamLooks.css';
 
 // src/library/suites/bravais/BravaisStage.tsx
 // bravais 的常驻舞台（B1 的 stage 契约）：一面横跨首页与集合层的墙、相机、缝、翻牌、聚焦卡与键盘焦点。
@@ -65,6 +68,8 @@ import './bravaisHandoff.css';
 // 与右下角工具按钮在 BravaisStageChrome，与 Lattice 共用 components/wall 的同一套控件。左上角返回的去处（bravaisBack）：
 // 不在首页根层时与缝里的 ‹ 同一个返回，首页根层有歌时回到播放页、没有歌时不画。
 // 2026-10-09：叠色与熄灯也作用到缝（bravaisAppearance.css）；集合的叠页边由根节点的 has-stack-edges 打开（设置可关）。
+// 2026-10-09（seam looks）：缝的材质——「始终透明」（has-clear-seam，透出 visualizer，实色墙也不报遮挡）与实色模式的预设
+// （data-bravais-seam-style + 根节点上的材质变量，bravaisSeamLooks.css）；透出画面的歌词 / 模糊经 reportPlayerBackdrop 报给宿主。
 // 实测反馈 fb3：宿主的播放开关与「进入播放视图」交给聚焦卡（正在播放的那首：暂停 / 继续 + 进入）；从墙上播放后那首的
 // 聚焦卡在回来 / 返回这一层时重新展开（useBravaisPlayingCard）。
 // 翻牌交接（设计稿 §7「进入队列」）：进 / 出 Lattice 时这面墙与 Lattice 叠着换内容（useBravaisWallHandoff）。交接期间
@@ -83,6 +88,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     isDaylight,
     navigation: hostNavigation,
     reportPlayerOcclusion,
+    reportPlayerBackdrop,
     onBackToPlayer,
     onTogglePlayback,
     onEnterPlaybackView,
@@ -107,7 +113,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const tabRef = useRef<HTMLButtonElement>(null);
     const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamContent: seamContentRef, tab: tabRef }), []);
     const { stateRef: frameRef, renderFrame } = useBravaisFrame(frameRefs);
-    const wallLook = useBravaisWallLook(reportPlayerOcclusion);
+    const { wallLook, seamLook } = useBravaisWallLook(reportPlayerOcclusion, reportPlayerBackdrop);
     const view = useBravaisViewport(rootRef);
     const reducedMotion = useReducedMotionFor('lattice');
     // B11：换层的翻牌 / 波次按「降低动态效果」降级成淡入淡出（lattice 或 collectionMorph，见 bravaisMotion）。
@@ -253,20 +259,23 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     useBravaisPlayingCard({ display, isSettling: settling, focus, frameRef });
     // 透光以墙上此刻显示的档位为准（换档时与翻牌同一次提交）；还没有显示时看偏好。
     const seeThrough = (display?.look ?? wallLook.look) !== 'solid';
+    // 透出播放页的地方：透光档的窗，或「始终透明」的缝（2026-10-09）。实色档 + 透明缝时根节点同样不画墙面、改由块底板铺
+    // （缝开口下面没有底板），交接时同样要先盖 veil、visualizer 等窗关上才卸载。
+    const backdropOpen = opensBackdropFor(display?.look ?? wallLook.look, seamLook.seamClear);
     useBravaisWallHandoff({
         session: handoffSession,
         rootRef,
         frameRef,
         display,
         canHandoff: isInteractive && owned && Boolean(display) && Boolean(view),
-        seeThrough,
+        seeThrough: backdropOpen,
         reducedMotion,
         reducedTransitions,
         expandedSlotKey: focus.expandedSlotKey,
         focusedRef: focus.focusedRef,
     });
     const plates = useBravaisBlockPlates({
-        enabled: seeThrough,
+        enabled: backdropOpen,
         slots,
         display,
         expandedSlotKey: focus.expandedSlotKey,
@@ -392,6 +401,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         focus.collapse();
     }, [focus.collapse]);
 
+    // 信息条的预设（§5「缝的材质」）：主题纸色以外的预设把材质写成根节点上的自定义属性；透明的缝不写（预设不生效）。
+    const seamStyleVars = useMemo(() => (seamLook.seamStyle ? libraryWallSeamStyleVars(seamLook.seamStyle) : null), [seamLook.seamStyle]);
+
     const rootClassName = [
         'lattice-root',
         'bravais-root',
@@ -403,6 +415,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         stackEdges ? 'has-stack-edges' : '',
         layer?.wall?.loading ? 'is-loading' : '',
         seeThrough ? 'is-see-through' : '',
+        backdropOpen ? 'is-backdrop-open' : '',
+        seamLook.seamClear ? 'has-clear-seam' : '',
+        seamLook.backdropBlur ? 'has-backdrop-blur' : '',
         seeThrough && BRAVAIS_SEAM_ACRYLIC_BLUR ? 'has-seam-blur' : '',
         display?.layer.seam.home?.manage ? 'is-managing-hidden' : '',
         display?.layer.home?.batch ? 'is-batch' : '',
@@ -420,6 +435,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                 '--bravais-focus-reveal-delay': `${WALL_REFLOW_CONTROLS_REVEAL.delayMs}ms`,
                 '--bravais-focus-reveal-duration': `${WALL_REFLOW_CONTROLS_REVEAL.durationMs}ms`,
                 '--bravais-focus-reveal-rise': `${WALL_REFLOW_CONTROLS_REVEAL.risePx}px`,
+                ...seamStyleVars,
             } as CSSProperties}
             data-library-stage="bravais"
             data-bravais-layer={display?.layer.key}
@@ -430,14 +446,15 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             data-wall-handoff-mode={handoff.mode ?? undefined}
             data-wall-handoff-hold={handoff.hold || undefined}
             data-wall-handoff-overlays={handoff.overlaysOff ? 'off' : undefined}
-            data-wall-handoff-veil={seeThrough && handoff.veilOn ? 'on' : undefined}
+            data-wall-handoff-veil={backdropOpen && handoff.veilOn ? 'on' : undefined}
             data-bravais-shift={display?.shift?.kind}
             data-bravais-shift-seq={display?.shift?.seq}
             data-bravais-look={display?.look ?? wallLook.look}
+            data-bravais-seam-style={seamLook.seamStyle ?? 'clear'}
             aria-label={t('libraryBravais.wallLabel')}
         >
             {/* 交接时关窗：透光档墙面之下的一层实色（与实色档的墙面同一份底色与光晕），开 / 关各淡 0.2s。 */}
-            {seeThrough && <div className="bravais-handoff-veil" data-veil={handoff.veilOn ? 'on' : 'off'} aria-hidden="true" />}
+            {backdropOpen && <div className="bravais-handoff-veil" data-veil={handoff.veilOn ? 'on' : 'off'} aria-hidden="true" />}
             <div
                 ref={fieldRef}
                 className="lattice-field bravais-field"

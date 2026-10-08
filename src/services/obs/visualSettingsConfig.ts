@@ -99,6 +99,13 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     // settings rule). The wall's transparency and windows per block deliberately stay out — the user
     // decided so; see useLibraryWallLookStore.
     libraryWallStackEdges: useLibraryWallLookStore.getState().collectionStackEdges,
+    // The bravais info strip's material (always see-through, or the solid preset) and how the
+    // visualizer behind the wall is drawn (lyrics, blur): visual settings with no user exception,
+    // so they travel with a shared look as well.
+    libraryWallSeamClear: useLibraryWallLookStore.getState().seamClear,
+    libraryWallSeamStyle: useLibraryWallLookStore.getState().seamStyle,
+    libraryWallBackdropLyrics: useLibraryWallLookStore.getState().backdropLyrics,
+    libraryWallBackdropBlur: useLibraryWallLookStore.getState().backdropBlur,
   };
 }
 

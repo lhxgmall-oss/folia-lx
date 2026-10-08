@@ -40,6 +40,8 @@
    - 熄灯：实色与部分透明档整条压 60% 黑（日光白），而不是磁贴的 82%——缝是这一页唯一的导航，82% 时竖排标题只剩约
      1.6:1，找不到它；60% 时标题约 3.4:1，仍明显退到墙后。全透明档的缝是半透明的纸（下面透着 visualizer），与全透明档的
      磁贴一样不往上涂黑，只把内容压到 0.4（同样是「暗 60%」）。
+   - 「始终透明」的缝（has-clear-seam，任何透光档）按窗处理，与全透明档的缝相同：不染，熄灯只把内容压到 0.4。
+     实色模式的预设（白 / 黑印刷、磨砂、图案）只换纸与墨，两层照旧画在上面（bravaisSeamLooks.css）。
    - 豁免（缝整条亮起、不染）：悬停在缝上、缝里有键盘焦点或聚焦的输入框（:focus-visible）、弹出的「⋯」菜单、
      表单态（集合的表单、账户登录 / 确认、首页的搜索框），与磁贴「悬停、聚焦的不熄」同理；账户的平台列表弹在墙上
      （portal 到缝外），本来就不在这两层之下。 */
@@ -57,9 +59,9 @@
 
 .bravais-root.is-daylight { --bravais-seam-dim-fill: #fff; }
 .bravais-root.uses-custom-poster-tint { --bravais-seam-tint-fill: var(--lattice-poster-tint-color); }
-.bravais-root.has-poster-tint:not(.is-lights-out):not([data-bravais-look='clear']) { --bravais-seam-tint: var(--lattice-poster-tint-effective-opacity); }
-.bravais-root.is-lights-out:not([data-bravais-look='clear']) { --bravais-seam-dim: 0.6; }
-.bravais-root.is-lights-out[data-bravais-look='clear'] { --bravais-seam-fade: 0.4; }
+.bravais-root.has-poster-tint:not(.is-lights-out):not([data-bravais-look='clear']):not(.has-clear-seam) { --bravais-seam-tint: var(--lattice-poster-tint-effective-opacity); }
+.bravais-root.is-lights-out:not([data-bravais-look='clear']):not(.has-clear-seam) { --bravais-seam-dim: 0.6; }
+.bravais-root.is-lights-out:is([data-bravais-look='clear'], .has-clear-seam) { --bravais-seam-fade: 0.4; }
 
 .bravais-seam:is(:hover, :has(:focus-visible), :has([data-bravais-seam-menu]), [data-folia-keyboard-window]),
 .bravais-seam:is([data-bravais-seam='form'], [data-bravais-seam='login'], [data-bravais-seam='confirm'], [data-bravais-seam='search']),

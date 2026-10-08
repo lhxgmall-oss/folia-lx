@@ -100,6 +100,21 @@ export const buildSettingsCommandContext = (
             const wall = useLibraryWallLookStore.getState();
             wall.setCollectionStackEdges(!wall.collectionStackEdges);
         },
+        libraryWallSeamClear: () => useLibraryWallLookStore.getState().seamClear,
+        toggleLibraryWallSeamClear: () => {
+            const wall = useLibraryWallLookStore.getState();
+            wall.setSeamClear(!wall.seamClear);
+        },
+        libraryWallSeamStyle: () => useLibraryWallLookStore.getState().seamStyle,
+        setLibraryWallSeamStyle: style => useLibraryWallLookStore.getState().setSeamStyle(style),
+        toggleLibraryWallBackdropLyrics: () => {
+            const wall = useLibraryWallLookStore.getState();
+            wall.setBackdropLyrics(!wall.backdropLyrics);
+        },
+        toggleLibraryWallBackdropBlur: () => {
+            const wall = useLibraryWallLookStore.getState();
+            wall.setBackdropBlur(!wall.backdropBlur);
+        },
         ponderHintVisibility: ponder.ponderHintVisibility,
         setPonderHintVisibility: ponder.setPonderHintVisibility,
         togglePonderTouchButton: () => {

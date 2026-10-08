@@ -2,31 +2,46 @@ import { describe, expect, it, vi } from 'vitest';
 import { COMMAND_PALETTE_COMMANDS } from '@/components/command-palette/commandRegistry';
 import {
     libraryWallLookPickerSurface,
+    libraryWallSeamStylePickerSurface,
     libraryWallWindowsPickerSurface,
     readLibraryWallPick,
 } from '@/components/command-palette/surfaces/libraryWallLookSurface';
 import type { CommandPaletteContext } from '@/components/command-palette/types';
 import type { LibraryWallLook } from '@/utils/libraryWallLook';
+import type { LibraryWallSeamStyle } from '@/utils/libraryWallSeamStyle';
 
 // test/unit/command-palette/libraryWallLookCommands.test.ts
 // bravais 透光的两条命令（B6b②）：可用性与设置分区同一个谓词（context.settings.isLibraryWallLookAvailable，
 // 生效 suite 是 bravais），窗数命令另要求档位是部分透明；两个 picker 的行、当前项标记、筛选与执行。
+// 2026-10-09：信息条始终透明 / 墙后画面歌词 / 模糊三个开关，信息条样式 picker（透明开着时不可用，与设置分区禁用同一个条件）。
 
 type Settings = {
     available: boolean;
     look: LibraryWallLook;
     windows: number;
+    seamClear?: boolean;
+    seamStyle?: LibraryWallSeamStyle;
 };
 
 const createContext = (state: Settings) => {
     const setLibraryWallLook = vi.fn((look: LibraryWallLook) => { state.look = look; });
     const setLibraryWallWindowsPerBlock = vi.fn((count: number) => { state.windows = count; });
     const toggleLibraryWallStackEdges = vi.fn();
+    const toggleLibraryWallSeamClear = vi.fn();
+    const toggleLibraryWallBackdropLyrics = vi.fn();
+    const toggleLibraryWallBackdropBlur = vi.fn();
+    const setLibraryWallSeamStyle = vi.fn((style: LibraryWallSeamStyle) => { state.seamStyle = style; });
     const openSettings = vi.fn();
     const context = {
         shared: { t: (_key: string, fallback?: string) => fallback ?? '' },
         settings: {
             toggleLibraryWallStackEdges,
+            toggleLibraryWallSeamClear,
+            toggleLibraryWallBackdropLyrics,
+            toggleLibraryWallBackdropBlur,
+            libraryWallSeamClear: () => state.seamClear ?? false,
+            libraryWallSeamStyle: () => state.seamStyle ?? 'paper',
+            setLibraryWallSeamStyle,
             openSettings,
             isLibraryWallLookAvailable: () => state.available,
             libraryWallLook: () => state.look,
@@ -35,7 +50,17 @@ const createContext = (state: Settings) => {
             setLibraryWallWindowsPerBlock,
         },
     } as unknown as CommandPaletteContext;
-    return { context, setLibraryWallLook, setLibraryWallWindowsPerBlock, toggleLibraryWallStackEdges, openSettings };
+    return {
+        context,
+        setLibraryWallLook,
+        setLibraryWallWindowsPerBlock,
+        toggleLibraryWallStackEdges,
+        toggleLibraryWallSeamClear,
+        toggleLibraryWallBackdropLyrics,
+        toggleLibraryWallBackdropBlur,
+        setLibraryWallSeamStyle,
+        openSettings,
+    };
 };
 
 const command = (id: string) => {
@@ -150,3 +175,54 @@ describe('library wall windows picker', () => {
         expect(openSettings).toHaveBeenCalledWith('options', 'general', null, 'bravaisSettings');
     });
 });
+
+describe('bravais info strip and backdrop commands', () => {
+    it('flip the see-through strip and the backdrop lyrics / blur only while bravais is the effective suite', () => {
+        const ids = ['library-wall-seam-clear-toggle', 'library-wall-backdrop-lyrics-toggle', 'library-wall-backdrop-blur-toggle'] as const;
+        for (const id of ids) {
+            const entry = command(id);
+            expect(entry.group).toBe('settings');
+            expect(entry.executeShortcut).toBeUndefined();
+            expect(entry.isAvailable?.(createContext({ available: true, look: 'solid', windows: 3 }).context)).toBe(true);
+            expect(entry.isAvailable?.(createContext({ available: false, look: 'solid', windows: 3 }).context)).toBe(false);
+        }
+        const created = createContext({ available: true, look: 'solid', windows: 3 });
+        expect(command('library-wall-seam-clear-toggle').execute('', created.context)).toBe(true);
+        expect(command('library-wall-backdrop-lyrics-toggle').execute('', created.context)).toBe(true);
+        expect(command('library-wall-backdrop-blur-toggle').execute('', created.context)).toBe(true);
+        expect(created.toggleLibraryWallSeamClear).toHaveBeenCalledTimes(1);
+        expect(created.toggleLibraryWallBackdropLyrics).toHaveBeenCalledTimes(1);
+        expect(created.toggleLibraryWallBackdropBlur).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers the info strip style picker only on bravais while the strip is not see-through', () => {
+        const picker = command('library-wall-seam-style-picker');
+        expect(picker.surface).toBeDefined();
+        expect(picker.requiresInput).toBe(true);
+        expect(picker.executeShortcut).toBeUndefined();
+        const available = (state: Settings) => picker.isAvailable?.(createContext(state).context);
+        expect(available({ available: true, look: 'solid', windows: 3 })).toBe(true);
+        expect(available({ available: true, look: 'clear', windows: 3 })).toBe(true);
+        expect(available({ available: true, look: 'solid', windows: 3, seamClear: true })).toBe(false);
+        expect(available({ available: false, look: 'solid', windows: 3 })).toBe(false);
+        expect(picker.isAvailable?.()).toBe(true);
+    });
+
+    it('lists the eight styles in order, marks the current one and applies the pick', async () => {
+        const { context, setLibraryWallSeamStyle } = createContext({ available: true, look: 'solid', windows: 3, seamStyle: 'dots' });
+        const matches = libraryWallSeamStyleSurfaceMatches(context, '');
+        expect(matches.map(match => readLibraryWallPick(match.command.id)))
+            .toEqual(['paper', 'white', 'black', 'frost', 'dots', 'hatch', 'contour', 'check']);
+        expect(matches[4].command.description).toBe('In use');
+        expect(matches[1].command.description).toBe('Fixed paper and ink, high contrast');
+
+        const byLabel = libraryWallSeamStyleSurfaceMatches(context, 'ging');
+        expect(byLabel.map(match => readLibraryWallPick(match.command.id))).toEqual(['check']);
+        expect(await byLabel[0].command.execute('', context)).toBe(true);
+        expect(setLibraryWallSeamStyle).toHaveBeenCalledWith('check');
+    });
+});
+
+function libraryWallSeamStyleSurfaceMatches(context: CommandPaletteContext, query: string) {
+    return libraryWallSeamStylePickerSurface.buildMatches!({ context, query });
+}

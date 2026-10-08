@@ -80,6 +80,8 @@ bravais 的口头说法大多来自它的设计稿（文件名带 `bravais-suite
 | 窗 | 保留位 `blockReservedSlots`、`resolveReservedPerBlock`；磁贴种类 `window` |
 | 底板（按块 SVG） | `BravaisBlockPlates`、`useBravaisBlockPlates`、`bravaisBlockPlate`；让位逐帧重画 `useBravaisReflowPlate` |
 | 遮挡播放页 / 实色档卸载 visualizer | `reportPlayerOcclusion`、`useLibraryPlayerOcclusionStore`、`shouldMountPlayerVisualizer` |
+| 墙后的画面（透出的 visualizer 画不画歌词、模糊） | `reportPlayerBackdrop`、`selectLibraryPlayerBackdrop`、`playerVisualizerBackdrop` |
+| 信息条样式 / 透明信息条（缝的材质、预设） | `seamStyle`、`seamClear`、`libraryWallSeamStyle`、`bravaisSeamLooks.css` |
 | 队列墙 / Lattice | `Lattice`、`PosterWall`（独立的 app 视图，只和 bravais 共享 wall 引擎） |
 
 ## 面板 / 搜索 / 弹窗
