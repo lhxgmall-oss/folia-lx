@@ -62,12 +62,14 @@ export default {
     "searchClose": "Close search",
     "backToPlayer": "Back to the player",
     "stagePlayer": "Stage player",
+    "stageShort": "Stage",
     "settings": "Settings",
     "more": "More",
     "scanProgress": "Scanning {{percent}}%",
     "connect": "Connect a streaming service",
     "noMatch": "Nothing on this page matches",
-    "shortcuts": "Jump to"
+    "shortcuts": "Jump to",
+    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
   },
   "libraryTui": {
     "back": "Back",

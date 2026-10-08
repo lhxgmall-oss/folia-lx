@@ -15,6 +15,7 @@ export type ProbeRequest = {
 
 export type ProbeCallKind =
     | 'playSong'
+    | 'openStagePlayer'
     | 'playAll'
     | 'addAllToQueue'
     | 'addSongToQueue'

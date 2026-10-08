@@ -202,6 +202,8 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         await settled(page);
         const seam = stage(page).locator('[data-bravais-seam]');
         await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+        // 完整信息条的竖排大标题（标题区域按钮里的 span）字重 800。
+        expect(await seam.locator('[data-bravais-seam-title]').evaluate(node => getComputedStyle(node).fontWeight)).toBe('800');
 
         await page.keyboard.press('Tab');
         expect(await focusedName(page)).toBe('action:back');
@@ -213,12 +215,15 @@ test.describe('[bravais-only] Tab switches between the wall and the info strip',
         await expect(seam).toHaveAttribute('data-bravais-seam', 'spine');
         await expect.poll(() => focusedName(page)).toBe('action:expand');
         expect(await page.evaluate(() => document.activeElement?.hasAttribute('data-bravais-seam-title') ?? false)).toBe(true);
+        // 书脊标题是 <button>：缝里 `button { font: inherit }` 不能盖掉竖排标题的字重（与完整信息条的大标题同为 800）。
+        expect(await seam.locator('[data-bravais-seam-title]').evaluate(node => getComputedStyle(node).fontWeight)).toBe('800');
 
         await page.keyboard.press('Space');
         await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
         await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
         await expect.poll(() => focusedName(page)).toBe('action:spine');
         expect(await stack(page)).toHaveLength(1);
+        expect(await seam.locator('[data-bravais-seam-title]').evaluate(node => getComputedStyle(node).fontWeight)).toBe('800');
 
         // 两站规则不变：Tab 回墙。
         await page.keyboard.press('Tab');

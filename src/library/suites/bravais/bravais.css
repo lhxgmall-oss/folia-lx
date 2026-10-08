@@ -365,6 +365,10 @@
 .bravais-seam .bravais-seam-title-area:hover { background: color-mix(in srgb, currentColor 6%, transparent); }
 .bravais-seam-title-area .bravais-seam-quote { transition: opacity 140ms ease; }
 .bravais-seam-title-area:hover .bravais-seam-quote { opacity: 0.6; }
+/* 书脊上的竖排标题本身是 <button>：`.bravais-seam button { font: inherit }`（0,1,1）压过了 .bravais-seam-vtitle 的字重
+ * （0,1,0），书脊标题成了常规体。带上 .bravais-seam 把字重拿回来（与完整信息条的竖排大标题同为 800）；字体照旧继承，
+ * 不换字体。 */
+.bravais-seam .bravais-seam-vtitle { font-weight: 800; }
 .bravais-seam .bravais-seam-vtitle.is-button { border-radius: 8px; transition: background-color 140ms ease, box-shadow 140ms ease; }
 /* 书脊上的竖排标题（「展开信息条」）：同一种浅底，用外扩的阴影铺开一圈，不改书脊的排版。 */
 .bravais-seam .bravais-seam-vtitle.is-button:hover {

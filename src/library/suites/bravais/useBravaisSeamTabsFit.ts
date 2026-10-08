@@ -22,6 +22,9 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
 // 量的是切换位的两份测量副本（全名二级切换 + 入口、全名二级切换不带入口），所需高度 = 页头副本 + 中段内边距 +
 // （中段内层高 − 此刻切换位高 + 副本高）。切换位只要有二级切换或入口就一直渲染（入口挪走后可能是空的），所以中段内层的
 // 段间距在各级之间不变，算出来的级别与此刻是哪一级无关，不会来回跳。
+// fb11：入口改成并排的竖排文字（比图标高），并挪到中段底部单独一块（jumpsRef，贴着账户入口 / 工具格；二级切换仍在
+// 中段内层里居中）。切换位只剩二级切换，测量改为：中段内层（二级切换换成全名副本）+ 入口一块的测量副本（jumpsMeasureRef，
+// 含分隔线与它上面的留白；入口挪进菜单时此刻那一块是空的、高 0）。各级所需高度仍只看副本。
 
 /** 页头的缩减级别：带标题 + 全名 → 不带标题 + 全名 → 不带标题 + 一个字（页签与激活的二级切换一起缩）。 */
 export type BravaisSeamHeadLevel = 'titled' | 'untitled' | 'short';
@@ -76,7 +79,8 @@ export const useBravaisSeamTabsFit = ({
     titledHeadRef,
     bareHeadRef,
     fullSlotRef,
-    bareSlotRef,
+    jumpsRef,
+    jumpsMeasureRef,
 }: {
     /** 可伸缩的导航区（flex 剩余空间，溢出时可滚）。 */
     navRef: RefObject<HTMLElement | null>;
@@ -86,16 +90,18 @@ export const useBravaisSeamTabsFit = ({
     middleRef: RefObject<HTMLElement | null>;
     /** 中段里自然高度的内层。 */
     bodyRef: RefObject<HTMLElement | null>;
-    /** 此刻渲染的切换位：二级切换 + 直达入口（都没有时为 null）。 */
+    /** 此刻渲染的切换位：二级切换（没有时为 null）。 */
     slotRef: RefObject<HTMLElement | null>;
     /** 带标题的全名页头的测量副本。 */
     titledHeadRef: RefObject<HTMLElement | null>;
     /** 不带标题的全名页头的测量副本。 */
     bareHeadRef: RefObject<HTMLElement | null>;
-    /** 切换位的测量副本：全名二级切换 + 直达入口（容器常在，都没有时是空的）。 */
+    /** 切换位的测量副本：全名二级切换（容器常在，没有时是空的）。 */
     fullSlotRef: RefObject<HTMLElement | null>;
-    /** 切换位的测量副本：全名二级切换、不带直达入口。 */
-    bareSlotRef: RefObject<HTMLElement | null>;
+    /** 此刻中段底部的直达入口一块（入口挪进菜单或没有入口时是空的）。 */
+    jumpsRef: RefObject<HTMLElement | null>;
+    /** 直达入口一块的测量副本（容器常在，没有入口时是空的）。 */
+    jumpsMeasureRef: RefObject<HTMLElement | null>;
 }): BravaisSeamTabsFit => {
     const [fit, setFit] = useState<BravaisSeamTabsFit>(FITS);
 
@@ -107,22 +113,23 @@ export const useBravaisSeamTabsFit = ({
         const titledHead = titledHeadRef.current;
         const bareHead = bareHeadRef.current;
         const fullSlot = fullSlotRef.current;
-        const bareSlot = bareSlotRef.current;
-        if (!nav || !head || !middle || !body || !titledHead || !bareHead || !fullSlot || !bareSlot || typeof ResizeObserver === 'undefined') return undefined;
+        const jumps = jumpsRef.current;
+        const jumpsMeasure = jumpsMeasureRef.current;
+        if (!nav || !head || !middle || !body || !titledHead || !bareHead || !fullSlot || !jumps || !jumpsMeasure || typeof ResizeObserver === 'undefined') return undefined;
         const measure = () => {
             const available = nav.clientHeight + 0.5;
             const pad = paddingBlock(middle);
-            // 中段内层去掉此刻的切换位，再换成两份副本之一。
-            const rest = body.offsetHeight - (slotRef.current?.offsetHeight ?? 0);
+            // 中段内层的二级切换换成全名副本；入口一块按副本加或不加。
+            const rest = body.offsetHeight - (slotRef.current?.offsetHeight ?? 0) + fullSlot.offsetHeight;
             const { level, shortcuts } = resolveSeamTabsFit({
                 available,
                 pad,
                 titledHead: titledHead.offsetHeight,
                 bareHead: bareHead.offsetHeight,
-                withShortcuts: rest + fullSlot.offsetHeight,
-                withoutShortcuts: rest + bareSlot.offsetHeight,
+                withShortcuts: rest + jumpsMeasure.offsetHeight,
+                withoutShortcuts: rest,
             });
-            const overflowing = head.offsetHeight + pad + body.offsetHeight > available;
+            const overflowing = head.offsetHeight + pad + body.offsetHeight + jumps.offsetHeight > available;
             setFit(current => (
                 current.level === level && current.shortcuts === shortcuts && current.overflowing === overflowing
                     ? current
@@ -137,9 +144,10 @@ export const useBravaisSeamTabsFit = ({
         observer.observe(titledHead);
         observer.observe(bareHead);
         observer.observe(fullSlot);
-        observer.observe(bareSlot);
+        observer.observe(jumps);
+        observer.observe(jumpsMeasure);
         return () => observer.disconnect();
-    }, [bareHeadRef, bareSlotRef, bodyRef, fullSlotRef, headRef, middleRef, navRef, slotRef, titledHeadRef]);
+    }, [bareHeadRef, bodyRef, fullSlotRef, headRef, jumpsMeasureRef, jumpsRef, middleRef, navRef, slotRef, titledHeadRef]);
 
     return fit;
 };

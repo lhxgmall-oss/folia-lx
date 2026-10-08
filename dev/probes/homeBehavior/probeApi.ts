@@ -169,6 +169,8 @@ export type HomeProbeApi = {
     switchProvider: (providerId: string) => Promise<boolean>;
     /** 让这个 provider 回到未登录（账户 store 的 clearAccount）：首页在线页签变成 guest。 */
     signOut: (providerId: string) => void;
+    /** fb11：宿主的舞台模式（stageEnabled + onOpenStagePlayer，active 是 stageIsActive）；点舞台入口记一笔 openStagePlayer。 */
+    setStage: (stage: { enabled: boolean; active?: boolean }) => void;
 
     // ---- suite ----
     /** 选中的 suite（core/state/useLibrarySuiteStore）。 */

@@ -88,7 +88,7 @@ import {
 
 const HIDDEN_STORAGE_KEY = 'hidden_grid_playlists';
 
-type HarnessBindings = Pick<HomeProbeApi, 'sandbox' | 'ready' | 'remount' | 'localSongIds' | 'localPlaylists' | 'providers' | 'activeProvider' | 'switchProvider' | 'signOut'>;
+type HarnessBindings = Pick<HomeProbeApi, 'sandbox' | 'ready' | 'remount' | 'localSongIds' | 'localPlaylists' | 'providers' | 'activeProvider' | 'switchProvider' | 'signOut' | 'setStage'>;
 
 type SliderProps = { items: Grid3DSliderItem[]; onSelect: (item: Grid3DSliderItem, index: number) => void };
 type GridMapProps = {

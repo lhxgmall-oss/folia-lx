@@ -14,13 +14,13 @@ export type BravaisHomeSection = { key: string; label: string; active: boolean }
 
 /**
  * 直达入口（特殊集合：我喜欢的音乐、云盘、私人 FM、每日推荐、全部歌曲、本地「我喜欢」、Navidrome 随机 / 收藏）：
- * 首页窄缝中段、二级切换下面的一列图标（与二级切换之间有分隔线）。点了直接进入那张集合，与点墙上那张卡同一条打开路径——
+ * 首页窄缝中段底部并排的几列竖排文字（fb11 起；有二级切换时与它之间有分隔线），显示种类的短名（libraryBravaisHome.special.*）。点了直接进入那张集合，与点墙上那张卡同一条打开路径——
  * stage 先在墙上找这一项（屏内离缝最近的一份），找得到就把它记成起点磁贴、走层描述的 onOpenItem；找不到（别的 section、
  * 被过滤掉、在屏外）就调 open，新层以缝为中心排序。只有此刻真有的那几张才有入口（bravaisHomeProjection 的 projectHomeShortcuts）。
  */
 export type BravaisHomeShortcut = {
     special: LibraryHomeSpecialKind;
-    /** 全名（只显示图标，全名进 aria-label / title）。 */
+    /** 卡片的全名（进 aria-label / title；缝里显示的是种类的短名）。 */
     label: string;
     /** 这张卡在墙上的条目 key。 */
     itemKey: string;
@@ -53,6 +53,10 @@ export type BravaisHomeTool = {
     disabled?: boolean;
     /** 进行中（刷新）：图标转圈。 */
     busy?: boolean;
+    /** 工具格里图标旁的短名（舞台入口占一整行时显示；全名仍在 label）。 */
+    shortLabel?: string;
+    /** 此刻正在用它（舞台：宿主的 stageIsActive；与 grid 一样只标在 data-stage-active 上，不画选中态）。 */
+    active?: boolean;
     run: () => void;
 };
 

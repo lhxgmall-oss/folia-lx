@@ -33,6 +33,12 @@ import { bravaisPopMotion } from './bravaisSeamMotion';
 // 入口盖在上面。修法：dock 的层级抬到账户位之上（bravaisHome.css）；菜单两侧比工具格各宽一些、项不折行。
 // 菜单与账户的平台列表互斥：开着哪个记在 bravaisHomeUiStore 的 popover，开一个就收另一个。
 // 直达入口（特殊集合）在窄缝中段放不下时挪进菜单（menuShortcuts）：排在最前，图标 + 全名，与后面的项隔一道分隔线。
+// fb11（用户要求）：舞台模式开着时（宿主给了 onOpenStagePlayer 且 stageEnabled，即有 stage 这个工具）舞台入口不再在「⋯」
+// 的 app 组里，而是单独占工具格最上面一整行（窄缝里是图标 + 短名「舞台」的一条，宽同两格；书脊上是一列最上面的一个图标），
+// 下面的 2×2（搜索、设置 / 队列、⋯）不变——「⋯」一直在右下角，舞台关着时工具格与原来完全一样。单独一行而不是排成
+// 3 + 2：窄缝只有约 100px 宽，三格 40px 放不下；五格两列会剩一个空洞、「⋯」的位置也会变。舞台与 grid 首页那一排的
+// 「舞台」一样是「去哪儿」，所以带字。正在用舞台播放（stageIsActive）时与 grid 一样只标 data-stage-active，不画选中态
+// （它不是开关，点它总是打开舞台）。
 
 const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
     search: Search,
@@ -47,10 +53,10 @@ const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?
     settings: Settings,
 };
 
-/** 工具格里固定的三格（加「⋯」共四格），按这个顺序。 */
-const DOCK_TOOLS: readonly BravaisHomeToolId[] = ['search', 'settings', 'queue'];
+/** 工具格里固定的三格（加「⋯」共四格），按这个顺序；舞台（有时）单独一行排在最前。 */
+const DOCK_TOOLS: readonly BravaisHomeToolId[] = ['stage', 'search', 'settings', 'queue'];
 /** 「⋯」里分隔线之后的 app 级入口。 */
-const APP_TOOLS: ReadonlySet<BravaisHomeToolId> = new Set(['player', 'stage']);
+const APP_TOOLS: ReadonlySet<BravaisHomeToolId> = new Set(['player']);
 
 /** 把工具分成工具格里的（固定顺序）、「⋯」里本页签的、「⋯」里 app 级的（后两组保持原顺序）。 */
 export const splitHomeTools = (tools: readonly BravaisHomeTool[]) => ({
@@ -170,12 +176,14 @@ const BravaisSeamHomeTools: React.FC<{
             <div className="bravais-seam-tools">
                 {dock.map((tool) => {
                     const Icon = TOOL_ICONS[tool.id];
+                    const wide = tool.id === 'stage';
                     return (
                         <button
                             key={tool.id}
                             type="button"
-                            className={`bravais-seam-icon${tool.pressed ? ' is-pressed' : ''}`}
+                            className={`bravais-seam-icon${tool.pressed ? ' is-pressed' : ''}${wide ? ' is-wide' : ''}`}
                             data-bravais-seam-action={tool.id}
+                            data-stage-active={wide ? String(Boolean(tool.active)) : undefined}
                             aria-label={tool.label}
                             aria-pressed={tool.pressed}
                             title={tool.label}
@@ -183,6 +191,7 @@ const BravaisSeamHomeTools: React.FC<{
                             onClick={tool.run}
                         >
                             <Icon aria-hidden className={tool.busy ? 'animate-spin' : undefined} />
+                            {wide && !compact && tool.shortLabel && <span className="is-label" aria-hidden>{tool.shortLabel}</span>}
                         </button>
                     );
                 })}

@@ -677,6 +677,13 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             overflowing: root.querySelector('.bravais-seam-home-nav')!.classList.contains('is-overflowing'),
             head: box(root.querySelector('.bravais-seam-home-nav .bravais-seam-home-head')),
             middle: box(root.querySelector('[data-bravais-home-body]')),
+            // fb11：中段底部的直达入口（入口挪进菜单或没有入口时没有）：从看得见的第一样（分隔线或入口）量到入口底边。
+            jumps: (() => {
+                const wrap = root.querySelector('[data-bravais-home-jumps] .bravais-seam-shortcuts-wrap');
+                if (!wrap) return null;
+                const first = box(wrap.firstElementChild)!;
+                return { ...box(wrap)!, top: first.top };
+            })(),
             dock: box(root.querySelector('.bravais-seam-dock')),
             account: box(root.querySelector(':scope > [data-bravais-account-slot]')),
             accountInMiddle: root.querySelector('[data-bravais-home-body] [data-bravais-account-slot]') !== null,
@@ -746,14 +753,21 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
                 for (let j = i + 1; j < parts.length; j += 1) expect(overlaps(parts[i], parts[j])).toBe(false);
             }
             // 中段在页头与下面那一段（账户入口，没有时是工具格）之间竖直居中（上下留白相等），不贴着页签。
+            // fb11：直达入口贴在中段底部（离下面那一段一个段间距），中段内层在页头与入口之间居中。
+            const jumps = layout.jumps;
+            if (jumps) {
+                expect(jumps.bottom).toBeLessThanOrEqual(lower.top - 10);
+                expect(jumps.top).toBeGreaterThanOrEqual(layout.middle!.bottom - 0.5);
+            }
             const above = layout.middle!.top - layout.head!.bottom;
-            const below = lower.top - layout.middle!.bottom;
+            const below = (jumps?.top ?? lower.top) - layout.middle!.bottom;
             expect(above).toBeGreaterThanOrEqual(10);
             expect(Math.abs(above - below)).toBeLessThanOrEqual(2);
         }
         expect(overlaps(layout.nav!, layout.dock!)).toBe(false);
         for (const tool of layout.tools) {
             expect(tool.right - tool.left).toBeGreaterThanOrEqual(toolSize - 0.5);
+            // fb11：舞台入口（舞台开着时）单独一行，宽同两格。
             expect(tool.bottom - tool.top).toBeGreaterThanOrEqual(toolSize - 0.5);
             expect(tool.left).toBeGreaterThanOrEqual(layout.seam!.left);
             expect(tool.right).toBeLessThanOrEqual(layout.seam!.right);
@@ -1194,5 +1208,61 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await more.click();
         await expect(menu).toBeVisible();
         await expect(player).toHaveCount(0);
+    });
+
+    // fb11：舞台模式开着时（宿主给了 onOpenStagePlayer 且 stageEnabled）舞台入口单独占工具格最上面一行（窄缝里图标 +
+    // 短名，宽同两格；书脊上一列最上面的一个图标），不再在「⋯」里；舞台关着时工具格与菜单都与原来一样。
+    test('with the stage on its entry gets a row of its own in the tools; with it off the tools and the menu are as before', async ({ page }) => {
+        const tools = () => seam(page).locator('.bravais-seam-tools [data-bravais-seam-action]').evaluateAll(elements => elements.map(
+            element => (element as HTMLElement).dataset.bravaisSeamAction,
+        ));
+        const more = seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]');
+        const menu = seam(page).locator('[data-bravais-seam-menu]');
+        const stageTool = seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="stage"]');
+        // 舞台关着：工具格搜索、设置（探针没有队列）、「⋯」；菜单里也没有舞台。
+        expect(await tools()).toEqual(['search', 'settings', 'more']);
+        await more.click();
+        await expect(menu).toBeVisible();
+        await expect(menu.locator('[data-bravais-seam-action="stage"]')).toHaveCount(0);
+        await page.keyboard.press('Escape');
+        await expect(menu).toHaveCount(0);
+
+        await page.evaluate(() => window.__homeProbe!.setStage({ enabled: true }));
+        await expect.poll(tools).toEqual(['stage', 'search', 'settings', 'more']);
+        await expect(stageTool).toHaveAccessibleName('Stage player');
+        await expect(stageTool).toHaveText('Stage');
+        await expect(stageTool).toHaveAttribute('data-stage-active', 'false');
+        // 一整行：宽同两格，在其余工具上面。
+        const wide = (await stageTool.boundingBox())!;
+        const search = (await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="search"]').boundingBox())!;
+        const settings = (await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="settings"]').boundingBox())!;
+        expect(wide.y + wide.height).toBeLessThanOrEqual(search.y + 0.5);
+        expect(Math.abs(wide.x - search.x)).toBeLessThan(1);
+        expect(Math.abs((wide.x + wide.width) - (settings.x + settings.width))).toBeLessThan(1);
+        // 菜单里没有它。
+        await more.click();
+        await expect(menu).toBeVisible();
+        await expect(menu.locator('[data-bravais-seam-action="stage"]')).toHaveCount(0);
+        await page.keyboard.press('Escape');
+        await expect(menu).toHaveCount(0);
+        await page.evaluate(() => window.__homeProbe!.clearLog());
+        await stageTool.click();
+        await expect.poll(() => calls(page, 'openStagePlayer')).toHaveLength(1);
+        // 正在用舞台播放：与 grid 一样只标 data-stage-active，不是按下态。
+        await page.evaluate(() => window.__homeProbe!.setStage({ enabled: true, active: true }));
+        await expect(stageTool).toHaveAttribute('data-stage-active', 'true');
+        await expect(stageTool).not.toHaveAttribute('aria-pressed', /.*/);
+
+        // 书脊：一列，舞台入口在最上面，只有图标。
+        await page.setViewportSize({ width: 820, height: 900 });
+        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home-spine');
+        await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(64);
+        await expect.poll(tools).toEqual(['stage', 'search', 'settings', 'more']);
+        await expect(stageTool).toHaveText('');
+        await expect.poll(async () => Math.round((await stageTool.boundingBox())?.width ?? 0)).toBe(36);
+
+        // 舞台关掉：回到原来的样子。
+        await page.evaluate(() => window.__homeProbe!.setStage({ enabled: false }));
+        await expect.poll(tools).toEqual(['search', 'settings', 'more']);
     });
 });

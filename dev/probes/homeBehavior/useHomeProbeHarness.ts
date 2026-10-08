@@ -178,6 +178,7 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
     const [localMusicState, setLocalMusicState] = useState<HomeLocalMusicState>(INITIAL_LOCAL_STATE);
     const [navidromeFocusedAlbumIndex, setNavidromeFocusedAlbumIndex] = useState(0);
     const [mountKey, setMountKey] = useState(0);
+    const [stage, setStage] = useState<{ enabled: boolean; active?: boolean }>({ enabled: false });
     const localLibraryCatalog = useLocalLibraryCatalog(localSongs);
     const account = useLibraryAccountController(PROBE_ACCOUNT_TABLES);
     const { providers, activeProviderId } = useLibraryAccountProviders(account);
@@ -224,8 +225,12 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
         setNavidromeFocusedAlbumIndex,
         onSearchCommitted: (query, sourceTab) => recordProbeCall({ kind: 'searchCommitted', ids: [], text: query, key: String(sourceTab) }),
         onOpenSettings: () => {},
+        stageEnabled: stage.enabled,
+        stageIsActive: Boolean(stage.active),
+        onOpenStagePlayer: stage.enabled ? () => recordProbeCall({ kind: 'openStagePlayer', ids: [] }) : undefined,
         theme: DEFAULT_THEME,
     }), [
+        stage,
         activeCollections,
         localLibraryCatalog,
         localMusicState,
@@ -262,6 +267,7 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
         activeProvider: () => latestRef.current.account.getSnapshot().activeProviderId,
         switchProvider: providerId => switchAndConfirm(latestRef.current.account, providerId),
         signOut: providerId => useOnlineProviderAccountStore.getState().clearAccount(providerId),
+        setStage,
     }), []);
 
     return { model, mountKey };
