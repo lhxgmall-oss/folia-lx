@@ -43,12 +43,35 @@ export const listSeamControls = (seam: HTMLElement | null, { controlsOnly = fals
 );
 
 /**
- * Tab 进缝时的落点：上次在缝里停过的那个（还在、还能聚焦）→ 首页选中的页签（缝里「当前在哪」的那一格）→
+ * 缝里一个控件的身份（页签 key、缝的动作名、过滤位）：缝换形态（折叠 ↔ 展开、翻牌）会重挂节点，按身份才找得回「上次停过的那个」。
+ * 没有身份的控件返回 null（只能按节点本身认）。
+ */
+const seamControlSelector = (element: Element): string | null => {
+    if (!(element instanceof HTMLElement)) return null;
+    const { bravaisTab, bravaisSeamAction } = element.dataset;
+    if (bravaisTab) return `[data-bravais-tab="${CSS.escape(bravaisTab)}"]`;
+    if (bravaisSeamAction) return `[data-bravais-seam-action="${CSS.escape(bravaisSeamAction)}"]`;
+    if (element.hasAttribute('data-bravais-filter-input')) return '[data-bravais-filter-input]';
+    return null;
+};
+
+/** 上次停过的那个：节点还在就是它，否则按身份找此刻缝里的同一个控件。 */
+const findRemembered = (seam: HTMLElement, remembered: Element | null): HTMLElement | null => {
+    if (!remembered) return null;
+    if (seam.contains(remembered) && canTakeSeamFocus(remembered)) return remembered;
+    const selector = seamControlSelector(remembered);
+    if (!selector) return null;
+    return [...seam.querySelectorAll(selector)].find(canTakeSeamFocus) ?? null;
+};
+
+/**
+ * Tab 进缝时的落点：上次在缝里停过的那个（还在、还能聚焦；节点换了按身份找）→ 首页选中的页签（缝里「当前在哪」的那一格）→
  * 方向键序列的第一个控件 → 随便一个能聚焦的（例如搜索态里只剩输入框）。缝合着 / 折叠着时什么都没有，返回 null。
  */
 export const resolveSeamEntry = (seam: HTMLElement | null, remembered: Element | null): HTMLElement | null => {
     if (!seam) return null;
-    if (remembered && seam.contains(remembered) && canTakeSeamFocus(remembered)) return remembered;
+    const again = findRemembered(seam, remembered);
+    if (again) return again;
     const selected = seam.querySelector('[role="tab"][aria-selected="true"]');
     if (canTakeSeamFocus(selected)) return selected;
     return listSeamControls(seam, { controlsOnly: true })[0] ?? listSeamControls(seam)[0] ?? null;

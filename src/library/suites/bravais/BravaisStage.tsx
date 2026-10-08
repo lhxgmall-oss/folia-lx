@@ -347,10 +347,14 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     });
 
     const setLevel = useCallback((level: BravaisSeamLevel) => useBravaisSeamStore.getState().setLevel(level), []);
-    const onSeamTab = useCallback(() => {
+    // 边缘标签：折叠时恢复，出屏收起时在这里裂开。键盘激活（Enter / Space，click 的 detail 为 0）时标签随即藏起，
+    // 焦点不落空：等缝张开后交进缝里（落点同 Tab 进缝）。
+    const { focusSeamWhenOpen } = interactions;
+    const onSeamTab = useCallback((event?: MouseEvent<HTMLButtonElement>) => {
         if (useBravaisSeamStore.getState().level === 'hidden') useBravaisSeamStore.getState().restore();
         else seam.reopenHere();
-    }, [seam.reopenHere]);
+        if (event?.detail === 0) focusSeamWhenOpen();
+    }, [focusSeamWhenOpen, seam.reopenHere]);
 
     // 左上角返回（bravaisBack）：渲染时判一次（显不显示、可访问名），点击时按最新的层、面板与播放状态再判一次。
     const hasCurrentSong = usePlaybackStore(state => state.currentSong !== null);
