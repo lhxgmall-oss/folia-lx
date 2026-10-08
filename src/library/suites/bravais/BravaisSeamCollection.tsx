@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, ChevronLeft, ChevronRight, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star } from 'lucide-react';
@@ -108,7 +108,8 @@ export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollec
 /** 「⋯ 更多」末尾的开口动作（折叠信息条）。 */
 export type BravaisSeamMenuFold = { label: string; run: () => void };
 
-/** 「列表」与「⋯ 更多」（菜单内联展开在缝里）；以及缝底的结果提示。`fold` 排在菜单最后，与集合动作之间一道分隔线。 */
+/** 「列表」与「⋯ 更多」；以及缝底的结果提示。`fold` 排在菜单最后，与集合动作之间一道分隔线。
+ *  菜单悬浮在按钮行上方（绝对定位，不推挤缝里的其它内容，实测反馈）；点别处或 Esc 收起。 */
 export const BravaisSeamCollectionMenu: React.FC<{
     collection?: BravaisSeamCollectionModel;
     onOpenList?: () => void;
@@ -117,12 +118,33 @@ export const BravaisSeamCollectionMenu: React.FC<{
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const reduced = useBravaisReducedTransitions();
-    const pop = bravaisPopMotion('below', reduced);
+    const pop = bravaisPopMotion('above', reduced);
+    const anchorRef = useRef<HTMLDivElement>(null);
     const reveal = bravaisRevealMotion(reduced);
     const items = collection?.menu ?? [];
     const hasMenu = items.length > 0 || Boolean(fold);
+
+    // 菜单开着时点别处收起（缝里、墙上都算）。
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        const onPointerDown = (event: PointerEvent) => {
+            if (event.target instanceof Node && anchorRef.current?.contains(event.target)) return;
+            setIsOpen(false);
+        };
+        document.addEventListener('pointerdown', onPointerDown, true);
+        return () => document.removeEventListener('pointerdown', onPointerDown, true);
+    }, [isOpen]);
+
+    // 菜单开着时 Esc 先收起它（preventDefault 让墙的 Esc 阶梯跳过这次按键）。
+    const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== 'Escape' || !isOpen) return;
+        event.preventDefault();
+        setIsOpen(false);
+    };
+
     return (
         <>
+            <div ref={anchorRef} className="bravais-seam-more-anchor" onKeyDown={onKeyDown}>
             <div className="bravais-seam-actions">
                 {collection?.listLabel && onOpenList && (
                     <button type="button" className="bravais-chrome-button" data-bravais-seam-action="list" onClick={onOpenList}>
@@ -172,6 +194,7 @@ export const BravaisSeamCollectionMenu: React.FC<{
                     </motion.div>
                 )}
             </AnimatePresence>
+            </div>
             <AnimatePresence initial={false}>
                 {collection?.notice && (
                     <motion.div key="notice" className={`bravais-seam-notice is-${collection.notice.tone}`} role="status"

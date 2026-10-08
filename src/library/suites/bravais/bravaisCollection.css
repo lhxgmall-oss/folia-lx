@@ -188,6 +188,16 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), 0 12px 32px rgb(0 0 0 / 34%);
 }
 
+/* 集合层「⋯ 更多」悬浮在按钮行上方，不占缝里的排版（打开时不推挤描述与按钮）。 */
+.bravais-seam-more-anchor { position: relative; }
+.bravais-seam-more-anchor > .bravais-seam-menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
+    left: 0;
+    z-index: 6;
+}
+
 .bravais-seam .bravais-seam-menu button,
 .bravais-focus-menu button {
     padding: 8px 10px;

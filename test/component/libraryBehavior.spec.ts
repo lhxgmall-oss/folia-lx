@@ -1997,6 +1997,30 @@ test.describe('[bravais-only] collection page', () => {
         await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
     });
 
+    test('the more menu floats above the buttons: nothing in the strip moves, and a click elsewhere or Escape closes it', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = seamOf(page);
+        const more = seam.locator('.bravais-seam-full [data-bravais-seam-action="more"]');
+        const play = seam.locator('.bravais-seam-full [data-bravais-seam-action="play-scope"]').first();
+        const before = { more: await more.boundingBox(), play: await play.boundingBox() };
+        await more.click();
+        const menu = seam.locator('[data-bravais-seam-menu]');
+        await expect(menu).toBeVisible();
+        expect(await menu.evaluate(node => getComputedStyle(node).position)).toBe('absolute');
+        // 打开菜单不推挤：按钮行与上面的播放按钮都没动；菜单在「⋯ 更多」上方。
+        expect(await more.boundingBox()).toEqual(before.more);
+        expect(await play.boundingBox()).toEqual(before.play);
+        await expect.poll(async () => (await menu.boundingBox())!.y + (await menu.boundingBox())!.height).toBeLessThanOrEqual(before.more!.y);
+        await page.keyboard.press('Escape');
+        await expect(menu).toHaveCount(0);
+        await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
+        await more.click();
+        await expect(menu).toBeVisible();
+        // 点别处（按下在菜单与按钮之外）收起。
+        await page.locator('body').dispatchEvent('pointerdown');
+        await expect(menu).toHaveCount(0);
+    });
+
     test('the star sits at the end of the play / enqueue row instead of a row of its own', async ({ mount, page }) => {
         await openPublic(mount, page);
         const row = seamOf(page).locator('.bravais-seam-full .bravais-seam-actions.is-scope');
