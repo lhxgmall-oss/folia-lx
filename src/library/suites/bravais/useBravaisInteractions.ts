@@ -1,5 +1,6 @@
-import { useCallback, useMemo, type MutableRefObject, type RefObject } from 'react';
+import { useCallback, useMemo, useRef, type MutableRefObject, type RefObject } from 'react';
 import { getViewWorldBounds, type WallViewCenter } from '../../../components/wall/wallView';
+import type { WallDirection } from '../../../components/wall/wallNavigation';
 import { overlaps } from '../../../components/wall/layout';
 import { getWallSlot, parseWallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS } from './bravaisConstants';
@@ -13,6 +14,7 @@ import { closeBravaisPanel } from './bravaisPanelHistory';
 import { setBravaisWallHoverKey, useBravaisUiStore } from './bravaisUiStore';
 import { setBravaisSearchOpen } from './bravaisHomeUiStore';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
+import { canTakeSeamFocus, resolveSeamEntry, resolveSeamStep } from './bravaisSeamFocus';
 import type { BravaisTileHandlers } from './BravaisTile';
 import type { BravaisFrameState } from './useBravaisFrame';
 import type { useBravaisFocus } from './useBravaisFocus';
@@ -24,6 +26,9 @@ import type { useBravaisFocus } from './useBravaisFocus';
 // B9 首页：批量模式（目录树面板开着）里点卡片 / Enter 只切换选中、绝不进入文件夹（拖动后的残余点击在磁贴里已吞掉）；
 // 私人 FM 卡直接播放、不记起点；歌单类卡片的眼睛按钮；F6 切页签与批量按键（bravaisHomeKeys）；Esc 阶梯的「视图」一级
 // 退出管理隐藏。
+// Tab（用户实测：原先进缝后按 DOM 顺序一格格走、缝折叠时把焦点交给浏览器，焦点框跳到墙上的按钮或页面别处）：Tab / Shift+Tab
+// 只在墙与缝两站之间切换——墙上（含墙上的按钮、左上角返回）或没有焦点时进缝（bravaisSeamFocus 的落点），缝里（含过滤位等
+// 输入框、缝的边缘标签）时回墙（上次的焦点磁贴，没有就是有限拼贴的 rank 0 / 无限墙上离缝最近的一张）；缝里的控件之间用方向键走。
 // fb3：聚焦卡的「立即播放」（点按钮或展开后再按 Enter）在正在播放的那首上是暂停 / 继续（宿主的播放开关）；其余的照旧
 // 交给 surface 播放，并记下「回来时展开这一项」（bravaisPlayingCard）。「进入」按钮按设置进入播放视图。
 // fb2：点窗（结构窗、透明档有限墙的空 slot）什么都不做：不收起聚焦卡、不动键盘焦点、不翻牌、不动相机。只有实色空画框
@@ -60,6 +65,7 @@ export const useBravaisInteractions = ({
     rootRef,
     fieldRef,
     seamRef,
+    seamTabRef,
     playbackRef,
     togglesCurrent,
     hasEnter,
@@ -72,6 +78,8 @@ export const useBravaisInteractions = ({
     rootRef: RefObject<HTMLElement | null>;
     fieldRef: RefObject<HTMLDivElement | null>;
     seamRef: RefObject<HTMLDivElement | null>;
+    /** 缝的边缘标签（折叠 / 出屏收起时点它恢复）：不在 seamRef 里，但算缝的一部分。 */
+    seamTabRef: RefObject<HTMLButtonElement | null>;
     playbackRef: MutableRefObject<BravaisStagePlayback>;
     /** 宿主给了播放开关（正在播放的那首上，play 改为暂停 / 继续）。 */
     togglesCurrent: boolean;
@@ -193,36 +201,61 @@ export const useBravaisInteractions = ({
 
     const focusWall = useCallback(() => fieldRef.current?.focus({ preventScroll: true }), [fieldRef]);
 
-    const seamFocusables = useCallback(() => (
-        // 缝里的按钮与过滤输入位（Tab 进缝后也能走到输入位）。
-        [...(seamRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input[data-bravais-filter-input]') ?? [])]
-            .filter(element => element.offsetParent !== null)
-    ), [seamRef]);
+    /** 上次离开缝时焦点停在的控件（Tab 回缝时还给它）。 */
+    const lastSeamFocusRef = useRef<Element | null>(null);
+    const isInSeam = useCallback((target: EventTarget | null) => (
+        target instanceof Node && (Boolean(seamRef.current?.contains(target)) || target === seamTabRef.current)
+    ), [seamRef, seamTabRef]);
 
-    const handleTab = useCallback((backwards: boolean, target: EventTarget | null) => {
+    /** 回墙：上次的焦点磁贴；没有就是有限拼贴的 rank 0，无限墙上离缝最近的一张（不为它挪远相机）。 */
+    const returnToWall = useCallback(() => {
+        focusWall();
+        const display = displayRef.current;
+        const current = bravaisSlotFromKey(focusedRef.current);
+        if (current && hasContent(current)) {
+            focusSlot(current, { reveal: true });
+            return;
+        }
+        const first = display?.finite && display.layer.items.length > 0 ? display.finite.order[0] ?? null : null;
+        const target = first ?? seedSlot();
+        if (target) focusSlot(target, { reveal: true });
+    }, [displayRef, focusSlot, focusWall, focusedRef, hasContent, seedSlot]);
+
+    // 两站切换。焦点在 stage 之外的别处（标题栏、右下角工具按钮、播放条……）时不接管，那里的 Tab 归浏览器。
+    const handleTab = useCallback((target: EventTarget | null) => {
         const root = rootRef.current;
         const inStage = target instanceof Node && Boolean(root?.contains(target));
-        if (!inStage && target !== document.body) return false;
-        const focusables = seamFocusables();
-        const inSeam = target instanceof Node && Boolean(seamRef.current?.contains(target));
-        if (!inSeam) {
-            if (focusables.length === 0) return false;
-            (backwards ? focusables[focusables.length - 1] : focusables[0]).focus();
+        const unfocused = target === null || target === document.body || target === document.documentElement;
+        if (!inStage && !unfocused) return false;
+        // 焦点还挂在缝里一个已经藏起来的元素上（边缘标签点完就藏、翻走的半圈）：当作没有焦点，进缝。
+        if (isInSeam(target) && canTakeSeamFocus(target as Element)) {
+            if (target instanceof Element && seamRef.current?.contains(target)) lastSeamFocusRef.current = target;
+            returnToWall();
             return true;
         }
-        const leaving = backwards ? target === focusables[0] : target === focusables[focusables.length - 1];
-        if (!leaving) return false;
-        focusWall();
-        const current = bravaisSlotFromKey(focusedRef.current);
-        focusSlot(current && hasContent(current) ? current : seedSlot(), { reveal: true });
+        const entry = resolveSeamEntry(seamRef.current, lastSeamFocusRef.current);
+        const seamTab = seamTabRef.current;
+        if (entry) entry.focus({ preventScroll: true });
+        // 缝折叠 / 出屏收起：落在边缘标签上（Enter 恢复缝）。
+        else if (seamTab && canTakeSeamFocus(seamTab)) seamTab.focus({ preventScroll: true });
+        // 缝合着（交接、翻转途中）：留在墙上，不让浏览器把焦点交给墙上的按钮或页面别处。
+        else if (!inStage) focusWall();
         return true;
-    }, [focusSlot, focusWall, focusedRef, hasContent, rootRef, seamFocusables, seamRef, seedSlot]);
+    }, [focusWall, isInSeam, returnToWall, rootRef, seamRef, seamTabRef]);
+
+    /** 缝里的方向键：在控件之间走（文本输入与 select 里的方向键归它们自己，到不了这里）。 */
+    const moveInSeam = useCallback((target: EventTarget | null, direction: WallDirection) => {
+        const next = resolveSeamStep(seamRef.current, target instanceof Element ? target : null, direction);
+        next?.focus({ preventScroll: true });
+        return true;
+    }, [seamRef]);
 
     const handleAction = useCallback((action: BravaisWallKeyAction, target: EventTarget | null): boolean => {
         const display = displayRef.current;
         const layer = display?.layer;
         if (!layer) return false;
-        if (action.type === 'tab') return handleTab(action.backwards, target);
+        // Tab / Shift+Tab 都是「换到另一站」（只有两站，反向也是同一个去处）。
+        if (action.type === 'tab') return handleTab(target);
         if (action.type === 'escape') {
             const step = resolveEscapeStep({
                 hasForm: Boolean(layer.entries?.hasForm),
@@ -259,6 +292,7 @@ export const useBravaisInteractions = ({
             else batch.requestRemove();
             return true;
         }
+        if (action.type === 'move' && isInSeam(target)) return moveInSeam(target, action.direction);
         // 缝里的按钮、页面上别的控件保留自己的按键（Enter 激活按钮）。
         if (isControlTarget(target)) return false;
         const focusedKey = focusedRef.current;
@@ -321,7 +355,7 @@ export const useBravaisInteractions = ({
         else if (action.type === 'open-album') handlers.openAlbum(focused.key);
         else if (action.type === 'open-artist') handlers.openArtist(focused.key, 0);
         return true;
-    }, [collapse, displayRef, drawnRect, expand, expandedRef, focusSlot, focusWall, focusedRef, frameRef, handleTab, handlers, hasContent, itemAt, seedSlot, tweenTo]);
+    }, [collapse, displayRef, drawnRect, expand, expandedRef, focusSlot, focusWall, focusedRef, frameRef, handleTab, handlers, hasContent, isInSeam, itemAt, moveInSeam, seedSlot, tweenTo]);
 
     return { handlers, handleAction, itemAt, seedSlot, focusWall };
 };
