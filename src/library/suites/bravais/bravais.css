@@ -24,12 +24,13 @@
     left: 0;
 }
 
-/* 聚焦卡所在块的 12 张让位：接近 Lattice 展开弹簧的过渡；块外的磁贴不带过渡，裁剪与拖动不会触发它。 */
+/* 聚焦卡所在块的 12 张让位：与 Lattice 展开海报同一条弹簧（stiffness 300 / damping 34，不过冲），采样成 linear() 缓动，
+   时长与缓动由 stage 根节点的两个变量给出（bravaisReflowMotion）；块外的磁贴不带过渡，裁剪与拖动不会触发它。 */
 .bravais-tile.is-reflowing {
     transition:
-        transform 500ms cubic-bezier(0.2, 0.9, 0.25, 1.08),
-        width 500ms cubic-bezier(0.2, 0.9, 0.25, 1.08),
-        height 500ms cubic-bezier(0.2, 0.9, 0.25, 1.08);
+        transform var(--bravais-reflow-duration, 0ms) var(--bravais-reflow-ease, linear),
+        width var(--bravais-reflow-duration, 0ms) var(--bravais-reflow-ease, linear),
+        height var(--bravais-reflow-duration, 0ms) var(--bravais-reflow-ease, linear);
 }
 
 .bravais-tile:hover { z-index: 3; }
@@ -93,13 +94,19 @@
 
 .bravais-focus-links button:hover { text-decoration-color: currentColor; }
 
+/* 按钮排的出现与 Lattice 展开海报的控件行相同（WALL_REFLOW_CONTROLS_REVEAL，经 stage 根节点的三个变量给出）：卡片起步后
+   140ms 起、240ms 内从下方 12px 淡入（framer 补间的默认缓动 easeInOut）。只在开始前填充（backwards），放完就不在 getAnimations() 里。 */
 .bravais-focus-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 26px;
     filter: drop-shadow(0 1px 3px var(--bravais-chrome-shadow));
+    animation: bravais-focus-actions-in var(--bravais-focus-reveal-duration, 0ms) cubic-bezier(0.42, 0, 0.58, 1)
+        var(--bravais-focus-reveal-delay, 0ms) backwards;
 }
+
+@keyframes bravais-focus-actions-in { from { opacity: 0; transform: translateY(var(--bravais-focus-reveal-rise, 0px)); } }
 
 /* 与 LatticeChrome 同一种按钮：无卡片底，静止时无描边，悬停才出现 12px 圆角框，主按钮常驻 16% 底色。 */
 .bravais-chrome-button {
@@ -394,6 +401,7 @@
 
 :root[data-reduce-motion~='lattice'] .bravais-tile.is-reflowing,
 :root[data-reduce-motion~='lattice'] .bravais-tile-face { transition: none; }
+:root[data-reduce-motion~='lattice'] .bravais-focus-actions { animation: none; }
 
 /* ---------- 缝里的小块出现（设计稿 §7「缝内的过渡」）：只动 transform / opacity ---------- */
 

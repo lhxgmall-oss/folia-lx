@@ -1,8 +1,7 @@
 import { useLayoutEffect, type MutableRefObject, type RefObject } from 'react';
 import { parseWallSlotKey } from '../../../components/wall/wallSlots';
-import { BRAVAIS_REFLOW_MS } from './bravaisConstants';
 import { buildPlatePath, type PlateBlock, type PlateRect } from './bravaisBlockPlate';
-import { captureReflowChannels, isReflowSettled, sampleReflowRect, type ReflowChannel } from './bravaisReflowMotion';
+import { BRAVAIS_REFLOW_MS, captureReflowChannels, isReflowSettled, sampleReflowRect, type ReflowChannel } from './bravaisReflowMotion';
 
 // src/library/suites/bravais/useBravaisReflowPlate.ts
 // 聚焦卡块内让位期间，只逐帧重画这一个块的底板路径（设计稿 §11）：窗磁贴在动，洞跟着它们的实时矩形走，缝隙与临时

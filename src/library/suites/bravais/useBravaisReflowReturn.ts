@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BRAVAIS_REFLOW_MS } from './bravaisConstants';
+import { BRAVAIS_REFLOW_MS } from './bravaisReflowMotion';
 import type { BravaisTileRect } from './BravaisTile';
 
 // src/library/suites/bravais/useBravaisReflowReturn.ts

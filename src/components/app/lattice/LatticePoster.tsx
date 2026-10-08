@@ -19,6 +19,7 @@ import {
     WALL_HANDOFF_PERSPECTIVE_PX,
 } from '../../wall/wallHandoff';
 import type { LatticePosterHandoff } from './useLatticeWallHandoff';
+import { WALL_REFLOW_CONTROLS_REVEAL, WALL_REFLOW_SPRING } from '../../wall/wallReflowMotion';
 
 // Renders one poster and its expanded Player Chrome controls.
 const LatticeLyrics = lazy(() => import('./lyrics/LatticeLyrics'));
@@ -187,7 +188,7 @@ function LatticePoster({
         ? { duration: 0 }
         : landing === null
             ? {
-                type: 'spring' as const, stiffness: 300, damping: 34,
+                ...WALL_REFLOW_SPRING,
                 opacity: { duration: 0.26, ease: 'easeOut' as const },
                 scaleX: { duration: 0.3, ease: 'easeOut' as const },
                 scaleY: { duration: 0.3, ease: 'easeOut' as const },
@@ -302,9 +303,12 @@ function LatticePoster({
             {expanded && (
                 <motion.div
                     className="lattice-poster-controls"
-                    initial={{ opacity: 0, y: 12 }}
+                    initial={{ opacity: 0, y: WALL_REFLOW_CONTROLS_REVEAL.risePx }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: reducedMotion ? 0 : 0.14, duration: reducedMotion ? 0 : 0.24 }}
+                    transition={{
+                        delay: reducedMotion ? 0 : WALL_REFLOW_CONTROLS_REVEAL.delayMs / 1000,
+                        duration: reducedMotion ? 0 : WALL_REFLOW_CONTROLS_REVEAL.durationMs / 1000,
+                    }}
                 >
                     <LatticePlaybackControls
                         revealed={chrome.revealed}
