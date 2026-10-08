@@ -366,7 +366,8 @@ export type LibrarySuiteStageProps = {
     reportPlayerOcclusion: (occludes: boolean) => void;
     /**
      * 回到播放页（首页数据的 onBackToPlayer，与网格首页右下角 › 同一个回调）。stage 横跨首页与集合层，所以在这里给，
-     * 而不是只给首页 surface：bravais 左上角的隐藏式返回按钮在集合层上也要能用（实测反馈 1）。缺省时不画那颗按钮。
+     * 而不是只给首页 surface（实测反馈 1）。bravais 左上角的隐藏式返回在首页根层、有正在播放 / 已加载的歌时用它；
+     * 不在根层时那颗按钮是缝里 ‹ 的层返回，不用它。缺省时首页根层不画那颗按钮。
      */
     onBackToPlayer?: () => void;
     /** fb3：暂停 / 继续正在播放的那首（首页数据的 onTogglePlayback）。正在播放的聚焦卡上的播放键用它。缺省时照旧立即播放。 */

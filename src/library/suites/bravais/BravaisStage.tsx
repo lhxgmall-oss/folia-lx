@@ -38,6 +38,8 @@ import { useBravaisReducedTransitions } from './bravaisMotion';
 import { useBravaisBeforePush } from './bravaisTransitions';
 import { selectBravaisAccountVariant, useBravaisAccountStore } from './bravaisAccountStore';
 import { useWallHandoffStore } from '../../../stores/useWallHandoffStore';
+import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { resolveBravaisBackStep, type BravaisBackStep } from './bravaisBack';
 import { resolveBravaisWallHandoffState, useBravaisWallHandoff } from './useBravaisWallHandoff';
 import '../../../components/wall/wall.css';
 import './bravais.css';
@@ -57,7 +59,8 @@ import './bravaisHandoff.css';
 // 根节点挂 is-managing-hidden（歌单类磁贴的眼睛按钮常驻）。
 // B10：账户的登录态 / 确认态是缝的内容态（bravaisAccountStore → login / confirm 变体），不接 accountLayerRef。
 // 实测反馈 1：灯光（is-lights-out）与叠色同 Lattice 一样读 useLatticeSettingsStore（一套墙面外观设置）；左上角隐藏式返回
-// （回到播放页）与右下角工具按钮在 BravaisStageChrome，与 Lattice 共用 components/wall 的同一套控件。
+// 与右下角工具按钮在 BravaisStageChrome，与 Lattice 共用 components/wall 的同一套控件。左上角返回的去处（bravaisBack）：
+// 不在首页根层时与缝里的 ‹ 同一个返回，首页根层有歌时回到播放页、没有歌时不画。
 // 实测反馈 fb3：宿主的播放开关与「进入播放视图」交给聚焦卡（正在播放的那首：暂停 / 继续 + 进入）；从墙上播放后那首的
 // 聚焦卡在回来 / 返回这一层时重新展开（useBravaisPlayingCard）。
 // 翻牌交接（设计稿 §7「进入队列」）：进 / 出 Lattice 时这面墙与 Lattice 叠着换内容（useBravaisWallHandoff）。交接期间
@@ -233,6 +236,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         rootRef,
         fieldRef,
         seamRef,
+        seamTabRef: tabRef,
         playbackRef,
         togglesCurrent: Boolean(onTogglePlayback),
         hasEnter: Boolean(onEnterPlaybackView),
@@ -346,6 +350,31 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         else seam.reopenHere();
     }, [seam.reopenHere]);
 
+    // 左上角返回（bravaisBack）：渲染时判一次（显不显示、可访问名），点击时按最新的层、面板与播放状态再判一次。
+    const hasCurrentSong = usePlaybackStore(state => state.currentSong !== null);
+    const backToPlayerRef = useRef(onBackToPlayer);
+    backToPlayerRef.current = onBackToPlayer;
+    const resolveBackStep = useCallback((target: BravaisLayer | null, openPanel: string | null, songLoaded: boolean): BravaisBackStep | null => {
+        const hasPlayer = songLoaded && Boolean(backToPlayerRef.current);
+        if (!target) return hasPlayer ? 'player' : null;
+        return resolveBravaisBackStep({
+            hasPanel: openPanel !== null && openPanel === target.key,
+            hasForm: Boolean(target.entries?.hasForm),
+            canLeaveLayer: Boolean(target.onDone),
+            hasPlayer,
+        });
+    }, []);
+    const runBack = useCallback(() => {
+        const current = displayRef.current?.layer ?? null;
+        const step = resolveBackStep(current, useBravaisUiStore.getState().panelFor, usePlaybackStore.getState().currentSong !== null);
+        if (step === 'panel') closeBravaisPanel();
+        else if (step === 'form') current?.entries?.cancelForm?.();
+        else if (step === 'layer') current?.onDone?.();
+        else if (step === 'player') backToPlayerRef.current?.();
+    }, [displayRef, resolveBackStep]);
+    const backStep = resolveBackStep(display?.layer ?? layer, panelFor, hasCurrentSong);
+    const back = useMemo(() => (backStep ? { step: backStep, run: runBack } : null), [backStep, runBack]);
+
     // 点墙面空白处（不是磁贴）收起聚焦卡；拖动后的残余点击已被 onClickCapture 吞掉。
     const onFieldClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
         if (event.target instanceof Element && event.target.closest('.bravais-tile')) return;
@@ -445,7 +474,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             <BravaisStageChrome
                 isDaylight={isDaylight}
                 toolsClaimed={(isInteractive && owned) || handoff.role === 'out'}
-                onBackToPlayer={onBackToPlayer}
+                back={back}
                 locatePlaying={chromeHandlers['locate-playing']}
             />
         </section>

@@ -30,7 +30,7 @@ export default {
     "crumbPlayer": "Sedang Diputar",
     "tools": "Alat dinding",
     "toolsLocate": "Temukan lagu yang diputar",
-    "helpMove": "Pindahkan fokus",
+    "helpMove": "Pindahkan fokus (dinding atau strip info)",
     "helpOpen": "Buka kartu lagu atau koleksi",
     "helpPlay": "Putar lagu di kartu yang terbuka",
     "helpEnqueue": "Tambahkan lagu yang difokuskan ke antrean",
