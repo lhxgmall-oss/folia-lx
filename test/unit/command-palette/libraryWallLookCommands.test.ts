@@ -21,9 +21,13 @@ type Settings = {
 const createContext = (state: Settings) => {
     const setLibraryWallLook = vi.fn((look: LibraryWallLook) => { state.look = look; });
     const setLibraryWallWindowsPerBlock = vi.fn((count: number) => { state.windows = count; });
+    const toggleLibraryWallStackEdges = vi.fn();
+    const openSettings = vi.fn();
     const context = {
         shared: { t: (_key: string, fallback?: string) => fallback ?? '' },
         settings: {
+            toggleLibraryWallStackEdges,
+            openSettings,
             isLibraryWallLookAvailable: () => state.available,
             libraryWallLook: () => state.look,
             setLibraryWallLook,
@@ -31,7 +35,7 @@ const createContext = (state: Settings) => {
             setLibraryWallWindowsPerBlock,
         },
     } as unknown as CommandPaletteContext;
-    return { context, setLibraryWallLook, setLibraryWallWindowsPerBlock };
+    return { context, setLibraryWallLook, setLibraryWallWindowsPerBlock, toggleLibraryWallStackEdges, openSettings };
 };
 
 const command = (id: string) => {
@@ -125,5 +129,24 @@ describe('library wall windows picker', () => {
 
         expect(await byShare[0].command.execute('', context)).toBe(true);
         expect(setLibraryWallWindowsPerBlock).toHaveBeenCalledWith(4);
+    });
+
+    // 2026-10-09：bravais 独有的设置整理进界面设置的「Bravais 墙面」分组；集合叠页边是一个开关。
+    it('toggles the collection stack edges and jumps to the Bravais group only while bravais is the effective suite', () => {
+        const toggle = command('library-wall-stack-edges-toggle');
+        const anchor = command('settings-bravais');
+        for (const entry of [toggle, anchor]) {
+            expect(entry.group).toBe('settings');
+            expect(entry.executeShortcut).toBeUndefined();
+            expect(entry.isAvailable?.(createContext({ available: true, look: 'solid', windows: 3 }).context)).toBe(true);
+            expect(entry.isAvailable?.(createContext({ available: false, look: 'solid', windows: 3 }).context)).toBe(false);
+        }
+        expect(anchor.settingsTarget).toEqual({ subview: 'general', anchorId: 'bravaisSettings' });
+
+        const { context, toggleLibraryWallStackEdges, openSettings } = createContext({ available: true, look: 'solid', windows: 3 });
+        expect(toggle.execute('', context)).toBe(true);
+        expect(toggleLibraryWallStackEdges).toHaveBeenCalledTimes(1);
+        expect(anchor.execute('', context)).toBe(true);
+        expect(openSettings).toHaveBeenCalledWith('options', 'general', null, 'bravaisSettings');
     });
 });

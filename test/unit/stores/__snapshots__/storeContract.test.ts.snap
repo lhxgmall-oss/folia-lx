@@ -62,6 +62,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "lattice_vignette",
   "library_suite",
   "library_wall_look",
+  "library_wall_stack_edges",
   "library_wall_windows_per_block",
   "local_library_auto_scan",
   "local_lyric_format_order",

@@ -32,9 +32,10 @@ import { getWaveStagger, WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } fro
 // B11：降低动态效果时翻牌（含整墙波次）换成淡出 → 换内容 → 淡入（合计 0.18s，不错开）；从搜索 / 播放页打开集合的
 // 整墙入场（entrance）没有出场段，磁贴立刻换成新内容、保持抬起，按离视口左上角的距离错开落回（刚挂载的同样）。
 // fb2：窗上按下鼠标不抢焦点（不把 DOM 焦点挪到窗上）；点窗由 activate 判定为无反应，拖动后的残余点击照常在外面吞掉。
-// 种类区分（设计稿 §7.7，样式在 bravaisTileKinds.css）：集合（专辑 / 歌单 / 文件夹 / 每日推荐）左侧一条书脊、竖排曲目数；
-// 歌手是双色调人像（亮端取自头像，bravaisArtistTone），悬停 / 键盘焦点 / 正在播放时恢复原色；歌曲不变。书脊与人像都在
-// 内容层里，翻牌时一起转；全透明档不画封面，书脊退化成遮罩色、歌手不做双色调。
+// 种类区分（设计稿 §7.7，样式在 bravaisTileKinds.css）：集合（专辑 / 歌单 / 文件夹 / 每日推荐）右下边缘露出一叠错开的
+// 页边（叠页边，内容层自己的 box-shadow，画在磁贴间距里、不占内容面积；设置可关，stage 根节点挂 has-stack-edges），
+// 曲目数并进左上角的类型标签（「歌单 · 124」，投影时写好）；歌手是双色调人像（亮端取自头像，bravaisArtistTone），
+// 悬停 / 键盘焦点 / 正在播放时恢复原色；歌曲不变。叠页边与人像都在内容层上，翻牌时一起转；全透明档歌手不做双色调。
 
 export type BravaisTileRect = { x: number; y: number; width: number; height: number };
 
@@ -260,9 +261,9 @@ function BravaisTile({
     const isCurrent = Boolean(display && nowPlayingKey && display.key === nowPlayingKey);
     const isExpanded = expanded && isTrack;
     const form = display ? resolveBravaisTileForm(display) : 'poster';
-    const hasSpine = form === 'spine';
+    const isStack = form === 'stack';
     const isPortrait = form === 'portrait';
-    // 全透明档不画封面：歌手不做双色调（也就不取色），书脊退化成遮罩色。头像本身加载不出来（tone === false）时也不画人像层。
+    // 全透明档不画封面：歌手不做双色调（也就不取色）。头像本身加载不出来（tone === false）时也不画人像层。
     const portraitWanted = isPortrait && !face.seeThrough;
     const tone = useBravaisArtistTone(display?.coverUrl, portraitWanted);
     const drawsPortrait = portraitWanted && tone !== false;
@@ -306,7 +307,7 @@ function BravaisTile({
         >
             <article
                 ref={faceRef}
-                className={`lattice-poster bravais-tile-face${display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}${display?.dimmed ? ' is-dimmed' : ''}${display?.selected ? ' is-selected' : ''}${hasSpine ? ' has-spine' : ''}${isPortrait ? ' is-portrait' : ''}`}
+                className={`lattice-poster bravais-tile-face${display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}${display?.dimmed ? ' is-dimmed' : ''}${display?.selected ? ' is-selected' : ''}${isStack ? ' is-stack' : ''}${isPortrait ? ' is-portrait' : ''}`}
                 style={display && !face.seeThrough ? { backgroundImage: cover } : undefined}
                 role={display ? (isExpanded ? 'group' : 'button') : undefined}
                 aria-label={display ? `${display.title} · ${display.subtitle}${display.trackCountLabel ? ` · ${display.trackCountLabel}` : ''}` : undefined}
@@ -332,12 +333,6 @@ function BravaisTile({
                         {face.seeThrough
                             ? <span className="bravais-tile-strip" style={{ backgroundImage: cover }} />
                             : <span className="lattice-poster-tint" />}
-                        {/* 书脊在叠色层之上（与特殊标签、正在播放的描边一样不被染）、熄灯层之下；曲目数已经进了可访问名。 */}
-                        {hasSpine && (
-                            <span className="bravais-tile-spine" aria-hidden>
-                                {display.trackCountLabel && <span>{display.trackCountLabel}</span>}
-                            </span>
-                        )}
                         <BravaisTileBadge item={display} current={isCurrent} />
                         {(display.hideable || display.selected) && (
                             <BravaisTileMarks
@@ -360,7 +355,7 @@ function BravaisTile({
                                     title={display.title}
                                     expanded={false}
                                     targetPosterWidth={rect.width}
-                                    variant={form === 'poster' ? undefined : form}
+                                    variant={isPortrait ? form : undefined}
                                 />
                                 {display.subtitle && <small>{display.subtitle}</small>}
                             </span>

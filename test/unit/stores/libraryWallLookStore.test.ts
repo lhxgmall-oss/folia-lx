@@ -15,10 +15,11 @@ import type { useLibraryWallLookStore as StoreHook } from '@/stores/useLibraryWa
 
 // test/unit/stores/libraryWallLookStore.test.ts
 // bravais 透光偏好（B6b②）：取值规则（三档、窗数 1–6 的钳制、百分比标注）与 store 的默认值、持久化、
-// 非法 / 越界存储值、存储不可用时的容错。store 在 import 时读存储，所以每个用例重新 import 一份。
+// 非法 / 越界存储值、存储不可用时的容错；集合叠页边开关（默认开）。store 在 import 时读存储，所以每个用例重新 import 一份。
 
 const LOOK_KEY = 'library_wall_look';
 const WINDOWS_KEY = 'library_wall_windows_per_block';
+const STACK_EDGES_KEY = 'library_wall_stack_edges';
 
 type StorageOptions = { throwOnGet?: boolean; throwOnSet?: boolean; noWindow?: boolean };
 
@@ -189,5 +190,20 @@ describe('useLibraryWallLookStore', () => {
         expect(store.getState().look).toBe('solid');
         store.getState().setLook('partial');
         expect(storage.get(LOOK_KEY)).toBe('clear');
+    });
+
+    it('shows the collection stack edges by default and persists turning them off', async () => {
+        const store = await loadStore();
+        expect(store.getState().collectionStackEdges).toBe(true);
+        expect(storage.size).toBe(0);
+
+        store.getState().setCollectionStackEdges(false);
+        expect(storage.get(STACK_EDGES_KEY)).toBe('false');
+        const restarted = await loadStore(Object.fromEntries(storage));
+        expect(restarted.getState().collectionStackEdges).toBe(false);
+
+        // 只认 'false' 为关；读不到或别的值按默认（开）。
+        expect((await loadStore({ [STACK_EDGES_KEY]: 'nope' })).getState().collectionStackEdges).toBe(true);
+        expect((await loadStore({ [STACK_EDGES_KEY]: 'false' }, { throwOnGet: true })).getState().collectionStackEdges).toBe(true);
     });
 });

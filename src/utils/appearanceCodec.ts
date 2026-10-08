@@ -559,6 +559,7 @@ export const compressConfig = (config: any): string => {
     if (config.stageTrackPillMode !== undefined) minified.stp = config.stageTrackPillMode;
     if (config.stageTrackPillTimeoutSec !== undefined) minified.stpt = config.stageTrackPillTimeoutSec;
     if (config.stageTrackPillOnHome !== undefined) minified.stph = config.stageTrackPillOnHome;
+    if (config.libraryWallStackEdges !== undefined) minified.lwse = config.libraryWallStackEdges;
 
     const jsonStr = JSON.stringify(minified);
     const bytes = new TextEncoder().encode(jsonStr);
@@ -619,7 +620,9 @@ export const decompressConfig = (str: string): any => {
         // the long-name branch, where none of them is a valid key.
         || parsed.stp !== undefined
         || parsed.stpt !== undefined
-        || parsed.stph !== undefined;
+        || parsed.stph !== undefined
+        // The bravais wall's collection stack edges, for the same reason.
+        || parsed.lwse !== undefined;
     if (isMinified) {
         const decompressed: any = {};
         if (parsed.t) {
@@ -685,6 +688,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.stp !== undefined) decompressed.stageTrackPillMode = parsed.stp;
         if (parsed.stpt !== undefined) decompressed.stageTrackPillTimeoutSec = parsed.stpt;
         if (parsed.stph !== undefined) decompressed.stageTrackPillOnHome = parsed.stph;
+        if (parsed.lwse !== undefined) decompressed.libraryWallStackEdges = parsed.lwse;
 
         return decompressed;
     } else {
@@ -703,6 +707,7 @@ export const decompressConfig = (str: string): any => {
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled', 'themeGenerationSource', 'followSystemTheme',
             'stageTrackPillMode', 'stageTrackPillTimeoutSec', 'stageTrackPillOnHome',
+            'libraryWallStackEdges',
         ];
         const hasValidKey = validKeys.some(k => parsed[k] !== undefined);
         if (!hasValidKey) {

@@ -565,3 +565,16 @@ test('pause, resume and duration updates re-render no poster', async ({ mount, p
     expect((await counts()).Lattice ?? 0).toBeGreaterThan(0);
     expect((await counts()).LatticePoster ?? 0).toBe(0);
 });
+
+// bravais 的集合叠页边（--lattice-poster-elevation 接进共享海报的阴影列表）与缝的叠色 / 熄灯只在 bravais 的样式里：
+// Lattice 的海报仍是四条阴影（三条透明的聚焦环位 + 抬升投影），没有向右下错开的页边。
+test('Lattice posters keep their own shadow list without bravais stack edges', async ({ mount, page }) => {
+    const wall = await mount('lattice');
+    await settle(page);
+    const shadows = await wall.locator('.lattice-poster:not(.is-expanded):not(.is-focused)').first().evaluate((node) => {
+        const text = getComputedStyle(node).boxShadow;
+        return text.split(/,(?![^(]*\))/).map(part => part.trim());
+    });
+    expect(shadows).toHaveLength(4);
+    expect(shadows.some(part => /\b3px 3px\b|\b6px 6px\b/.test(part))).toBe(false);
+});

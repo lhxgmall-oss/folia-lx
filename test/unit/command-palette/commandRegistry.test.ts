@@ -104,6 +104,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setLibraryWallLook: vi.fn(),
             libraryWallWindowsPerBlock: vi.fn(() => 3),
             setLibraryWallWindowsPerBlock: vi.fn(),
+            toggleLibraryWallStackEdges: vi.fn(),
             ponderHintVisibility: 'always' as const,
             setPonderHintVisibility: vi.fn(),
             togglePonderTouchButton: vi.fn(),

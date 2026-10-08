@@ -1,28 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import { averagePixelColor, resolveArtistToneLight } from '@/library/suites/bravais/bravaisArtistTone';
-import { resolveBravaisTileForm, resolveSpineTrackCount } from '@/library/suites/bravais/bravaisTileForm';
+import { formatCollectionBadge, resolveBravaisTileForm, resolveCollectionTrackCount } from '@/library/suites/bravais/bravaisTileForm';
 
 // test/unit/library/bravais/bravaisTileForm.test.ts
-// 磁贴的种类区分（设计稿 §7.7）：哪种条目画书脊 / 双色调 / 保持海报，书脊上的曲目数，以及双色调亮端的取色换算。
+// 磁贴的种类区分（设计稿 §7.7）：哪种条目是集合（叠页边）/ 双色调 / 保持海报，集合的曲目数与带曲目数的类型标签，
+// 以及双色调亮端的取色换算。
 
 describe('resolveBravaisTileForm', () => {
-    it('gives collections a spine, artists a portrait and keeps tracks and the FM stream as posters', () => {
-        expect(resolveBravaisTileForm({ kind: 'album' })).toBe('spine');
-        expect(resolveBravaisTileForm({ kind: 'playlist' })).toBe('spine');
-        expect(resolveBravaisTileForm({ kind: 'folder' })).toBe('spine');
-        expect(resolveBravaisTileForm({ kind: 'feed' })).toBe('spine');
+    it('makes collections a stack, artists a portrait and keeps tracks and the FM stream as posters', () => {
+        expect(resolveBravaisTileForm({ kind: 'album' })).toBe('stack');
+        expect(resolveBravaisTileForm({ kind: 'playlist' })).toBe('stack');
+        expect(resolveBravaisTileForm({ kind: 'folder' })).toBe('stack');
+        expect(resolveBravaisTileForm({ kind: 'feed' })).toBe('stack');
         expect(resolveBravaisTileForm({ kind: 'feed', direct: true })).toBe('poster');
         expect(resolveBravaisTileForm({ kind: 'artist' })).toBe('portrait');
         expect(resolveBravaisTileForm({ kind: 'track' })).toBe('poster');
     });
 
-    it('writes the track count only on a spine and only when it is known', () => {
-        const label = (count: number) => `${count} 首`;
-        expect(resolveSpineTrackCount('spine', 12, label)).toBe('12 首');
-        expect(resolveSpineTrackCount('spine', 0, label)).toBeUndefined();
-        expect(resolveSpineTrackCount('spine', undefined, label)).toBeUndefined();
-        expect(resolveSpineTrackCount('spine', Number.NaN, label)).toBeUndefined();
-        expect(resolveSpineTrackCount('portrait', 12, label)).toBeUndefined();
+    it('gives the track count only to a collection and only when it is known', () => {
+        expect(resolveCollectionTrackCount('stack', 12)).toBe(12);
+        expect(resolveCollectionTrackCount('stack', 12.7)).toBe(12);
+        expect(resolveCollectionTrackCount('stack', 0)).toBeUndefined();
+        expect(resolveCollectionTrackCount('stack', undefined)).toBeUndefined();
+        expect(resolveCollectionTrackCount('stack', Number.NaN)).toBeUndefined();
+        expect(resolveCollectionTrackCount('portrait', 12)).toBeUndefined();
+        expect(resolveCollectionTrackCount('poster', 12)).toBeUndefined();
+    });
+
+    it('folds the track count into the kind label', () => {
+        expect(formatCollectionBadge('歌单', 124)).toBe('歌单 · 124');
+        expect(formatCollectionBadge('Album', 12)).toBe('Album · 12');
+        expect(formatCollectionBadge('Playlist', undefined)).toBe('Playlist');
     });
 });
 

@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { useIsBravaisLibraryActive } from '../../../library/app/bravaisLibraryActive';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import {
     LIBRARY_WALL_LOOKS,
@@ -11,10 +10,9 @@ import {
 } from '../../../utils/libraryWallLook';
 
 // src/components/modal/settings/LibraryWallLookSettings.tsx
-// 「资料库界面」分区里 bravais 专属的透光设置：三选一的档位，部分透明时再出现 1–6 档的每块窗数（标注占块的百分比）。
-// 只在生效 suite 是 bravais 时渲染（与命令面板同一个 useIsBravaisLibraryActive / isBravaisLibraryActive）。
-// 外层 LibrarySuiteSection 在只有一套 suite 时整节不渲染；bravais 生效意味着 registry 里至少有 grid 与 bravais 两套，
-// 所以这里不会因为那个门控被藏掉。不进外观配置的导入导出（见 useLibraryWallLookStore 的说明）。
+// 界面设置「Bravais 墙面」分组（BravaisSettingsSection）里的透光设置：三选一的档位，部分透明时再出现 1–6 档的每块窗数
+// （标注占块的百分比）。只在生效 suite 是 bravais 时出现——门控在外层分组（与命令面板同一个 isBravaisLibraryActive）。
+// 不进外观配置的导入导出（见 useLibraryWallLookStore 的说明）。
 
 const LOOK_LABEL_KEYS: Record<LibraryWallLook, { label: string; description: string }> = {
     solid: { label: 'options.libraryWallLookSolid', description: 'options.libraryWallLookSolidDesc' },
@@ -29,15 +27,12 @@ type LibraryWallLookSettingsProps = {
 
 const LibraryWallLookSettings: React.FC<LibraryWallLookSettingsProps> = ({ isDaylight, accentColor }) => {
     const { t } = useTranslation();
-    const isBravaisActive = useIsBravaisLibraryActive();
     const { look, windowsPerBlock, setLook, setWindowsPerBlock } = useLibraryWallLookStore(useShallow(state => ({
         look: state.look,
         windowsPerBlock: state.windowsPerBlock,
         setLook: state.setLook,
         setWindowsPerBlock: state.setWindowsPerBlock,
     })));
-
-    if (!isBravaisActive) return null;
 
     const idleBorder = isDaylight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
     const frameClass = (isSelected: boolean) => (isSelected

@@ -648,4 +648,11 @@ describe('buildImportPlan', () => {
             expect(keys(p)).toEqual([]);
         });
     });
+
+    // The bravais wall's collection stack edges: a library-wall row of its own, and false is a real value.
+    it('plans the collection stack edges under the library wall group', () => {
+        const p = plan({ libraryWallStackEdges: false }, { libraryWallStackEdges: true }, unpinned);
+        expect(keys(p)).toEqual(['libraryWallStackEdges']);
+        expect(p.groups).toEqual(['libraryWall']);
+    });
 });

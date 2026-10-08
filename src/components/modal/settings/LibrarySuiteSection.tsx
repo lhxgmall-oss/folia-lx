@@ -6,13 +6,13 @@ import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import { hasLibrarySuiteChoice } from '../../../library/registry';
 import { chooseLibrarySuite, listLibrarySuiteOptions, useActiveLibrarySuiteId } from '../../../library/app/librarySuiteChoice';
-import LibraryWallLookSettings from './LibraryWallLookSettings';
 
 // src/components/modal/settings/LibrarySuiteSection.tsx
 // 资料库界面（Library UI suite）的选择，挂在界面设置里「播放进入视图」的下面。选项来自 registry 里可用的 suite，
 // 只有一套可用时整节不渲染（命令面板用同一个 hasLibrarySuiteChoice）。高亮的是实际生效的 suite，
 // 切换走 chooseLibrarySuite（当前会话 key + switchLibrarySuite）。不进外观配置的导入导出。
-// 卡片底部挂 bravais 专属的透光设置（LibraryWallLookSettings），只在生效 suite 是 bravais 时出现。
+// bravais 专属的设置（透光、每块窗数、集合叠页边）在紧随其后的「Bravais 墙面」分组（BravaisSettingsSection）里，
+// suite 的选择本身不是 bravais 独有的设置，留在这里。
 
 type LibrarySuiteSectionProps = {
     isDaylight: boolean;
@@ -66,7 +66,6 @@ const LibrarySuiteSection: React.FC<LibrarySuiteSectionProps> = ({
                         );
                     })}
                 </div>
-                <LibraryWallLookSettings isDaylight={isDaylight} accentColor={accentColor} />
             </div>
         </SettingsAnchor>
     );
