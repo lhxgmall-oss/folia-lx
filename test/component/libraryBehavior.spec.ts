@@ -1827,6 +1827,17 @@ test.describe('[bravais-only] collection page', () => {
         const title = await boxOf(page, '.bravais-seam-full [data-bravais-seam-title]');
         const text = await boxOf(page, '[data-bravais-collection-description]');
         expect(text.y).toBeGreaterThan(title.y + title.height);
+        // 竖排标题上下的引号成对角：上面那个靠右，下面那个靠左。
+        const seam = await boxOf(page, '.bravais-seam-full');
+        const quotes = await page.locator('[data-library-stage="bravais"] .bravais-seam-full .bravais-seam-quote').evaluateAll(elements => elements.map(element => {
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            const box = range.getBoundingClientRect();
+            return { left: box.left, right: box.right };
+        }));
+        expect(quotes).toHaveLength(2);
+        expect(quotes[0].left).toBeGreaterThan(seam.x + seam.width / 2);
+        expect(quotes[1].right).toBeLessThan(seam.x + seam.width / 2);
         // 一行字：收起时就是全文，不截断。
         expect(await description(page).evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true);
         await expectSeamButtonsInView(page);
@@ -1860,9 +1871,14 @@ test.describe('[bravais-only] collection page', () => {
         // 首尾空白去掉，段落之间的换行原样保留（纯文本，pre-wrap）。
         expect(await text.evaluate(element => element.textContent)).toBe(PROBE_LONG_DESCRIPTION.trim());
         await expect(text).toHaveCSS('white-space', 'pre-wrap');
-        const collapsed = await text.evaluate(element => ({ client: element.clientHeight, scroll: element.scrollHeight }));
+        const collapsed = await text.evaluate(element => ({
+            client: element.clientHeight,
+            scroll: element.scrollHeight,
+            lineHeight: parseFloat(getComputedStyle(element).lineHeight),
+        }));
         expect(collapsed.scroll).toBeGreaterThan(collapsed.client);
-        expect(collapsed.client).toBeLessThanOrEqual(Math.ceil(12 * 1.5 * 4) + 1);
+        // 收起时 4 行。
+        expect(collapsed.client).toBeLessThanOrEqual(Math.ceil(collapsed.lineHeight * 4) + 1);
         await expectSeamButtonsInView(page);
 
         await text.click();

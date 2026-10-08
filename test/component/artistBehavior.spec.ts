@@ -976,6 +976,12 @@ test.describe('[bravais-only] artist page wall', () => {
         await expect(stageRoot(page).locator('[data-bravais-seam-title]')).toHaveText(main.name);
         await expect(stageRoot(page).locator('[data-bravais-artist-bio]')).toHaveText(main.description);
         await expect(stageRoot(page).locator('[data-bravais-seam-artist] img')).toHaveAttribute('alt', main.name);
+        await expect(stageRoot(page).locator('[data-bravais-artist-name]')).toHaveText(main.name);
+        // 统计只有一行（详情的歌曲数 · 专辑数），是「关于艺术家」的附注；元数据行不再重复它，也没有「N 首热门」。
+        const stats = `${main.topSongIndexes.length} songs · ${main.albumCount} albums`;
+        await expect(stageRoot(page).locator('[data-bravais-artist-stats]')).toHaveText(stats);
+        await expect(stageRoot(page).locator('.bravais-seam-full .bravais-seam-meta')).toHaveCount(0);
+        await expect(stageRoot(page).locator('.bravais-seam-full')).not.toContainText('top songs ·');
         // 在线歌手没有实体可编辑：「⋯ 更多」里只有重新拉取。
         await stageRoot(page).locator('[data-bravais-seam-action="more"]').dispatchEvent('click');
         await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="reload"]')).toBeVisible();

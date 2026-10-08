@@ -442,7 +442,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 **导航**
 
 - transitions 只声明 `beforePush`（墙上点磁贴、聚焦卡的链接已记下起点；命令面板对焦点那一项的打开用键盘焦点所在的 slot）与 `reset`（丢掉没用掉的起点与移除的翻牌起点）；钩子经 entry 的 `installBravaisTransitionHook` 由 stage 的 chunk 装上。
-- 集合页的描述（歌单简介、专辑介绍）在完整信息条的标题下方，取自 core 的 `resolveCollectionDescription`（与网格信息面板同一条合并规则：详情盖在集合描述上）；与歌手简介共用 `BravaisSeamBlurb`（4 行截断、点开封顶后块内滚动、纯文本保留换行），书脊上没有。见设计稿 §10.2「描述」。
+- 集合页的描述（歌单简介、专辑介绍）在完整信息条的标题下方，取自 core 的 `resolveCollectionDescription`（与网格信息面板同一条合并规则：详情盖在集合描述上）；与歌手页的「关于艺术家」共用 `BravaisSeamAbout`（书勒口式的简介：不加小节标题；正文 4 行截断、点开封顶后块内滚动、纯文本保留换行；歌手页另有头像 + 名字的署名与「N 首歌 · M 张专辑」附注），书脊上没有。见设计稿 §10.2「描述」。
 - 面包屑在缝里（`BravaisSeamCrumbs`，规则 `bravaisCrumbs`）：根是书库 / 搜索 / 播放页（按 `origin`），中间层名字来自 `trail`，多于一层时折成可展开的「…」；点击调层描述上的 `onPopTo`（集合与歌手 surface 把宿主的 `onPopTo` 包成稳定回调交给 stage）。面板开着时当前层名 = 关面板。
 - 面板 history：列表面板与目录树面板是导航状态，`bravaisPanelHistory` 按「suite 自己的 history 记录」的规则 `pushState`（标记 `bravaisPanel`）；应用内返回先关面板，折叠往返与跳层越过它。
 - 「降低动态效果」：stage 自己解析（`bravaisMotion`：「队列拼贴」或「歌单展开转场」任一降级）——翻牌换成 0.18 秒淡出淡入、整墙波次换成淡入淡出；相机、缝与悬停的补间只看 `lattice` 动效面。

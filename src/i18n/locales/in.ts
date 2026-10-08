@@ -3198,7 +3198,6 @@ export default {
   },
   "libraryBravaisArtist": {
     "playTopSongs": "Putar lagu populer",
-    "wallCounts": "{{songs}} lagu populer · {{albums}} album",
     "songCount_one": "{{count}} lagu",
     "songCount_other": "{{count}} lagu",
     "albumCount_one": "{{count}} album",

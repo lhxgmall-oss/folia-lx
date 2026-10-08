@@ -331,7 +331,8 @@
     cursor: pointer;
 }
 
-.bravais-seam-quote { font-size: 28px; line-height: 0.6; opacity: 0.35; }
+/* 竖排标题上下的一对引号成对角：上面那个靠右、下面那个靠左（完整信息条共用这一处）。 */
+.bravais-seam-quote { font-size: 28px; line-height: 0.6; opacity: 0.35; text-align: right; }
 .bravais-seam-quote.is-closing { text-align: left; }
 
 .bravais-seam-vtitle-wrap {
