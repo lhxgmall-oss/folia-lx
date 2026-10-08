@@ -17,7 +17,7 @@ import { resolveDirectoryRows } from '../../core/model/directoryTree';
 import { resolveDirectoryNodeSelection, resolveNextDirectoryNodeSelectionTarget } from '../../core/model/directoryBatch';
 import type { BravaisItem } from './bravaisLayer';
 import type { BravaisDirectoryRow } from './bravaisHomeModels';
-import { homeCardItemKey, homeCardKind, type HomeCardLabels } from './bravaisProjection';
+import { homeCardItemKey, projectHomeCardItem, type HomeCardLabels } from './bravaisProjection';
 
 // src/library/suites/bravais/bravaisHomeProjection.ts
 // 首页的纯投影（设计稿 §10.5、§5「目录树 = GridMap 的批量模式」）：
@@ -82,16 +82,7 @@ const projectHomeItem = (
     flags: HomeItemFlags,
     special: LibraryHomeSpecialKind | null,
 ): BravaisItem => {
-    const kind = homeCardKind(card.type);
-    const count = typeof card.trackCount === 'number' && card.trackCount > 0 ? labels.trackCount(card.trackCount) : '';
-    const item: BravaisItem = {
-        key: itemKey,
-        kind,
-        title: card.name,
-        subtitle: [count, card.description].filter(Boolean).join(' · '),
-        coverUrl: card.coverUrl,
-        badge: labels.kindLabel(kind),
-    };
+    const item = projectHomeCardItem(card, labels, { key: itemKey, direct: flags.direct });
     (Object.keys(flags) as (keyof HomeItemFlags)[]).forEach(key => {
         if (flags[key]) item[key] = true;
     });

@@ -37,18 +37,23 @@ function readTypography(node: HTMLElement, key: string): TitleTypography | null 
     return entry;
 }
 
-export function WallTitle({ title, expanded, targetPosterWidth }:
-    { title: string; expanded: boolean; targetPosterWidth?: number }) {
+/**
+ * `variant` names a poster shape whose cascade differs from the plain card's - bravais gives
+ * collection cards a spine (wider left inset) and artist cards a larger name - so its typography
+ * is cached apart. Lattice never passes it, which keeps its cache key unchanged.
+ */
+export function WallTitle({ title, expanded, targetPosterWidth, variant = '' }:
+    { title: string; expanded: boolean; targetPosterWidth?: number; variant?: string }) {
     // The poster's target rect is known before the spring runs, so the fit never waits for it.
     const readMetrics = useCallback((node: HTMLElement, epoch: string): TitleMetrics | null => {
         if (targetPosterWidth === undefined) return readTitleMetrics(node, null);
-        const typography = readTypography(node, `${epoch}|${expanded ? 'expanded' : 'compact'}`);
+        const typography = readTypography(node, `${epoch}|${expanded ? 'expanded' : 'compact'}${variant ? `|${variant}` : ''}`);
         if (!typography) return null;
         const width = titleColumnWidth(typography.column, targetPosterWidth);
         if (width === null) return null;
         const { column: _column, ...metrics } = typography;
         return { ...metrics, width };
-    }, [expanded, targetPosterWidth]);
+    }, [expanded, targetPosterWidth, variant]);
     const { ref, value, settled } = useSettledTitle(title, expanded, { readMetrics });
     return <strong ref={ref} aria-label={title} title={title} data-title-settled={settled || undefined}>{value}</strong>;
 }

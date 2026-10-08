@@ -27,14 +27,20 @@ describe('home cards', () => {
         expect(homeCardKind(undefined)).toBe('playlist');
     });
 
-    it('builds the subtitle from the track count and the description', () => {
+    it('puts a collection track count on the spine instead of the subtitle', () => {
         const items = projectHomeCards([
             card(1, 'playlist', { trackCount: 12, description: 'Curator', coverUrl: 'cover.jpg' }),
             card(2, 'album', { description: 'Artist' }),
+            card(3, 'artist', { trackCount: 7, description: 'Artists' }),
+            card(4, 'radio', { trackCount: 0 }),
         ], { kindLabel: kind => `[${kind}]`, trackCount: count => `${count} tracks` });
         expect(items).toEqual([
-            { key: 'card:playlist:1', kind: 'playlist', title: 'Card 1', subtitle: '12 tracks · Curator', coverUrl: 'cover.jpg', badge: '[playlist]' },
+            { key: 'card:playlist:1', kind: 'playlist', title: 'Card 1', subtitle: 'Curator', coverUrl: 'cover.jpg', badge: '[playlist]', trackCountLabel: '12 tracks' },
             { key: 'card:album:2', kind: 'album', title: 'Card 2', subtitle: 'Artist', coverUrl: undefined, badge: '[album]' },
+            // 歌手不画书脊：曲目数仍在副标题里（墙上歌手的副标题不显示，可访问名里还在）。
+            { key: 'card:artist:3', kind: 'artist', title: 'Card 3', subtitle: '7 tracks · Artists', coverUrl: undefined, badge: '[artist]' },
+            // 每日推荐类的 feed 画书脊，但曲目数未知（0）时书脊上不写字。
+            { key: 'card:radio:4', kind: 'feed', title: 'Card 4', subtitle: '', coverUrl: undefined, badge: '[feed]' },
         ]);
     });
 });

@@ -20,6 +20,11 @@ export type BravaisItem = {
     coverUrl?: string;
     /** 徽标文字：集合是条目序号（01、02…），首页是种类（歌单 / 专辑…）。 */
     badge: string;
+    /**
+     * 书脊上竖排的曲目数（已翻译的「N 首」，设计稿 §7.7）：只有画书脊的集合（专辑 / 歌单 / 文件夹 / 每日推荐）有，
+     * 而且只在曲目数已知时给；给了它，副标题里就不再重复曲目数。
+     */
+    trackCountLabel?: string;
     /** 歌曲的播放键（getPlaybackSongKey）：与正在播放的那首比较。 */
     playbackKey?: string;
     /** 聚焦卡上的专辑 / 歌手链接与时长（只有歌曲有）。 */

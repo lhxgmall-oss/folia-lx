@@ -98,6 +98,24 @@ describe('projectHomeWallItems', () => {
         expect(second[1]).not.toBe(first[1]);
     });
 
+    it('moves the track count onto the spine for collections, but not for the personal FM stream', () => {
+        const cards = [
+            card('a', 'playlist', { trackCount: 12, description: 'Curator' }),
+            card('daily_recommendations', 'daily_recommendations', { trackCount: 30, description: 'Today' }),
+            card('fm', 'radio', { trackCount: 5, description: 'FM' }),
+            card('x', 'folder', { trackCount: 3 }),
+            card('r', 'artist', { trackCount: 9, description: 'Artists' }),
+        ].map(toHomeEntry);
+        const items = projectHomeWallItems(cards, { hiddenIds: new Set(), visibilityMode: 'browse', selectedIds: null, isDirect, source: 'online' }, labels);
+        expect(items.map(item => [item.trackCountLabel ?? null, item.subtitle])).toEqual([
+            ['12 tracks', 'Curator'],
+            ['30 tracks', 'Today'],
+            [null, '5 tracks · FM'],
+            ['3 tracks', ''],
+            [null, '9 tracks · Artists'],
+        ]);
+    });
+
     it('marks special collections by identity and leaves ordinary cards alone', () => {
         const online = [
             card('liked', 'playlist', { raw: { isLiked: true } }),

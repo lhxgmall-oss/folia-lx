@@ -35,6 +35,7 @@ const project = (songs: SongResult[], albums: LibraryArtistAlbum[]) => projectAr
     describeTrack: describe_,
     unknownArtist: '?',
     albumLabel: 'Album',
+    trackCountLabel: count => `${count} tracks`,
 });
 const range = (count: number, from = 0) => Array.from({ length: count }, (_, index) => from + index);
 const layer = (
@@ -64,6 +65,11 @@ describe('mixed items', () => {
         expect(items.map(item => item.kind)).toEqual(['track', 'track', 'album', 'album', 'album']);
         expect(items[0]).toMatchObject({ badge: '01', durationLabel: '3:20', artists: ['Artist'] });
         expect(items[2]).toMatchObject({ badge: 'Album', title: 'Album 1' });
+    });
+
+    it('writes a known album track count onto the spine and leaves it off otherwise', () => {
+        const items = project([song(1)], [{ ...album(1), trackCount: 12 }, album(2), { ...album(3), trackCount: 0 }]);
+        expect(items.map(item => item.trackCountLabel)).toEqual([undefined, '12 tracks', undefined, undefined]);
     });
 
     it('keeps keys unique when the upstream repeats a top song', () => {

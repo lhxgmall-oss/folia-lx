@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { useIsPresent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import type { SongResult, StatusMessage } from '../../../types';
@@ -82,13 +82,15 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
 
     const unknownArtist = t('player.unknownArtist');
     const albumLabel = t('libraryBravais.kind.album');
+    const trackCountLabel = useCallback((count: number) => t('libraryBravais.trackCount', { count }), [t]);
     const items = useMemo<readonly BravaisItem[]>(() => projectArtistItems({
         topSongs,
         albums: shownAlbums,
         describeTrack: describeBravaisTrack,
         unknownArtist,
         albumLabel,
-    }), [albumLabel, shownAlbums, topSongs, unknownArtist]);
+        trackCountLabel,
+    }), [albumLabel, shownAlbums, topSongs, trackCountLabel, unknownArtist]);
     const songByKey = useMemo(() => {
         const map = new Map<string, SongResult>();
         items.forEach((item, index) => {

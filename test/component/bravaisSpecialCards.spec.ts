@@ -114,14 +114,26 @@ test.describe('[bravais-only] special collections', () => {
         expect(special.background).not.toBe(plain.background);
         expect(special.z).toBe('4');
 
+        // 种类区分（设计稿 §7.7）：歌单类的特殊卡照样有书脊，标签右移让开它。
+        await expect(card(page, 'card:playlist:public')).toHaveAttribute('data-bravais-form', 'spine');
+        expect(await badge('card:playlist:public').evaluate(node => getComputedStyle(node).left)).toBe('30px');
+
         await showTab(page, 'radio');
         await expectSpecial('card:radio:personal_fm', 'personal-fm', 'Radio');
         await expectSpecial('card:daily_recommendations:daily_recommendations', 'daily', 'Radio');
         await expectPlain(`card:playlist:rec-${PROBE_PROVIDER_A}-0`);
+        // 私人 FM 是直接播放的电台流，没有书脊；每日推荐是一张曲目表，有书脊。
+        await expect(card(page, 'card:radio:personal_fm')).not.toHaveAttribute('data-bravais-form', /.*/);
+        await expect(card(page, 'card:daily_recommendations:daily_recommendations')).toHaveAttribute('data-bravais-form', 'spine');
 
         await showTab(page, 'local');
         await expectSpecial(`card:folder:${HOME_ALL_SONGS_ID}`, 'all-songs', 'Folder');
         await expectPlain('card:folder:folder-Extra');
+        // 文件夹是集合：书脊上写曲目数（副标题不再重复）。
+        const allSongs = card(page, `card:folder:${HOME_ALL_SONGS_ID}`);
+        await expect(allSongs).toHaveAttribute('data-bravais-form', 'spine');
+        await expect(allSongs.locator('.bravais-tile-spine')).toHaveText(`${HOME_LOCAL_SONGS.length} tracks`);
+        await expect(allSongs.locator('.lattice-poster-copy small')).not.toContainText('tracks');
     });
 
     test('online tabs offer jump-ins only for the special collections that exist', async ({ page }) => {

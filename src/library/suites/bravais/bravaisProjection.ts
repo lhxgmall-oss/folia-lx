@@ -1,6 +1,7 @@
 import type { SongResult } from '../../../types';
 import type { LibraryHomeCard } from '../../core/contracts/homeModel';
 import type { BravaisItem, BravaisItemKind } from './bravaisLayer';
+import { resolveBravaisTileForm, resolveSpineTrackCount } from './bravaisTileForm';
 
 // src/library/suites/bravais/bravaisProjection.ts
 // core 数据 → 磁贴条目（BravaisItem）的纯投影，surface 用它们拼层描述。曲目的展示字段（歌手、封面、时长、
@@ -28,19 +29,32 @@ export type HomeCardLabels = {
     trackCount: (count: number) => string;
 };
 
+/**
+ * 一张首页卡片 → 磁贴条目（首页 surface 与性能探针共用）。画书脊的集合（resolveBravaisTileForm）把曲目数写在书脊上
+ * （trackCountLabel），副标题只留描述；其余的曲目数仍拼在副标题前面。direct：点了直接播放（私人 FM），不画书脊。
+ */
+export const projectHomeCardItem = (
+    card: LibraryHomeCard,
+    labels: HomeCardLabels,
+    { key = homeCardItemKey(card), direct = false }: { key?: string; direct?: boolean } = {},
+): BravaisItem => {
+    const kind = homeCardKind(card.type);
+    const spineCount = resolveSpineTrackCount(resolveBravaisTileForm({ kind, direct }), card.trackCount, labels.trackCount);
+    const count = !spineCount && typeof card.trackCount === 'number' && card.trackCount > 0 ? labels.trackCount(card.trackCount) : '';
+    const item: BravaisItem = {
+        key,
+        kind,
+        title: card.name,
+        subtitle: [count, card.description].filter(Boolean).join(' · '),
+        coverUrl: card.coverUrl,
+        badge: labels.kindLabel(kind),
+    };
+    if (spineCount) item.trackCountLabel = spineCount;
+    return item;
+};
+
 export const projectHomeCards = (cards: readonly LibraryHomeCard[], labels: HomeCardLabels): BravaisItem[] => (
-    cards.map(card => {
-        const kind = homeCardKind(card.type);
-        const count = typeof card.trackCount === 'number' && card.trackCount > 0 ? labels.trackCount(card.trackCount) : '';
-        return {
-            key: homeCardItemKey(card),
-            kind,
-            title: card.name,
-            subtitle: [count, card.description].filter(Boolean).join(' · '),
-            coverUrl: card.coverUrl,
-            badge: labels.kindLabel(kind),
-        };
-    })
+    cards.map(card => projectHomeCardItem(card, labels))
 );
 
 /** 一首歌在磁贴与聚焦卡上要的展示字段。 */
