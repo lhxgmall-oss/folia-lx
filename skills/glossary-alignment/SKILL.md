@@ -75,6 +75,8 @@ bravais 的口头说法大多来自它的设计稿（文件名带 `bravais-suite
 | 布局记忆 / 忘掉布局 | `readBravaisLayout` / `writeBravaisLayout`；manifest 的 `layout.forget` |
 | 外观动作 / suite-chrome | manifest 的 `chromeActions`、`useLibrarySuiteChromeRegistration`、`useBravaisChromeActions`；命令 `bravais-<id>` |
 | 透光 / 透光档位（实色 / 部分透明 / 全透明）/ 每块窗数 | `useLibraryWallLookStore`、`LibraryWallLook`、`LibraryWallLookSettings`、`useBravaisWallLook`；外观动作 `bravais-wall-look` |
+| 叠页边 / 集合叠页边（集合磁贴右下错开的页边） | `bravaisTileForm` 的 `stack`、`.bravais-tile-face.is-stack`、根节点 `has-stack-edges`；设置 `useLibraryWallLookStore.collectionStackEdges` |
+| Bravais 分组 / Bravais 墙面设置 | `BravaisSettingsSection`、锚点 `bravaisSettings`、命令 `settings-bravais` |
 | 窗 | 保留位 `blockReservedSlots`、`resolveReservedPerBlock`；磁贴种类 `window` |
 | 底板（按块 SVG） | `BravaisBlockPlates`、`useBravaisBlockPlates`、`bravaisBlockPlate`；让位逐帧重画 `useBravaisReflowPlate` |
 | 遮挡播放页 / 实色档卸载 visualizer | `reportPlayerOcclusion`、`useLibraryPlayerOcclusionStore`、`shouldMountPlayerVisualizer` |
