@@ -32,3 +32,6 @@
     font-variant-numeric: tabular-nums;
     opacity: 0.85;
 }
+
+/* fb10：集合页的收藏星标挪进了按钮行，描述下面空出一行（36px + 间距，约两行正文），描述收起时多显示两行。 */
+.bravais-seam-about[data-bravais-seam-about='collection'] { --bravais-blurb-lines: 6; }

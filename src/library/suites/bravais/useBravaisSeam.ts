@@ -20,6 +20,9 @@ import type { BravaisFrameState } from './useBravaisFrame';
 
 export type BravaisRenderedSeam = { variant: BravaisSeamContentVariant; layer: BravaisLayer | null };
 
+/** 焦点此刻没落在任何控件上（被 inert 挤掉后浏览器交给了 body）。 */
+const isFocusDropped = () => document.activeElement === null || document.activeElement === document.body;
+
 
 export const useBravaisSeam = ({
     frameRef,
@@ -140,7 +143,7 @@ export const useBravaisSeam = ({
     const targetKey = `${targetVariant}|${layer ? resolveSeamContentIdentity(layer) : ''}`;
     const latestTargetRef = useRef({ layer, targetVariant });
     latestTargetRef.current = { layer, targetVariant };
-    const pendingInRef = useRef<{ fromNone: boolean; reduced: boolean; focused: HTMLElement | null } | null>(null);
+    const pendingInRef = useRef<{ fromNone: boolean; reduced: boolean; focused: HTMLElement | null; toggleByKeyboard: boolean } | null>(null);
     const inAnimationRef = useRef<Animation | null>(null);
     /** 放完的转出段停在 90°，等新内容渲染出来、转进段开始时才取消（中间不露出转正的旧内容）。 */
     const outAnimationRef = useRef<Animation | null>(null);
@@ -156,9 +159,11 @@ export const useBravaisSeam = ({
         // 换了形态，React 复用了这个节点，例如书脊的「⋯」展开成窄缝）就把焦点还给它。
         const active = document.activeElement;
         const focused = element && active instanceof HTMLElement && element.contains(active) ? active : null;
+        // 焦点在标题（切换开口的那个）上且是键盘焦点（:focus-visible）：换完内容把焦点交给新内容里的标题。
+        const toggleByKeyboard = Boolean(focused?.hasAttribute('data-bravais-seam-toggle') && focused.matches(':focus-visible'));
         const swap = (animateIn: boolean) => {
             const next = latestTargetRef.current;
-            pendingInRef.current = animateIn ? { fromNone, reduced: reducedTransitions, focused } : null;
+            pendingInRef.current = animateIn ? { fromNone, reduced: reducedTransitions, focused, toggleByKeyboard } : null;
             setRendered({ variant: next.targetVariant, layer: next.layer });
         };
         // 折叠与展开之间不翻：开口从 0 补间、内容随开口淡入（frame 的 contentOpacity）。降低动效时开口不补间，
@@ -195,7 +200,13 @@ export const useBravaisSeam = ({
         const element = contentRef.current;
         if (!element) return;
         const { focused } = pending;
-        if (focused && focused.isConnected && element.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
+        if (focused && focused.isConnected && element.contains(focused) && document.activeElement !== focused) {
+            focused.focus({ preventScroll: true });
+        } else if (focused && !focused.isConnected && pending.toggleByKeyboard && isFocusDropped()) {
+            // fb10：用键盘在标题上切换了开口（完整信息条 ↔ 书脊），旧标题随内容卸载了：焦点交给新内容里的那个标题，
+            // 再按一次 Enter 就切回去（鼠标点的不挪焦点）。
+            element.querySelector<HTMLElement>('[data-bravais-seam-toggle]')?.focus({ preventScroll: true });
+        }
         inAnimationRef.current = playSeamFlipIn(element, 'y', pending.reduced || pending.fromNone, () => { inAnimationRef.current = null; });
     }, [contentRef, rendered]);
     useEffect(() => () => {

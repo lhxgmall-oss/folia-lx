@@ -117,6 +117,8 @@
 .bravais-seam-star.is-on svg { fill: currentColor; }
 .bravais-seam-star:hover:not(:disabled) { border-color: color-mix(in srgb, currentColor 26%, transparent); }
 .bravais-seam-star:disabled { cursor: default; }
+/* fb10：星标在「播放全部 / 加入队列」那一行的末尾（靠右），不再单独占一行。 */
+.bravais-seam-actions .bravais-seam-star { margin-left: auto; }
 
 .bravais-seam .bravais-seam-sync {
     display: inline-flex;
@@ -203,6 +205,8 @@
 .bravais-seam-menu button:hover:not(:disabled),
 .bravais-focus-menu button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
 .bravais-seam-menu button:disabled { opacity: 0.35; cursor: default; }
+/* 「⋯ 更多」里集合动作与末尾的「折叠信息条」之间的分隔线（与首页工具格的菜单同一种，bravaisHome.css）。 */
+.bravais-seam-menu:not(.is-home) > .bravais-seam-menu-rule { height: 1px; margin: 3px 6px; background: color-mix(in srgb, currentColor 14%, transparent); }
 .bravais-seam-menu button.is-danger,
 .bravais-focus-menu button.is-danger { color: color-mix(in srgb, #f87171 80%, var(--text-primary, #fff)); }
 
