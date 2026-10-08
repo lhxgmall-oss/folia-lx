@@ -304,13 +304,22 @@
 .bravais-seam-tools .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
 .bravais-seam-tools .bravais-seam-icon.is-pressed { color: var(--text-accent, currentColor); background: color-mix(in srgb, currentColor 16%, transparent); }
 
+/* fb8（用户实测：菜单像是透明的，后面的账户入口透出来、字叠在一起）：根因是层级——fb4 起账户位 position: relative +
+   z-index: 3，工具格没有层级，菜单的 z-index 只在窄缝这一层里和账户位比，被账户入口盖住（菜单底色本身一直不透明，
+   fb5b 的 motion.div 没有丢掉它）。工具格抬到账户位之上（只在窄缝里，书脊上没有菜单）。
+   菜单两侧比工具格各宽 6px（与账户的平台列表一样，仍在缝里），项靠左、一行一个，常见的中文项不折行；底色、阴影、
+   圆角与平台列表一致。 */
+.bravais-seam-home > .bravais-seam-dock { z-index: 4; }
+
 .bravais-seam-menu.is-home {
     position: absolute;
-    right: 0;
+    right: -6px;
     bottom: calc(100% + 8px);
-    left: 0;
+    left: -6px;
     z-index: 2;
     box-sizing: border-box;
+    padding: 4px;
+    border-radius: 12px;
     color: var(--text-primary, #f7f4ee);
     background: color-mix(in srgb, var(--bg-color, #070707) 92%, var(--text-primary, #f7f4ee));
     box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), 0 12px 32px rgb(0 0 0 / 34%);
@@ -319,12 +328,13 @@
 .bravais-seam .bravais-seam-menu.is-home button {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 6px;
-    padding: 8px 6px;
+    padding: 7px 6px;
+    border-radius: 9px;
     font-size: 12px;
     line-height: 1.25;
-    text-align: center;
+    text-align: left;
 }
 
 .bravais-seam-menu.is-home button svg { width: 14px; height: 14px; flex: none; opacity: 0.75; }

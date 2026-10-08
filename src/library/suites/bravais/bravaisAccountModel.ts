@@ -246,8 +246,18 @@ export const resolveBravaisAccountForm = ({
 export type BravaisAccountRow = {
     providerId: OnlineProviderId;
     label: string;
-    /** 账户状态：昵称 / 未登录 / 无需登录 / 未配置。 */
+    /** 平台全名（徽章没有头像时的读屏名，与 grid 切换器的第二行同一个字段）。 */
+    displayName: string;
+    /** 账户状态：昵称 / 未登录 / 无需登录 / 未配置。fb8 起不直接显示，放进行的可访问名与 title。 */
     detail: string;
+    /**
+     * fb8（用户实测：入口与列表改成 grid 切换器的「图标 / 头像 + 名称」）：行里平台名下面那行小字，只留区分所必需的——
+     * 已登录的昵称、「无需登录」「未配置」（与 grid 切换器一致）；「未登录」不写字，由行尾的登录图标表达。
+     */
+    note: string;
+    /** 已登录账户的头像与昵称（没有时为 null，界面退回平台徽章）。 */
+    avatarUrl: string | null;
+    nickname: string | null;
     current: boolean;
     /** 未配置的平台不能选（行禁用）。 */
     configured: boolean;
@@ -293,10 +303,16 @@ export const projectAccountSwitcherRows = ({
             const current = provider.providerId === activeProviderId;
             const configured = provider.availability.configured;
             const loggingOut = logoutPending && logout.providerId === provider.providerId;
+            const detail = describeProviderStatus(provider, t);
+            const nickname = configured && provider.requiresAccount !== false ? provider.user?.nickname || null : null;
             return {
                 providerId: provider.providerId,
                 label: provider.shortName || provider.displayName,
-                detail: describeProviderStatus(provider, t),
+                displayName: provider.displayName || provider.shortName,
+                detail,
+                note: !configured || provider.requiresAccount === false || nickname ? detail : '',
+                avatarUrl: nickname ? provider.user?.avatarUrl || null : null,
+                nickname,
                 current,
                 configured,
                 direct: canSwitchToProviderDirectly(provider),

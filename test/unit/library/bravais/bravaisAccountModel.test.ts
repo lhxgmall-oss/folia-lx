@@ -252,7 +252,7 @@ const provider = (providerId: string, input: Partial<ProviderAccountSummary> = {
 
 describe('projectAccountSwitcherRows', () => {
     const providers = [
-        provider('alpha', { status: 'authenticated', user: { id: 1, nickname: 'Ada' } as ProviderAccountSummary['user'] }),
+        provider('alpha', { status: 'authenticated', user: { id: 1, nickname: 'Ada', avatarUrl: 'http://img.example/ada.jpg' } as ProviderAccountSummary['user'] }),
         provider('beta', { status: 'authenticated', user: { id: 2, nickname: 'Bea' } as ProviderAccountSummary['user'] }),
         provider('gamma'),
         provider('modo', { requiresAccount: false, status: 'unknown' }),
@@ -269,6 +269,10 @@ describe('projectAccountSwitcherRows', () => {
         expect(rows.map(row => row.detail)).toEqual([
             'Ada', 'Bea', 'libraryBravaisAccount.notSignedIn', 'home.providerNoAccount', 'libraryBravaisAccount.notConfigured',
         ]);
+        // fb8：界面上只显示区分所必需的小字（昵称、无需登录、未配置）；「未登录」不写字（行尾是登录图标）。
+        expect(rows.map(row => row.note)).toEqual(['Ada', 'Bea', '', 'home.providerNoAccount', 'libraryBravaisAccount.notConfigured']);
+        expect(rows.map(row => row.nickname)).toEqual(['Ada', 'Bea', null, null, null]);
+        expect(rows.map(row => row.avatarUrl)).toEqual(['http://img.example/ada.jpg', null, null, null, null]);
         expect(rows.map(row => row.direct)).toEqual([true, true, false, true, false]);
         expect(rows.map(row => row.configured)).toEqual([true, true, true, true, false]);
         expect(rows.map(row => row.actionLabel)).toEqual([

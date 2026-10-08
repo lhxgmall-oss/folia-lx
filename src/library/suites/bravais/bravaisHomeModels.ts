@@ -71,8 +71,14 @@ export type BravaisHomeSearch = {
 export type BravaisHomeAccount = {
     providerId: string;
     providerLabel: string;
-    /** B10：当前平台的账户状态（昵称 / 未登录 / 无需登录）。 */
+    /** B10：当前平台的账户状态（昵称 / 未登录 / 无需登录）。fb8 起只进入口的可访问名与 title，不直接显示。 */
     detail: string;
+    /**
+     * fb8：入口改成 grid 切换器的样子——已登录是头像 + 昵称（没有头像退回平台徽章），无需登录的平台是徽章 + 平台名。
+     * 来自当前平台那一行（core 账户视图的 ProviderAccountSummary，与 grid 同一个数据源）。
+     */
+    nickname: string | null;
+    avatarUrl: string | null;
     /**
      * B10：当前平台未登录（墙空着）。fb3：窄缝里只显示一个「连接在线平台」入口（connectLabel），点了才展开平台列表；
      * 已登录时是当前平台 + 账户状态的开合按钮。

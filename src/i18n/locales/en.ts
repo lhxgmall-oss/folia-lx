@@ -59,7 +59,6 @@ export default {
     "searchOnline": "Search online platforms",
     "searchSubmit": "Search",
     "searchClose": "Close search",
-    "openQueue": "Open the queue",
     "backToPlayer": "Back to the player",
     "stagePlayer": "Stage player",
     "settings": "Settings",

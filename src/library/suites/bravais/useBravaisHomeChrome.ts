@@ -95,7 +95,7 @@ export const useBravaisHomeChrome = ({
     const hasPlayer = Boolean(onBackToPlayer);
     const appTools = useMemo<BravaisHomeTool[]>(() => {
         const tools: BravaisHomeTool[] = [];
-        if (hasLattice) tools.push({ id: 'queue', label: t('libraryBravaisHome.openQueue'), run: () => latest.current.props.onOpenLattice?.() });
+        if (hasLattice) tools.push({ id: 'queue', label: t('home.lattice'), run: () => latest.current.props.onOpenLattice?.() });
         if (hasPlayer) tools.push({ id: 'player', label: t('libraryBravaisHome.backToPlayer'), run: () => latest.current.props.onBackToPlayer() });
         if (hasStage) tools.push({ id: 'stage', label: t('libraryBravaisHome.stagePlayer'), run: () => latest.current.props.onOpenStagePlayer?.() });
         if (hasSettings) tools.push({ id: 'settings', label: t('libraryBravaisHome.settings'), run: () => latest.current.props.onOpenSettings?.() });
