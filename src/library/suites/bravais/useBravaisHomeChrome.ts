@@ -32,7 +32,7 @@ export type BravaisHomeChrome = {
 
 type ChromeProps = Pick<
     LibraryHomeSurfaceProps,
-    'onSearchCommitted' | 'onOpenLattice' | 'onBackToPlayer' | 'onOpenStagePlayer' | 'stageEnabled' | 'onOpenSettings'
+    'onSearchCommitted' | 'onOpenLattice' | 'onBackToPlayer' | 'onOpenStagePlayer' | 'stageEnabled' | 'stageIsActive' | 'onOpenSettings'
 >;
 
 export const useBravaisHomeChrome = ({
@@ -90,7 +90,8 @@ export const useBravaisHomeChrome = ({
         },
     }), [searchOpen, t]);
 
-    const { onOpenLattice, onBackToPlayer, onOpenStagePlayer, stageEnabled, onOpenSettings } = props;
+    const { onOpenLattice, onBackToPlayer, onOpenStagePlayer, stageEnabled, stageIsActive, onOpenSettings } = props;
+    const stageActive = Boolean(stageIsActive);
     const hasLattice = Boolean(onOpenLattice);
     const hasStage = Boolean(onOpenStagePlayer && stageEnabled);
     const hasSettings = Boolean(onOpenSettings);
@@ -101,10 +102,11 @@ export const useBravaisHomeChrome = ({
         const tools: BravaisHomeTool[] = [];
         if (hasLattice) tools.push({ id: 'queue', label: t('home.lattice'), run: () => latest.current.props.onOpenLattice?.() });
         if (hasPlayer) tools.push({ id: 'player', label: t('libraryBravaisHome.backToPlayer'), run: () => latest.current.props.onBackToPlayer() });
-        if (hasStage) tools.push({ id: 'stage', label: t('libraryBravaisHome.stagePlayer'), run: () => latest.current.props.onOpenStagePlayer?.() });
+        // fb11：舞台开着时它单独占工具格最上面一行（图标 + 短名「舞台」），active 与 grid 的 data-stage-active 同义。
+        if (hasStage) tools.push({ id: 'stage', label: t('libraryBravaisHome.stagePlayer'), shortLabel: t('libraryBravaisHome.stageShort'), active: stageActive, run: () => latest.current.props.onOpenStagePlayer?.() });
         if (hasSettings) tools.push({ id: 'settings', label: t('libraryBravaisHome.settings'), run: () => latest.current.props.onOpenSettings?.() });
         return tools;
-    }, [hasLattice, hasPlayer, hasSettings, hasStage, t]);
+    }, [hasLattice, hasPlayer, hasSettings, hasStage, stageActive, t]);
 
     const scan = scanning ? t('libraryBravaisHome.scanProgress', { percent: scanPercent }) : null;
 

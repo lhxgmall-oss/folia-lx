@@ -8,7 +8,7 @@ import '../../dev/probes/homeBehavior/probeApi';
 // test/component/bravaisSpecialCards.spec.ts
 // bravais 首页的特殊集合（我喜欢的音乐、云盘、私人 FM、每日推荐、全部歌曲、本地「我喜欢」、Navidrome 随机 / 收藏）：
 // - 墙上那张卡左上角的类型标签换一身（is-special + data-bravais-special：强调色底、带小图标），普通卡片不变；
-// - 缝里二级切换下面的直达入口：只在那张集合此刻真有时出现（在线看当前页签的卡；provider 没有、未登录都不出现），
+// - 缝里中段底部的直达入口（fb11：竖排文字，显示种类的短名，并排成列；贴在账户入口 / 工具格上方）：只在那张集合此刻真有时出现（在线看当前页签的卡；provider 没有、未登录都不出现），
 //   点它与点墙上那张卡同一条打开路径——墙上（屏内）找得到那张卡就以它为起点磁贴，找不到（别的 section）就以缝为中心，
 //   不拿键盘焦点所在的那张不相干的磁贴当起点；私人 FM 直接播放；键盘可达（Tab 进缝、方向键、Enter）；
 // - 放不下时入口先于二级切换让位，挪进「⋯」菜单。
@@ -22,9 +22,9 @@ const card = (page: Page, itemKey: string) => page.locator(`.bravais-tile[data-l
 const stack = (page: Page) => page.evaluate(() => window.__homeProbe!.stack());
 const lastOpened = async (page: Page) => (await page.evaluate(() => window.__homeProbe!.opened())).at(-1);
 const calls = (page: Page, kind: string) => page.evaluate(callKind => window.__homeProbe!.calls().filter(call => call.kind === callKind), kind);
-const shortcutsGroup = (page: Page) => seam(page).locator('[data-bravais-home-body] [data-bravais-shortcuts]');
-const shortcut = (page: Page, special: string) => seam(page).locator(`[data-bravais-home-body] [data-bravais-shortcut="${special}"]`);
-const shortcutKinds = (page: Page) => seam(page).locator('[data-bravais-home-body] [data-bravais-shortcut]').evaluateAll(
+const shortcutsGroup = (page: Page) => seam(page).locator('[data-bravais-home-jumps] [data-bravais-shortcuts]');
+const shortcut = (page: Page, special: string) => seam(page).locator(`[data-bravais-home-jumps] [data-bravais-shortcut="${special}"]`);
+const shortcutKinds = (page: Page) => seam(page).locator('[data-bravais-home-jumps] [data-bravais-shortcut]').evaluateAll(
     elements => elements.map(element => [(element as HTMLElement).dataset.bravaisShortcut, element.getAttribute('aria-label'), element.getAttribute('title')]),
 );
 
@@ -125,15 +125,32 @@ test.describe('[bravais-only] special collections', () => {
     });
 
     test('online tabs offer jump-ins only for the special collections that exist', async ({ page }) => {
-        // 歌单页签：我喜欢的音乐、云盘；只有图标，全名在 aria-label / title；与二级切换不同，它们是一组普通按钮。
+        // 歌单页签：我喜欢的音乐、云盘；竖排文字是种类的短名（fb11），卡片全名在 aria-label / title；与二级切换不同，它们是一组普通按钮。
         await expect(shortcutsGroup(page)).toHaveAttribute('role', 'group');
         await expect(shortcutsGroup(page)).toHaveAccessibleName('Jump to');
         expect(await shortcutKinds(page)).toEqual([
             ['liked', 'Public Playlist', 'Public Playlist'],
             ['cloud', 'Probe Cloud', 'Probe Cloud'],
         ]);
-        await expect(shortcut(page, 'liked')).toHaveText('');
-        await expect(shortcut(page, 'liked').locator('svg')).toHaveCount(1);
+        await expect(shortcut(page, 'liked')).toHaveText('Liked Songs');
+        await expect(shortcut(page, 'cloud')).toHaveText('Cloud Drive');
+        await expect(shortcut(page, 'liked').locator('svg')).toHaveCount(0);
+        // 竖排、并排成两列（同一行起头），无描边。
+        const look = await shortcut(page, 'liked').evaluate(node => {
+            const label = node.querySelector('.is-label')!;
+            const style = getComputedStyle(label);
+            return { writing: style.writingMode, border: getComputedStyle(node).borderTopWidth, size: style.fontSize };
+        });
+        expect(look).toEqual({ writing: 'vertical-rl', border: '0px', size: '11px' });
+        const likedBox = (await shortcut(page, 'liked').boundingBox())!;
+        const cloudBox = (await shortcut(page, 'cloud').boundingBox())!;
+        expect(Math.abs(likedBox.y - cloudBox.y)).toBeLessThan(1);
+        expect(cloudBox.x).toBeGreaterThanOrEqual(likedBox.x + likedBox.width - 0.5);
+        // 靠下：入口一块的底边贴着账户入口（一个段间距，18px），不在中段中间。
+        const jumpsBottom = await seam(page).locator('[data-bravais-home-jumps]').evaluate(node => node.getBoundingClientRect().bottom);
+        const accountTop = await seam(page).locator('[data-bravais-account-slot]').evaluate(node => node.getBoundingClientRect().top);
+        expect(accountTop - jumpsBottom).toBeGreaterThanOrEqual(17);
+        expect(accountTop - jumpsBottom).toBeLessThan(26);
         await expect(seam(page).locator('[data-bravais-home-seam]')).toHaveAttribute('data-bravais-home-shortcuts', 'column');
 
         // 电台页签：私人 FM、每日推荐。
@@ -199,8 +216,22 @@ test.describe('[bravais-only] special collections', () => {
             ['all-songs', 'All Songs'],
             ['local-favorites', 'Liked Songs'],
         ]);
-        // 二级切换与入口之间一道分隔线；入口排在二级切换下面。
-        await expect(seam(page).locator('[data-bravais-home-body] .bravais-seam-shortcuts-rule')).toHaveCount(1);
+        // 二级切换与入口之间一道分隔线；入口排在二级切换下面（fb11：贴在中段底部，二级切换仍在上面居中）。
+        await expect(shortcut(page, 'all-songs')).toHaveText('All Songs');
+        await expect(shortcut(page, 'local-favorites')).toHaveText('Favorites');
+        // 与激活的二级切换区分：字号小一级、字重轻、颜色不是强调色。
+        const activeLabel = await seam(page).locator('[data-bravais-home-body] .bravais-seam-section.is-active .is-label').evaluate(node => {
+            const style = getComputedStyle(node);
+            return { size: parseFloat(style.fontSize), weight: Number(style.fontWeight), color: getComputedStyle(node.parentElement!).color };
+        });
+        const jumpLabel = await shortcut(page, 'all-songs').evaluate(node => {
+            const style = getComputedStyle(node.querySelector('.is-label')!);
+            return { size: parseFloat(style.fontSize), weight: Number(style.fontWeight), color: getComputedStyle(node).color };
+        });
+        expect(jumpLabel.size).toBeLessThan(activeLabel.size);
+        expect(jumpLabel.weight).toBeLessThan(activeLabel.weight);
+        expect(jumpLabel.color).not.toBe(activeLabel.color);
+        await expect(seam(page).locator('[data-bravais-home-jumps] .bravais-seam-shortcuts-rule')).toHaveCount(1);
         const sectionsBox = (await seam(page).locator('[data-bravais-home-body] [role="tablist"]').boundingBox())!;
         const shortcutsBox = (await shortcutsGroup(page).boundingBox())!;
         expect(shortcutsBox.y).toBeGreaterThanOrEqual(sectionsBox.y + sectionsBox.height);

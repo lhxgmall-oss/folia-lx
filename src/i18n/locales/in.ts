@@ -62,12 +62,14 @@ export default {
     "searchClose": "Tutup pencarian",
     "backToPlayer": "Kembali ke pemutar",
     "stagePlayer": "Pemutar panggung",
+    "stageShort": "Panggung",
     "settings": "Pengaturan",
     "more": "Lainnya",
     "scanProgress": "Memindai {{percent}}%",
     "connect": "Hubungkan layanan streaming",
     "noMatch": "Tidak ada yang cocok di halaman ini",
-    "shortcuts": "Langsung ke"
+    "shortcuts": "Langsung ke",
+    "special": {"liked": "Lagu Disukai", "cloud": "Cloud Drive", "personal-fm": "FM Pribadi", "daily": "Harian", "all-songs": "Semua Lagu", "local-favorites": "Favorit", "navidrome-random": "Acak", "navidrome-favorites": "Berbintang"}
   },
   "libraryTui": {
     "back": "Kembali",

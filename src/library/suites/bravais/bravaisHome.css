@@ -304,6 +304,23 @@
 .bravais-seam-home.is-compact .bravais-seam-tools .bravais-seam-icon { width: 36px; height: 36px; }
 .bravais-seam-tools .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
 .bravais-seam-tools .bravais-seam-icon.is-pressed { color: var(--text-accent, currentColor); background: color-mix(in srgb, currentColor 16%, transparent); }
+/* fb11：舞台开着时舞台入口单独占最上面一整行（宽同两格，图标 + 短名）；书脊上一列，它是最上面的一个图标。 */
+.bravais-seam-tools .bravais-seam-icon.is-wide {
+    display: inline-flex;
+    width: auto;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 4px;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.bravais-seam-tools .bravais-seam-icon.is-wide svg { width: 16px; height: 16px; flex: none; }
+.bravais-seam-tools .bravais-seam-icon.is-wide .is-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bravais-seam-home.is-compact .bravais-seam-tools .bravais-seam-icon.is-wide { width: 36px; padding: 0; }
 
 /* fb8（用户实测：菜单像是透明的，后面的账户入口透出来、字叠在一起）：根因是层级——fb4 起账户位 position: relative +
    z-index: 3，工具格没有层级，菜单的 z-index 只在窄缝这一层里和账户位比，被账户入口盖住（菜单底色本身一直不透明，
@@ -556,42 +573,61 @@
 
 .lattice-poster-badge.is-special > .bravais-badge-icon { width: 12px; height: 12px; flex: none; stroke-width: 2.6; }
 
-/* 直达入口：二级切换（选中态是强调色 + 侧边细线的 tab）下面一道短分隔线，再下面一列只有图标的按钮。图标用强调色——
-   它们是「打开那张集合」，不是「换这面墙看什么」；全名在 aria-label / title。
-   fb9 追加（用户实测）：不要描边。静止时无框（透明边只占位，尺寸不变），悬停只出强调色浅底，键盘焦点用缝里按钮共用的
-   focus-visible 环（.bravais-seam button:focus-visible），书脊形态（is-compact）同一套。 */
+/* 直达入口（fb11，用户实测：只有图标和窄缝其它部分不统一、孤零零浮在中段）：
+   - 位置：中段的第二块（.bravais-seam-home-jumps），贴在中段底部；中段内层（二级切换、扫描进度、状态）用上下自动外边距
+     在剩下的空间里居中。入口一块的上内边距等于段间距（与中段的上内边距相同），所以中段内层到页签、到入口的留白相等；有二级切换时再加一道短分隔线。
+   - 样子：竖排文字（vertical-rl，与页签、激活的二级切换同一套），并排成几列（一页签最多两个，高度只占最长那一列）。
+     与激活的二级切换区分：小一号（11px，书脊 10px）、字重常规、副文色、没有侧边细线——是一组普通按钮，不是又一组页签。
+     悬停与二级切换同一种浅底 + 字变深，键盘焦点用缝里按钮共用的 focus-visible 环；静止时无框（fb9/fb10a 去掉了描边）。
+   - 长名字：一列最多 7em（「我喜欢的音乐」六个字放得下），再长截断成省略号（英文、印尼文侧着排时）。 */
+.bravais-seam-home .bravais-seam-home-body { margin-block: auto; }
+
+.bravais-seam-home-jumps { display: flex; width: 100%; flex: none; flex-direction: column; align-items: center; }
+
+/* 上内边距 = 段间距：中段内层到页签、到入口的留白相等（中段的上内边距也是它），书脊上是 12px。 */
+.bravais-seam-shortcuts-wrap { display: flex; flex-direction: column; align-items: center; padding-top: var(--bravais-home-gap, 18px); }
+
 .bravais-seam-shortcuts-rule {
     display: block;
     width: 18px;
     height: 1px;
-    margin: 8px 0;
+    margin: 0 0 10px;
     background: color-mix(in srgb, var(--text-primary, #f7f4ee) 22%, transparent);
 }
 
-.bravais-seam-shortcuts { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.bravais-seam-shortcuts { display: flex; flex-direction: row; align-items: flex-start; justify-content: center; gap: 2px; }
 
 .bravais-seam-home .bravais-seam-shortcut {
-    display: grid;
-    width: 32px;
-    height: 32px;
-    place-items: center;
-    padding: 0;
-    border: 1px solid transparent;
+    display: block;
+    padding: 8px 5px;
+    border: 0;
     border-radius: 10px;
-    color: var(--text-accent, var(--text-primary, #f7f4ee));
+    color: var(--bravais-seam-ink-soft);
     background: none;
     cursor: pointer;
-    transition: background-color 140ms ease;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+
+.bravais-seam-home .bravais-seam-shortcut .is-label {
+    display: block;
+    max-height: 7em;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.1em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    writing-mode: vertical-rl;
 }
 
 .bravais-seam-home span.bravais-seam-shortcut { cursor: default; }
-.bravais-seam-home .bravais-seam-shortcut svg { width: 15px; height: 15px; }
-.bravais-seam-home button.bravais-seam-shortcut:hover {
-    background: color-mix(in srgb, var(--text-accent, var(--text-primary, #f7f4ee)) 14%, transparent);
-}
+.bravais-seam-home button.bravais-seam-shortcut:hover { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 8%, transparent); }
 
-.bravais-seam-home.is-compact .bravais-seam-shortcut { width: 30px; height: 30px; }
-.bravais-seam-home.is-compact .bravais-seam-shortcuts-rule { margin: 6px 0; }
+.bravais-seam-home.is-compact .bravais-seam-shortcut { padding: 6px 3px; }
+.bravais-seam-home.is-compact .bravais-seam-shortcut .is-label { font-size: 10px; letter-spacing: 0.06em; }
+.bravais-seam-home.is-compact .bravais-seam-shortcuts { gap: 0; }
+.bravais-seam-home.is-compact .bravais-seam-shortcuts-rule { margin-bottom: 8px; }
 
 /* 放不下时挪进「⋯」菜单：图标同样用强调色。 */
 .bravais-seam-menu.is-home button.is-shortcut svg { color: var(--text-accent, currentColor); opacity: 1; }
