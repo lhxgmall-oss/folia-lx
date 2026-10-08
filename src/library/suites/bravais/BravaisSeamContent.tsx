@@ -13,6 +13,7 @@ import BravaisSeamHome from './BravaisSeamHome';
 import BravaisSeamSearch from './BravaisSeamSearch';
 import BravaisDirectoryPanel from './BravaisDirectoryPanel';
 import BravaisSeamArtist from './BravaisSeamArtist';
+import BravaisSeamAbout from './BravaisSeamAbout';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import BravaisSeamAccount from './BravaisSeamAccount';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
@@ -24,6 +25,8 @@ import { BravaisSeamFlipText } from './BravaisSeamFlip';
 // B9：首页窄缝 / 书脊换成 BravaisSeamHome（页签、二级切换、工具按钮、管理隐藏、账户位），另有全局搜索框（search）；
 // 首页层的面板是目录树（BravaisDirectoryPanel），集合层的面板仍是歌曲列表。
 // B10：账户的登录态 / 确认态（login / confirm）不属于任何一层，内容来自 bravaisAccountStore（BravaisSeamAccount）。
+// 集合页的描述在标题下方（元数据行之后），与歌手页的「关于艺术家」共用 BravaisSeamAbout（同一套正文样式、
+// 截断 + 展开，都不加小节标题），书脊上没有。歌手页的统计是那一节的附注，元数据行与它相同时不再重复。
 // 换层 / 换形态由外层整条翻（useBravaisSeam）；同一层里元数据（计数、匹配数）与状态文字变了，新的一行翻进来（BravaisSeamFlipText）。
 // 当前页过滤（设计稿 §7.6）：完整信息条的面包屑行下面是缝自己的过滤输入位（BravaisSeamFilterField）；书脊放不下输入框，
 // 过滤中只留一个过滤图标（点它或在墙上打字，缝临时展开成完整信息条）。
@@ -86,8 +89,14 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
             </div>
             <div className="bravais-seam-quote is-closing" aria-hidden>“</div>
             <div className="bravais-seam-rule" />
-            <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-seam-meta">{seam.meta}</BravaisSeamFlipText>
+            {/* 歌手页的统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}
+            {!(seam.artist?.stats && seam.artist.stats === seam.meta) && (
+                <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-seam-meta">{seam.meta}</BravaisSeamFlipText>
+            )}
             {seam.artist && <BravaisSeamArtist artist={seam.artist} />}
+            {collection?.description && (
+                <BravaisSeamAbout data-bravais-seam-about="collection" text={collection.description} textAttribute="data-bravais-collection-description" />
+            )}
             {collection && <BravaisSeamCollectionMeta collection={collection} />}
             {seam.status && <BravaisSeamFlipText as="div" flipKey={seam.status} className="bravais-seam-status" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
             {collection?.status && <BravaisSeamStatusLine status={collection.status} />}

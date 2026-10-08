@@ -3313,7 +3313,6 @@ export default {
   },
   "libraryBravaisArtist": {
     "playTopSongs": "Play top songs",
-    "wallCounts": "{{songs}} top songs · {{albums}} albums",
     "songCount_one": "{{count}} song",
     "songCount_other": "{{count}} songs",
     "albumCount_one": "{{count}} album",

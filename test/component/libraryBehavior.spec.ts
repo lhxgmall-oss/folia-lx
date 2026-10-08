@@ -18,9 +18,11 @@ import {
     onlineSongId,
     PROBE_ALBUM,
     PROBE_FIRST_PAGE,
+    PROBE_LONG_DESCRIPTION,
     PROBE_PROVIDER_A,
     PROBE_PROVIDER_B,
     PROBE_SECOND_ALBUM,
+    PROBE_SHORT_DESCRIPTION,
     PROBE_WORDS,
 } from '../../dev/probes/libraryBehavior/fixtureRules';
 import '../../dev/probes/libraryBehavior/probeApi';
@@ -1797,6 +1799,105 @@ test.describe('[bravais-only] collection page', () => {
         await expect.poll(() => requests(page, 'historySongs')).not.toEqual([]);
         await expect(date).toHaveText('2026-09-30');
         expect(await stack(page)).toEqual(['Daily Picks']);
+    });
+
+    // 集合的描述（歌单简介）在完整信息条的标题下方，与歌手页的简介同一种截断 + 展开；没有描述不占位，书脊上没有。
+    const description = (page: Page) => page.locator('[data-library-stage="bravais"] [data-bravais-collection-description]');
+    const boxOf = async (page: Page, selector: string) => {
+        const box = await page.locator(`[data-library-stage="bravais"] ${selector}`).first().boundingBox();
+        expect(box, selector).not.toBeNull();
+        return box!;
+    };
+    /** 缝里的按钮（播放全部、加入队列、列表、更多）都在视口里，也都在缝的纸条里。 */
+    const expectSeamButtonsInView = async (page: Page) => {
+        const viewport = page.viewportSize()!;
+        const seam = await boxOf(page, '.bravais-seam-full');
+        for (const action of ['play-scope', 'enqueue-scope', 'list', 'more']) {
+            const box = await boxOf(page, `.bravais-seam-full [data-bravais-seam-action="${action}"]`);
+            expect(box.y, action).toBeGreaterThanOrEqual(0);
+            expect(box.y + box.height, action).toBeLessThanOrEqual(Math.min(viewport.height, seam.y + seam.height) + 0.5);
+        }
+    };
+
+    test('the seam shows the collection description under the title as plain text; the spine leaves it out', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'online-dupes');
+        await expect(description(page)).toHaveText(PROBE_SHORT_DESCRIPTION);
+        await expect(description(page)).toHaveAttribute('data-bravais-collection-description', 'collapsed');
+        const title = await boxOf(page, '.bravais-seam-full [data-bravais-seam-title]');
+        const text = await boxOf(page, '[data-bravais-collection-description]');
+        expect(text.y).toBeGreaterThan(title.y + title.height);
+        // 竖排标题上下的引号成对角：上面那个靠右，下面那个靠左。
+        const seam = await boxOf(page, '.bravais-seam-full');
+        const quotes = await page.locator('[data-library-stage="bravais"] .bravais-seam-full .bravais-seam-quote').evaluateAll(elements => elements.map(element => {
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            const box = range.getBoundingClientRect();
+            return { left: box.left, right: box.right };
+        }));
+        expect(quotes).toHaveLength(2);
+        expect(quotes[0].left).toBeGreaterThan(seam.x + seam.width / 2);
+        expect(quotes[1].right).toBeLessThan(seam.x + seam.width / 2);
+        // 一行字：收起时就是全文，不截断。
+        expect(await description(page).evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true);
+        await expectSeamButtonsInView(page);
+
+        await page.locator('[data-bravais-seam-action="spine"]').click();
+        await expect(page.locator('[data-library-stage="bravais"] .bravais-seam-spine')).toBeVisible();
+        await expect(description(page)).toHaveCount(0);
+    });
+
+    test('the grid shows the same description under its title (unchanged)', async ({ mount, page }) => {
+        await mountProbe(mount, page, 'grid');
+        await open(page, 'online-dupes');
+        await expect(page.locator('h2', { hasText: fixture['online-dupes'].name }).locator('xpath=following-sibling::p'))
+            .toHaveText(PROBE_SHORT_DESCRIPTION);
+    });
+
+    test('a collection without a description leaves no room for it', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        await expect(page.locator('[data-library-stage="bravais"] .bravais-seam-full [data-bravais-seam-title]')).toHaveText(PUBLIC.name);
+        await expect(description(page)).toHaveCount(0);
+        await expect(page.locator('[data-library-stage="bravais"] .bravais-seam-blurb')).toHaveCount(0);
+    });
+
+    test('a long description is clamped, opens in place with its line breaks, scrolls inside, and closes again', async ({ mount, page }) => {
+        // 矮一点的视口：展开的描述与竖排标题一起让位，按钮仍在缝里、在视口里。
+        await page.setViewportSize({ width: 1440, height: 640 });
+        await mountProbe(mount, page, 'bravais');
+        await open(page, 'online-owned-twice');
+        const text = description(page);
+        await expect(text).toHaveAttribute('data-bravais-collection-description', 'collapsed');
+        // 首尾空白去掉，段落之间的换行原样保留（纯文本，pre-wrap）。
+        expect(await text.evaluate(element => element.textContent)).toBe(PROBE_LONG_DESCRIPTION.trim());
+        await expect(text).toHaveCSS('white-space', 'pre-wrap');
+        const collapsed = await text.evaluate(element => ({
+            client: element.clientHeight,
+            scroll: element.scrollHeight,
+            lineHeight: parseFloat(getComputedStyle(element).lineHeight),
+        }));
+        expect(collapsed.scroll).toBeGreaterThan(collapsed.client);
+        // 收起时 4 行。
+        expect(collapsed.client).toBeLessThanOrEqual(Math.ceil(collapsed.lineHeight * 4) + 1);
+        await expectSeamButtonsInView(page);
+
+        await text.click();
+        await expect(text).toHaveAttribute('data-bravais-collection-description', 'expanded');
+        await expect(text).toHaveAttribute('aria-expanded', 'true');
+        const expanded = await text.evaluate(element => ({
+            client: element.clientHeight,
+            scroll: element.scrollHeight,
+            overflow: getComputedStyle(element).overflowY,
+        }));
+        expect(expanded.client).toBeGreaterThan(collapsed.client);
+        // 比封顶还长：在这一块里滚动，不把按钮挤出去。
+        expect(expanded.overflow).toBe('auto');
+        expect(expanded.scroll).toBeGreaterThan(expanded.client);
+        await expectSeamButtonsInView(page);
+
+        await text.click();
+        await expect(text).toHaveAttribute('data-bravais-collection-description', 'collapsed');
+        expect(await text.evaluate(element => element.clientHeight)).toBe(collapsed.client);
     });
 });
 
