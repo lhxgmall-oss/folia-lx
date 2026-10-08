@@ -7,6 +7,7 @@ import { useBravaisLayerRegistration } from '../../../src/library/suites/bravais
 import { useLatticeSettingsStore } from '../../../src/stores/useLatticeSettingsStore';
 import { useLibraryWallLookStore } from '../../../src/stores/useLibraryWallLookStore';
 import type { LibraryWallLook } from '../../../src/utils/libraryWallLook';
+import { LIBRARY_WALL_SEAM_STYLES, type LibraryWallSeamStyle } from '../../../src/utils/libraryWallSeamStyle';
 import { DAYLIGHT_THEME, DEFAULT_THEME } from '../../../src/services/baseThemes';
 import { buildKindsItems, KINDS_DEFAULT_CURRENT, loadKindsCovers, type KindsCovers } from './kindsData';
 
@@ -18,6 +19,10 @@ import { buildKindsItems, KINDS_DEFAULT_CURRENT, loadKindsCovers, type KindsCove
 //   look=solid|partial|clear       透光三档（写 useLibraryWallLookStore 的内存值，不写存储）
 //   lights=on|off  tint=on|off     熄灯、海报叠色（写 useLatticeSettingsStore 的内存值）
 //   edges=on|off                   集合叠页边（设置「集合叠页边」，写 useLibraryWallLookStore 的内存值；默认开）
+//   seam=paper|white|black|frost|dots|hatch|contour|check  信息条实色模式的预设（内存值；默认 paper）
+//   clearSeam=on|off               信息条始终透明（内存值；默认关）
+//   lyrics=on|off  blur=on|off     墙后画面的歌词 / 模糊（内存值；默认关）。stage 报的遮挡与 backdrop 记在
+//                                  window.__bravaisKindsProbe.reports() 里（探针下面没有 visualizer）
 //   current=<条目 key>|none        正在播放的那一项（默认第 2 首歌；给歌手 / 专辑的 key 可以强行让它挂 is-current）
 //   mix=mixed|artists              混排，或整面墙只有歌手（双色调开销的最坏情况）
 // 自动化入口 window.__bravaisKindsProbe：ready() 封面画好、层已登记。
@@ -30,6 +35,10 @@ export type BravaisKindsProbeProps = {
     lights?: 'on' | 'off';
     tint?: 'on' | 'off';
     edges?: 'on' | 'off';
+    seam?: LibraryWallSeamStyle;
+    clearSeam?: 'on' | 'off';
+    lyrics?: 'on' | 'off';
+    blur?: 'on' | 'off';
     current?: string;
     mix?: 'mixed' | 'artists';
     /** 再加一位歌手、头像是这个地址（只从 props 给）。 */
@@ -53,11 +62,18 @@ const KIND_LABEL_KEYS: Record<BravaisItemKind, string> = {
 
 const NO_KEYS: ReadonlySet<string> = new Set();
 const NOOP = () => { };
+const reports: { occludes: boolean | null; backdrop: { lyrics: boolean; blur: boolean } | null } = { occludes: null, backdrop: null };
+const recordOcclusion = (occludes: boolean) => { reports.occludes = occludes; };
+const recordBackdrop = (backdrop: { lyrics: boolean; blur: boolean }) => { reports.backdrop = { ...backdrop }; };
 const NAVIGATION: LibrarySuiteStageProps['navigation'] = { depth: 0, origin: null, activeType: null };
 
 declare global {
     interface Window {
-        __bravaisKindsProbe?: { ready: () => boolean };
+        __bravaisKindsProbe?: {
+            ready: () => boolean;
+            /** stage 最近一次报的遮挡与透出画面（没报过时为 null）。 */
+            reports: () => { occludes: boolean | null; backdrop: { lyrics: boolean; blur: boolean } | null };
+        };
     }
 }
 
@@ -73,6 +89,10 @@ const readParams = (props: BravaisKindsProbeProps): Required<BravaisKindsProbePr
         lights: pick('lights', ['on', 'off'] as const, 'on'),
         tint: pick('tint', ['on', 'off'] as const, 'off'),
         edges: pick('edges', ['on', 'off'] as const, 'on'),
+        seam: pick('seam', LIBRARY_WALL_SEAM_STYLES, 'paper'),
+        clearSeam: pick('clearSeam', ['on', 'off'] as const, 'off'),
+        lyrics: pick('lyrics', ['on', 'off'] as const, 'off'),
+        blur: pick('blur', ['on', 'off'] as const, 'off'),
         current: props.current ?? params.get('current') ?? KINDS_DEFAULT_CURRENT,
         mix: pick('mix', ['mixed', 'artists'] as const, 'mixed'),
         extraArtistCover: props.extraArtistCover ?? '',
@@ -112,7 +132,8 @@ const KindsStage: React.FC<KindsStageProps> = ({ covers, current, daylight, mix,
             theme={daylight ? DAYLIGHT_THEME : DEFAULT_THEME}
             isDaylight={daylight}
             navigation={NAVIGATION}
-            reportPlayerOcclusion={NOOP}
+            reportPlayerOcclusion={recordOcclusion}
+            reportPlayerBackdrop={recordBackdrop}
         />
     );
 };
@@ -130,8 +151,15 @@ const BravaisKindsProbe: React.FC<BravaisKindsProbeProps> = (props) => {
 
     // 外观偏好只写 store 的内存值（不经 setter，不写 localStorage）。
     useEffect(() => {
-        useLibraryWallLookStore.setState({ look: options.look, collectionStackEdges: options.edges === 'on' });
-    }, [options.edges, options.look]);
+        useLibraryWallLookStore.setState({
+            look: options.look,
+            collectionStackEdges: options.edges === 'on',
+            seamStyle: options.seam,
+            seamClear: options.clearSeam === 'on',
+            backdropLyrics: options.lyrics === 'on',
+            backdropBlur: options.blur === 'on',
+        });
+    }, [options.blur, options.clearSeam, options.edges, options.look, options.lyrics, options.seam]);
     useEffect(() => {
         useLatticeSettingsStore.setState({ latticeLightsOn: options.lights === 'on', latticePosterTintEnabled: options.tint === 'on' });
     }, [options.lights, options.tint]);
@@ -145,7 +173,10 @@ const BravaisKindsProbe: React.FC<BravaisKindsProbeProps> = (props) => {
     }, [theme]);
 
     useEffect(() => {
-        window.__bravaisKindsProbe = { ready: () => Boolean(covers) && Boolean(document.querySelector('.bravais-tile[data-library-card]')) };
+        window.__bravaisKindsProbe = {
+            ready: () => Boolean(covers) && Boolean(document.querySelector('.bravais-tile[data-library-card]')),
+            reports: () => ({ occludes: reports.occludes, backdrop: reports.backdrop }),
+        };
         return () => { delete window.__bravaisKindsProbe; };
     }, [covers]);
 

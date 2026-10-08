@@ -87,8 +87,25 @@ export const resolveStartSlotKey = (startSlotKey: string | null, reservedPerBloc
     return best;
 };
 
-/** stage 报给宿主的遮挡：只有实色档完全盖住播放页（有任何窗或半透明的缝都不算）。 */
-export const occludesPlayerFor = (look: LibraryWallLook) => look === 'solid';
+/**
+ * stage 报给宿主的遮挡：只有实色档、且缝不是「始终透明」时完全盖住播放页（有任何窗或透明的缝都不算）。
+ * seamClear 缺省为 false（与 2026-10-09 之前一致）。
+ */
+export const occludesPlayerFor = (look: LibraryWallLook, seamClear = false) => look === 'solid' && !seamClear;
+
+/** 墙或缝有没有透出播放页的地方（透光档，或透明的缝）：决定根节点要不要画墙面、要不要挂底板与交接的 veil。 */
+export const opensBackdropFor = (look: LibraryWallLook, seamClear: boolean) => look !== 'solid' || seamClear;
+
+/** 报给宿主的透出画面（歌词 / 模糊）：只有墙或缝透着时才可能为 true——完全实色时没有任何地方看得到它。 */
+export const backdropReportFor = (
+    look: LibraryWallLook,
+    seamClear: boolean,
+    lyrics: boolean,
+    blur: boolean,
+): { lyrics: boolean; blur: boolean } => {
+    const open = opensBackdropFor(look, seamClear);
+    return { lyrics: open && lyrics, blur: open && blur };
+};
 
 /** 外观动作「透光」：实色 → 部分透明 → 全透明 → 实色。 */
 export const nextWallLook = (look: LibraryWallLook): LibraryWallLook => {

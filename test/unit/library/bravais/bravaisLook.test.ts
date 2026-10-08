@@ -15,6 +15,8 @@ import {
     isSeeThroughFace,
     nextWallLook,
     occludesPlayerFor,
+    opensBackdropFor,
+    backdropReportFor,
     resolveEmptySlotKind,
     resolveReservedPerBlock,
     resolveStartSlotKey,
@@ -99,6 +101,18 @@ describe('look rules', () => {
         expect(occludesPlayerFor('solid')).toBe(true);
         expect(occludesPlayerFor('partial')).toBe(false);
         expect(occludesPlayerFor('clear')).toBe(false);
+    });
+
+    // 2026-10-09：透明的缝也是透光处——实色墙 + 透明缝不算完全遮挡，visualizer 不能卸载；墙后画面的开关只在透着时报。
+    it('counts a clear seam as a way through to the player', () => {
+        expect(occludesPlayerFor('solid', true)).toBe(false);
+        expect(occludesPlayerFor('solid', false)).toBe(true);
+        expect(opensBackdropFor('solid', false)).toBe(false);
+        expect(opensBackdropFor('solid', true)).toBe(true);
+        expect(opensBackdropFor('partial', false)).toBe(true);
+        expect(backdropReportFor('solid', false, true, true)).toEqual({ lyrics: false, blur: false });
+        expect(backdropReportFor('solid', true, true, false)).toEqual({ lyrics: true, blur: false });
+        expect(backdropReportFor('clear', false, false, true)).toEqual({ lyrics: false, blur: true });
     });
 });
 

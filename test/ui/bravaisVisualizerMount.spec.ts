@@ -10,6 +10,8 @@ import { installBaseState, mockNeteaseApi, openApp } from './helpers/appFixtures
 // - 打开设置弹窗时 visualizer 在（首页被盖住，播放页露出来）；
 // - grid 首页照旧挂着 visualizer（TUI 与切换的完整回归在 libraryRendererSwitch）；
 // - 左上角隐藏式返回在首页根层只在有歌时出现，点它回播放页后 visualizer 挂上（没有歌时播放页是空的，深色主题下就是「黑屏」）。
+// - 2026-10-09：「信息条始终透明」时缝也是透光处——实色墙 + 透明缝不卸载 visualizer，关掉透明后照旧卸载；
+// - 墙后画面的模糊：有透光处时 visualizer 那一层加 CSS 模糊，回播放页撤掉；歌词开关经同一个通道报给 App。
 // 遮挡由 bravais 的 stage 在 effect 里报告，App 在首页完全显示 300ms 后才卸载，所以断言一律轮询。
 
 test.use({ screenshot: 'only-on-failure' });
@@ -39,6 +41,18 @@ const setWallLook = (page: Page, look: 'solid' | 'partial' | 'clear') => page.ev
     const { useLibraryWallLookStore } = await import(path);
     useLibraryWallLookStore.getState().setLook(next);
 }, look);
+
+const patchWallLook = (page: Page, patch: Record<string, unknown>) => page.evaluate(async (next) => {
+    const path = '/src/stores/useLibraryWallLookStore.ts';
+    const { useLibraryWallLookStore } = await import(/* @vite-ignore */ path);
+    useLibraryWallLookStore.setState(next);
+}, patch);
+
+const reportedBackdrop = (page: Page) => page.evaluate(async () => {
+    const path = '/src/stores/useLibraryPlayerOcclusionStore.ts';
+    const { selectLibraryPlayerBackdrop, useLibraryPlayerOcclusionStore } = await import(/* @vite-ignore */ path);
+    return { ...selectLibraryPlayerBackdrop(useLibraryPlayerOcclusionStore.getState()) };
+});
 
 const setView = (page: Page, view: 'home' | 'player') => page.evaluate(async (next) => {
     const path = '/src/stores/useAppViewStore.ts';
@@ -117,4 +131,56 @@ test('the bravais back button at the home root only shows with a song and brings
     await back.click();
     await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#player');
     await expect.poll(() => visualizerMounted(page)).toBe(true);
+});
+
+test('a see-through info strip keeps the visualizer mounted under the solid wall', async ({ page }) => {
+    await bootHome(page, 'bravais', 'solid');
+    const stage = page.locator('[data-library-stage="bravais"]');
+    await expect(stage).toHaveAttribute('data-bravais-look', 'solid');
+    await expect.poll(() => visualizerMounted(page)).toBe(false);
+
+    // 透明的缝：实色墙不再完全遮挡，visualizer 立即挂回、并且停稳后也不卸载。
+    await patchWallLook(page, { seamClear: true });
+    await expect(stage).toHaveClass(/\bhas-clear-seam\b/);
+    await expect.poll(() => visualizerMounted(page)).toBe(true);
+    await page.waitForTimeout(900);
+    expect(await visualizerMounted(page)).toBe(true);
+    // 缝的纸是半透明的纱，根节点不画墙面。
+    const alpha = await stage.locator('.bravais-seam').evaluate((node) => {
+        const numbers = (getComputedStyle(node).backgroundColor.match(/[\d.]+/g) ?? []).map(Number);
+        return numbers[3] ?? 1;
+    });
+    expect(alpha).toBeLessThan(1);
+    expect(await stage.evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+
+    // 关掉透明：回到完全遮挡，visualizer 停稳后卸载。
+    await patchWallLook(page, { seamClear: false });
+    await expect.poll(() => visualizerMounted(page)).toBe(false);
+});
+
+test('the backdrop blur and lyrics reach the visualizer only while the wall lets it through', async ({ page }) => {
+    await bootHome(page, 'bravais', 'partial');
+    const stage = page.locator('[data-library-stage="bravais"]');
+    await expect(stage).toHaveAttribute('data-bravais-look', 'partial');
+    await expect.poll(() => visualizerMounted(page)).toBe(true);
+    await expect(surface(page)).not.toHaveAttribute('data-library-backdrop-blur', /.*/);
+    expect(await reportedBackdrop(page)).toEqual({ lyrics: false, blur: false });
+
+    await patchWallLook(page, { backdropBlur: true, backdropLyrics: true });
+    await expect(surface(page)).toHaveAttribute('data-library-backdrop-blur', 'true');
+    await expect.poll(() => surface(page).evaluate(node => getComputedStyle(node).filter)).toBe('blur(24px)');
+    await expect.poll(() => reportedBackdrop(page)).toEqual({ lyrics: true, blur: true });
+
+    // 播放页不受影响：模糊撤掉。
+    await setView(page, 'player');
+    await expect(surface(page)).not.toHaveAttribute('data-library-backdrop-blur', /.*/);
+    await expect.poll(() => surface(page).evaluate(node => getComputedStyle(node).filter)).toBe('none');
+    await setView(page, 'home');
+    await expect(surface(page)).toHaveAttribute('data-library-backdrop-blur', 'true');
+
+    // 墙回到实色（缝也不透明）：没有透光处，开关不再报 true，visualizer 卸载。
+    await setWallLook(page, 'solid');
+    await expect.poll(() => reportedBackdrop(page)).toEqual({ lyrics: false, blur: false });
+    await expect(surface(page)).not.toHaveAttribute('data-library-backdrop-blur', /.*/);
+    await expect.poll(() => visualizerMounted(page)).toBe(false);
 });

@@ -20,6 +20,10 @@ import type { useLibraryWallLookStore as StoreHook } from '@/stores/useLibraryWa
 const LOOK_KEY = 'library_wall_look';
 const WINDOWS_KEY = 'library_wall_windows_per_block';
 const STACK_EDGES_KEY = 'library_wall_stack_edges';
+const SEAM_CLEAR_KEY = 'library_wall_seam_clear';
+const SEAM_STYLE_KEY = 'library_wall_seam_style';
+const BACKDROP_LYRICS_KEY = 'library_wall_backdrop_lyrics';
+const BACKDROP_BLUR_KEY = 'library_wall_backdrop_blur';
 
 type StorageOptions = { throwOnGet?: boolean; throwOnSet?: boolean; noWindow?: boolean };
 
@@ -205,5 +209,31 @@ describe('useLibraryWallLookStore', () => {
         // 只认 'false' 为关；读不到或别的值按默认（开）。
         expect((await loadStore({ [STACK_EDGES_KEY]: 'nope' })).getState().collectionStackEdges).toBe(true);
         expect((await loadStore({ [STACK_EDGES_KEY]: 'false' }, { throwOnGet: true })).getState().collectionStackEdges).toBe(true);
+    });
+
+    // 2026-10-09：信息条的材质与墙后的画面。三个开关默认关、只认 'true'；预设默认主题纸色，非法值回默认。
+    it('keeps the info strip solid on theme paper and the backdrop plain by default, and persists the changes', async () => {
+        const store = await loadStore();
+        expect(store.getState()).toMatchObject({ seamClear: false, seamStyle: 'paper', backdropLyrics: false, backdropBlur: false });
+        expect(storage.size).toBe(0);
+
+        store.getState().setSeamClear(true);
+        store.getState().setSeamStyle('black');
+        store.getState().setBackdropLyrics(true);
+        store.getState().setBackdropBlur(true);
+        expect(Object.fromEntries(storage)).toEqual({
+            [SEAM_CLEAR_KEY]: 'true',
+            [SEAM_STYLE_KEY]: 'black',
+            [BACKDROP_LYRICS_KEY]: 'true',
+            [BACKDROP_BLUR_KEY]: 'true',
+        });
+        const restarted = await loadStore(Object.fromEntries(storage));
+        expect(restarted.getState()).toMatchObject({ seamClear: true, seamStyle: 'black', backdropLyrics: true, backdropBlur: true });
+
+        // 非法预设回默认后再写；开关只认 'true'。
+        restarted.getState().setSeamStyle('neon' as never);
+        expect(storage.get(SEAM_STYLE_KEY)).toBe('paper');
+        expect((await loadStore({ [SEAM_STYLE_KEY]: 'Dots', [SEAM_CLEAR_KEY]: 'yes' })).getState()).toMatchObject({ seamStyle: 'paper', seamClear: false });
+        expect((await loadStore({ [BACKDROP_BLUR_KEY]: 'true' }, { throwOnGet: true })).getState().backdropBlur).toBe(false);
     });
 });
