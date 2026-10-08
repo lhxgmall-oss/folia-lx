@@ -89,16 +89,6 @@ const fallbackBackground = (id: string) => {
     return `linear-gradient(145deg, hsl(${hue} 68% 58%), hsl(${(hue + 52) % 360} 62% 18%))`;
 };
 
-/** 书脊里那条封面：与海报的 background-size: cover 同一种裁法（按方形封面算），只露出左缘那一条。 */
-const spineCoverStyle = (cover: string, rect: BravaisTileRect): React.CSSProperties => {
-    const size = Math.max(rect.width, rect.height, 1);
-    return {
-        backgroundImage: cover,
-        backgroundSize: `${size}px ${size}px`,
-        backgroundPosition: `${(rect.width - size) / 2}px ${(rect.height - size) / 2}px`,
-    };
-};
-
 const sameRect = (a: BravaisTileRect, b: BravaisTileRect) => (
     a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
 );
@@ -345,7 +335,6 @@ function BravaisTile({
                         {/* 书脊在叠色层之上（与特殊标签、正在播放的描边一样不被染）、熄灯层之下；曲目数已经进了可访问名。 */}
                         {hasSpine && (
                             <span className="bravais-tile-spine" aria-hidden>
-                                {!face.seeThrough && cover && <i style={spineCoverStyle(cover, rect)} />}
                                 {display.trackCountLabel && <span>{display.trackCountLabel}</span>}
                             </span>
                         )}

@@ -9,8 +9,8 @@
 
 /* ---------- 书脊（专辑 / 歌单 / 文件夹 / 每日推荐） ---------- */
 
-/* 「封面压暗」：书脊里是封面自己左缘那一条（BravaisTile 按海报的 cover 裁法给尺寸与位置），压暗后像封套折进去的侧边；
-   右侧外面一道暗线、里面一道亮线把它和封面分开。 */
+/* 书脊是一条半透明纯色底（与类型标签同一种遮罩色，跟日光翻转），不取封面图（用户定）；
+   右侧一道细线把它和封面分开，字用海报的字色。三档透光都是同一个样子。 */
 .bravais-tile-spine {
     position: absolute;
     top: 0;
@@ -22,16 +22,8 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    background-color: var(--lattice-poster-background);
-    box-shadow: 1px 0 0 rgb(0 0 0 / 35%);
+    background: rgb(var(--lattice-shade-rgb) / 62%);
     pointer-events: none;
-}
-
-.bravais-tile-spine > i {
-    position: absolute;
-    inset: 0;
-    background-repeat: no-repeat;
-    filter: brightness(0.42) saturate(1.25);
 }
 
 .bravais-tile-spine::after {
@@ -41,13 +33,13 @@
     right: 0;
     bottom: 0;
     width: 1px;
-    background: rgb(255 255 255 / 22%);
+    background: color-mix(in srgb, var(--lattice-poster-ink) 22%, transparent);
 }
 
 /* 曲目数竖排；曲目数未知时书脊上不写字（没有这个 span）。 */
 .bravais-tile-spine > span {
     position: relative;
-    color: #f7f4ee;
+    color: var(--lattice-poster-ink);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
     font-weight: 800;
@@ -59,15 +51,6 @@
 /* 类型标签（含特殊集合的强调色标签）与标题 / 副标题右移，让开书脊。 */
 .bravais-tile-face.has-spine > .lattice-poster-badge { left: calc(var(--bravais-spine-w) + 12px); }
 .bravais-tile-face.has-spine > .lattice-poster-copy { left: calc(var(--bravais-spine-w) + 15px); }
-
-/* 全透明档不画封面：书脊退化成遮罩色（与类型标签同一种 shade，跟日光翻转），字用海报的字色，只留一道细线。 */
-.bravais-tile-face.is-see-through > .bravais-tile-spine {
-    background: rgb(var(--lattice-shade-rgb) / 62%);
-    box-shadow: none;
-}
-
-.bravais-tile-face.is-see-through > .bravais-tile-spine::after { background: color-mix(in srgb, var(--lattice-poster-ink) 22%, transparent); }
-.bravais-tile-face.is-see-through > .bravais-tile-spine > span { color: var(--lattice-poster-ink); }
 
 /* 全透明档熄灯：与标题、徽标、封面底条同一条规则，书脊压到 0.28（bravaisAppearance.css）。 */
 .bravais-tile-face.is-see-through > .bravais-tile-spine { transition: opacity 260ms ease; }

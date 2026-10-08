@@ -66,9 +66,10 @@ test.describe('[bravais-only] tile kinds', () => {
         await expect(spine).toHaveText('12 tracks');
         await expect(spine).toHaveAttribute('aria-hidden', 'true');
         expect(await style(spine, 'width')).toBe('18px');
-        // 书脊里是封面左缘那一条（压暗），文字竖排。
-        await expect(spine.locator('i')).toHaveCount(1);
-        expect(await style(spine.locator('i'), 'filter')).toBe('brightness(0.42) saturate(1.25)');
+        // 书脊是半透明纯色底（遮罩色），不取封面图；文字竖排。
+        await expect(spine.locator('i')).toHaveCount(0);
+        expect(await style(spine, 'background-color')).toBe('rgba(0, 0, 0, 0.62)');
+        expect(await style(spine, 'background-image')).toBe('none');
         expect(await style(spine.locator('span'), 'writing-mode')).toBe('vertical-rl');
         // 类型标签与标题右移让开书脊；副标题不再重复曲目数，可访问名里还有。
         expect(await leftWithinFace(album.locator('.lattice-poster-badge'))).toBe(30);
@@ -211,7 +212,7 @@ test.describe('[bravais-only] tile kinds', () => {
         const album = card(page, 'card:album:a0');
         const spine = album.locator('.bravais-tile-spine');
         await expect(spine).toHaveText('12 tracks');
-        // 不画封面：书脊里没有封面那一条，底色是遮罩色。
+        // 全透明档与实色档同一个书脊：遮罩色底，没有封面图。
         await expect(spine.locator('i')).toHaveCount(0);
         expect(await style(spine, 'background-color')).toBe('rgba(0, 0, 0, 0.62)');
         // 熄灯：与标题、徽标同一条规则压到 0.28。
