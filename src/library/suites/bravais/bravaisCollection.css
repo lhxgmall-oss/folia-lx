@@ -177,6 +177,15 @@
     background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
+/* fb8（用户实测）：缝里的「⋯」菜单（集合层「⋯ 更多」、首页工具格）用不透明底 + 阴影，与账户的平台列表同一身——
+   透光档下缝本身是半透明的，原来 8% 的浅底会让后面的内容透出来。聚焦卡里的菜单不变。 */
+.bravais-seam-menu {
+    border-radius: 12px;
+    color: var(--text-primary, #f7f4ee);
+    background: color-mix(in srgb, var(--bg-color, #070707) 92%, var(--text-primary, #f7f4ee));
+    box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), 0 12px 32px rgb(0 0 0 / 34%);
+}
+
 .bravais-seam .bravais-seam-menu button,
 .bravais-focus-menu button {
     padding: 8px 10px;

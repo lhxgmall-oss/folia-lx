@@ -1,19 +1,19 @@
-import React, { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import React, { useEffect, useRef, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Disc3,
     EyeOff,
     FolderTree,
     ListFilter,
-    ListMusic,
     MonitorPlay,
     MoreHorizontal,
+    PanelsTopLeft,
     RefreshCw,
     Search,
     Settings,
 } from 'lucide-react';
 import type { BravaisHomeSeam, BravaisHomeTool, BravaisHomeToolId } from './bravaisHomeModels';
-import { setBravaisHomeOpenRequest, useBravaisHomeUiStore } from './bravaisHomeUiStore';
+import { closeBravaisHomePopover, setBravaisHomeOpenRequest, setBravaisHomePopover, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { bravaisPopMotion } from './bravaisSeamMotion';
 
@@ -27,6 +27,10 @@ import { bravaisPopMotion } from './bravaisSeamMotion';
 // （经 bravaisHomeUiStore 的 openRequest）。
 // 各按钮的 data-bravais-seam-action 仍是工具 id / 菜单项 id（用例与探针按它找）。
 // 菜单开合是弹出动画（从工具格那一侧放大、上移、淡入，收起反过来；降低动效时只淡入淡出，bravaisSeamMotion）。
+// 用户实测（菜单透明、与账户入口叠字）：根因不是弹出动画——framer 的 motion.div 保留了 is-home 的不透明底——而是 fb4 给
+// 账户位加了 position: relative + z-index: 3，工具格（dock）没有层级，菜单的 z-index: 2 只在窄缝这一层里比，于是被账户
+// 入口盖在上面。修法：dock 的层级抬到账户位之上（bravaisHome.css）；菜单两侧比工具格各宽一些、项不折行。
+// 菜单与账户的平台列表互斥：开着哪个记在 bravaisHomeUiStore 的 popover，开一个就收另一个。
 
 const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
     search: Search,
@@ -34,7 +38,8 @@ const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?
     directory: FolderTree,
     'manage-hidden': EyeOff,
     'refresh-navidrome': RefreshCw,
-    queue: ListMusic,
+    // 进 Lattice（播放队列）：与 grid 首页 Grid3D 的 Lattice 入口同一个图标（home-lattice-pill）。
+    queue: PanelsTopLeft,
     player: Disc3,
     stage: MonitorPlay,
     settings: Settings,
@@ -53,7 +58,7 @@ export const splitHomeTools = (tools: readonly BravaisHomeTool[]) => ({
 });
 
 const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; onExpand: () => void }> = ({ home, compact, onExpand }) => {
-    const [menuOpen, setMenuOpen] = useState(false);
+    const menuOpen = useBravaisHomeUiStore(state => state.popover === 'menu');
     const dockRef = useRef<HTMLDivElement>(null);
     const moreRef = useRef<HTMLButtonElement>(null);
     const request = useBravaisHomeUiStore(state => state.openRequest);
@@ -67,15 +72,23 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; 
     useEffect(() => {
         if (compact || request !== 'menu') return;
         setBravaisHomeOpenRequest(null);
-        setMenuOpen(true);
+        setBravaisHomePopover('menu');
     }, [compact, request]);
+
+    // 卸载时收起自己开着的菜单，下次挂载不带着旧的开合。只收「这个实例开着的」：书脊翻成窄缝时新实例先挂上、经
+    // openRequest 打开菜单，旧的书脊实例后卸载，它没开过菜单，不能把新开的收掉。
+    const shownRef = useRef(false);
+    shownRef.current = open;
+    useEffect(() => () => {
+        if (shownRef.current) closeBravaisHomePopover('menu');
+    }, []);
 
     // 菜单开着时点别处收起（缝里、墙上都算）。
     useEffect(() => {
         if (!open) return undefined;
         const onPointerDown = (event: PointerEvent) => {
             if (event.target instanceof Node && dockRef.current?.contains(event.target)) return;
-            setMenuOpen(false);
+            closeBravaisHomePopover('menu');
         };
         document.addEventListener('pointerdown', onPointerDown, true);
         return () => document.removeEventListener('pointerdown', onPointerDown, true);
@@ -85,13 +98,13 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; 
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
         if (event.key !== 'Escape' || !open) return;
         event.preventDefault();
-        setMenuOpen(false);
+        closeBravaisHomePopover('menu');
         // 菜单要放完收起动画才卸载：焦点在菜单里的话先交回「⋯」，不跟着卸载的菜单丢掉。
         if (event.target instanceof Node && !moreRef.current?.contains(event.target)) moreRef.current?.focus({ preventScroll: true });
     };
 
     const runItem = (run: () => void) => {
-        setMenuOpen(false);
+        closeBravaisHomePopover('menu');
         run();
     };
 
@@ -101,7 +114,7 @@ const BravaisSeamHomeTools: React.FC<{ home: BravaisHomeSeam; compact: boolean; 
             onExpand();
             return;
         }
-        setMenuOpen(value => !value);
+        setBravaisHomePopover(menuOpen ? null : 'menu');
     };
 
     const menuTool = (tool: BravaisHomeTool) => {

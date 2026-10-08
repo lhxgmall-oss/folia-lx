@@ -41,7 +41,7 @@ import { useBravaisBeforePush } from './bravaisTransitions';
 import { selectBravaisAccountVariant, useBravaisAccountStore } from './bravaisAccountStore';
 import { useWallHandoffStore } from '../../../stores/useWallHandoffStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
-import { resolveBravaisBackStep, type BravaisBackStep } from './bravaisBack';
+import { resolveBravaisBackStep, selectBravaisHasCurrentSong, type BravaisBackStep } from './bravaisBack';
 import { resolveBravaisWallHandoffState, useBravaisWallHandoff } from './useBravaisWallHandoff';
 import '../../../components/wall/wall.css';
 import './bravais.css';
@@ -353,7 +353,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     }, [seam.reopenHere]);
 
     // 左上角返回（bravaisBack）：渲染时判一次（显不显示、可访问名），点击时按最新的层、面板与播放状态再判一次。
-    const hasCurrentSong = usePlaybackStore(state => state.currentSong !== null);
+    const hasCurrentSong = usePlaybackStore(selectBravaisHasCurrentSong);
     const backToPlayerRef = useRef(onBackToPlayer);
     backToPlayerRef.current = onBackToPlayer;
     const resolveBackStep = useCallback((target: BravaisLayer | null, openPanel: string | null, songLoaded: boolean): BravaisBackStep | null => {
@@ -368,7 +368,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     }, []);
     const runBack = useCallback(() => {
         const current = displayRef.current?.layer ?? null;
-        const step = resolveBackStep(current, useBravaisUiStore.getState().panelFor, usePlaybackStore.getState().currentSong !== null);
+        const step = resolveBackStep(current, useBravaisUiStore.getState().panelFor, selectBravaisHasCurrentSong(usePlaybackStore.getState()));
         if (step === 'panel') closeBravaisPanel();
         else if (step === 'form') current?.entries?.cancelForm?.();
         else if (step === 'layer') current?.onDone?.();

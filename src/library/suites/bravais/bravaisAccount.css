@@ -233,50 +233,60 @@
 
 .bravais-account-switcher { position: relative; display: flex; width: 100%; flex-direction: column; gap: 4px; }
 
-.bravais-seam .bravais-account-toggle {
+/* fb8（用户实测）：入口改成 grid 账户切换器的样子——圆形头像 / 平台徽章（BravaisProviderAvatar）在上，名字在下
+   （已登录是昵称，无需登录是平台名，未登录是「连接在线平台」）；不再显示账户状态字（挪进 aria-label / title）。
+   窄缝只有约 100px 宽，横排放不下昵称，所以竖排居中。 */
+.bravais-seam .bravais-account-entry {
     display: flex;
     width: 100%;
     flex-direction: column;
     align-items: center;
-    gap: 1px;
-    padding: 6px 4px;
+    gap: 5px;
+    padding: 8px 4px 6px;
     border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-    border-radius: 11px;
+    border-radius: 12px;
+    color: var(--text-primary, #f7f4ee);
     background: none;
     cursor: pointer;
 }
 
-.bravais-seam .bravais-account-toggle:hover,
-.bravais-seam .bravais-account-toggle[aria-expanded='true'] { background: color-mix(in srgb, currentColor 12%, transparent); }
+.bravais-seam .bravais-account-entry:hover,
+.bravais-seam .bravais-account-entry[aria-expanded='true'] { background: color-mix(in srgb, currentColor 12%, transparent); }
 
-.bravais-account-toggle .is-name,
-.bravais-account-row .is-name {
-    display: flex;
+.bravais-account-entry .is-name {
     max-width: 100%;
-    align-items: center;
-    gap: 3px;
     overflow: hidden;
     font-size: 12px;
     font-weight: 800;
-    white-space: nowrap;
-}
-
-.bravais-account-toggle .is-name svg { width: 12px; height: 12px; flex: none; opacity: 0.6; }
-/* fb4：列表往上弹，箭头朝上；展开时转过来。 */
-.bravais-account-toggle .is-chevron { transition: transform 140ms ease; }
-.bravais-account-toggle[aria-expanded='true'] .is-chevron { transform: rotate(180deg); }
-
-.bravais-account-toggle .is-detail,
-.bravais-account-row .is-detail,
-.bravais-account-row .is-action {
-    max-width: 100%;
-    overflow: hidden;
-    color: var(--bravais-seam-ink-soft);
-    font-size: 10px;
-    line-height: 1.35;
+    line-height: 1.3;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* 「连接在线平台」可以折行（四到五个字一行），昵称与平台名一行截断。 */
+.bravais-account-connect .is-name { text-align: center; white-space: normal; overflow-wrap: anywhere; }
+
+/* 头像 / 徽章：圆形；徽章是纯色底 + 白字（与 grid 切换器同一套），连接图标是浅底圆。 */
+.bravais-account-avatar {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    box-sizing: border-box;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 999px;
+    object-fit: cover;
+}
+
+.bravais-account-avatar.is-badge { color: #fff; font-size: 14px; font-weight: 900; line-height: 1; }
+.bravais-account-avatar.is-connect { background: color-mix(in srgb, currentColor 12%, transparent); }
+.bravais-account-avatar.is-connect svg { width: 16px; height: 16px; }
+
+/* 书脊：36px 的图标按钮里放 28px 的头像 / 徽章 / 连接图标。 */
+.bravais-seam .bravais-account-spine { padding: 0; }
+.bravais-account-spine .bravais-account-avatar { width: 28px; height: 28px; }
+.bravais-account-spine .bravais-account-avatar.is-badge { font-size: 12px; }
 
 /* fb4：列表从入口往上弹出（bottom: 100% + 6px），绝对定位、盖在导航区上（底色不透明，同「⋯」菜单），比入口略宽
    （两侧各伸出 6px，仍在缝里）。高度超过入口到窄缝顶端的可用高度时在里面滚（max-height 由组件打开时量）。
@@ -319,10 +329,9 @@
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1px;
-    padding: 5px 6px;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 4px 4px 3px;
     border: 1px solid transparent;
     border-radius: 9px;
     text-align: left;
@@ -334,7 +343,32 @@
 .bravais-seam .bravais-account-row > button[role='menuitemradio']:disabled { cursor: not-allowed; opacity: 0.4; }
 .bravais-account-row.is-current { background: color-mix(in srgb, currentColor 14%, transparent); }
 .bravais-account-row.is-current .is-name { color: var(--text-accent, currentColor); }
-.bravais-account-row .is-action { color: var(--text-accent, currentColor); }
+
+/* fb8：行 = 头像 / 徽章 + 平台名（下面一行小字只在有必要时出现：昵称、无需登录、未配置）+ 要登录时行尾的 LogIn 图标。
+   当前那一行的头像加一圈描边（同 grid 切换器）。 */
+.bravais-account-row .bravais-account-avatar { width: 22px; height: 22px; }
+.bravais-account-row .bravais-account-avatar.is-badge { font-size: 11px; }
+.bravais-account-row.is-current .bravais-account-avatar { box-shadow: 0 0 0 2px var(--text-primary, #f7f4ee); }
+.bravais-account-row .is-text { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 1px; }
+
+.bravais-account-row .is-name {
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-account-row .is-note {
+    overflow: hidden;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 10px;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-account-row .is-login { width: 13px; height: 13px; flex: none; opacity: 0.55; }
 
 /* fb4：登出是当前那一行右侧的小图标按钮（LogOut），不再单独一行。 */
 .bravais-seam .bravais-account-logout {
@@ -356,41 +390,6 @@
 
 .bravais-seam .bravais-account-logout:hover:not(:disabled) { background: color-mix(in srgb, currentColor 14%, transparent); }
 .bravais-seam .bravais-account-logout:disabled { cursor: default; opacity: 0.4; }
-
-/* fb3：未登录时只有一个「连接在线平台」入口（图标 + 文案 + 展开箭头，文案可以折行），点了才展开平台列表。 */
-.bravais-seam .bravais-account-connect {
-    display: flex;
-    width: 100%;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 9px 6px 6px;
-    border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-    border-radius: 12px;
-    color: var(--text-primary, #f7f4ee);
-    background: none;
-    cursor: pointer;
-}
-
-.bravais-seam .bravais-account-connect:hover,
-.bravais-seam .bravais-account-connect[aria-expanded='true'] { background: color-mix(in srgb, currentColor 12%, transparent); }
-.bravais-account-connect > svg { width: 16px; height: 16px; flex: none; }
-.bravais-account-connect > .is-chevron { width: 12px; height: 12px; opacity: 0.6; transition: transform 140ms ease; }
-.bravais-account-connect[aria-expanded='true'] > .is-chevron { transform: rotate(180deg); }
-
-.bravais-account-connect .is-name {
-    max-width: 100%;
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1.3;
-    text-align: center;
-    overflow-wrap: anywhere;
-}
-
-:root[data-reduce-motion~='lattice'] .bravais-account-connect > .is-chevron,
-:root[data-reduce-motion~='lattice'] .bravais-account-toggle .is-chevron,
-:root[data-reduce-motion~='uiMicroMotion'] .bravais-account-connect > .is-chevron,
-:root[data-reduce-motion~='uiMicroMotion'] .bravais-account-toggle .is-chevron { transition: none; }
 
 /* 书脊上只留一个图标按钮：点它展开窄缝（fb3：并打开平台列表）。 */
 .bravais-account-switcher.is-compact { align-items: center; }

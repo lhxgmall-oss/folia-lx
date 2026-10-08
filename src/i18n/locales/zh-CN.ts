@@ -59,7 +59,6 @@ export default {
     "searchOnline": "搜索在线平台",
     "searchSubmit": "搜索",
     "searchClose": "关闭搜索",
-    "openQueue": "打开播放队列",
     "backToPlayer": "回到播放页",
     "stagePlayer": "舞台播放器",
     "settings": "设置",

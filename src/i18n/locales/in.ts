@@ -59,7 +59,6 @@ export default {
     "searchOnline": "Cari di platform online",
     "searchSubmit": "Cari",
     "searchClose": "Tutup pencarian",
-    "openQueue": "Buka antrean",
     "backToPlayer": "Kembali ke pemutar",
     "stagePlayer": "Pemutar panggung",
     "settings": "Pengaturan",

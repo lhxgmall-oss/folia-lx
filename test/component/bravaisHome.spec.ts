@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import type { ProbeCallKind } from '../../dev/probes/libraryBehavior/probeLog';
-import { HOME_FM_COUNT, HOME_FM_PREFIX, onlinePlaybackKey, onlineSongId, PROBE_PROVIDER_A, PROBE_PROVIDER_B } from '../../dev/probes/libraryBehavior/fixtureRules';
+import { HOME_FM_COUNT, HOME_FM_PREFIX, homeUserName, onlinePlaybackKey, onlineSongId, PROBE_PROVIDER_A, PROBE_PROVIDER_B } from '../../dev/probes/libraryBehavior/fixtureRules';
 import { HOME_LOCAL_FOLDER_IDS, homeFolderId } from '../../dev/probes/homeBehavior/homeFixtureRules';
 import { buildServiceStubModule, LOCAL_MUSIC_SERVICE_ROUTE } from '../../dev/probes/homeBehavior/serviceStubModule';
 import '../../dev/probes/homeBehavior/probeApi';
@@ -793,6 +793,13 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
         // 工具格固定的几格（探针没有队列入口）；本页签的与 app 级的入口都在「⋯」里，本页签的在前、分隔线、app 级的在后。
         expect(layout.tools.map(tool => tool.id)).toEqual(['search', 'settings', 'more']);
+        // 「回到播放页」只在有当前歌曲时出现（与左上角返回同一个判断，selectBravaisHasCurrentSong）：探针起始没有歌。
+        await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
+        await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
+        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden']);
+        await page.keyboard.press('Escape');
+        await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
         await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
         expect(await menuItems(page)).toEqual(['filter', 'manage-hidden', 'rule', 'player']);
@@ -874,7 +881,8 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             expect(layout.sections[i].top).toBeGreaterThanOrEqual(layout.sections[i - 1].bottom - 0.5);
             expect(Math.abs((layout.sections[i].left + layout.sections[i].right) - (layout.sections[0].left + layout.sections[0].right))).toBeLessThanOrEqual(2);
         }
-        // 本地页签的「⋯」：目录与导入等在分隔线前，app 级的在后。
+        // 本地页签的「⋯」：目录与导入等在分隔线前，app 级的在后（有当前歌曲才有「回到播放页」）。
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
         await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
         const items = await menuItems(page);
         expect(items.indexOf('directory')).toBeGreaterThanOrEqual(0);
@@ -894,7 +902,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
         await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toBeVisible();
-        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden', 'rule', 'player']);
+        expect(await menuItems(page)).toEqual(['filter', 'manage-hidden']);
         await page.keyboard.press('Escape');
         await expect(seam(page).locator('[data-bravais-seam-menu]')).toHaveCount(0);
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
@@ -1065,5 +1073,126 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await page.keyboard.press('Escape');
         await expect(accountList(page)).toHaveCount(0);
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+    });
+    // fb8（用户实测）：「⋯」菜单盖住后面的账户入口（不透明底，层级在账户位之上）；菜单与平台列表互斥。
+    test('the more menu is opaque and covers the account entry; it and the account list never stay open together', async ({ page }) => {
+        await expectTidy(page);
+        const toggle = seam(page).locator('[data-bravais-account-toggle="strip"]');
+        const more = seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]');
+        const menu = seam(page).locator('[data-bravais-seam-menu]');
+        await more.click();
+        await expect(menu).toBeVisible();
+        await expect.poll(() => menu.evaluate(node => Number(getComputedStyle(node).opacity))).toBe(1);
+        // 底色不透明（alpha = 1），菜单比工具格两侧各宽一些、仍在缝里。
+        const background = await menu.evaluate(node => getComputedStyle(node).backgroundColor);
+        const alpha = /rgba?\(([^)]+)\)/.exec(background)?.[1].split(/[ ,/]+/).filter(Boolean)[3];
+        expect(alpha === undefined || Number(alpha) === 1).toBe(true);
+        const menuBox = (await menu.boundingBox())!;
+        const dockBox = (await root(page).locator('.bravais-seam-dock').boundingBox())!;
+        const seamBox = (await seam(page).boundingBox())!;
+        expect(menuBox.width).toBeGreaterThan(dockBox.width);
+        expect(menuBox.x).toBeGreaterThanOrEqual(seamBox.x - 0.5);
+        expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(seamBox.x + seamBox.width + 0.5);
+        // 菜单与账户入口重叠的地方，最上面的是菜单（入口不透出来）。
+        const toggleBox = (await toggle.boundingBox())!;
+        const probe = { x: toggleBox.x + toggleBox.width / 2, y: Math.max(toggleBox.y, menuBox.y) + 4 };
+        expect(probe.y).toBeLessThan(menuBox.y + menuBox.height);
+        expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-bravais-seam-menu]') !== null, probe)).toBe(true);
+        // 每一项一行（菜单项不折行）。
+        const heights = await menu.locator('button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().height));
+        expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+
+        // 菜单开着时用键盘打开平台列表：菜单收起。
+        await toggle.focus();
+        await page.keyboard.press('Enter');
+        await expect(accountList(page)).toBeVisible();
+        await expect(menu).toHaveCount(0);
+        await expect(more).toHaveAttribute('aria-expanded', 'false');
+        // 反过来：列表开着时用键盘打开菜单，列表收起。
+        await more.focus();
+        await page.keyboard.press('Enter');
+        await expect(menu).toBeVisible();
+        await expect(accountList(page)).toHaveCount(0);
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        // 鼠标同样：点入口（先点别处收起菜单）开列表，再点「⋯」开菜单，列表收起。
+        await page.keyboard.press('Escape');
+        await expect(menu).toHaveCount(0);
+        await toggle.click();
+        await expect(accountList(page)).toBeVisible();
+        await more.click();
+        await expect(menu).toBeVisible();
+        await expect(accountList(page)).toHaveCount(0);
+    });
+
+    // fb8：入口是 grid 切换器的样子——头像 / 平台徽章 + 名字，不写账户状态（状态在可访问名与 title 里）。
+    test('the signed-in entry shows the avatar and the nickname, falling back to the platform badge', async ({ page }) => {
+        await expectTidy(page);
+        const toggle = seam(page).locator('[data-bravais-account-toggle="strip"]');
+        const nickname = homeUserName(PROBE_PROVIDER_A);
+        await expect(toggle.locator('[data-bravais-account-avatar="badge"]')).toBeVisible();
+        await expect(toggle).toHaveText(new RegExp(`${nickname}$`));
+        await expect(toggle.locator('.is-name')).toHaveText(nickname);
+        await expect(toggle).toHaveAccessibleName(`Switch online music provider · ${PROBE_PROVIDER_A} · ${nickname}`);
+        await expect(toggle).toHaveAttribute('title', `Switch online music provider · ${PROBE_PROVIDER_A} · ${nickname}`);
+
+        await page.evaluate(async ({ providerId }) => {
+            const modulePath = '/src/stores/useOnlineProviderAccountStore.ts';
+            const { useOnlineProviderAccountStore } = await import(/* @vite-ignore */ modulePath);
+            const store = useOnlineProviderAccountStore.getState();
+            const avatar = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#f59e0b"/></svg>')}`;
+            store.updateAccount(providerId, { user: { ...store.accounts[providerId].user, avatarUrl: avatar } });
+        }, { providerId: PROBE_PROVIDER_A });
+        const image = toggle.locator('img[data-bravais-account-avatar="image"]');
+        await expect(image).toBeVisible();
+        await expect.poll(() => image.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+        await expect(toggle.locator('[data-bravais-account-avatar="badge"]')).toHaveCount(0);
+        await expect(toggle.locator('.is-name')).toHaveText(nickname);
+
+        // 列表的行：头像 / 徽章 + 平台名，当前已登录那一行下面是昵称；状态与「切换至 X」在可访问名里。
+        await toggle.click();
+        await expect(accountList(page)).toBeVisible();
+        const current = accountList(page).locator(`[data-bravais-account-provider="${PROBE_PROVIDER_A}"] [role="menuitemradio"]`);
+        await expect(current.locator('img[data-bravais-account-avatar="image"]')).toBeVisible();
+        await expect(current.locator('.is-name')).toHaveText(PROBE_PROVIDER_A);
+        await expect(current.locator('.is-note')).toHaveText(nickname);
+        const other = accountList(page).locator(`[data-bravais-account-provider="${PROBE_PROVIDER_B}"] [role="menuitemradio"]`);
+        await expect(other.locator('[data-bravais-account-avatar="badge"]')).toBeVisible();
+        await expect(other).toHaveAccessibleName(new RegExp(`^${PROBE_PROVIDER_B} · ${homeUserName(PROBE_PROVIDER_B)} · Switch to `));
+        await expect(accountList(page).getByText('Not signed in', { exact: true })).toHaveCount(0);
+    });
+
+    test('the collection more menu is opaque too', async ({ page }) => {
+        await card(page, 'card:playlist:owned').locator('article').dispatchEvent('click');
+        await settled(page);
+        const more = seam(page).locator('.bravais-seam-actions [data-bravais-seam-action="more"]');
+        await more.click();
+        const menu = seam(page).locator('[data-bravais-seam-menu]');
+        await expect(menu).toBeVisible();
+        const background = await menu.evaluate(node => getComputedStyle(node).backgroundColor);
+        const alpha = /rgba?\(([^)]+)\)/.exec(background)?.[1].split(/[ ,/]+/).filter(Boolean)[3];
+        expect(alpha === undefined || Number(alpha) === 1).toBe(true);
+        expect(await menu.evaluate(node => getComputedStyle(node).boxShadow)).not.toBe('none');
+    });
+    // fb8：「⋯」里的「回到播放页」与左上角返回同一个判断——没有当前歌曲时不显示（点了会进空的播放页），有了才出现、点了回播放页。
+    test('the more menu offers back to the player only while a song is loaded', async ({ page }) => {
+        const more = seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]');
+        const menu = seam(page).locator('[data-bravais-seam-menu]');
+        const player = menu.locator('[data-bravais-seam-action="player"]');
+        await more.click();
+        await expect(menu).toBeVisible();
+        await expect(player).toHaveCount(0);
+        await expect(menu.locator('[role="separator"]')).toHaveCount(0);
+        // 菜单开着时歌加载进来：那一项（与分隔线）出现。
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
+        await expect(player).toBeVisible();
+        await expect(player).toHaveText('Back to the player');
+        await page.evaluate(() => window.__homeProbe!.clearLog());
+        await player.click();
+        await expect.poll(() => calls(page, 'backToPlayer')).toHaveLength(1);
+        // 歌没了：又不显示。
+        await page.evaluate(() => window.__homeProbe!.setNowPlaying(null));
+        await more.click();
+        await expect(menu).toBeVisible();
+        await expect(player).toHaveCount(0);
     });
 });

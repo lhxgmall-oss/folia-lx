@@ -1171,6 +1171,9 @@ test.describe('[switch] bravais shares the account flows', () => {
         await expect(bravaisSwitcher(page)).toHaveAttribute('data-bravais-account', 'guest');
         await expect(bravaisConnect(page)).toHaveText('Connect a streaming service');
         await expect(bravaisConnect(page)).toHaveAttribute('aria-expanded', 'false');
+        // fb8：入口是连接图标 + 文案，不写「未登录」之类的状态（状态在可访问名与 title 里）。
+        await expect(bravaisConnect(page).locator('[data-bravais-account-avatar="connect"] svg')).toBeVisible();
+        await expect(bravaisConnect(page)).toHaveAccessibleName(/^Connect a streaming service · .+ · Not signed in$/);
         await expect(page.locator('[data-bravais-account-provider]')).toHaveCount(0);
         await expect(seam(page).getByText('Try searching a few songs first')).toHaveCount(0);
 
@@ -1178,6 +1181,11 @@ test.describe('[switch] bravais shares the account flows', () => {
         await expect(bravaisSwitcher(page)).toHaveAttribute('data-bravais-account', 'guest-panel');
         await expect(bravaisAccountRow(page, ACCOUNT_GAMMA)).toHaveAttribute('data-current', 'true');
         await expect(bravaisAccountRow(page, ACCOUNT_BETA)).toBeVisible();
+        // 行是平台徽章 / 头像 + 平台名；「未登录」不写字，要登录的行尾是登录图标，「登录到 X」在可访问名里。
+        await expect(bravaisAccountRow(page, ACCOUNT_GAMMA).locator('[data-bravais-account-avatar]')).toBeVisible();
+        await expect(bravaisAccountRow(page, ACCOUNT_GAMMA).locator('.is-note')).toHaveCount(0);
+        await expect(bravaisAccountRow(page, ACCOUNT_GAMMA).locator('.is-login')).toBeVisible();
+        await expect(bravaisAccountList(page).getByText('Not signed in', { exact: true })).toHaveCount(0);
         await page.keyboard.press('Escape');
         await expect(bravaisSwitcher(page)).toHaveAttribute('data-bravais-account', 'guest');
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');

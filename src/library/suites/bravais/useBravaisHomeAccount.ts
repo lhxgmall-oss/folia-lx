@@ -34,12 +34,17 @@ export const useBravaisHomeAccount = (account: LibraryAccountController, online:
         void latest.current.account.logout(providerId);
     }, []);
 
-    const detail = rows.find(row => row.current)?.detail ?? '';
+    const currentRow = rows.find(row => row.current);
+    const detail = currentRow?.detail ?? '';
+    const nickname = currentRow?.nickname ?? null;
+    const avatarUrl = currentRow?.avatarUrl ?? null;
     const guest = online.accountView === 'guest';
     return useMemo<BravaisHomeAccount>(() => ({
         providerId: online.providerId,
         providerLabel: online.providerLabel,
         detail,
+        nickname,
+        avatarUrl,
         guest,
         connectLabel: t('libraryBravaisHome.connect'),
         title: t('home.onlineProvider'),
@@ -47,5 +52,5 @@ export const useBravaisHomeAccount = (account: LibraryAccountController, online:
         rows,
         onSelect,
         onLogout,
-    }), [detail, guest, onLogout, onSelect, online.providerId, online.providerLabel, rows, t]);
+    }), [avatarUrl, detail, guest, nickname, onLogout, onSelect, online.providerId, online.providerLabel, rows, t]);
 };

@@ -1,10 +1,11 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
-import { ChevronUp, LogOut, Plug, UserRound } from 'lucide-react';
+import { LogIn, LogOut, Plug } from 'lucide-react';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import type { BravaisHomeAccount } from './bravaisHomeModels';
 import { resolveBravaisAccountPopMotion } from './bravaisAccountMotion';
-import { setBravaisHomeOpenRequest, useBravaisHomeUiStore } from './bravaisHomeUiStore';
+import { closeBravaisHomePopover, setBravaisHomeOpenRequest, setBravaisHomePopover, useBravaisHomeUiStore } from './bravaisHomeUiStore';
+import BravaisProviderAvatar from './BravaisProviderAvatar';
 import './bravaisAccount.css';
 
 // src/library/suites/bravais/BravaisSeamAccountSwitcher.tsx
@@ -21,9 +22,18 @@ import './bravaisAccount.css';
 // 上，不推挤页签、不改变页签的缩减级别。弹出 / 收起用 framer-motion（bravaisAccountMotion：从按钮方向放大 + 位移 +
 // 渐显；降低动态效果时只渐变）。再点按钮、Esc、点别处都收起。登出不再单独一行，是当前那一行右侧的小图标按钮
 // （LogOut，aria-label / title 是登出文案）；行本身点击仍是选该平台。
+// fb8（用户实测）：入口与列表行改成 grid 账户切换器的样子——图标 / 头像 + 名称（BravaisProviderAvatar，徽章与 grid 同一套）：
+// - 入口：已登录是头像 + 昵称（没头像退回平台徽章）；无需登录的平台是徽章 + 平台名；未登录是连接图标 + 「连接在线平台」。
+//   不再显示「未登录 / 未配置 / 登录到 X」之类的状态字，平台名与账户状态挪进 aria-label / title。
+// - 列表行：头像 / 徽章 + 平台名，下面一行小字只留区分所必需的（昵称、「无需登录」「未配置」，与 grid 一致）；要登录才能
+//   选的行尾是 LogIn 图标（同 grid），「登录到 X / 切换至 X」与完整状态进行的 aria-label / title。登出图标不变。
+// - 列表与工具格的「⋯」菜单互斥：开着哪个记在 bravaisHomeUiStore 的 popover。
 
 /** 列表离首页窄缝顶端至少留这么多（列表比可用高度高时在里面滚）。 */
 const LIST_TOP_GAP = 12;
+
+/** 列表行的可访问名与 title：平台名 · 账户状态 · 选它会做什么（界面上只显示平台名与必要的小字）。 */
+const describeRow = (row: BravaisHomeAccount['rows'][number]) => [row.label, row.detail, row.actionLabel].filter(Boolean).join(' · ');
 
 /**
  * 弹出的平台列表。收起动画途中（useIsPresent 为 false）挂 inert，不再接点击与焦点。
@@ -63,15 +73,19 @@ const BravaisAccountList: React.FC<{
                         role="menuitemradio"
                         aria-checked={row.current}
                         disabled={!row.configured}
-                        title={row.actionLabel || row.label}
+                        aria-label={describeRow(row)}
+                        title={describeRow(row)}
                         onClick={() => {
                             onClose();
                             account.onSelect(row.providerId);
                         }}
                     >
-                        <span className="is-name">{row.label}</span>
-                        <span className="is-detail">{row.detail}</span>
-                        {row.actionLabel && <span className="is-action">{row.actionLabel}</span>}
+                        <BravaisProviderAvatar providerId={row.providerId} name={row.label} avatarUrl={row.avatarUrl} />
+                        <span className="is-text">
+                            <span className="is-name">{row.label}</span>
+                            {row.note && <span className="is-note">{row.note}</span>}
+                        </span>
+                        {row.configured && !row.direct && <LogIn aria-hidden className="is-login" />}
                     </button>
                     {row.logout && (
                         <button
@@ -101,7 +115,7 @@ const BravaisSeamAccountSwitcher: React.FC<{
     /** 书脊上点账户按钮：把缝展开成窄缝。 */
     onExpand: () => void;
 }> = ({ account, compact, onExpand }) => {
-    const [open, setOpen] = useState(false);
+    const open = useBravaisHomeUiStore(state => state.popover === 'accounts');
     const [maxHeight, setMaxHeight] = useState<number | null>(null);
     const rootRef = useRef<HTMLDivElement>(null);
     const request = useBravaisHomeUiStore(state => state.openRequest);
@@ -110,12 +124,20 @@ const BravaisSeamAccountSwitcher: React.FC<{
     const reducedMicro = useReducedMotionFor('uiMicroMotion');
     const reduced = reducedLattice || reducedMicro;
     const shown = open && !compact;
+    const toggle = () => setBravaisHomePopover(open ? null : 'accounts');
+
+    // 卸载时收起自己开着的列表（只收这个实例开着的：书脊翻成窄缝时旧的书脊实例后卸载，不能把新开的收掉）。
+    const shownRef = useRef(false);
+    shownRef.current = shown;
+    useEffect(() => () => {
+        if (shownRef.current) closeBravaisHomePopover('accounts');
+    }, []);
 
     // 书脊上点了账户按钮：缝展开成窄缝后在这里把列表打开。书脊上的按钮已经随翻转换掉了，焦点挪到窄缝的入口上。
     useEffect(() => {
         if (compact || request !== 'accounts') return;
         setBravaisHomeOpenRequest(null);
-        setOpen(true);
+        setBravaisHomePopover('accounts');
         rootRef.current?.querySelector<HTMLElement>('[data-bravais-account-toggle]')?.focus({ preventScroll: true });
     }, [compact, request]);
 
@@ -135,12 +157,12 @@ const BravaisSeamAccountSwitcher: React.FC<{
         if (!shown) return undefined;
         const onPointerDown = (event: PointerEvent) => {
             if (event.target instanceof Node && rootRef.current?.contains(event.target)) return;
-            setOpen(false);
+            closeBravaisHomePopover('accounts');
         };
         const onKeyDown = (event: globalThis.KeyboardEvent) => {
             if (event.key !== 'Escape' || event.defaultPrevented) return;
             event.preventDefault();
-            setOpen(false);
+            closeBravaisHomePopover('accounts');
         };
         document.addEventListener('pointerdown', onPointerDown, true);
         document.addEventListener('keydown', onKeyDown);
@@ -150,17 +172,23 @@ const BravaisSeamAccountSwitcher: React.FC<{
         };
     }, [shown]);
 
+    // 入口上显示的名字：已登录是昵称，无需登录的平台是平台名。状态（平台名 · 账户状态）进 aria-label / title。
+    const status = [account.providerLabel, account.detail].filter(Boolean).join(' · ');
+    const entryName = account.nickname ?? account.providerLabel;
+    const avatar = <BravaisProviderAvatar providerId={account.providerId} name={account.providerLabel} avatarUrl={account.avatarUrl} />;
+    const connectIcon = <span className="bravais-account-avatar is-connect" aria-hidden data-bravais-account-avatar="connect"><Plug /></span>;
+
     if (compact) {
-        const label = account.guest ? account.connectLabel : account.toggleLabel;
+        const label = account.guest ? `${account.connectLabel} · ${status}` : `${account.toggleLabel} · ${status}`;
         return (
             <div className="bravais-account-switcher is-compact">
-                <button type="button" className="bravais-seam-icon" data-bravais-account-toggle="compact"
-                    aria-label={label} title={account.guest ? label : `${account.providerLabel} · ${account.detail}`}
+                <button type="button" className="bravais-seam-icon bravais-account-spine" data-bravais-account-toggle="compact"
+                    aria-label={label} title={label}
                     onClick={() => {
                         setBravaisHomeOpenRequest('accounts');
                         onExpand();
                     }}>
-                    {account.guest ? <Plug aria-hidden /> : <UserRound aria-hidden />}
+                    {account.guest ? connectIcon : avatar}
                 </button>
             </div>
         );
@@ -170,21 +198,21 @@ const BravaisSeamAccountSwitcher: React.FC<{
     return (
         <div ref={rootRef} className={`bravais-account-switcher${account.guest ? ' is-guest' : ''}`} data-bravais-account={state}>
             <AnimatePresence>
-                {shown && <BravaisAccountList key="list" account={account} reduced={reduced} maxHeight={maxHeight} onClose={() => setOpen(false)} />}
+                {shown && <BravaisAccountList key="list" account={account} reduced={reduced} maxHeight={maxHeight} onClose={() => closeBravaisHomePopover('accounts')} />}
             </AnimatePresence>
             {account.guest ? (
-                <button type="button" className="bravais-account-connect" data-bravais-account-toggle="connect"
-                    aria-haspopup="menu" aria-expanded={open} title={account.connectLabel} onClick={() => setOpen(value => !value)}>
-                    <Plug aria-hidden />
+                <button type="button" className="bravais-account-entry bravais-account-connect" data-bravais-account-toggle="connect"
+                    aria-haspopup="menu" aria-expanded={open} aria-label={`${account.connectLabel} · ${status}`} title={`${account.connectLabel} · ${status}`}
+                    onClick={toggle}>
+                    {connectIcon}
                     <span className="is-name">{account.connectLabel}</span>
-                    <ChevronUp aria-hidden className="is-chevron" />
                 </button>
             ) : (
-                <button type="button" className="bravais-account-toggle" data-bravais-account-toggle="strip"
-                    aria-haspopup="menu" aria-expanded={open} aria-label={account.toggleLabel}
-                    title={`${account.providerLabel} · ${account.detail}`} onClick={() => setOpen(value => !value)}>
-                    <span className="is-name">{account.providerLabel}<ChevronUp aria-hidden className="is-chevron" /></span>
-                    <span className="is-detail">{account.detail}</span>
+                <button type="button" className="bravais-account-entry bravais-account-toggle" data-bravais-account-toggle="strip"
+                    aria-haspopup="menu" aria-expanded={open} aria-label={`${account.toggleLabel} · ${status}`}
+                    title={`${account.toggleLabel} · ${status}`} onClick={toggle}>
+                    {avatar}
+                    <span className="is-name">{entryName}</span>
                 </button>
             )}
         </div>
