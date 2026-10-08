@@ -4,6 +4,7 @@ import { ARTIST_ALBUM_PAGE_SIZE, artistAlbumCoverUrl } from '../../core/model/ar
 import { artistAlbumEntryKey, artistSongEntryKey } from '../../core/model/artistSurface';
 import type { BravaisItem } from './bravaisLayer';
 import { formatDuration, formatEntryBadge, type TrackDescription } from './bravaisProjection';
+import { resolveSpineTrackCount } from './bravaisTileForm';
 import type { BravaisSeamStatus, BravaisSeamSync } from './bravaisSeamModels';
 
 // src/library/suites/bravais/bravaisArtistModel.ts
@@ -19,6 +20,7 @@ export const projectArtistItems = ({
     describeTrack,
     unknownArtist,
     albumLabel,
+    trackCountLabel,
 }: {
     topSongs: readonly SongResult[];
     albums: readonly LibraryArtistAlbum[];
@@ -26,6 +28,8 @@ export const projectArtistItems = ({
     unknownArtist: string;
     /** 专辑磁贴的徽标（「专辑」）。 */
     albumLabel: string;
+    /** 专辑书脊上的「N 首」（设计稿 §7.7）；曲目数未知的专辑书脊上不写字。 */
+    trackCountLabel: (count: number) => string;
 }): BravaisItem[] => {
     const items: BravaisItem[] = [];
     const seen = new Set<string>();
@@ -54,14 +58,17 @@ export const projectArtistItems = ({
     });
     albums.forEach(album => {
         const year = albumYear(album);
-        items.push({
+        const item: BravaisItem = {
             key: uniqueKey(artistAlbumEntryKey(album)),
             kind: 'album',
             title: String(album.name ?? ''),
             subtitle: year,
             coverUrl: artistAlbumCoverUrl(album),
             badge: albumLabel,
-        });
+        };
+        const count = resolveSpineTrackCount('spine', album.trackCount, trackCountLabel);
+        if (count) item.trackCountLabel = count;
+        items.push(item);
     });
     return items;
 };

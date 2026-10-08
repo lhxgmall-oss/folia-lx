@@ -451,6 +451,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 - 与 Lattice 的翻牌交接（`stageWallHandoff: true`，`useBravaisWallHandoff`）：进 Lattice 时缝合上、窗关上，从聚焦卡 / 键盘焦点 / 视口中心向外一波半圈翻牌，每块翻过去就成了 Lattice 的海报；回来时反过来，翻完缝张开、窗打开，fb3 的展开在这之后。右下角工具按钮是 App 的 `WallToolsDock` 里两面墙共用的一颗。细节见设计稿 §7「进 / 出 Lattice」。
 - 唯一的离墙路径：首页缝里的全局搜索提交走 `onSearchCommitted`，去 `SearchWorkspace`（core 的 search surface 落地后再进墙）。从搜索页 / 播放页打开集合时整墙入场，回到来源时整墙出场。
 - 特殊集合（core 的 `resolveLibraryHomeSpecial`）：墙上那张卡的类型标签是强调色底 + 小图标（`is-special`、`data-bravais-special`）；首页窄缝中段二级切换下面隔一道分隔线是它们的直达入口（只显示图标，`data-bravais-shortcut`），只在那张集合此刻真有、没被隐藏时出现，在线看当前页签的卡，本地 / Navidrome 不限当前行。点入口与点那张卡同一条打开路径（stage 的 `openShortcut`：墙上屏内找得到就以它为起点磁贴、走 `onOpenItem`；找不到就经同一个 `homeResources.actions.open*` 打开，以缝为中心）。放不下时入口先于二级切换让位，挪进「⋯」菜单。见设计稿 §10.5「特殊集合」、§7.5。
+- 磁贴按种类换样子（设计稿 §7.7）：集合（专辑 / 歌单 / 文件夹 / 每日推荐）左侧书脊、竖排曲目数（层描述条目的 `trackCountLabel`，投影时从 `trackCount` 来，未知不写），歌手是双色调人像（亮端取自头像，`bravaisArtistTone` 复用 `utils/colorExtractor`，取不到回退强调色），歌曲与私人 FM 不变。判定只看条目的 `kind` / `direct`（`bravaisTileForm`）。歌手页专辑的曲目数来自 core `LibraryArtistAlbum.trackCount`（可选，grid / TUI 不用）。
 
 **当前页过滤**（设计稿 §7.6，2026-10-08 起取代「palette 内联框 + 首页不注册过滤」）
 

@@ -14,6 +14,9 @@ import type { BravaisItem } from './bravaisLayer';
 import { bravaisFaceKey, type BravaisTileKind } from './bravaisLook';
 import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFocusCardBody';
 import BravaisTileMarks, { BravaisTileBadge } from './BravaisTileMarks';
+import { useBravaisArtistTone } from './bravaisArtistTone';
+import { resolveBravaisTileForm } from './bravaisTileForm';
+import './bravaisTileKinds.css';
 import { getWaveStagger, WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } from './bravaisWallWave';
 
 // src/library/suites/bravais/BravaisTile.tsx
@@ -29,6 +32,9 @@ import { getWaveStagger, WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } fro
 // B11：降低动态效果时翻牌（含整墙波次）换成淡出 → 换内容 → 淡入（合计 0.18s，不错开）；从搜索 / 播放页打开集合的
 // 整墙入场（entrance）没有出场段，磁贴立刻换成新内容、保持抬起，按离视口左上角的距离错开落回（刚挂载的同样）。
 // fb2：窗上按下鼠标不抢焦点（不把 DOM 焦点挪到窗上）；点窗由 activate 判定为无反应，拖动后的残余点击照常在外面吞掉。
+// 种类区分（设计稿 §7.7，样式在 bravaisTileKinds.css）：集合（专辑 / 歌单 / 文件夹 / 每日推荐）左侧一条书脊、竖排曲目数；
+// 歌手是双色调人像（亮端取自头像，bravaisArtistTone），悬停 / 键盘焦点 / 正在播放时恢复原色；歌曲不变。书脊与人像都在
+// 内容层里，翻牌时一起转；全透明档不画封面，书脊退化成遮罩色、歌手不做双色调。
 
 export type BravaisTileRect = { x: number; y: number; width: number; height: number };
 
@@ -81,6 +87,16 @@ const preventFocus = (event: MouseEvent<HTMLElement>) => event.preventDefault();
 const fallbackBackground = (id: string) => {
     const hue = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
     return `linear-gradient(145deg, hsl(${hue} 68% 58%), hsl(${(hue + 52) % 360} 62% 18%))`;
+};
+
+/** 书脊里那条封面：与海报的 background-size: cover 同一种裁法（按方形封面算），只露出左缘那一条。 */
+const spineCoverStyle = (cover: string, rect: BravaisTileRect): React.CSSProperties => {
+    const size = Math.max(rect.width, rect.height, 1);
+    return {
+        backgroundImage: cover,
+        backgroundSize: `${size}px ${size}px`,
+        backgroundPosition: `${(rect.width - size) / 2}px ${(rect.height - size) / 2}px`,
+    };
 };
 
 const sameRect = (a: BravaisTileRect, b: BravaisTileRect) => (
@@ -253,6 +269,13 @@ function BravaisTile({
     const cover = display ? (coverUrl ? `url("${coverUrl}")` : fallbackBackground(display.key)) : undefined;
     const isCurrent = Boolean(display && nowPlayingKey && display.key === nowPlayingKey);
     const isExpanded = expanded && isTrack;
+    const form = display ? resolveBravaisTileForm(display) : 'poster';
+    const hasSpine = form === 'spine';
+    const isPortrait = form === 'portrait';
+    // 全透明档不画封面：歌手不做双色调（也就不取色），书脊退化成遮罩色。头像本身加载不出来（tone === false）时也不画人像层。
+    const portraitWanted = isPortrait && !face.seeThrough;
+    const tone = useBravaisArtistTone(display?.coverUrl, portraitWanted);
+    const drawsPortrait = portraitWanted && tone !== false;
 
     const handleClick = (event: MouseEvent<HTMLElement>) => {
         if (event.target instanceof Element && event.target.closest('button')) return;
@@ -287,15 +310,16 @@ function BravaisTile({
             data-bravais-dimmed={display?.dimmed || undefined}
             data-bravais-hidden={display?.hidden || undefined}
             data-bravais-special={display?.special}
+            data-bravais-form={display && form !== 'poster' ? form : undefined}
             onMouseEnter={() => handlers.hover(slotKey)}
             onMouseLeave={() => handlers.hover(null)}
         >
             <article
                 ref={faceRef}
-                className={`lattice-poster bravais-tile-face${display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}${display?.dimmed ? ' is-dimmed' : ''}${display?.selected ? ' is-selected' : ''}`}
+                className={`lattice-poster bravais-tile-face${display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}${display?.dimmed ? ' is-dimmed' : ''}${display?.selected ? ' is-selected' : ''}${hasSpine ? ' has-spine' : ''}${isPortrait ? ' is-portrait' : ''}`}
                 style={display && !face.seeThrough ? { backgroundImage: cover } : undefined}
                 role={display ? (isExpanded ? 'group' : 'button') : undefined}
-                aria-label={display ? `${display.title} · ${display.subtitle}` : undefined}
+                aria-label={display ? `${display.title} · ${display.subtitle}${display.trackCountLabel ? ` · ${display.trackCountLabel}` : ''}` : undefined}
                 aria-expanded={isTrack ? isExpanded : undefined}
                 tabIndex={-1}
                 onMouseDown={isWindow ? preventFocus : undefined}
@@ -303,12 +327,28 @@ function BravaisTile({
             >
                 {display && (
                     <>
+                        {drawsPortrait && (
+                            <span
+                                className="bravais-tile-duo"
+                                data-bravais-tone={tone ? 'photo' : tone === null ? 'fallback' : 'pending'}
+                                style={tone ? { '--bravais-duo-light': tone } as React.CSSProperties : undefined}
+                            >
+                                <i style={{ backgroundImage: cover }} />
+                            </span>
+                        )}
                         <span className="lattice-poster-shade" />
                         {/* 实测反馈 1：熄灯层（wall.css；全透明档的窗与聚焦卡等豁免在 bravais.css）。 */}
                         <span className="lattice-poster-lights-out" />
                         {face.seeThrough
                             ? <span className="bravais-tile-strip" style={{ backgroundImage: cover }} />
                             : <span className="lattice-poster-tint" />}
+                        {/* 书脊在叠色层之上（与特殊标签、正在播放的描边一样不被染）、熄灯层之下；曲目数已经进了可访问名。 */}
+                        {hasSpine && (
+                            <span className="bravais-tile-spine" aria-hidden>
+                                {!face.seeThrough && cover && <i style={spineCoverStyle(cover, rect)} />}
+                                {display.trackCountLabel && <span>{display.trackCountLabel}</span>}
+                            </span>
+                        )}
                         <BravaisTileBadge item={display} current={isCurrent} />
                         {(display.hideable || display.selected) && (
                             <BravaisTileMarks
@@ -327,7 +367,12 @@ function BravaisTile({
                             />
                         ) : (
                             <span className="lattice-poster-copy">
-                                <WallTitle title={display.title} expanded={false} targetPosterWidth={rect.width} />
+                                <WallTitle
+                                    title={display.title}
+                                    expanded={false}
+                                    targetPosterWidth={rect.width}
+                                    variant={form === 'poster' ? undefined : form}
+                                />
                                 {display.subtitle && <small>{display.subtitle}</small>}
                             </span>
                         )}
