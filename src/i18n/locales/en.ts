@@ -2803,6 +2803,25 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_7_16": {
+      "intro": "0.7.16 moves AMLL lyrics to the official API, finds far more AMLL lyrics for QQ Music songs, and lets manual matching search AMLL directly. It also adds Tab switching between home tabs and fixes missing album and artist links in local search results.",
+      "amllSource": {
+        "title": "AMLL Lyrics via the Official API",
+        "description": "AMLL lyrics now come from the official AMLL API."
+      },
+      "amllSearch": {
+        "title": "More Accurate Manual AMLL Matching",
+        "description": "The AMLLDB tab in the lyric match window now searches the AMLL catalog directly and accepts your own keywords. It searches by title and artist, so a short title no longer returns every song whose lyrics contain that word. Picking an AMLL result for a local song writes only the lyrics and leaves the title, artists, and cover unchanged."
+      },
+      "gridTabKeys": {
+        "title": "Switch Home Tabs with Tab",
+        "description": "On the poster-wall home page, Tab and Shift + Tab cycle through playlists, radio, albums, local music, and Navidrome, skipping tabs that are unavailable. This makes keyboard and remote-control use easier."
+      },
+      "searchLinks": {
+        "title": "Local Search Results Keep Their Links",
+        "description": "If you search right after importing a folder, album and artist links in the results now fill in once the library finishes loading, without searching again."
+      }
+    },
     "v0_7_15": {
       "intro": "0.7.15 improves Chinese text handling in local lyrics and MP3 tags, makes QR login steadier with clearer help when it fails, supports shortcuts from simulated input, and fixes ever-growing back history between artist and album pages and transcoding on Apple Silicon.",
       "localLyrics": {

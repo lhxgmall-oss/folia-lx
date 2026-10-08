@@ -2690,6 +2690,25 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_16": {
+      "intro": "0.7.16 memindahkan lirik AMLL ke API resmi, menemukan jauh lebih banyak lirik AMLL untuk lagu QQ Music, dan memungkinkan pencocokan manual mencari langsung di AMLL. Rilis ini juga menambahkan perpindahan tab beranda dengan Tab serta memperbaiki tautan album dan artis yang hilang di hasil pencarian lokal.",
+      "amllSource": {
+        "title": "Lirik AMLL lewat API Resmi",
+        "description": "Lirik AMLL kini diambil dari API resmi AMLL."
+      },
+      "amllSearch": {
+        "title": "Pencocokan Manual AMLL Lebih Akurat",
+        "description": "Tab AMLLDB di jendela pencocokan lirik kini mencari langsung di katalog AMLL dan menerima kata kunci Anda sendiri. Pencarian memakai judul dan artis, sehingga judul pendek tidak lagi memunculkan semua lagu yang liriknya mengandung kata itu. Memilih hasil AMLL untuk lagu lokal hanya menulis liriknya, tanpa mengubah judul, artis, dan sampul."
+      },
+      "gridTabKeys": {
+        "title": "Pindah Tab Beranda dengan Tab",
+        "description": "Di beranda dinding poster, Tab dan Shift + Tab berputar di antara daftar putar, radio, album, musik lokal, dan Navidrome, melewati tab yang tidak tersedia. Ini memudahkan penggunaan keyboard dan remote."
+      },
+      "searchLinks": {
+        "title": "Tautan Hasil Pencarian Lokal Tidak Lagi Hilang",
+        "description": "Jika Anda mencari tepat setelah mengimpor folder, tautan album dan artis di hasilnya kini terisi setelah pustaka selesai dimuat, tanpa perlu mencari ulang."
+      }
+    },
     "v0_7_15": {
       "intro": "0.7.15 meningkatkan penanganan teks Tionghoa pada lirik lokal dan tag MP3, membuat login QR lebih stabil dengan bantuan yang lebih jelas saat gagal, mendukung pintasan dari input simulasi, serta memperbaiki riwayat kembali yang terus memanjang antara halaman artis dan album dan transkode di Apple Silicon.",
       "localLyrics": {
