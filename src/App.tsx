@@ -74,6 +74,7 @@ import { useQqLibrary } from './hooks/useQqLibrary';
 import { useBodianLibrary } from './hooks/useBodianLibrary';
 import { useLibraryAccountController } from './library/app/useLibraryAccountController';
 import { createLibraryAccountSwitchCleanupPort } from './library/app/createLibraryAccountPort';
+import { useLibraryStageToolsPort } from './library/app/useLibraryStageToolsPort';
 import { useLibraryAccountProviders } from './library/core/bindings/useLibraryAccount';
 import { resolveActiveProviderSummary } from './library/core/model/accountRules';
 import { useAppPreferences } from './hooks/useAppPreferences';
@@ -2129,8 +2130,16 @@ export default function App() {
         setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
     }, [navigateToCollection, setStatusMsg, t]);
 
+    // 资料库墙右下角工具面板的宿主动作（生成主题、队列洗牌、音量预览）：命令面板的同一套命令，端口身份稳定。
+    const stageTools = useLibraryStageToolsPort({
+        invokeCommandById: commandPalette.invokeCommandById,
+        canInvokeCommandById: commandPalette.canInvokeCommandById,
+        isGeneratingTheme,
+        previewVolume: handlePreviewVolume,
+    });
     const homeModel = useHomeModel({
         account: accountController,
+        stageTools,
         activeProvider,
         playSong,
         navigateToPlayer,

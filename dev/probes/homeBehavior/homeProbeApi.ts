@@ -5,6 +5,8 @@ import { useSearchNavigationStore } from '../../../src/stores/useSearchNavigatio
 import type { HomeViewTab, SongResult } from '../../../src/types';
 import { setCurrentSong, setPlayerState, setPlayQueue } from '../../../src/stores/usePlaybackStore';
 import { usePlaybackEntryViewStore } from '../../../src/stores/usePlaybackEntryViewStore';
+import { useAudioSettingsStore } from '../../../src/stores/useAudioSettingsStore';
+import { setProbeStageTools } from './probeStageTools';
 import { PlayerState } from '../../../src/types';
 import DesktopGrid3DSurface from '../../../src/library/suites/grid/home/DesktopGrid3DSurface';
 import { Grid3DSlider, type Grid3DSliderItem } from '../../../src/library/suites/grid/home/Grid3DSlider';
@@ -88,7 +90,7 @@ import {
 
 const HIDDEN_STORAGE_KEY = 'hidden_grid_playlists';
 
-type HarnessBindings = Pick<HomeProbeApi, 'sandbox' | 'ready' | 'remount' | 'localSongIds' | 'localPlaylists' | 'providers' | 'activeProvider' | 'switchProvider' | 'signOut' | 'setStage'>;
+type HarnessBindings = Pick<HomeProbeApi, 'sandbox' | 'ready' | 'remount' | 'localSongIds' | 'localPlaylists' | 'providers' | 'activeProvider' | 'switchProvider' | 'signOut' | 'setStage' | 'setLattice'>;
 
 type SliderProps = { items: Grid3DSliderItem[]; onSelect: (item: Grid3DSliderItem, index: number) => void };
 type GridMapProps = {
@@ -290,6 +292,11 @@ export const installHomeProbeApi = (bindings: HarnessBindings): (() => void) => 
             setPlayerState(playbackKey ? (playing ? PlayerState.PLAYING : PlayerState.PAUSED) : PlayerState.IDLE);
         },
         setEntryView: view => usePlaybackEntryViewStore.getState().setPlaybackEntryView(view),
+        setStageTools: setProbeStageTools,
+        volume: () => {
+            const { volume, isMuted } = useAudioSettingsStore.getState();
+            return { volume, isMuted };
+        },
         paletteRequest: () => {
             const { seq, kind } = useAppViewStore.getState().commandPaletteRequest;
             return { seq, kind };

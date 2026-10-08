@@ -638,6 +638,8 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                 onBackToPlayer={surfaceProps.onBackToPlayer}
                 onTogglePlayback={surfaceProps.onTogglePlayback}
                 onEnterPlaybackView={surfaceProps.onEnterPlaybackView}
+                onOpenLattice={surfaceProps.onOpenLattice}
+                tools={surfaceProps.stageTools}
             />
             <AnimatePresence initial={false}>
                 {layerPresentation.showBackdrop && (
