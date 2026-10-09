@@ -1,12 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { PlaybackEntryViewOptions } from './PlaybackEntryViewOptions';
 import { LibrarySuiteOnboardingOptions } from './LibrarySuiteOnboardingOptions';
-import { usePlaybackEntryViewStore } from '../../../stores/usePlaybackEntryViewStore';
+import { usePlaybackEntryViewStore, type StartupPromptPage } from '../../../stores/usePlaybackEntryViewStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { resolveReducedMotion, useMotionSettingsStore } from '../../../stores/useMotionSettingsStore';
-import { hasOnboardingLibrarySuiteChoice } from '../../../library/app/librarySuiteChoice';
+import { confirmOnboardingLibrarySuite } from '../../../library/app/librarySuiteChoice';
 import { OVERLAY_CALM_TRANSITION, OVERLAY_TRANSITION } from '../../shared/overlayEntranceMotion';
 import type { Theme } from '../../../types';
 
@@ -14,19 +14,18 @@ import type { Theme } from '../../../types';
 // Asks once, after the release notes are dismissed, how the library should look and which view
 // pressing play should open — two pages in one dialog, with Next / Back between them.
 //
-// Page 1 (library suite: grid / bravais) only exists when both suites are available in this build;
-// page 2 is the original playback-entry-view question. Each card writes its preference the moment
-// it is picked, through the same path as the options page, so Back / Next never lose a choice.
+// The pages are whatever is still unanswered when it opens (the store decides, see
+// requestPlaybackEntryViewPrompt): page 1 (library suite: grid / bravais) when both suites exist in this build
+// and it has never been shown on this install — every install sees it once (2026-10-10), including those that
+// answered the older single-page prompt, which then get page 1 alone; page 2 is the original playback-entry-view
+// question, when that has not been chosen yet. Each card writes its preference the moment it is picked, through
+// the same path as the options page, so Back / Next never lose a choice.
 //
-// Old installs: the whole dialog is still gated by `playback_entry_view_chosen` alone (see
-// useStartupExperienceGate). Anyone who answered the single-page prompt — or set the entry view by
-// hand — has that flag and is never shown the new suite page; they keep their suite (or the
-// initial choice) and can change it under 界面设置 → 资料库界面.
-//
-// It closes as answered whichever way it is dismissed, including the backdrop: both preferences
-// have working defaults, so a listener who does not care must not be asked a second time.
+// It closes as answered whichever way it is dismissed, including the backdrop: both preferences have working
+// defaults, so a listener who does not care must not be asked a second time. Closing a dialog that showed page 1
+// also records the suite in effect as the listener's choice (confirmOnboardingLibrarySuite).
 
-type PromptPage = 'library-suite' | 'playback-entry-view';
+type PromptPage = StartupPromptPage;
 
 type PageMotionContext = { direction: 1 | -1; calm: boolean };
 
@@ -42,7 +41,12 @@ const pageMotion = {
 
 export const PlaybackEntryViewPrompt: React.FC<{ theme?: Theme | null }> = ({ theme }) => {
     const isOpen = usePlaybackEntryViewStore(state => state.isPlaybackEntryViewPromptOpen);
-    const closePrompt = usePlaybackEntryViewStore(state => state.closePlaybackEntryViewPrompt);
+    const pages = usePlaybackEntryViewStore(state => state.promptPages);
+    const closeStoredPrompt = usePlaybackEntryViewStore(state => state.closePlaybackEntryViewPrompt);
+    const closePrompt = useCallback(() => {
+        if (usePlaybackEntryViewStore.getState().promptPages.includes('library-suite')) confirmOnboardingLibrarySuite();
+        closeStoredPrompt();
+    }, [closeStoredPrompt]);
 
     return (
         <AnimatePresence>
@@ -56,24 +60,21 @@ export const PlaybackEntryViewPrompt: React.FC<{ theme?: Theme | null }> = ({ th
                     onClick={closePrompt}
                 >
                     {/* The panel only mounts while open, so every opening starts again on the first page. */}
-                    <PromptPanel theme={theme} onClose={closePrompt} />
+                    <PromptPanel theme={theme} pages={pages} onClose={closePrompt} />
                 </motion.div>
             )}
         </AnimatePresence>
     );
 };
 
-const PromptPanel: React.FC<{ theme?: Theme | null; onClose: () => void }> = ({ theme, onClose }) => {
+const PromptPanel: React.FC<{ theme?: Theme | null; pages: readonly PromptPage[]; onClose: () => void }> = ({ theme, pages, onClose }) => {
     const { t } = useTranslation();
     const playbackEntryView = usePlaybackEntryViewStore(state => state.playbackEntryView);
     const setPlaybackEntryView = usePlaybackEntryViewStore(state => state.setPlaybackEntryView);
     const isDaylight = useThemeSettingsStore(state => state.isDaylight);
     const calm = useMotionSettingsStore(state => resolveReducedMotion(state, 'uiMicroMotion'));
 
-    // Decided by the build (which suites exist), so it cannot change while the dialog is up.
-    const pages = useMemo<PromptPage[]>(() => (
-        hasOnboardingLibrarySuiteChoice() ? ['library-suite', 'playback-entry-view'] : ['playback-entry-view']
-    ), []);
+    // Fixed for one opening (the store sets them when it opens).
     const [pageIndex, setPageIndex] = useState(0);
     const [direction, setDirection] = useState<1 | -1>(1);
     const page = pages[pageIndex];

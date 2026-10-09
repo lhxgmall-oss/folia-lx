@@ -170,6 +170,7 @@ test('[grid] the player setting still leaves the grid for the player', async ({ 
 test('the settings section offers stay here, and the command palette switches to it', async ({ page }) => {
     await page.addInitScript(([version, guideKey]) => {
         localStorage.clear();
+        localStorage.setItem('library_suite_prompt_seen', 'true');
         localStorage.setItem('i18nextLng', 'en');
         localStorage.setItem('static_mode', 'true');
         localStorage.setItem('playback_entry_view_chosen', 'true');

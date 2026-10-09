@@ -58,17 +58,25 @@ describe('playback entry view store', () => {
         expect((await loadStore(Object.fromEntries(storage))).getState().playbackEntryView).toBe('stay');
     });
 
-    // 2026-10-10：首启提问多了「资料库界面」那一页，但出不出现仍只看这一个标记——回答过旧版单页提问的安装不会再被问。
-    it('never reopens the (now two-page) prompt for an install that answered it before', async () => {
-        const answered = await loadStore({ playback_entry_view_chosen: 'true' });
-        expect(answered.getState().requestPlaybackEntryViewPrompt()).toBe(false);
-        expect(answered.getState().isPlaybackEntryViewPromptOpen).toBe(false);
-
+    // 2026-10-10：首启提问分两页。「资料库界面」那一页每个安装问一次（自己的标记 library_suite_prompt_seen，不看版本）——
+    // 回答过旧版单页提问的安装只剩这一页；播放视图那一页仍只看 playback_entry_view_chosen。
+    it('opens with the pages still owed, and records both as answered when it closes', async () => {
         const fresh = await loadStore();
-        expect(fresh.getState().requestPlaybackEntryViewPrompt()).toBe(true);
+        expect(fresh.getState().requestPlaybackEntryViewPrompt({ withLibrarySuite: true })).toBe(true);
+        expect(fresh.getState().promptPages).toEqual(['library-suite', 'playback-entry-view']);
         fresh.getState().closePlaybackEntryViewPrompt();
         expect(storage.get('playback_entry_view_chosen')).toBe('true');
-        expect(fresh.getState().requestPlaybackEntryViewPrompt()).toBe(false);
+        expect(storage.get('library_suite_prompt_seen')).toBe('true');
+        expect(fresh.getState().requestPlaybackEntryViewPrompt({ withLibrarySuite: true })).toBe(false);
+
+        const answeredBefore = await loadStore({ playback_entry_view_chosen: 'true' });
+        expect(answeredBefore.getState().requestPlaybackEntryViewPrompt({ withLibrarySuite: true })).toBe(true);
+        expect(answeredBefore.getState().promptPages).toEqual(['library-suite']);
+
+        // 只有一套 suite 的构建不问界面：答过播放视图就什么都不问。
+        const singleSuite = await loadStore({ playback_entry_view_chosen: 'true' });
+        expect(singleSuite.getState().requestPlaybackEntryViewPrompt({ withLibrarySuite: false })).toBe(false);
+        expect((await loadStore()).getState().requestPlaybackEntryViewPrompt()).toBe(true);
     });
 
     it('recognises exactly the three values', () => {

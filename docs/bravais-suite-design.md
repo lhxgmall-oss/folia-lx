@@ -695,7 +695,7 @@ type BravaisLayer = {
 
 1. core 侧补全局搜索的 search surface，以及搜索层的三处调整：只有歌曲、缝内切换搜索源、分页扩展有限墙（§8.3）。在那之前，全局搜索提交是唯一一条离墙路径（§10.5）。
 1. 换机实测之后的三个决定（§11.6）：缝要不要 blur；透光是否接入静态模式 / 帧率限制；是否需要连续掉帧时自动降级。（「部分透明是否保留为默认」已定：2026-10-08 用户改为默认实色。）
-1. 正式版的初始选择是否保持 bravais（发版前复核，§10.10）。
+1. ~~正式版的初始选择是否保持 bravais~~：已定，下一版起默认 bravais（2026-10-10 用户定，§10.10）；所有安装首启时问一次资料库界面（`docs/library-suites.md`「首启引导」）。
 
 ## 10. Library Core 能力对齐
 
@@ -996,7 +996,7 @@ bravais 是 library v2 的正式新 UI，以后的开发以它为主。它不走
 
 - `useLibrarySuiteStore` 改为持久化（localStorage `library_suite`，只在用户选择时写）。store 不校验 id（state 不 import registry）；未知或当前构建不可用的 id 在渲染时经 registry 回到默认 suite，设置项与命令显示的是实际生效的 suite（`resolveActiveLibrarySuiteId`）。
 - 选项列表取 registry 里 `available` 为真的 suite：生产构建里是 grid 与 bravais；TUI 仍是开发验证 suite，只在开发 flag 打开时出现。
-- 默认值（已定）：开发阶段，没做过选择的用户默认进入 bravais（「初始选择」）；grid 仍是回退 suite（未知 id、缺 surface 时用它）。现有测试与截图基线经构建变量钉在 grid。发版前复核正式版的初始选择。
+- 默认值（已定）：没做过选择的用户默认进入 bravais（「初始选择」，2026-10-10 用户定为下一版的正式默认）；grid 仍是回退 suite（未知 id、缺 surface 时用它）。现有测试与截图基线经构建变量钉在 grid。每个安装首启时被问一次资料库界面（Grid / Bravais）。
 - 开发浮层 `DevLibraryRendererSwitch` 保留给开发用，和设置项写同一个 store。
 
 **设置集成**（按 `skills/settings-feature-integration`）：
@@ -1014,7 +1014,7 @@ bravais 是 library v2 的正式新 UI，以后的开发以它为主。它不走
 
 ### 10.11 实现顺序（已按计划实现）
 
-下面的顺序已按正式实现计划（本地的 `plan/bravais-implementation-plan.md`，不入库）实现完毕，留作记录：前置的 core / app 契约（suite 选项、`stage`、外观动作、N1）→ 抽出 wall 引擎 → bravais 几何 → 骨架与透光 → 集合页、歌手页、首页、账户 → 导航与转场收尾 → 性能探针与按块底板。实现后的接口与测试入口见 `docs/library-suites.md` 的「bravais：一面墙与一道缝」；还没做的只剩第 6、7 条（发版前复核初始选择；search surface 落地后搜索进墙）与 §11.6 的换机实测。
+下面的顺序已按正式实现计划（本地的 `plan/bravais-implementation-plan.md`，不入库）实现完毕，留作记录：前置的 core / app 契约（suite 选项、`stage`、外观动作、N1）→ 抽出 wall 引擎 → bravais 几何 → 骨架与透光 → 集合页、歌手页、首页、账户 → 导航与转场收尾 → 性能探针与按块底板。实现后的接口与测试入口见 `docs/library-suites.md` 的「bravais：一面墙与一道缝」；还没做的只剩第 7 条（search surface 落地后搜索进墙）与 §11.6 的换机实测。
 
 原先的概要：
 
@@ -1026,7 +1026,7 @@ bravais 是 library v2 的正式新 UI，以后的开发以它为主。它不走
 3. **bravais 骨架**：entry（四个 surface 全部 lazy）、`BravaisStage` 与 stage store、缝、rank→slot、双模式、翻牌状态机、键盘焦点。
 4. **按 surface 补齐**：collection → artist → home → account，每补一个就声明对应动作，并接入参数化行为用例。
 5. **状态**：加载、错误、空、补页（§10.6），以及表单态（改名、删除、加入歌单）。
-6. 发版前复核初始选择（开发阶段已默认 bravais）。
+6. ~~发版前复核初始选择~~：已定 bravais（2026-10-10）。
 7. core 的 search surface（§8.3 #1）落地后，搜索层进墙，去掉过渡期的离墙路径。
 
 ## 11. 透光（已定，B6b 实现；B12b 底板改为按块 SVG）

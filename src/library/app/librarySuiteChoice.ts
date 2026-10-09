@@ -55,6 +55,15 @@ export const listOnboardingLibrarySuiteIds = (): readonly LibrarySuiteId[] => ON
 /** 两套都可用时首启引导才有「选资料库界面」那一页；否则只剩「播放后进入的视图」一页。 */
 export const hasOnboardingLibrarySuiteChoice = (): boolean => ONBOARDING_SUITE_IDS.length > 1;
 
+/**
+ * 首启提问的「资料库界面」那一页关掉时调用：把此刻实际生效的 suite 记成用户的选择（写入存储）。没点卡片直接确认也算
+ * 选了——之后改初始选择（LIBRARY_SUITE_INITIAL_CHOICE）不会再把这些人带走。生效的就是它，画面不变，不走切换。
+ */
+export const confirmOnboardingLibrarySuite = (): void => {
+    const store = useLibrarySuiteStore.getState();
+    store.setSuite(resolveActiveLibrarySuiteId(store.suite));
+};
+
 /** 此刻实际生效的 suite（非响应式，命令面板用）。 */
 export const getActiveLibrarySuiteId = (): LibrarySuiteId => (
     resolveActiveLibrarySuiteId(useLibrarySuiteStore.getState().suite)

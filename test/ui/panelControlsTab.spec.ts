@@ -17,6 +17,7 @@ const openPlayerPage = async (page: import('@playwright/test').Page, bottomBarOf
         offset: number;
     }) => {
         localStorage.clear();
+        localStorage.setItem('library_suite_prompt_seen', 'true');
         localStorage.setItem('i18nextLng', 'zh-CN');
         localStorage.setItem('open_player_on_launch', 'true');
         localStorage.setItem('visualizer_mode', 'classic');
