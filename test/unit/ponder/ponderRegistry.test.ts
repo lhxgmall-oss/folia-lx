@@ -162,6 +162,8 @@ describe('ponder registry', () => {
             'player-page': new Set(['palette-open', 'palette-closed', 'execute-mode', 'panel-open']),
             'side-panel': new Set(['cover-actions', 'cover-tab', 'source-tab', 'controls-tab', 'queue-tab', 'account-tab', 'controls-mode-list', 'fm-tab', 'source-tab-file-dialog']),
             'lattice-chrome': new Set(['slots-swapped', 'bottom-bar-shown']),
+            'bravais-seam-strip': new Set(['spine', 'strip-again', 'strip-more', 'hidden', 'list-panel']),
+            'bravais-seam-home': new Set(['home-local', 'account-open', 'base-again', 'menu-open', 'stage-on', 'filtering', 'search-open', 'tools-open']),
             'lyrics-animation-settings': new Set(['playground-open']),
             'theme-settings': new Set(['theme-park-open']),
             'grid-view-card-settings': new Set(['full-bleed-on']),

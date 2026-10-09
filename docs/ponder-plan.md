@@ -102,6 +102,15 @@
 - [x] `queue-shuffle` — 没有随机模式，只有打乱队列；命令、控制条按钮、队列页按钮、固定命令四个入口各一章。
       没有悬停落点，连点循环按钮三下弹出的提示（最多两次）送人进来
 
+### Bravais 资料库
+
+- [x] `bravais-seam` — 墙中间那道缝（信息条）。六章：三档开合（标题区域本身就是「收起」，「折叠」在「⋯ 更多」最后一项，
+      折叠后只剩侧边标签；档位全局沿用）/ 集合与歌手页的信息条（面包屑、描述、播放与收藏、列表面板与墙联动）/
+      首页的竖排页签、二级切换（只有选中项写字）与直达入口 / 账户入口（平台列表往上弹出、行内登出）与工具格、「⋯」、舞台那一行 /
+      在墙上打字是当前页过滤、放大镜才是联网搜索 / 右下角的墙面工具。
+      悬停命中缝自己挂的 `data-bravais-seam` 与侧边标签的 `data-bravais-seam-tab`，不另加标记；
+      墙本身（平移、翻牌、磁贴、聚焦卡、透光与页面入口）归 `bravais-wall`，两篇互为 related
+
 ### 文案事实性错误
 
 - [x] `pages.playerShuffleHow`、`pages.playerExecuteMode`、`commandPalette.executeEnter` —— 冒号是**窗口关着时**按的，`{{mod}}+K` 之后再按只会打进输入框
@@ -132,7 +141,7 @@
 
 ```
 npx vitest run -c vitest.config.ts test/unit/ponder
-npx playwright test --project=components test/component/ponderPageSurfaces.spec.ts
+npx playwright test --project=components test/component/ponderPageSurfaces.spec.ts test/component/ponderBravaisSeam.spec.ts
 npx playwright test --project=e2e test/ui/ponder.spec.ts
 ```
 
