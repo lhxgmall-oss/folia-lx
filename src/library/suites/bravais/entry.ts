@@ -4,7 +4,7 @@ import type { LibraryNavigationContext } from '../../core/contracts/suite';
 import type { LibraryAccountActionId } from '../../core/contracts/account';
 
 // src/library/suites/bravais/entry.ts
-// bravais suite（library v2 的正式新 UI，设计稿 docs/bravais-suite-design.md）：用户始终站在一面墙前，导航与筛选都是
+// bravais suite（library v2 的正式新 UI，设计稿不在仓库里）：用户始终站在一面墙前，导航与筛选都是
 // 给墙上的位置翻牌换内容，页面信息与操作放在墙面裂开的一道缝里。画面全在 stage（BravaisStage）里，它横跨首页与集合层；
 // 各 surface 只把 core 的数据投影成层描述交给 suite 内的 stage store（bravaisStageStore），自己不画画面。
 //

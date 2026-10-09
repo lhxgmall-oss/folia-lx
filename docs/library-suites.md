@@ -10,7 +10,7 @@
 代码都在 `src/library/` 下。目前有三套 suite：
 
 - `grid`：默认 suite，也是**回退 suite**——未知 id、某套 suite 缺某个 surface 时都由它渲染。
-- `bravais`：library v2 的正式新 UI（「一面墙 + 一道缝」，设计稿 `docs/bravais-suite-design.md`），实现全部四个 surface，开发阶段是没做过选择的用户的**初始选择**。
+- `bravais`：library v2 的正式新 UI（「一面墙 + 一道缝」），实现全部四个 surface，开发阶段是没做过选择的用户的**初始选择**。
 - `tui`：开发验证 suite，默认关闭，需显式启用。
 
 选哪套、初始选择与回退见「选哪套：设置项、初始选择与回退」。
@@ -439,7 +439,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 
 ### bravais：一面墙与一道缝
 
-设计与理由在 `docs/bravais-suite-design.md`（下称设计稿）；这里只写它与 core / 宿主的接口。代码在 `src/library/suites/bravais/`，与内容无关的墙面几何在共享的 wall 引擎 `src/components/wall/`（Lattice 也用它；wall 不依赖 `components/app/**` 与 `src/library/**`）。
+设计与理由在 bravais 的设计稿里（下称设计稿，不随仓库分发）；这里只写它与 core / 宿主的接口。代码在 `src/library/suites/bravais/`，与内容无关的墙面几何在共享的 wall 引擎 `src/components/wall/`（Lattice 也用它；wall 不依赖 `components/app/**` 与 `src/library/**`）。
 
 **stage 与 surface 的分工**
 

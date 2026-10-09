@@ -41,7 +41,7 @@ description: Use when the user refers to repository-specific spoken terms - home
 ## 资料库 suite / bravais 墙
 
 资料库（Library）按 headless core 与 UI suite 分开：grid（默认、回退）、bravais（正式新 UI，「一面墙 + 一道缝」）、tui（开发验证）。
-bravais 的口头说法大多来自它的设计稿（文件名带 `bravais-suite-design`）。
+bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的说法已收进下表）。
 
 | 口头说法 | 名字 |
 | --- | --- |
