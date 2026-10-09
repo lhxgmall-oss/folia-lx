@@ -69,6 +69,7 @@ import { selectAudioSettingsSnapshot, useAudioSettingsStore } from '../../stores
 import { selectHomeLayoutSettingsSnapshot, useHomeLayoutSettingsStore } from '../../stores/useHomeLayoutSettingsStore';
 import { setNavidromeEnabledState, useLibraryStore } from '../../stores/useLibraryStore';
 import { hasLibrarySuiteChoice } from '../../library/registry';
+import { useIsBravaisLibraryActive } from '../../library/app/bravaisLibraryActive';
 
 const DEFAULT_OPENAI_TEMPERATURE = '0.7';
 const AUR_PACKAGE_URL = 'https://aur.archlinux.org/packages/folia-major-bin';
@@ -1304,9 +1305,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     );
     const canEnableAutoUpdate = Boolean(electronSettings.ENABLE_UPDATE_CHECK && updateStatus?.autoUpdateSupported);
 
+    const isBravaisSuiteActive = useIsBravaisLibraryActive();
     const settingsNavGroups = useMemo(
-        () => buildSettingsNavGroups(t, { isElectron, hasLibrarySuiteChoice: hasLibrarySuiteChoice() }),
-        [t, isElectron],
+        () => buildSettingsNavGroups(t, { isElectron, hasLibrarySuiteChoice: hasLibrarySuiteChoice(), isBravaisSuiteActive }),
+        [t, isElectron, isBravaisSuiteActive],
     );
     const activeSettingsNavItem = findSettingsNavItem(settingsNavGroups, activeSettingsSection);
     const prefersReducedMotion = useReducedMotionFor('settingsScroll');

@@ -1167,7 +1167,8 @@ export interface NeteasePlaylist {
   trackUpdateTime: number;
   creator: NeteaseUser;
   description?: string;
-  specialType?: 'cloud';
+  // 'cloud' 是本地合成的云盘卡；数字是网易云 `/user/playlist` 原样给的（0 普通歌单，5「我喜欢的音乐」）。
+  specialType?: 'cloud' | number;
 }
 
 export interface Artist {
