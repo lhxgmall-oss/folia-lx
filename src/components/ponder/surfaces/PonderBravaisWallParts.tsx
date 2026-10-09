@@ -244,9 +244,12 @@ export const BravaisHomeSeam: React.FC<{ activeTab: number; accent: string; tran
                 </span>
             ))}
             {/* 直达入口：并排的两列竖排短名。 */}
-            <span className="absolute inset-x-[18%] top-[64%] flex h-[10%] justify-center gap-[10%] overflow-hidden text-[6.5px] text-white/55" style={{ writingMode: 'vertical-rl' }}>
-                <span>{t('libraryBravaisHome.special.liked')}</span>
-                <span>{t('libraryBravaisHome.special.cloud')}</span>
+            <span className="absolute inset-x-[14%] top-[64%] flex h-[10%] justify-center gap-[12%] text-[6.5px] text-white/55">
+                {(['liked', 'cloud'] as const).map(kind => (
+                    <span key={kind} className="max-h-full overflow-hidden whitespace-nowrap" style={{ writingMode: 'vertical-rl' }}>
+                        {t(`libraryBravaisHome.special.${kind}`)}
+                    </span>
+                ))}
             </span>
             <span className="absolute left-1/2 top-[78%] aspect-square w-[26%] -translate-x-1/2 rounded-full border border-white/25" style={{ backgroundColor: `color-mix(in srgb, ${accent} 24%, #26262c)` }} />
             <span className="absolute left-[25%] right-[25%] top-[85%] h-[1.4%] rounded-full bg-white/60" />
