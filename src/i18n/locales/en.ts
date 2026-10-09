@@ -2980,6 +2980,33 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_7_17": {
+      "intro": "Welcome to 0.7.17, the Spica Update—a major release. The library gets a brand-new interface, Bravais: a poster wall you can drag around. After updating, Folia asks once whether you want Bravais or the classic grid; the view opened by Play gains a \"Stay here\" option, and local songs can now be marked as instrumental.",
+      "bravais": {
+        "title": "Bravais, a New Library Interface",
+        "description": "The library becomes a poster wall: opening a playlist, album or artist flips the posters over to the new content, while the page details and actions live in a strip that opens in the wall. Drag to browse, move with the arrow keys, or just type to filter the current page. The classic grid is still available under Options → Interface → Library interface."
+      },
+      "chooseLibrary": {
+        "title": "Pick Your Interface, Stay Where You Are",
+        "description": "After updating, Folia asks once whether you want Bravais or the classic grid (new installs are also asked which view Play should open). The new \"Stay here\" option keeps you where you pressed Play, and the playing card turns into pause / resume."
+      },
+      "wallLook": {
+        "title": "A Tunable Wall",
+        "description": "The Bravais wall can be solid, partly transparent or fully transparent to show the player behind it. Collections can show stacked page edges, the strip comes in several styles, and the backdrop can show lyrics and blur. Lighting and poster tint are shared with Lattice, and Lattice now scrolls smoothly with the mouse wheel."
+      },
+      "pureMusic": {
+        "title": "Mark Local Songs as Instrumental",
+        "description": "In a lyric match window (Match Online in the Local tab of the player panel, or Manual Online Match in the library), choose \"Mark as instrumental\" and Folia stops matching lyrics for that song automatically; choose it again to undo. The command palette can toggle it too."
+      },
+      "navidromePreset": {
+        "title": "Preset Navidrome Account for Docker",
+        "description": "Docker deployments can preset the Navidrome address and account on the server, so new devices on the local network sign in automatically. An account you set up manually in Options still takes priority."
+      },
+      "qqPlaylists": {
+        "title": "QQ Music Algorithmic Playlists",
+        "description": "After signing in to QQ Music you can open its official algorithmic playlists (such as the million-favorites and artist radio lists), and saved playlists now show their covers."
+      }
+    },
     "v0_7_16": {
       "intro": "0.7.16 moves AMLL lyrics to the official API, finds far more AMLL lyrics for QQ Music songs, and lets manual matching search AMLL directly. It also adds Tab switching between home tabs and fixes missing album and artist links in local search results.",
       "amllSource": {

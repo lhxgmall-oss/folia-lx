@@ -2867,6 +2867,33 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_17": {
+      "intro": "Selamat datang di 0.7.17, Spica Update—sebuah rilis besar. Pustaka mendapat antarmuka baru bernama Bravais: dinding poster yang bisa digeser. Setelah pembaruan, Folia menanyakan sekali apakah Anda memakai Bravais atau grid klasik; tampilan yang dibuka Putar mendapat opsi \"Tetap di sini\", dan lagu lokal kini bisa ditandai sebagai instrumental.",
+      "bravais": {
+        "title": "Bravais, Antarmuka Pustaka Baru",
+        "description": "Pustaka menjadi dinding poster: saat membuka playlist, album, atau artis, poster di dinding berbalik menampilkan isi baru, sementara info halaman dan tindakannya ada di sebuah strip yang terbuka di dinding. Geser untuk menjelajah, pakai tombol panah, atau langsung ketik untuk menyaring halaman saat ini. Grid klasik tetap tersedia di Opsi → Antarmuka → Antarmuka pustaka."
+      },
+      "chooseLibrary": {
+        "title": "Pilih Antarmuka, Tetap di Tempat",
+        "description": "Setelah pembaruan, Folia menanyakan sekali apakah Anda memakai Bravais atau grid klasik (instalasi baru juga ditanya tampilan mana yang dibuka Putar). Opsi baru \"Tetap di sini\" membuat Anda tetap di tempat saat menekan Putar, dan kartu yang sedang diputar berubah menjadi jeda / lanjutkan."
+      },
+      "wallLook": {
+        "title": "Dinding yang Bisa Diatur",
+        "description": "Dinding Bravais bisa padat, sebagian transparan, atau sepenuhnya transparan untuk memperlihatkan pemutar di belakangnya. Koleksi bisa menampilkan tepi halaman bertumpuk, strip tersedia dalam beberapa gaya, dan latar belakang bisa menampilkan lirik serta blur. Pencahayaan dan warna poster dipakai bersama dengan Lattice, dan Lattice kini bergulir mulus dengan roda mouse."
+      },
+      "pureMusic": {
+        "title": "Tandai Lagu Lokal sebagai Instrumental",
+        "description": "Di jendela pencocokan lirik (Cocokkan Online di tab lokal panel pemutar, atau Kecocokan Online Manual di pustaka), pilih \"Tandai sebagai instrumental\" dan Folia berhenti mencocokkan lirik lagu itu secara otomatis; pilih lagi untuk membatalkan. Palet perintah juga bisa mengubahnya."
+      },
+      "navidromePreset": {
+        "title": "Akun Navidrome Bawaan untuk Docker",
+        "description": "Deployment Docker bisa menyiapkan alamat dan akun Navidrome di server, sehingga perangkat baru di jaringan lokal langsung masuk otomatis. Akun yang Anda atur sendiri di Opsi tetap diutamakan."
+      },
+      "qqPlaylists": {
+        "title": "Playlist Algoritmik QQ Music",
+        "description": "Setelah masuk ke QQ Music, Anda bisa membuka playlist algoritmik resminya (seperti daftar sejuta favorit dan radio artis), dan playlist yang disimpan kini menampilkan sampulnya."
+      }
+    },
     "v0_7_16": {
       "intro": "0.7.16 memindahkan lirik AMLL ke API resmi, menemukan jauh lebih banyak lirik AMLL untuk lagu QQ Music, dan memungkinkan pencocokan manual mencari langsung di AMLL. Rilis ini juga menambahkan perpindahan tab beranda dengan Tab serta memperbaiki tautan album dan artis yang hilang di hasil pencarian lokal.",
       "amllSource": {
