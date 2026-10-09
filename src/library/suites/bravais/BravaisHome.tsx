@@ -75,7 +75,7 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         <div
             data-library-home="bravais"
             data-library-surface="home"
-            data-ponder-page-scope="none"
+            data-ponder-page-scope="bravais-wall"
             aria-hidden
             className="pointer-events-none absolute inset-0"
         >

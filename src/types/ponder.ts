@@ -84,7 +84,10 @@ export type PonderTargetId =
     // 歌词导出：命令面板里那一页批量导出。面板上那颗单曲导出按钮归 panel-source-tab 讲。
     | 'lyric-export'
     // 随机播放在哪：没有随机模式，只有打乱队列，以及它的四个入口。连点循环按钮的提示送人来这里。
-    | 'queue-shuffle';
+    | 'queue-shuffle'
+    // bravais 资料库：墙（页面教程，bravais 的首页 / 集合 / 歌手页都映射到它）与信息条（缝）各一篇。
+    | 'bravais-wall'
+    | 'bravais-seam';
 
 /**
  * 导航页把目标按这个分组。
@@ -231,7 +234,9 @@ export type PonderSurfaceKind =
     /** 歌词样式：调参台的布局，预览和右栏各自可换，背景和歌词也各自可换。 */
     | 'lyric-style'
     /** 命令面板里的批量导出歌词页：输入行、三节多选卡（范围 / 格式 / 命名），底边一条操作栏。 */
-    | 'lyric-export';
+    | 'lyric-export'
+    /** bravais 的墙：缝在正中、左右两半的磁贴墙，以及平移、翻牌、聚焦卡、透光、进 Lattice 的结果层。 */
+    | 'bravais-wall';
 
 /**
  * 以来源矩形为 0..1 坐标系的相对矩形。

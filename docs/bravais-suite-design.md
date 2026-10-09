@@ -971,7 +971,7 @@ bravais 声明全部 7 个动作，登录与确认都在**缝里**完成（已�
 | 会话（筛选词、焦点、选中） | 全部放在 core 会话 store 里，见下方说明 |
 | 打开来源（`origin: 'home' \| 'search' \| 'player'`） | 从搜索页或播放页打开集合时，下面没有首页墙：整墙入场到集合层（没有起点磁贴，相机直接到这一层上次离开的位置，磁贴从抬起按对角线错开落回；从播放页回来时 stage 随打开重新挂载，同样入场）；`onBack` / `onDone` / 跳到根回到来源时整墙出场（首页层在搜索页 / 淡出的首页之下落回）。面包屑的根显示「搜索」「播放页」 |
 | `isInteractive` | 为 false 时（例如另一层盖在上面，或正在退场）不接键盘、不注册 palette、不响应墙上的点击 |
-| Ponder | 各 surface 的锚点（首页、集合、歌手页）上声明 `data-ponder-page-scope="none"`，bravais 自己的教程以后再加 |
+| Ponder | 各 surface 的锚点（首页、集合、歌手页）上声明 `data-ponder-page-scope="bravais-wall"`：页面教程是墙（`bravais-wall`：平移、翻牌换层、磁贴种类、聚焦卡、透光与进 Lattice），信息条另有 `bravais-seam`，列在墙的「本页可单独思索的组件」里 |
 
 会话状态的对应：
 
