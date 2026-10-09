@@ -3453,6 +3453,9 @@ export default {
     "description": "Both views play and show lyrics; they just put the emphasis in different places. Pick the one Play should open by default, or stay where you pressed it.",
     "settingsHint": "You can change this any time under Options \u2192 Interface \u2192 View opened by Play.",
     "confirm": "Use this",
+    "next": "Next",
+    "back": "Back",
+    "step": "Step {{current}} of {{total}}",
     "player": {
       "title": "Visualizer",
       "description": "A customizable single-song lyrics view with multiple lyric animations and background combinations."
@@ -3464,6 +3467,21 @@ export default {
     "stay": {
       "title": "Stay here",
       "description": "Play only starts the song. You stay in the library, and the card you pressed turns into pause / resume."
+    }
+  },
+  "librarySuiteOnboarding": {
+    "title": "How should your library look?",
+    "description": "The home screen, playlists, albums and artist pages are all browsed in the interface you pick here. Both do the same things; they just browse differently.",
+    "settingsHint": "You can change this any time under Options \u2192 Interface \u2192 Library interface.",
+    "grid": {
+      "title": "Grid",
+      "tag": "Classic",
+      "description": "A tidy grid of cards: search and navigation along the top, open a card to see its songs."
+    },
+    "bravais": {
+      "title": "Bravais",
+      "tag": "Infinite",
+      "description": "One endless wall of tiles you drag around. Content flips into place on the wall, and the page's info and actions sit in a seam in the middle."
     }
   },
   "userGuide": {

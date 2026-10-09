@@ -56,7 +56,11 @@ const readLastSeenReleaseNotesVersion = (): string | null => (
         : localStorage.getItem(LAST_SEEN_RELEASE_NOTES_VERSION_STORAGE_KEY)
 );
 
-/** Runs the first-launch sequence: release notes, playback destination, then the Ponder shortcut gate. */
+/**
+ * Runs the first-launch sequence: release notes, the two-page choice prompt (library interface, then
+ * playback destination), then the Ponder shortcut gate. The prompt is gated by the playback choice alone,
+ * so installs that answered the older single-page prompt are not asked again.
+ */
 export const useStartupExperienceGate = () => {
     const lastSeenPonderVersion = useSettingsModalStore(state => state.lastSeenGuideVersion);
     const isPonderOnboardingOpen = useSettingsModalStore(state => state.isUserGuideModalOpen);

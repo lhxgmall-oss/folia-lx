@@ -3338,6 +3338,9 @@ export default {
     "description": "Kedua tampilan sama-sama memutar dan menampilkan lirik, hanya penekanannya berbeda. Pilih salah satu sebagai tujuan default saat menekan putar, atau tetap di tempat.",
     "settingsHint": "Anda bisa mengubahnya kapan saja di Opsi \u2192 Antarmuka \u2192 Tampilan yang dibuka Putar.",
     "confirm": "Pakai ini",
+    "next": "Berikutnya",
+    "back": "Kembali",
+    "step": "Langkah {{current}} dari {{total}}",
     "player": {
       "title": "Visualizer",
       "description": "Tampilan lirik satu lagu yang dapat disesuaikan dengan beragam animasi lirik dan kombinasi latar belakang."
@@ -3349,6 +3352,21 @@ export default {
     "stay": {
       "title": "Tetap di sini",
       "description": "Putar hanya memulai lagu. Anda tetap di pustaka, dan tombol putar pada kartu yang ditekan berubah menjadi jeda / lanjut."
+    }
+  },
+  "librarySuiteOnboarding": {
+    "title": "Pustaka mau tampil seperti apa?",
+    "description": "Beranda, playlist, album, dan halaman artis dijelajahi dengan antarmuka yang Anda pilih di sini. Keduanya bisa melakukan hal yang sama, hanya cara menjelajahnya berbeda.",
+    "settingsHint": "Anda bisa mengubahnya kapan saja di Opsi \u2192 Antarmuka \u2192 Antarmuka pustaka.",
+    "grid": {
+      "title": "Grid",
+      "tag": "Klasik",
+      "description": "Kisi kartu yang rapi: pencarian dan navigasi di atas, buka kartu untuk melihat lagunya."
+    },
+    "bravais": {
+      "title": "Bravais",
+      "tag": "Tanpa batas",
+      "description": "Satu dinding ubin tanpa ujung yang bisa digeser. Konten berganti di dinding, sementara info dan tindakan halaman ada di celah di tengahnya."
     }
   },
   "userGuide": {

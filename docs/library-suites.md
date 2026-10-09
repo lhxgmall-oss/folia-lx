@@ -528,6 +528,7 @@ entry 用同一个 `import.meta.env.DEV && import.meta.env.VITE_LIBRARY_TUI === 
 - **持久化**：store 只在用户选择时写 localStorage `library_suite`，没有记录就用初始选择，所以改初始选择会带走所有没选过的人。store 不校验 id（state 不 import registry），值可能是这个构建里没有的 suite，渲染照常回退。
 - **展示「当前」用生效的 suite**：`registry.resolveActiveLibrarySuiteId(store.suite)`（React 里用 `app/librarySuiteChoice` 的 `useActiveLibrarySuiteId`；只关心「是不是 bravais」时用 `app/bravaisLibraryActive`）。设置项、命令面板 picker、开发浮层都这样显示；`switchLibrarySuite` 比较的也是生效的 suite，选中已经生效的那套不算一次选择，不写存储。
 - **入口**：界面设置的 `LibrarySuiteSection`（「播放进入视图」下面）、命令面板的 `settings-library-suite`（锚点）与 `library-suite-picker`，都经 `chooseLibrarySuite` → `switchLibrarySuite(resolveCurrentLibrarySessionKey(), id)`。只有一套可用时（`hasLibrarySuiteChoice()` 为假）设置节、侧栏目录项与两条命令都不出现；grid 与 bravais 都在 registry 里，所以正式构建里它们总会出现。开发浮层 `DevLibraryRendererSwitch` 只在开发构建里挂。不进外观配置的导入导出（suite 选择是界面偏好，不是视觉调参）。
+- **首启引导**（2026-10-10）：发版说明之后的那个提问（`PlaybackEntryViewPrompt`）分两页，第 1 页选资料库界面，第 2 页是原来的「播放后进入的视图」，可前进 / 后退。第 1 页只列 grid（经典）与 bravais（无限）（`ONBOARDING_LIBRARY_SUITE_IDS`，TUI 不出现），两套都可用时才有这一页（`hasOnboardingLibrarySuiteChoice()`）；卡片点下即经 `chooseLibrarySuite` 写入，与设置项同一条路（选中已生效的那套不写存储，同上）。整个提问仍只由 `playback_entry_view_chosen` 决定出不出现：回答过旧版单页提问、或在设置里改过「播放后进入的视图」的人不会再被问，也就看不到这一页。
 - **按需加载**：选 grid 的用户不加载 bravais 的任何 chunk——bravais 的 entry 只静态 import react，stage 与四个 surface 都是 `React.lazy`；manifest 本身（含布局键前缀与外观动作声明）随 registry 进 bootstrap。
 
 ## 相关文件

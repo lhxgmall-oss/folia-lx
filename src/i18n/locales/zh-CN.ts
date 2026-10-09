@@ -3452,6 +3452,9 @@ export default {
     "description": "两个视图都能正常播放和显示歌词，只是重点不同。选一个作为点击播放后的默认落点，或者留在原处。",
     "settingsHint": "之后可以在「设置 → 界面设置 → 播放后进入的视图」里随时更改。",
     "confirm": "就这样",
+    "next": "下一步",
+    "back": "上一步",
+    "step": "第 {{current}} 步，共 {{total}} 步",
     "player": {
       "title": "可视化",
       "description": "单曲视图: 多种歌词动画和背景搭配，自由定制的单曲歌词模式"
@@ -3463,6 +3466,21 @@ export default {
     "stay": {
       "title": "留在原处",
       "description": "点击播放只开始播放，不跳转；留在资料库里，按过的卡片上的播放键变成暂停 / 继续。"
+    }
+  },
+  "librarySuiteOnboarding": {
+    "title": "资料库用哪种界面？",
+    "description": "首页、歌单、专辑与歌手页都用这里选的界面浏览。两种能做的事一样，只是浏览的方式不同。",
+    "settingsHint": "之后可以在「设置 → 界面设置 → 资料库界面」里随时更改。",
+    "grid": {
+      "title": "Grid",
+      "tag": "经典",
+      "description": "整齐的卡片网格：搜索和导航在上方，点开卡片进入歌曲列表。"
+    },
+    "bravais": {
+      "title": "Bravais",
+      "tag": "无限",
+      "description": "一整面没有尽头的磁贴墙，拖动着浏览；内容在墙上翻牌更替，这一页的信息和操作在墙中间的缝里。"
     }
   },
   "userGuide": {
