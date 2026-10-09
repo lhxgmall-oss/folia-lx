@@ -5,7 +5,6 @@ import { countRender } from '../../../dev/renderCount';
 import {
     BRAVAIS_METRICS,
     BRAVAIS_REDUCED_FADE_MS,
-    BRAVAIS_SEE_THROUGH_STRIP_ARTWORK_PX,
     BRAVAIS_TILE_FLIP_IN_MS,
     BRAVAIS_TILE_FLIP_OUT_MS,
 } from './bravaisConstants';
@@ -25,7 +24,7 @@ import { getWaveStagger, WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } fro
 // 翻牌全是 WAAPI 动画写在内容层上，React 只在转到 90° 换内容那一刻渲染这一张一次（不是每帧）。
 // 聚焦卡（6×6 块内让位）时外框的位置与尺寸走 CSS transition（只有聚焦块里那 12 张带 is-reflowing）。
 // 透光（B6b③）：窗（kind = window）没有内容，内容层透明、只有一层很淡的光晕底，露出底板挖出的洞下面的 visualizer；
-// 全透明档的内容磁贴（seeThrough）不画封面，只留标题、scrim 与一条封面底条。翻牌比较的是「面」（bravaisFaceKey），
+// 全透明档的内容磁贴（seeThrough）不画封面，只留标题与 scrim。翻牌比较的是「面」（bravaisFaceKey），
 // 所以换档时开窗、关窗、变透明的磁贴也会翻。
 // B9：换首页页签是整墙出场 → 入场（step.wave）：内容层先抬起淡出，换内容，等到自己的入场时刻再落回；首页卡片右上角
 // 的眼睛按钮与批量选中的勾（BravaisTileMarks），批量模式里没选中的、管理隐藏视图里已隐藏的灰度 + 半透明（is-dimmed）。
@@ -250,10 +249,10 @@ function BravaisTile({
         outAnimationRef.current?.cancel();
     }, []);
 
-    // 透着的磁贴只画一条封面底条（小图就够）；聚焦卡与普通磁贴按自己的尺寸取图。
+    // 透着的磁贴不画封面（2026-10-09 起连封面底条也不画），不取图；聚焦卡与普通磁贴按自己的尺寸取图。
     const coverUrl = useWallPosterArtwork(
-        display?.coverUrl,
-        face.seeThrough ? BRAVAIS_SEE_THROUGH_STRIP_ARTWORK_PX : Math.max(rect.width, rect.height) * pixelScale,
+        face.seeThrough ? undefined : display?.coverUrl,
+        Math.max(rect.width, rect.height) * pixelScale,
     );
     const isTrack = display?.kind === 'track';
     const isWindow = face.kind === 'window';
@@ -330,9 +329,7 @@ function BravaisTile({
                         <span className="lattice-poster-shade" />
                         {/* 实测反馈 1：熄灯层（wall.css；全透明档的窗与聚焦卡等豁免在 bravais.css）。 */}
                         <span className="lattice-poster-lights-out" />
-                        {face.seeThrough
-                            ? <span className="bravais-tile-strip" style={{ backgroundImage: cover }} />
-                            : <span className="lattice-poster-tint" />}
+                        {!face.seeThrough && <span className="lattice-poster-tint" />}
                         <BravaisTileBadge item={display} current={isCurrent} />
                         {(display.hideable || display.selected) && (
                             <BravaisTileMarks

@@ -560,20 +560,9 @@
 .bravais-root .bravais-tile:hover > .bravais-tile-face.is-window { transform: none; }
 
 /* 全透明：墙上的内容磁贴不画封面，只留 Lattice 的标题排版与 scrim（--lattice-shade-rgb 跟日光翻转），
-   底部一条封面底条保留辨识度；正在播放的强调色描边照常（.is-current::before）。聚焦卡（展开的那张）照常画封面。 */
+   正在播放的强调色描边照常（.is-current::before）。聚焦卡（展开的那张）照常画封面。
+   2026-10-09（用户定）：去掉底部的封面底条，透着的磁贴上只有标题。 */
 .lattice-poster.bravais-tile-face.is-see-through {
     background: var(--bravais-window-glow);
 }
 
-.bravais-tile-strip {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 1;
-    height: 6px;
-    background-color: color-mix(in srgb, var(--text-primary, #f7f4ee) 18%, transparent);
-    background-position: center;
-    background-size: 100% 100%;
-    pointer-events: none;
-}

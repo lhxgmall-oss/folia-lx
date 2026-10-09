@@ -12,21 +12,21 @@
     opacity: 0;
 }
 
-/* 全透明档：墙上的内容磁贴本身就是窗（透出下面的 visualizer），熄灯不往窗上涂黑，只把标题、徽标与封面底条压暗。
+/* 全透明档：墙上的内容磁贴本身就是窗（透出下面的 visualizer），熄灯不往窗上涂黑，只把标题与徽标压暗。
    部分透明档的窗、实色空画框没有内容，也就没有熄灯层。 */
 .bravais-root.is-lights-out .lattice-poster.bravais-tile-face.is-see-through .lattice-poster-lights-out {
     opacity: 0;
 }
 
-.bravais-tile-face.is-see-through > :is(.lattice-poster-copy, .lattice-poster-badge, .bravais-tile-strip) {
+.bravais-tile-face.is-see-through > :is(.lattice-poster-copy, .lattice-poster-badge) {
     transition: opacity 260ms ease;
 }
 
-.bravais-root.is-lights-out .bravais-tile:not(:hover) > .lattice-poster.bravais-tile-face.is-see-through:not(.is-current):not(.is-focused):not(.is-linked):not(.is-selected) > :is(.lattice-poster-copy, .lattice-poster-badge, .bravais-tile-strip) {
+.bravais-root.is-lights-out .bravais-tile:not(:hover) > .lattice-poster.bravais-tile-face.is-see-through:not(.is-current):not(.is-focused):not(.is-linked):not(.is-selected) > :is(.lattice-poster-copy, .lattice-poster-badge) {
     opacity: 0.28;
 }
 
-:root[data-reduce-motion~='lattice'] .bravais-tile-face.is-see-through > :is(.lattice-poster-copy, .lattice-poster-badge, .bravais-tile-strip) {
+:root[data-reduce-motion~='lattice'] .bravais-tile-face.is-see-through > :is(.lattice-poster-copy, .lattice-poster-badge) {
     transition: none;
 }
 

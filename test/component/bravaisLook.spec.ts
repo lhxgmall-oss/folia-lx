@@ -206,7 +206,7 @@ test.describe('[bravais] see-through wall', () => {
         expect(await runChrome(page, 'fewer-windows')).toBe(true);
         await expect.poll(() => windowsPerRenderedBlock(page)).toEqual([2]);
 
-        // 全透明：墙上没有结构窗，内容磁贴只留标题与底条，底板在它们上面挖洞。
+        // 全透明：墙上没有结构窗，内容磁贴只留标题（2026-10-09 起没有封面底条），底板在它们上面挖洞。
         expect(await runChrome(page, 'wall-look')).toBe(true);
         await expect(stage(page)).toHaveAttribute('data-bravais-look', 'clear');
         await expect.poll(() => windowsPerRenderedBlock(page)).toEqual([0]);
@@ -215,7 +215,7 @@ test.describe('[bravais] see-through wall', () => {
         const seeThrough = page.locator('.bravais-tile[data-bravais-see-through] > article').first();
         await expect(seeThrough).toBeAttached();
         expect(await seeThrough.evaluate(element => element.style.backgroundImage)).toBe('');
-        await expect(seeThrough.locator('.bravais-tile-strip')).toHaveCount(1);
+        await expect(seeThrough.locator('.bravais-tile-strip')).toHaveCount(0);
         await expect(seeThrough.locator('.lattice-poster-copy strong')).toHaveCount(1);
         expect(await noiseOverlay(page)).toBe('none');
 
