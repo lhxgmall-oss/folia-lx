@@ -5,7 +5,7 @@ import type { PlateBlock } from './bravaisBlockPlate';
 // src/library/suites/bravais/BravaisBlockPlates.tsx
 // 一个块的实色底板（设计稿 §11）：内联 SVG，实色、evenodd 路径（外框减去窗洞），放在世界层里、磁贴之下。
 // 只在路径或外框变了时渲染（countRender('BravaisBlockPlate') 记的就是重画次数）；聚焦卡让位期间路径由
-// useBravaisReflowPlate 逐帧直接写，挂着 data-bravais-plate-live。
+// useBravaisReflowDriver 与磁贴同一帧逐帧直接写，挂着 data-bravais-plate-live。
 
 type BravaisBlockPlateProps = Pick<PlateBlock, 'x' | 'y' | 'width' | 'height' | 'd'> & {
     blockKey: string;

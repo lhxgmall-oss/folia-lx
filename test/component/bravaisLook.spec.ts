@@ -256,7 +256,7 @@ test.describe('[bravais] see-through wall', () => {
         // 逐帧重画的只有这一块（远多于落定时的一次），别的块一次都没重画。
         expect(new Set(result.writes)).toEqual(new Set([blockKey]));
         expect(result.writes.length).toBeGreaterThan(5);
-        // 洞贴着窗磁贴走：每次写入时的误差都在 1.5 屏幕像素以内（按让位过渡自己的参数推算，不读样式）。
+        // 洞贴着窗磁贴走：每次写入时的误差都在 1.5 屏幕像素以内（磁贴外框与洞在同一帧里写，useBravaisReflowDriver）。
         expect(result.error.length).toBeGreaterThan(5);
         expect(Math.max(...result.error)).toBeLessThan(1.5);
     });
@@ -320,7 +320,7 @@ test.describe('[bravais] see-through wall', () => {
 
 // fb2：窗不是墙面。聚焦卡展开时点窗（结构窗、透明档有限墙的空 slot）没有任何反应——聚焦卡仍展开、键盘焦点不动、
 // 不换层不翻牌、相机不动；拖动结束在窗上也一样。实色空画框（实色档 / 无限墙的空画框）才算空白墙面，点它收起
-// 聚焦卡，让位那一块沿同一条过渡回到原位（之前收起的那次提交同时摘掉了 is-reflowing，整块瞬间归位）。
+// 聚焦卡，让位那一块沿同一条弹簧回到原位（逐帧驱动，动着的磁贴挂 data-bravais-reflowing）。
 
 /** 中心点在视口里（避开缝与底部播放条一带）、中心点上最上层就是它自己的磁贴（按选择器挑，可排除某个块）。 */
 const topmostSlot = (page: Page, selector: string, excludeBlock: string | null = null) => page.evaluate(([query, skip]) => {
@@ -340,9 +340,8 @@ const topmostSlot = (page: Page, selector: string, excludeBlock: string | null =
 
 const blockOf = (slotKey: string) => slotKey.split(',').slice(0, 2).join(',');
 const expanded = (page: Page) => page.locator('.bravais-tile[data-bravais-expanded]');
-/** 外框上没有在跑的让位过渡（展开着时聚焦块一直挂 is-reflowing，所以看过渡本身）。 */
-const reflowSettled = (page: Page) => expect.poll(() => page.evaluate(() => [...document.querySelectorAll('.bravais-tile')]
-    .flatMap(element => element.getAnimations()).filter(animation => animation instanceof CSSTransition).length), { timeout: 3_000 }).toBe(0);
+/** 让位放完：没有磁贴还挂着 data-bravais-reflowing（useBravaisReflowDriver 逐帧驱动时挂上，放完摘掉）。 */
+const reflowSettled = (page: Page) => expect(page.locator('.bravais-tile[data-bravais-reflowing]')).toHaveCount(0, { timeout: 3_000 });
 
 /** 此刻点不动的那些东西：聚焦卡、键盘焦点、DOM 焦点、换层序号、两半世界层的位置、在跑的翻牌（WAAPI）。 */
 const wallSnapshot = (page: Page) => page.evaluate(() => ({
@@ -412,12 +411,12 @@ test.describe('[bravais] clicking a window', () => {
         await expect(page.locator('[data-bravais-plate-live]')).toHaveCount(0, { timeout: 3_000 });
         const blockKey = blockOf(track!);
         await watchPlateWrites(page, blockKey);
-        // Esc 的第一级收起聚焦卡：这一块沿过渡归位，期间块底板逐帧跟着窗磁贴重画，放完摘掉 live。
+        // Esc 的第一级收起聚焦卡：这一块沿同一条弹簧归位，期间块底板与磁贴同一帧逐帧重画，放完摘掉 live。
         await page.keyboard.press('Escape');
         await expect(expanded(page)).toHaveCount(0);
         await expect(page.locator('[data-bravais-plate-live]')).toHaveAttribute('data-bravais-plate-block', blockKey);
         await expect(page.locator('[data-bravais-plate-live]')).toHaveCount(0, { timeout: 3_000 });
-        await expect(page.locator('.bravais-tile.is-reflowing')).toHaveCount(0);
+        await reflowSettled(page);
         const result = await page.evaluate(() => ({
             writes: (window as CountWindow).__plateWrites ?? [],
             error: (window as CountWindow).__reflowError ?? [],
@@ -450,19 +449,15 @@ test.describe('[bravais] clicking a window', () => {
         expect(frame).not.toBeNull();
         await tile(page, frame!).locator('article').click();
         await expect(expanded(page)).toHaveCount(0);
-        // 收起的那一刻：原来让位的那一块仍挂着过渡，外框上正在跑回原位的 CSS 过渡。
+        // 收起的那一刻：原来展开的那张正在缩回原位（挂着 data-bravais-reflowing，宽度还在 6×6 与原位之间）。
         const returning = await tile(page, track!).evaluate(element => ({
-            reflowing: element.classList.contains('is-reflowing'),
-            transitions: element.getAnimations()
-                .filter(animation => animation instanceof CSSTransition)
-                .map(animation => (animation as CSSTransition).transitionProperty)
-                .sort(),
+            reflowing: element.hasAttribute('data-bravais-reflowing'),
+            width: element.getBoundingClientRect().width,
         }));
-        // （展开的那张可能就在原位上展开，平移不变，所以只要求宽高在过渡。）
         expect(returning.reflowing).toBe(true);
-        expect(returning.transitions).toEqual(expect.arrayContaining(['height', 'width']));
-        // 放完后摘掉。
+        // 放完后摘掉，宽度落到原位（比收起那一刻窄）。
         await reflowSettled(page);
-        await expect(page.locator('.bravais-tile.is-reflowing')).toHaveCount(0);
+        const settledWidth = await tile(page, track!).evaluate(element => element.getBoundingClientRect().width);
+        expect(settledWidth).toBeLessThan(returning.width);
     });
 });

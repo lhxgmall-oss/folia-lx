@@ -17,7 +17,7 @@ type Sample = { t: number; rects: Record<string, [number, number, number, number
 type SamplerWindow = Window & { __reflowSamples?: Sample[]; __reflowSampling?: boolean };
 
 /**
- * 在页面里按 rAF 逐帧记下选中元素的 [x, y, 宽, 高]（世界单位）。bravais 的外框走 CSS 过渡，读计算样式；Lattice 的
+ * 在页面里按 rAF 逐帧记下选中元素的 [x, y, 宽, 高]（世界单位）。bravais 的外框由 useBravaisReflowDriver 逐帧写，读计算样式；Lattice 的
  * 海报由 framer 每帧写内联样式（transform 里还带悬停抬起的 scaleX / scaleY，只取平移）。
  */
 const startSampling = (page: Page, kind: 'bravais' | 'lattice') => page.evaluate((which) => {
@@ -199,9 +199,8 @@ test.describe('[bravais] focus reflow motion', () => {
         const track = await topmostTrack(page);
         expect(track).not.toBeNull();
         const block = blockOf(track!);
-        /** 外框上没有在跑的让位过渡（每段采样前都等上一段放完）。 */
-        const reflowSettled = () => expect.poll(() => page.evaluate(() => [...document.querySelectorAll('.bravais-tile')]
-            .flatMap(element => element.getAnimations()).filter(animation => animation instanceof CSSTransition).length), { timeout: 5_000 }).toBe(0);
+        /** 让位放完（每段采样前都等上一段放完）：没有磁贴还挂着 data-bravais-reflowing。 */
+        const reflowSettled = () => expect(page.locator('.bravais-tile[data-bravais-reflowing]')).toHaveCount(0, { timeout: 5_000 });
 
         // 展开：块里换位的磁贴（含展开的那张）。
         await startSampling(page, 'bravais');

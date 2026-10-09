@@ -24,15 +24,6 @@
     left: 0;
 }
 
-/* 聚焦卡所在块的 12 张让位：与 Lattice 展开海报同一条弹簧（stiffness 300 / damping 34，不过冲），采样成 linear() 缓动，
-   时长与缓动由 stage 根节点的两个变量给出（bravaisReflowMotion）；块外的磁贴不带过渡，裁剪与拖动不会触发它。 */
-.bravais-tile.is-reflowing {
-    transition:
-        transform var(--bravais-reflow-duration, 0ms) var(--bravais-reflow-ease, linear),
-        width var(--bravais-reflow-duration, 0ms) var(--bravais-reflow-ease, linear),
-        height var(--bravais-reflow-duration, 0ms) var(--bravais-reflow-ease, linear);
-}
-
 .bravais-tile:hover { z-index: 3; }
 .bravais-tile.is-focused { z-index: 4; }
 .bravais-tile.is-expanded { z-index: 20; }
@@ -475,7 +466,6 @@
 .bravais-seam-tab[data-side='right'] { right: 0; border-radius: 6px 0 0 6px; }
 .bravais-seam-tab:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 2px; }
 
-:root[data-reduce-motion~='lattice'] .bravais-tile.is-reflowing,
 :root[data-reduce-motion~='lattice'] .bravais-tile-face { transition: none; }
 :root[data-reduce-motion~='lattice'] .bravais-focus-actions { animation: none; }
 

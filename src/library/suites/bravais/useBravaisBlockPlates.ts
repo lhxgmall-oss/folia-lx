@@ -1,4 +1,4 @@
-import { useMemo, useRef, type RefObject } from 'react';
+import { useMemo, useRef } from 'react';
 import type { WallSlot } from '../../../components/wall/wallSlots';
 import type { BravaisDisplay } from './bravaisDisplay';
 import {
@@ -11,15 +11,14 @@ import {
     type PlateBlockSet,
     type PlateRect,
 } from './bravaisBlockPlate';
-import { useBravaisReflowPlate } from './useBravaisReflowPlate';
 
 // src/library/suites/bravais/useBravaisBlockPlates.ts
 // 透光档的实色底板（设计稿 §11）：每个已挂载的块一张 SVG（bravaisBlockPlate），由 BravaisWall 画进各自那一半的
 // 世界层、磁贴之下，随相机平移——拖动、缝开合都不写底板。
 // - 已挂载的块跟着裁剪走：新进来的块各画一次，离开的卸载；已挂的块只在它的洞变了时重画（同一块的输入没变就沿用
 //   上一份，不重算；重算出来路径没变也沿用上一份，BravaisBlockPlates 里每块的 memo 不重渲染）。
-// - 聚焦卡让位期间只逐帧重画那一块（useBravaisReflowPlate），落定后停。
-// - fb2：收起 / 换块时归位的那一块同样逐帧重画（第二个 useBravaisReflowPlate，跟 returning），归位放完后停。
+// - 聚焦卡让位（展开、换卡、收起 / 换块时的归位）期间，受影响的块由 useBravaisReflowDriver 与磁贴同一帧逐帧重画；
+//   这里只给落定的路径。
 // - 实色档不挂（stage 根节点画墙面）。
 
 type CachedBlock = {
@@ -36,10 +35,7 @@ export const useBravaisBlockPlates = ({
     display,
     expandedSlotKey,
     reflow,
-    returning,
     anchorX,
-    reducedMotion,
-    fieldRef,
 }: {
     /** 透明档才挂底板。 */
     enabled: boolean;
@@ -47,14 +43,9 @@ export const useBravaisBlockPlates = ({
     display: BravaisDisplay | null;
     expandedSlotKey: string | null;
     reflow: ReadonlyMap<string, PlateRect>;
-    /** fb2：最近一次离开让位表、正在归位的那一块（slot key → 原来的让位矩形）；没有时为空。 */
-    returning: ReadonlyMap<string, PlateRect>;
     anchorX: number | null;
-    reducedMotion: boolean;
-    fieldRef: RefObject<HTMLElement | null>;
 }): PlateBlockSet => {
     const cacheRef = useRef(new Map<string, CachedBlock>());
-    const platesRef = useRef<ReadonlyMap<string, PlateBlock>>(new Map());
 
     const plates = useMemo<PlateBlockSet>(() => {
         const previous = cacheRef.current;
@@ -82,8 +73,5 @@ export const useBravaisBlockPlates = ({
         return { left, right };
     }, [anchorX, display, enabled, expandedSlotKey, reflow, slots]);
 
-    platesRef.current = useMemo(() => new Map([...plates.left, ...plates.right].map(block => [block.key, block])), [plates]);
-    useBravaisReflowPlate({ active: enabled && !reducedMotion, reflow, platesRef, fieldRef });
-    useBravaisReflowPlate({ active: enabled && !reducedMotion, reflow: returning, platesRef, fieldRef });
     return plates;
 };

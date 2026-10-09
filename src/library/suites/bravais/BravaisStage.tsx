@@ -8,7 +8,6 @@ import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import type { LibrarySuiteStageProps } from '../../core/contracts/suite';
 import { BRAVAIS_METRICS, BRAVAIS_OVERSCAN, BRAVAIS_SEAM_ACRYLIC_BLUR } from './bravaisConstants';
-import { BRAVAIS_REFLOW_EASING_CSS, BRAVAIS_REFLOW_MS } from './bravaisReflowMotion';
 import { WALL_REFLOW_CONTROLS_REVEAL } from '../../../components/wall/wallReflowMotion';
 import { resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
 import type { BravaisLayer } from './bravaisLayer';
@@ -26,6 +25,7 @@ import { bravaisSlotFromKey, useBravaisInteractions, type BravaisStagePlayback }
 import { useBravaisPlayingCard } from './useBravaisPlayingCard';
 import { useBravaisKeyboard } from './useBravaisKeyboard';
 import { useBravaisBlockPlates } from './useBravaisBlockPlates';
+import { useBravaisReflowDriver } from './useBravaisReflowDriver';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
@@ -280,11 +280,12 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         display,
         expandedSlotKey: focus.expandedSlotKey,
         reflow: focus.reflow,
-        returning: focus.returningBlock,
         anchorX: seam.anchorX,
-        reducedMotion,
-        fieldRef,
     });
+    // 聚焦卡块内让位：磁贴外框与透光底板的洞同一帧逐帧写（2026-10-09 起，不再是 CSS 过渡）。
+    const platesRef = useRef(plates);
+    platesRef.current = plates;
+    useBravaisReflowDriver({ reflow: focus.reflow, enabled: !reducedMotion, fieldRef, platesRef });
 
     const active = isInteractive && owned && Boolean(layer?.isInteractive) && handoff.role === null;
     useBravaisKeyboard(active, interactions.handleAction);
@@ -430,8 +431,6 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             style={{
                 '--lattice-poster-tint-color': tintColor,
                 '--lattice-poster-tint-intensity': tintIntensity,
-                '--bravais-reflow-duration': `${BRAVAIS_REFLOW_MS}ms`,
-                '--bravais-reflow-ease': BRAVAIS_REFLOW_EASING_CSS,
                 '--bravais-focus-reveal-delay': `${WALL_REFLOW_CONTROLS_REVEAL.delayMs}ms`,
                 '--bravais-focus-reveal-duration': `${WALL_REFLOW_CONTROLS_REVEAL.durationMs}ms`,
                 '--bravais-focus-reveal-rise': `${WALL_REFLOW_CONTROLS_REVEAL.risePx}px`,
@@ -474,7 +473,6 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                     display={display}
                     anchorX={seam.anchorX}
                     reflow={focus.reflow}
-                    returning={focus.returning}
                     expandedSlotKey={focus.expandedSlotKey}
                     focusedSlotKey={focus.focusedSlotKey}
                     linkedKey={panelFor !== null && panelFor === display?.layer.key ? linkedKey : null}

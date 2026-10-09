@@ -22,7 +22,7 @@ import { getWaveStagger, WALL_WAVE_IN_MS, WALL_WAVE_LIFT, WALL_WAVE_OUT_MS } fro
 // 墙上的一张磁贴。分两层（给 B6b③ 的底板留结构）：外框（.bravais-tile）只管位置与尺寸，永远不转；内容层
 // （.lattice-poster，海报本身）翻牌时绕 Y 轴转到 90° 换内容再转回来，侧立时露出的是外框后面的东西。
 // 翻牌全是 WAAPI 动画写在内容层上，React 只在转到 90° 换内容那一刻渲染这一张一次（不是每帧）。
-// 聚焦卡（6×6 块内让位）时外框的位置与尺寸走 CSS transition（只有聚焦块里那 12 张带 is-reflowing）。
+// 聚焦卡（6×6 块内让位）时外框的位置与尺寸由 useBravaisReflowDriver 逐帧写内联样式（与透光底板的洞同一帧）。
 // 透光（B6b③）：窗（kind = window）没有内容，内容层透明、只有一层很淡的光晕底，露出底板挖出的洞下面的 visualizer；
 // 全透明档的内容磁贴（seeThrough）不画封面，只留标题与 scrim。翻牌比较的是「面」（bravaisFaceKey），
 // 所以换档时开窗、关窗、变透明的磁贴也会翻。
@@ -56,7 +56,6 @@ type BravaisTileProps = {
     step: BravaisFlipStep | undefined;
     nowPlayingKey: string | null;
     /** 在聚焦卡所在的块里：位置与尺寸带过渡。 */
-    reflowing: boolean;
     expanded: boolean;
     keyboardFocused: boolean;
     /** 只有展开的那张才需要：「✓ 已在队列」。 */
@@ -114,7 +113,6 @@ function BravaisTile({
     seeThrough,
     step,
     nowPlayingKey,
-    reflowing,
     expanded,
     keyboardFocused,
     queued,
@@ -286,7 +284,7 @@ function BravaisTile({
 
     return (
         <div
-            className={`bravais-tile${reflowing ? ' is-reflowing' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}`}
+            className={`bravais-tile${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}`}
             style={style}
             data-bravais-slot={slotKey}
             data-bravais-kind={isWindow ? 'window' : display?.kind ?? 'wall'}

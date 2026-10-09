@@ -9,6 +9,7 @@ import {
     buildPlatePath,
     collectBlockHoles,
     collectMountedBlocks,
+    disjointRects,
     getBlockRect,
     getPlateFrame,
     isLeftOfAnchor,
@@ -148,10 +149,40 @@ describe('buildPlatePath', () => {
             .toBe('M0 0h100v100h-100ZM90 0h10v15h-10Z');
     });
 
+    it('splits overlapping holes into disjoint rects (two windows crossing mid-reflow; evenodd would fill the overlap back in)', () => {
+        const frame = { x: 0, y: 0, width: 100, height: 100 };
+        expect(buildPlatePath(frame, [{ x: 10, y: 10, width: 40, height: 20 }, { x: 30, y: 10, width: 40, height: 20 }]))
+            .toBe('M0 0h100v100h-100ZM10 10h60v20h-60Z');
+    });
+
     it('builds the block plate from its windows', () => {
         const plate = buildPlateBlock(0, 0, partial, null, NO_REFLOW, null);
         expect(plate).toMatchObject({ key: '0,0', column: 0, row: 0, ...getPlateFrame(0, 0, null) });
         expect(plate.d.match(/M/g)).toHaveLength(1 + 3);
         expect(buildPlateBlock(0, 0, clear, null, NO_REFLOW, null).d.match(/M/g)).toHaveLength(1 + 12);
+    });
+});
+
+describe('disjointRects', () => {
+    const inside = (rects: readonly { x: number; y: number; width: number; height: number }[], x: number, y: number) => rects
+        .filter(rect => x > rect.x && x < rect.x + rect.width && y > rect.y && y < rect.y + rect.height).length;
+
+    it('returns disjoint holes as they are', () => {
+        const rects = [{ x: 0, y: 0, width: 10, height: 10 }, { x: 10, y: 0, width: 10, height: 10 }];
+        expect(disjointRects(rects)).toBe(rects);
+    });
+
+    it('covers the same area with rects that never overlap', () => {
+        const rects = [
+            { x: 0, y: 0, width: 50, height: 30 },
+            { x: 20, y: 10, width: 50, height: 50 },
+            { x: 60, y: 50, width: 30, height: 30 },
+        ];
+        const out = disjointRects(rects);
+        for (let x = 0.5; x < 100; x += 1) {
+            for (let y = 0.5; y < 100; y += 1) {
+                expect(inside(out, x, y)).toBe(inside(rects, x, y) > 0 ? 1 : 0);
+            }
+        }
     });
 });
