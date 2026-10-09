@@ -1929,7 +1929,7 @@ export default {
     "stageTrackPillTimeout": "Visible duration",
     "disableVisualizerVignette": "Disable vignette",
     "disableVisualizerVignetteDesc": "Only removes the geometric background edge vignette. Transparent background and geometric shapes stay separate.",
-    "latticeSettings": "Queue collage & library wall",
+    "latticeSettings": "Tile wall appearance",
     "latticeVignette": "Edge vignette",
     "latticeVignetteDesc": "Darkens the edges of the queue collage and the library wall so the middle of the wall carries the eye.",
     "latticePosterTint": "Poster focus tint",
@@ -3453,6 +3453,9 @@ export default {
     "description": "Both views play and show lyrics; they just put the emphasis in different places. Pick the one Play should open by default, or stay where you pressed it.",
     "settingsHint": "You can change this any time under Options \u2192 Interface \u2192 View opened by Play.",
     "confirm": "Use this",
+    "next": "Next",
+    "back": "Back",
+    "step": "Step {{current}} of {{total}}",
     "player": {
       "title": "Visualizer",
       "description": "A customizable single-song lyrics view with multiple lyric animations and background combinations."
@@ -3464,6 +3467,21 @@ export default {
     "stay": {
       "title": "Stay here",
       "description": "Play only starts the song. You stay in the library, and the card you pressed turns into pause / resume."
+    }
+  },
+  "librarySuiteOnboarding": {
+    "title": "How should your library look?",
+    "description": "The home screen, playlists, albums and artist pages are all browsed in the interface you pick here. Both do the same things; they just browse differently.",
+    "settingsHint": "You can change this any time under Options \u2192 Interface \u2192 Library interface.",
+    "grid": {
+      "title": "Grid",
+      "tag": "Classic",
+      "description": "A tidy grid of cards: search and navigation along the top, open a card to see its songs."
+    },
+    "bravais": {
+      "title": "Bravais",
+      "tag": "Infinite",
+      "description": "One endless wall of tiles you drag around. Content flips into place on the wall, and the page's info and actions sit in a seam in the middle."
     }
   },
   "userGuide": {
@@ -3727,7 +3745,7 @@ export default {
       "openGridActionButton": "Go change the slide target",
       "openGrid3dCardStyle": "Open home card style",
       "openGridViewCard": "Open grid card settings",
-      "openLatticeSettings": "Open queue collage settings"
+      "openLatticeSettings": "Open tile wall appearance settings"
     },
     "anchors": {
       "audioEqualizer": {
@@ -3997,7 +4015,7 @@ export default {
         "reset": "Reset falloff"
       },
       "latticeStyle": {
-        "panel": "Settings \u00b7 Queue collage",
+        "panel": "Settings \u00b7 Tile wall appearance",
         "vignette": "Vignette",
         "tint": "Poster tint",
         "customColor": "Fixed colour",
@@ -4123,7 +4141,7 @@ export default {
       "localGridMapDirectoryTree": "GridMap folder tree",
       "grid3dCardStyle": "Home card style",
       "gridViewCardSettings": "Grid card settings",
-      "latticeStyleSettings": "Queue collage style",
+      "latticeStyleSettings": "Tile wall appearance",
       "panelCoverActions": "The four buttons on the artwork",
       "panelCoverTab": "Panel \u00b7 Artwork tab",
       "panelSourceTab": "Panel \u00b7 Source tab",

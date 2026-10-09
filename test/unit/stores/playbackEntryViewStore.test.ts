@@ -58,6 +58,19 @@ describe('playback entry view store', () => {
         expect((await loadStore(Object.fromEntries(storage))).getState().playbackEntryView).toBe('stay');
     });
 
+    // 2026-10-10：首启提问多了「资料库界面」那一页，但出不出现仍只看这一个标记——回答过旧版单页提问的安装不会再被问。
+    it('never reopens the (now two-page) prompt for an install that answered it before', async () => {
+        const answered = await loadStore({ playback_entry_view_chosen: 'true' });
+        expect(answered.getState().requestPlaybackEntryViewPrompt()).toBe(false);
+        expect(answered.getState().isPlaybackEntryViewPromptOpen).toBe(false);
+
+        const fresh = await loadStore();
+        expect(fresh.getState().requestPlaybackEntryViewPrompt()).toBe(true);
+        fresh.getState().closePlaybackEntryViewPrompt();
+        expect(storage.get('playback_entry_view_chosen')).toBe('true');
+        expect(fresh.getState().requestPlaybackEntryViewPrompt()).toBe(false);
+    });
+
     it('recognises exactly the three values', () => {
         for (const value of ['player', 'lattice', 'stay']) expect(isPlaybackEntryView(value)).toBe(true);
         for (const value of ['home', '', null, undefined, 1]) expect(isPlaybackEntryView(value)).toBe(false);

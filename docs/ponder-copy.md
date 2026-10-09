@@ -197,7 +197,7 @@
       "openGridActionButton": "去改滑动目标",
       "openGrid3dCardStyle": "打开首页卡片样式",
       "openGridViewCard": "打开网格卡片设置",
-      "openLatticeSettings": "打开队列拼贴设置"
+      "openLatticeSettings": "打开拼贴墙外观设置"
     },
     "anchors": {
       "audioEqualizer": {
@@ -413,7 +413,7 @@
         "reset": "恢复默认衰减"
       },
       "latticeStyle": {
-        "panel": "设置 · 队列拼贴",
+        "panel": "设置 · 拼贴墙外观",
         "vignette": "暗角",
         "tint": "海报叠色",
         "customColor": "使用固定颜色",
@@ -530,7 +530,7 @@
       "localTrackSorting": "本地曲目排序",
       "grid3dCardStyle": "首页卡片样式",
       "gridViewCardSettings": "网格卡片设置",
-      "latticeStyleSettings": "队列拼贴样式",
+      "latticeStyleSettings": "拼贴墙外观",
       "panelCoverActions": "封面上的四颗按钮",
       "panelCoverTab": "面板 · 封面页",
       "panelSourceTab": "面板 · 来源页",

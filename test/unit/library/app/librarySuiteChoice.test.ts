@@ -3,8 +3,11 @@ import '@/library/registry';
 import {
     chooseLibrarySuite,
     getActiveLibrarySuiteId,
+    hasOnboardingLibrarySuiteChoice,
     LIBRARY_HOME_SESSION_KEY,
     listLibrarySuiteOptions,
+    listOnboardingLibrarySuiteIds,
+    pickOnboardingLibrarySuiteIds,
     resolveCurrentLibrarySessionKey,
 } from '@/library/app/librarySuiteChoice';
 import { switchLibrarySuite } from '@/library/app/switchLibrarySuite';
@@ -168,5 +171,27 @@ describe('whether there is a choice', () => {
             expect(registry.resolveActiveLibrarySuiteId('bravais')).toBe('grid');
             vi.doUnmock('@/library/suites/bravais/entry');
         });
+    });
+});
+
+// 2026-10-10：首启引导第一页只问网格（经典）与 bravais（无限）；TUI 在测试构建里可用也不出现。
+describe('first-run onboarding suite page', () => {
+    it('lists grid and bravais, in that order, and leaves the dev TUI out', () => {
+        expect(listLibrarySuiteOptions().map(option => option.id)).toContain('tui');
+        expect(listOnboardingLibrarySuiteIds()).toEqual(['grid', 'bravais']);
+        expect(hasOnboardingLibrarySuiteChoice()).toBe(true);
+    });
+
+    it('keeps the fixed order whatever the registry order is, and drops suites the build lacks', () => {
+        expect(pickOnboardingLibrarySuiteIds(['tui', 'bravais', 'grid'])).toEqual(['grid', 'bravais']);
+        expect(pickOnboardingLibrarySuiteIds(['grid', 'tui'])).toEqual(['grid']);
+        expect(pickOnboardingLibrarySuiteIds(['grid'])).toEqual(['grid']);
+    });
+
+    it('writes the pick through the same path as the settings section', () => {
+        useLibrarySuiteStore.setState({ suite: 'grid' });
+        chooseLibrarySuite('bravais');
+        expect(useLibrarySuiteStore.getState().suite).toBe('bravais');
+        expect(storage.get('library_suite')).toBe('bravais');
     });
 });

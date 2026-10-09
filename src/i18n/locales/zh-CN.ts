@@ -1928,7 +1928,7 @@ export default {
     "stageTrackPillTimeout": "显示时长",
     "disableVisualizerVignette": "禁用暗角",
     "disableVisualizerVignetteDesc": "关闭几何背景自带的边缘暗角，建议配合透明背景使用。",
-    "latticeSettings": "队列拼贴与资料库墙",
+    "latticeSettings": "拼贴墙外观",
     "latticeVignette": "边缘暗角",
     "latticeVignetteDesc": "在队列拼贴与资料库墙四周加一层淡淡的暗角，让视线落在中间的海报上。",
     "latticePosterTint": "海报聚焦叠色",
@@ -3452,6 +3452,9 @@ export default {
     "description": "两个视图都能正常播放和显示歌词，只是重点不同。选一个作为点击播放后的默认落点，或者留在原处。",
     "settingsHint": "之后可以在「设置 → 界面设置 → 播放后进入的视图」里随时更改。",
     "confirm": "就这样",
+    "next": "下一步",
+    "back": "上一步",
+    "step": "第 {{current}} 步，共 {{total}} 步",
     "player": {
       "title": "可视化",
       "description": "单曲视图: 多种歌词动画和背景搭配，自由定制的单曲歌词模式"
@@ -3463,6 +3466,21 @@ export default {
     "stay": {
       "title": "留在原处",
       "description": "点击播放只开始播放，不跳转；留在资料库里，按过的卡片上的播放键变成暂停 / 继续。"
+    }
+  },
+  "librarySuiteOnboarding": {
+    "title": "资料库用哪种界面？",
+    "description": "首页、歌单、专辑与歌手页都用这里选的界面浏览。两种能做的事一样，只是浏览的方式不同。",
+    "settingsHint": "之后可以在「设置 → 界面设置 → 资料库界面」里随时更改。",
+    "grid": {
+      "title": "Grid",
+      "tag": "经典",
+      "description": "整齐的卡片网格：搜索和导航在上方，点开卡片进入歌曲列表。"
+    },
+    "bravais": {
+      "title": "Bravais",
+      "tag": "无限",
+      "description": "一整面没有尽头的磁贴墙，拖动着浏览；内容在墙上翻牌更替，这一页的信息和操作在墙中间的缝里。"
     }
   },
   "userGuide": {
@@ -3726,7 +3744,7 @@ export default {
       "openGridActionButton": "去改滑动目标",
       "openGrid3dCardStyle": "打开首页卡片样式",
       "openGridViewCard": "打开网格卡片设置",
-      "openLatticeSettings": "打开队列拼贴设置"
+      "openLatticeSettings": "打开拼贴墙外观设置"
     },
     "anchors": {
       "audioEqualizer": {
@@ -3996,7 +4014,7 @@ export default {
         "reset": "恢复默认衰减"
       },
       "latticeStyle": {
-        "panel": "设置 · 队列拼贴",
+        "panel": "设置 · 拼贴墙外观",
         "vignette": "暗角",
         "tint": "海报叠色",
         "customColor": "使用固定颜色",
@@ -4122,7 +4140,7 @@ export default {
       "localGridMapDirectoryTree": "GridMap 目录树",
       "grid3dCardStyle": "首页卡片样式",
       "gridViewCardSettings": "网格卡片设置",
-      "latticeStyleSettings": "队列拼贴样式",
+      "latticeStyleSettings": "拼贴墙外观",
       "panelCoverActions": "封面上的四颗按钮",
       "panelCoverTab": "面板 · 封面页",
       "panelSourceTab": "面板 · 来源页",

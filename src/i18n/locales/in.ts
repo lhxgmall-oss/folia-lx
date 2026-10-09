@@ -1921,7 +1921,7 @@ export default {
     "stageTrackPillTimeout": "Durasi tampil",
     "disableVisualizerVignette": "Nonaktifkan vignette",
     "disableVisualizerVignetteDesc": "Hanya menghapus vignette tepi latar belakang geometris. Latar belakang transparan dan bentuk geometris tetap terpisah.",
-    "latticeSettings": "Kolase antrean & dinding pustaka",
+    "latticeSettings": "Tampilan dinding kolase",
     "latticeVignette": "Vignette tepi",
     "latticeVignetteDesc": "Gelapkan tepi kolase antrean dan dinding pustaka agar poster di tengah lebih menonjol.",
     "latticePosterTint": "Warna fokus poster",
@@ -3338,6 +3338,9 @@ export default {
     "description": "Kedua tampilan sama-sama memutar dan menampilkan lirik, hanya penekanannya berbeda. Pilih salah satu sebagai tujuan default saat menekan putar, atau tetap di tempat.",
     "settingsHint": "Anda bisa mengubahnya kapan saja di Opsi \u2192 Antarmuka \u2192 Tampilan yang dibuka Putar.",
     "confirm": "Pakai ini",
+    "next": "Berikutnya",
+    "back": "Kembali",
+    "step": "Langkah {{current}} dari {{total}}",
     "player": {
       "title": "Visualizer",
       "description": "Tampilan lirik satu lagu yang dapat disesuaikan dengan beragam animasi lirik dan kombinasi latar belakang."
@@ -3349,6 +3352,21 @@ export default {
     "stay": {
       "title": "Tetap di sini",
       "description": "Putar hanya memulai lagu. Anda tetap di pustaka, dan tombol putar pada kartu yang ditekan berubah menjadi jeda / lanjut."
+    }
+  },
+  "librarySuiteOnboarding": {
+    "title": "Pustaka mau tampil seperti apa?",
+    "description": "Beranda, playlist, album, dan halaman artis dijelajahi dengan antarmuka yang Anda pilih di sini. Keduanya bisa melakukan hal yang sama, hanya cara menjelajahnya berbeda.",
+    "settingsHint": "Anda bisa mengubahnya kapan saja di Opsi \u2192 Antarmuka \u2192 Antarmuka pustaka.",
+    "grid": {
+      "title": "Grid",
+      "tag": "Klasik",
+      "description": "Kisi kartu yang rapi: pencarian dan navigasi di atas, buka kartu untuk melihat lagunya."
+    },
+    "bravais": {
+      "title": "Bravais",
+      "tag": "Tanpa batas",
+      "description": "Satu dinding ubin tanpa ujung yang bisa digeser. Konten berganti di dinding, sementara info dan tindakan halaman ada di celah di tengahnya."
     }
   },
   "userGuide": {
@@ -3612,7 +3630,7 @@ export default {
       "openGridActionButton": "Ubah target gesernya",
       "openGrid3dCardStyle": "Buka gaya kartu beranda",
       "openGridViewCard": "Buka pengaturan kartu kisi",
-      "openLatticeSettings": "Buka pengaturan kolase antrean"
+      "openLatticeSettings": "Buka pengaturan tampilan dinding kolase"
     },
     "anchors": {
       "audioEqualizer": {
@@ -3882,7 +3900,7 @@ export default {
         "reset": "Kembalikan peluruhan"
       },
       "latticeStyle": {
-        "panel": "Pengaturan \u00b7 Kolase antrean",
+        "panel": "Pengaturan \u00b7 Tampilan dinding kolase",
         "vignette": "Vignette",
         "tint": "Lapisan warna poster",
         "customColor": "Warna tetap",
@@ -4008,7 +4026,7 @@ export default {
       "localGridMapDirectoryTree": "Pohon folder GridMap",
       "grid3dCardStyle": "Gaya kartu beranda",
       "gridViewCardSettings": "Pengaturan kartu kisi",
-      "latticeStyleSettings": "Gaya kolase antrean",
+      "latticeStyleSettings": "Tampilan dinding kolase",
       "panelCoverActions": "Empat tombol di atas sampul",
       "panelCoverTab": "Panel \u00b7 Tab sampul",
       "panelSourceTab": "Panel \u00b7 Tab sumber",

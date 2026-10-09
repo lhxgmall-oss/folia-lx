@@ -7,13 +7,13 @@ import React from 'react';
 // current theme's accent colour, and shipping them as files would put a network fetch in front of
 // a modal that opens exactly once.
 
-type ArtProps = {
+export type ArtProps = {
     /** The playing/selected element's colour; everything else is drawn in `currentColor`. */
     accentColor: string;
     className?: string;
 };
 
-const FRAME_PROPS = {
+export const FRAME_PROPS = {
     x: 1,
     y: 1,
     width: 158,

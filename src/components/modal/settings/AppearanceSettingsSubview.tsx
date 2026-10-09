@@ -959,7 +959,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
                 </div>
             </SettingsAnchor>
 
-            {/* Section 5: Queue collage */}
+            {/* Section 5: Tile wall appearance (queue collage + bravais library wall) */}
             <SettingsAnchor anchorId="latticeSettings" label={t('options.latticeSettings')}>
                 <SettingsSectionHeading icon={PanelsTopLeft} label={t('options.latticeSettings')} />
                 <LatticeSettingsSection
