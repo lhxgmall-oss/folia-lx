@@ -12,6 +12,8 @@ type NewFeatureCard = {
 
 type NewFeaturesRelease = {
     i18nKey: string;
+    /** 重大更新：介绍上方显示「<代号> Update · 重大更新」标签；代号不翻译，文案在 help.majorUpdateLabel。 */
+    majorUpdate?: { codename: string };
     features: NewFeatureCard[];
 };
 

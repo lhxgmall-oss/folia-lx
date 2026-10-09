@@ -1444,6 +1444,7 @@ export default {
     "joinDiscord": "Join our Discord",
     "releaseNotes": "What's new",
     "releaseNotesDescription": "Review the changes in this version",
+    "majorUpdateLabel": "{{codename}} Update · Major update",
     "ponder": "Ponder Help",
     "ponderDescription": "Learn Folia's basic controls and operating model",
     "version": "version"

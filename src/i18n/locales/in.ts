@@ -1437,6 +1437,7 @@ export default {
     "joinDiscord": "Gabung Discord kami",
     "releaseNotes": "Yang baru",
     "releaseNotesDescription": "Lihat perubahan pada versi ini",
+    "majorUpdateLabel": "{{codename}} Update · Pembaruan besar",
     "ponder": "Ponder Bantuan",
     "ponderDescription": "Pelajari kontrol dasar dan cara kerja Folia",
     "version": "versi"

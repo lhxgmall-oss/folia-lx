@@ -1443,6 +1443,7 @@ export default {
     "joinDiscord": "加入 Discord 社区",
     "releaseNotes": "版本更新",
     "releaseNotesDescription": "查看这个版本带来的变化",
+    "majorUpdateLabel": "{{codename}} Update · 重大更新",
     "ponder": "思索帮助页",
     "ponderDescription": "了解 Folia 的基本操作与运行逻辑",
     "version": "版本"
