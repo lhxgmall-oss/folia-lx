@@ -1308,6 +1308,7 @@ export interface LocalSong {
   matchedIsPureMusic?: boolean;
   matchedLyricsSongId?: number | string; // Provider-scoped ID used for the saved lyric result
   hasManualLyricSelection?: boolean;
+  markedPureMusic?: boolean; // User marked the song as instrumental: automatic lyric matching never runs for it
   folderName?: string; // Name of the folder if imported via folder import
   noAutoMatch?: boolean; // If true, do not attempt to auto-match metadata
   matchedLyricsSource?: LyricProviderSource;

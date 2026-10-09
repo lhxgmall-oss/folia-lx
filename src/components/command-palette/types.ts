@@ -185,6 +185,10 @@ export type CommandPalettePlaybackContext = {
     openAudioEqualizer: () => void;
     applyAudioSoundPreset: (modeId: AudioEqualizerModeId) => void;
     runAutoMatchBestLyric: () => Promise<boolean>;
+    /** Marks or unmarks the current local song as instrumental (no automatic lyric matching). */
+    toggleCurrentSongPureMusicMark: () => Promise<boolean>;
+    /** Whether the current song is a local song, the only kind the instrumental mark applies to. */
+    canToggleCurrentSongPureMusicMark: boolean;
 };
 
 export type CommandPaletteNavigationContext = {
