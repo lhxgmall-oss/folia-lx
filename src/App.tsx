@@ -2379,13 +2379,13 @@ export default function App() {
         }
     }, [shouldKeepHomeMounted]);
     // 资料库 stage 完全遮挡播放页时（bravais 实色档，stage 自己报告）也卸载 visualizer：首页淡入结束后才卸载，
-    // 首页一被盖住 / 离开就立即重挂。App 只认报告，不认识 suite。
+    // 首页一被面板盖住 / 离开就立即重挂；设置弹窗盖着时首页仍显示在遮罩下面，不重挂。App 只认报告，不认识 suite。
     const libraryOccludesPlayer = useLibraryPlayerOcclusionStore(selectLibraryOccludesPlayer);
-    const hasLibraryOcclusionSettled = useLibraryOcclusionSettled(shouldShowHomeSurface && libraryOccludesPlayer);
+    const hasLibraryOcclusionSettled = useLibraryOcclusionSettled(shouldRevealHomeSurface && libraryOccludesPlayer);
     const shouldMountVisualizer = shouldMountPlayerVisualizer({
         currentView,
         hasLatticeExited,
-        shouldShowHomeSurface,
+        shouldRevealHomeSurface,
         libraryOccludesPlayer,
         hasLibraryOcclusionSettled,
         handoffKeepsVisualizer: wallHandoff.keepsVisualizer,

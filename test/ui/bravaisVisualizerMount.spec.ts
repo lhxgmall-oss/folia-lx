@@ -7,7 +7,7 @@ import { installBaseState, mockNeteaseApi, openApp } from './helpers/appFixtures
 // - 实色档停在首页时 DOM 里没有 visualizer（canvas 也没有）；
 // - 切到部分透明后 visualizer 重新挂上；
 // - 从实色首页回播放页 visualizer 正常出现；
-// - 打开设置弹窗时 visualizer 在（首页被盖住，播放页露出来）；
+// - 打开设置弹窗时 visualizer 仍不挂（2026-10-09 起设置盖着时首页照常显示在半透明遮罩下面，透出的是实色墙）；
 // - grid 首页照旧挂着 visualizer（TUI 与切换的完整回归在 libraryRendererSwitch）；
 // - 左上角隐藏式返回在首页根层只在有歌时出现，点它回播放页后 visualizer 挂上（没有歌时播放页是空的，深色主题下就是「黑屏」）。
 // - 2026-10-09：「信息条始终透明」时缝也是透光处——实色墙 + 透明缝不卸载 visualizer，关掉透明后照旧卸载；
@@ -68,7 +68,7 @@ test('with no stored look the bravais home defaults to solid and unmounts the vi
     expect(await page.evaluate(() => localStorage.getItem('library_wall_look'))).toBeNull();
 });
 
-test('the solid bravais home unmounts the visualizer; see-through looks, the player and settings bring it back', async ({ page }) => {
+test('the solid bravais home unmounts the visualizer; see-through looks and the player bring it back, settings do not', async ({ page }) => {
     await bootHome(page, 'bravais', 'solid');
     await expect(page.locator('[data-library-stage="bravais"]')).toHaveAttribute('data-bravais-look', 'solid');
     await expect.poll(() => visualizerMounted(page)).toBe(false);
@@ -90,12 +90,18 @@ test('the solid bravais home unmounts the visualizer; see-through looks, the pla
     await expect(page.locator('[data-library-stage="bravais"]')).toHaveAttribute('data-bravais-look', 'solid');
     await expect.poll(() => visualizerMounted(page)).toBe(false);
 
-    // 设置弹窗盖住首页：播放页露出来，visualizer 在。
+    // 设置弹窗盖住首页：首页照常显示在遮罩下面，透出的是实色墙，visualizer 不重新挂上。
     await page.evaluate(async () => {
         const path = '/src/stores/useSettingsModalStore.ts';
         const { useSettingsModalStore } = await import(path);
         useSettingsModalStore.getState().openSettings('options');
     });
+    await expect(page.locator('[data-ponder-page-scope="settings-page"]')).toBeVisible();
+    await expect(page.locator('[data-library-stage="bravais"]')).toBeVisible();
+    await page.waitForTimeout(600);
+    expect(await visualizerMounted(page)).toBe(false);
+    // 设置里换到部分透明：窗里要看得到 visualizer，设置开着也立即挂上。
+    await setWallLook(page, 'partial');
     await expect.poll(() => visualizerMounted(page)).toBe(true);
 });
 

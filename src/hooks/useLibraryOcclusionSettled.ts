@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 /** App 首页挂载点的淡入时长（App.tsx 首页 motion.div 的 0.25s）再留一帧余量。 */
 export const LIBRARY_OCCLUSION_SETTLE_MS = 250 + 50;
 
-/** isOccludingHome = shouldShowHomeSurface && libraryOccludesPlayer。返回值可直接用作 hasLibraryOcclusionSettled。 */
+/** isOccludingHome = shouldRevealHomeSurface && libraryOccludesPlayer（设置弹窗盖着首页时仍为真）。返回值可直接用作 hasLibraryOcclusionSettled。 */
 export const useLibraryOcclusionSettled = (isOccludingHome: boolean) => {
     const [settled, setSettled] = useState(false);
 
