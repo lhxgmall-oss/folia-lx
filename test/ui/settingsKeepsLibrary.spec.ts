@@ -23,7 +23,11 @@ const boot = async (page: Page, suite: 'bravais' | 'grid') => {
     await installBaseState(page, { neteaseMode: 'logged-in', preserveNativeMediaQueries: true });
     await page.addInitScript((suiteId) => {
         localStorage.setItem('library_suite', suiteId);
-        if (suiteId === 'bravais') localStorage.setItem('library_wall_look', 'solid');
+        if (suiteId === 'bravais') {
+            localStorage.setItem('library_wall_look', 'solid');
+            // 信息条始终透明默认开（2026-10-09）；这条看的是「实色墙 = 实色缝」下 visualizer 不重挂，显式关掉。
+            localStorage.setItem('library_wall_seam_clear', 'false');
+        }
         // 打开设置弹窗要这两个桥接方法（与 bravaisSettingsGroup 同一份最小桥）。
         Object.assign((window as Window & { electron?: Record<string, unknown> }).electron ?? {}, {
             getSettings: async () => ({}),
