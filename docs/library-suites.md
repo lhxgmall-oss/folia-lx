@@ -206,7 +206,7 @@ suite 可以为自己的「导航状态」（例如 bravais 的列表 / 目录�
 
 - **输入**：`isInteractive`（首页外壳层的值，集合层打开时仍为真；上面盖了别的层时为假）、`theme`、`isDaylight`、`navigation`（集合导航快照：`depth` / `origin` / `activeType` / `trail`，首页时 `depth` 为 0），以及回调 `reportPlayerOcclusion` 与 `reportPlayerBackdrop`（见下面「遮挡播放页」「透出的画面」）与可选的 `onBackToPlayer`（回到播放页，与首页数据的同名回调同一个；bravais 左上角的隐藏式返回在首页根层、有歌时用它，不在根层时它是缝里 ‹ 的层返回）、`onTogglePlayback`（暂停 / 继续正在播放的那首，首页数据的同名回调；bravais 正在播放的聚焦卡上的播放键用它）与 `onEnterPlaybackView`（按「播放后进入的视图」去 Lattice 或播放页，「留在原处」时去播放页，与播放胶囊同一条规则；bravais 聚焦卡的「进入」用它）、`onOpenLattice`（进入 Lattice，首页数据的同名回调，与首页工具格「队列拼贴」同一个入口；bravais 右下角工具面板的「前往 Lattice」用它）、`tools`（`LibraryStageToolsPort`，首页数据的 `stageTools`：为当前歌曲生成主题、把队列打乱一次、拖动音量时的输出预览；宿主 `library/app/useLibraryStageToolsPort` 用命令面板的同一条命令 `theme-generate-current` / `playback-shuffle` 实现，端口身份稳定，可用性经 `getSnapshot` / `subscribe` 读，不随可用性重建首页模型；音量本身由 suite 读写应用的音量 store）。播放端口另有可选的 `togglePlayback`（同一个开关），网格在「留在原处」时给正在播放的卡片用。导航快照不含当前层的数据；层身份与内容由这套 suite 的 surface 交给 stage。
 - **分工**：stage 负责画面；这套 suite 的首页 / 集合 / 歌手 surface 不画画面，只把自己的数据投影成层描述交给 suite 内部的 store，并照常注册命令面板。
-- **宿主怎么挂**：`GridViewOverlayHost` 经 `registry.resolveLibraryStage(store 的 suite)` 只挂**生效 suite** 的 stage（未知 id 生效的是 grid，grid 与 TUI 都没有 stage），挂载位 `app/LibrarySuiteStageSlot.tsx` 在首页容器之后、中性背景板与集合层之前，包 `Suspense`（fallback 为 null）。打开 / 关闭集合只换 props，不重挂；换 suite 时卸载（换成另一套带 stage 的 suite 时重挂）。首页外壳整个卸载时（播放页全屏约 350ms 后 `Home` 返回 null）stage 也卸载，跨卸载要保留的布局放进 sessionStorage 或模块级 store，并在 `layout.forget` 里能丢掉。
+- **宿主怎么挂**：`GridViewOverlayHost` 经 `registry.resolveLibraryStage(store 的 suite)` 只挂**生效 suite** 的 stage（未知 id 生效的是 grid，grid 与 TUI 都没有 stage），挂载位 `app/LibrarySuiteStageSlot.tsx` 在首页容器之后、中性背景板与集合层之前，包 `Suspense`（fallback 为 null）。打开 / 关闭集合只换 props，不重挂；换 suite 时卸载（换成另一套带 stage 的 suite 时重挂）。首页外壳整个卸载时（播放页全屏约 350ms 后 `Home` 返回 null）stage 也卸载，跨卸载要保留的布局放进 sessionStorage 或模块级 store，并在 `layout.forget` 里能丢掉。设置弹窗盖在首页上时首页外壳**不卸载也不隐藏**（2026-10-09，用户要求）：首页层照常显示在设置的半透明遮罩下面（不淡出、不 `visibility: hidden`），只是不可交互（`isInteractive` 为假、首页层 `pointer-events: none`，键盘让给设置）；关掉设置原样回来，不重新入场、不重新请求。规则在 `components/app/presentation/buildHomeSurfacePresentation.ts`：`shouldKeepHomeMounted`（挂着）、`shouldRevealHomeSurface`（看得见：首页视图且没被面板盖住，或交接进 Lattice 期间）、`shouldShowHomeSurface`（可交互：首页视图且设置弹窗与面板都没盖着）。播放页上打开设置不受影响（首页本来就没显示）；面板盖着、回播放页、Lattice 照旧。
 - **背景板与首页**：渲染当前层（集合或歌手页）的 suite 正是挂着 stage 的那套时，宿主不渲染中性背景板，首页容器也不加 `visibility: hidden`（`aria-hidden` 与 `pointer-events: none` 照旧）；当前层回退到 grid 时与没有 stage 一样。规则是 `core/model/libraryStage.ts` 的 `resolveLibraryLayerPresentation`。
 - **和 `transitions.Overlay` 的区别**：Overlay 是**每一套** suite 都常驻挂载的转场层，只拿到 `enabled`，`enabled=false`（降低动效、或当前层不归它）表示「不做转场」，承载不了常驻画面；stage 只在这套 suite 生效时挂载，是画面本身。网格的移形换影继续用 Overlay；有 stage 的 suite 一般不需要 Overlay。
 - **按需加载**：非默认 suite 的 stage 必须是 `React.lazy`（`test/unit/library/suiteEntries.test.ts` 按源码检查），没选它的用户不加载它的 chunk。
@@ -216,16 +216,16 @@ suite 可以为自己的「导航状态」（例如 bravais 的列表 / 目录�
 
 stage 用 `reportPlayerOcclusion(occludes)` 告诉宿主自己此刻是否**完全**盖住了下面的播放页（visualizer）。只有画面完全不透光时才报 `true`（bravais 的「实色」档）；只要有透光处（窗、半透明材质）就报 `false`；没报过视为 `false`。值不变时重复报告没有开销，函数引用在同一次挂载内稳定。
 
-- 宿主怎么用：挂载位把报告写进 `src/stores/useLibraryPlayerOcclusionStore.ts`，App 读 `selectLibraryOccludesPlayer`，visualizer 的挂载条件是 `handoffKeepsVisualizer || (currentView !== 'lattice' && hasLatticeExited && !(shouldShowHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled))`（`components/app/presentation/playerVisualizerMount.ts`）。`handoffKeepsVisualizer` 来自与 Lattice 的翻牌交接（`wallHandoffPresentation`）：stage 有窗时，进 Lattice 在窗关上之前、回来从 stage 报「有窗」起都挂着。App 不认识任何 suite，也不读 suite 的偏好。
-- 时序：进入时首页显示着并且遮挡持续约 0.3 秒（首页 0.25 秒淡入结束）之后才卸载 visualizer（`hooks/useLibraryOcclusionSettled.ts`），淡入过程中仍能看到它；首页一不显示（回播放页、设置弹窗 / 面板盖上）或 stage 改报 `false`，同一次渲染里就重新挂载。改报 `false` 之后 visualizer 出画面前有一小段空白（Pixi 初始化），透光的 suite 应在透光处自己垫一层底色。
+- 宿主怎么用：挂载位把报告写进 `src/stores/useLibraryPlayerOcclusionStore.ts`，App 读 `selectLibraryOccludesPlayer`，visualizer 的挂载条件是 `handoffKeepsVisualizer || (currentView !== 'lattice' && hasLatticeExited && !(shouldRevealHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled))`（`components/app/presentation/playerVisualizerMount.ts`）。`handoffKeepsVisualizer` 来自与 Lattice 的翻牌交接（`wallHandoffPresentation`）：stage 有窗时，进 Lattice 在窗关上之前、回来从 stage 报「有窗」起都挂着。App 不认识任何 suite，也不读 suite 的偏好。
+- 时序：进入时首页显示着并且遮挡持续约 0.3 秒（首页 0.25 秒淡入结束）之后才卸载 visualizer（`hooks/useLibraryOcclusionSettled.ts`），淡入过程中仍能看到它；首页一不显示（回播放页、面板盖上）或 stage 改报 `false`，同一次渲染里就重新挂载。设置弹窗盖着首页时首页仍显示在遮罩下面（遮罩是半透明的黑，不模糊，透出来的是墙而不是播放页），遮挡照旧成立、visualizer 不重挂——设置开着时也省下 visualizer 的渲染与重新初始化；在设置里切到透光档时 stage 改报 `false`，照常立即挂上。改报 `false` 之后 visualizer 出画面前有一小段空白（Pixi 初始化），透光的 suite 应在透光处自己垫一层底色。
 - 复位不靠 stage：挂载位卸载（包括离开首页约 350ms 后 `Home` 返回 null）、换 suite、生效 suite 没有 stage 时自动回到 `false`，stage 不需要在卸载时报 `false`；已卸载的 stage 晚到的报告不生效。grid / TUI 没有 stage，永远是 `false`，visualizer 的行为与以前相同。
 
 ### 透出的画面（`reportPlayerBackdrop`）
 
 stage 用 `reportPlayerBackdrop({ lyrics, blur })` 告诉宿主：从它的透光处透出来的 visualizer 要不要画歌词文字、要不要模糊（bravais「墙后的画面」设置，2026-10-09）。只有画面有透光处时才可能报 `true`；没报过、复位后都是两项 `false`（与没有 stage 的 suite 一样）。持有者、生效与复位规则与遮挡相同（同一个 store，`selectLibraryPlayerBackdrop`，没报时返回同一个常量）。
 
-- 歌词：visualizer 的 `showText` 原来只在播放页为真；首页显示着（不被设置弹窗 / 面板盖住）且报了 `lyrics` 时首页也画（`components/app/presentation/playerVisualizerBackdrop.ts` 的 `resolveVisualizerShowText`，`useVisualizerRendererModel` 读）。播放页不受影响。
-- 模糊：首页墙露着（`shouldRevealHomeSurface`，含进 Lattice 的交接期间）且报了 `blur` 时，App 给 visualizer 那一层（`player-visual-surface`）加 `filter: blur(24px)`（过渡 300ms，`data-library-backdrop-blur`）；回播放页立即撤掉。用一次合成层模糊而不是在每个透光处放 `backdrop-filter`，开销与透光处的多少无关。
+- 歌词：visualizer 的 `showText` 原来只在播放页为真；首页显示着（不被面板盖住；设置弹窗盖着时首页仍显示着，照画，墙后的画面不随设置开关变）且报了 `lyrics` 时首页也画（`components/app/presentation/playerVisualizerBackdrop.ts` 的 `resolveVisualizerShowText`，`useVisualizerRendererModel` 读）。播放页不受影响。
+- 模糊：首页墙露着（`shouldRevealHomeSurface`，含设置弹窗盖着、进 Lattice 的交接期间）且报了 `blur` 时，App 给 visualizer 那一层（`player-visual-surface`）加 `filter: blur(24px)`（过渡 300ms，`data-library-backdrop-blur`）；回播放页立即撤掉。用一次合成层模糊而不是在每个透光处放 `backdrop-filter`，开销与透光处的多少无关。
 
 ## 外观动作（suite-chrome）
 
@@ -584,6 +584,7 @@ bravais 的验收入口：
 | 每一种返回只翻一次（应用内返回、浏览器后退、折叠往返、跳层） | `libraryNavigation.spec.ts` 的 bravais 用例（`data-bravais-shift` 序列）；`bravaisPanelFold.spec.ts` |
 | 选 grid 时不加载 bravais 的 chunk | entry 只静态 import react（`suiteEntries.test.ts`）；生产构建产物检查 |
 | 实色档卸载 visualizer，grid / TUI / Lattice 不变 | `bravaisVisualizerMount.spec.ts`；`playerVisualizerMount.test.ts`；`lattice*` 组件用例 |
+| 设置弹窗盖着首页时资料库原地留着（grid 与 bravais：同一节点、不重新请求、不重新入场，实色墙下 visualizer 不重挂） | `settingsKeepsLibrary.spec.ts`；`homeSurfacePresentation.test.ts`；`playerVisualizerMount.test.ts` |
 | 拖动 / 翻牌 / 聚焦让位的渲染开销有界 | `bravaisPerf.spec.ts`；`npm run test:render` |
 
 开发行为与截图分别验证。正式三张首页截图基线属于 Linux；Windows 上的同机截图比较不能替代 Linux / CI 基线。生产门控应以实际 Web 构建确认，而不是仅依赖 entry 注释：即使构建环境设置 `VITE_LIBRARY_TUI=true`，产物仍不得包含 TUI 组件（含账户层 `LibraryTuiAccount*`）、其键盘 / 焦点实现（含 `useLibraryTuiAccountKeys`）或 `DevLibraryRendererSwitch`；grid 的 `GridAccountSurface` 应在产物里。通用 locale 中保留 TUI 文案不表示其 UI 被加载。

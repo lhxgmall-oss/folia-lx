@@ -1103,7 +1103,7 @@ bravais 的墙可以透出下面的播放页 visualizer。偏好是 app 层的 `
 墙完全盖住播放页时不在下面全速渲染 visualizer（与 Lattice 一致）。App 不认识 bravais，也不读透光 store，走 stage 契约：
 
 - stage 在 effect 里 `reportPlayerOcclusion(look === 'solid' && !seamClear)`（`occludesPlayerFor`）：只要有任何透光处（窗、半透明 / 透明的缝）就报 false。2026-10-09 起「信息条始终透明」也算透光处：实色墙 + 透明缝时 visualizer 不卸载；此时根节点同样不画墙面、改由块底板铺，交接时同样先盖 veil、visualizer 等窗（缝）关上才卸载（stage 内部统一用 `opensBackdropFor(look, seamClear)`）。宿主把报告写进 `useLibraryPlayerOcclusionStore`，stage 卸载或换 suite 时自动复位为 false。
-- App 的挂载条件：`handoffKeepsVisualizer || (currentView !== 'lattice' && hasLatticeExited && !(shouldShowHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled))`。首页完全显示（淡入 0.25s）且 stage 报遮挡后才卸载；回播放页、打开设置弹窗 / 面板、切到透明档时立即重挂。切到透明档时，窗在 visualizer 出画面前显示光晕底。
+- App 的挂载条件：`handoffKeepsVisualizer || (currentView !== 'lattice' && hasLatticeExited && !(shouldRevealHomeSurface && libraryOccludesPlayer && hasLibraryOcclusionSettled))`。首页完全显示（淡入 0.25s）且 stage 报遮挡后才卸载；回播放页、打开面板、切到透明档时立即重挂。切到透明档时，窗在 visualizer 出画面前显示光晕底。设置弹窗盖在首页上时（2026-10-09 起）墙照常显示在设置的半透明遮罩下面、只是不可交互，透出来的是实色墙而不是播放页，所以 visualizer 不重挂；在设置里切到透光档时照常立即挂上。
 - 与 Lattice 的翻牌交接（§7「进 / 出 Lattice」）：透光档进 Lattice 时窗关上（veil 盖实）之前 visualizer 一直挂着、开翻时才卸载；回来时 stage 一挂上就报「有窗」，visualizer 立即装上，赶在窗打开之前（`wallHandoffPresentation.keepsVisualizer`）。实色档整个交接都不装。
 - grid / TUI 不声明 stage，永远不报遮挡，行为不变。
 
@@ -1111,8 +1111,8 @@ bravais 的墙可以透出下面的播放页 visualizer。偏好是 app 层的 `
 
 透出来的 visualizer 怎么画，界面设置「Bravais 墙面」分组里两个开关（`backdropLyrics` / `backdropBlur`，都默认关，进外观配置导入导出）。stage 经契约的 `reportPlayerBackdrop({ lyrics, blur })` 报给宿主（`backdropReportFor`：只有墙或缝透着时才可能为 true），App 只认报告（`components/app/presentation/playerVisualizerBackdrop.ts`）：
 
-- **歌词文字**：首页 visualizer 原来不画文字（`showText` 只在播放页为真——首页不花、省开销）。开了之后首页显示着（不被设置弹窗 / 面板盖住）时也画。默认关：保持原来的首页。
-- **模糊**：visualizer 那一层（`player-visual-surface`）加 `filter: blur(24px)`，只在首页墙露着时（含进 Lattice 的交接期间，窗还开着），回播放页 300ms 过渡撤掉。缝的透明纱在模糊时淡一档（64% → 50%）。
+- **歌词文字**：首页 visualizer 原来不画文字（`showText` 只在播放页为真——首页不花、省开销）。开了之后首页显示着（不被面板盖住；设置弹窗盖着时墙仍在遮罩下面显示着，照画）时也画。默认关：保持原来的首页。
+- **模糊**：visualizer 那一层（`player-visual-surface`）加 `filter: blur(24px)`，只在首页墙露着时（含设置弹窗盖着、进 Lattice 的交接期间，窗还开着），回播放页 300ms 过渡撤掉。缝的透明纱在模糊时淡一档（64% → 50%）。
 - **开销取舍**：三种做法里选了开销最小、且与透光处多少无关的那一种——
   - visualizer 层的 `filter: blur`：合成器对这一层做一次全屏模糊（半径 ≥ 20px 时 Skia 先降采样，成本基本不随半径涨），每个 visualizer 帧一次；不需要拷贝背后的画面。
   - 每个透光处放 `backdrop-filter`：全透明档每张磁贴都是窗，几十个元素各自要一份背景拷贝与一次模糊，透光处越多越贵；只给缝放也盖不住窗。否决。

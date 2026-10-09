@@ -14,7 +14,7 @@ type Case = {
     hasLibraryOcclusionSettled: boolean;
 };
 
-/** 走 App 的真实组装：shouldShowHomeSurface 来自 buildHomeSurfacePresentation。 */
+/** 走 App 的真实组装：shouldRevealHomeSurface 来自 buildHomeSurfacePresentation。 */
 const mounts = ({
     currentView,
     isSettingsModalOpen = false,
@@ -23,11 +23,11 @@ const mounts = ({
     libraryOccludesPlayer,
     hasLibraryOcclusionSettled,
 }: Case) => {
-    const { shouldShowHomeSurface } = buildHomeSurfacePresentation({ currentView, isSettingsModalOpen, isPanelOpen });
+    const { shouldRevealHomeSurface } = buildHomeSurfacePresentation({ currentView, isSettingsModalOpen, isPanelOpen });
     return shouldMountPlayerVisualizer({
         currentView,
         hasLatticeExited,
-        shouldShowHomeSurface,
+        shouldRevealHomeSurface,
         libraryOccludesPlayer,
         hasLibraryOcclusionSettled,
     });
@@ -50,11 +50,19 @@ describe('shouldMountPlayerVisualizer', () => {
         }
     });
 
-    it('remounts as soon as home stops showing: player view, settings dialog or panel over home', () => {
+    it('remounts as soon as home stops showing: player view or panel over home', () => {
         const occluded = { libraryOccludesPlayer: true, hasLibraryOcclusionSettled: true };
         expect(mounts({ currentView: 'player', ...occluded })).toBe(true);
-        expect(mounts({ currentView: 'home', isSettingsModalOpen: true, ...occluded })).toBe(true);
         expect(mounts({ currentView: 'home', isPanelOpen: true, ...occluded })).toBe(true);
+    });
+
+    // 2026-10-09：设置弹窗盖着首页时墙仍显示在半透明遮罩下面，透出来的是墙不是播放页：实色墙照旧遮挡，不重挂。
+    it('stays unmounted under the settings dialog over a solid home', () => {
+        const occluded = { libraryOccludesPlayer: true, hasLibraryOcclusionSettled: true };
+        expect(mounts({ currentView: 'home', isSettingsModalOpen: true, ...occluded })).toBe(false);
+        expect(mounts({ currentView: 'home', isSettingsModalOpen: true, libraryOccludesPlayer: false, hasLibraryOcclusionSettled: false })).toBe(true);
+        // 播放页上打开设置不受影响。
+        expect(mounts({ currentView: 'player', isSettingsModalOpen: true, ...occluded })).toBe(true);
     });
 
     it('keeps the Lattice rule unchanged whatever the library reports', () => {
@@ -91,7 +99,7 @@ describe('shouldMountPlayerVisualizer', () => {
             expect(shouldMountPlayerVisualizer({
                 currentView,
                 hasLatticeExited: false,
-                shouldShowHomeSurface: currentView === 'home',
+                shouldRevealHomeSurface: currentView === 'home',
                 libraryOccludesPlayer: true,
                 hasLibraryOcclusionSettled: true,
                 handoffKeepsVisualizer: true,
@@ -100,7 +108,7 @@ describe('shouldMountPlayerVisualizer', () => {
         expect(shouldMountPlayerVisualizer({
             currentView: 'lattice',
             hasLatticeExited: false,
-            shouldShowHomeSurface: false,
+            shouldRevealHomeSurface: false,
             libraryOccludesPlayer: false,
             hasLibraryOcclusionSettled: false,
             handoffKeepsVisualizer: false,

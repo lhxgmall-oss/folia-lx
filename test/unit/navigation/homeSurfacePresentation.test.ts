@@ -52,7 +52,8 @@ describe('buildHomeSurfacePresentation', () => {
         });
     });
 
-    it('hides Home while home overlays are open', () => {
+    // 2026-10-09：设置弹窗盖在首页上时资料库原地留着——挂着、显示在半透明遮罩下面，只是不可交互。
+    it('keeps Home mounted and visible, but not interactive, under the settings dialog', () => {
         expect(buildHomeSurfacePresentation({
             currentView: 'home',
             isSettingsModalOpen: true,
@@ -60,8 +61,22 @@ describe('buildHomeSurfacePresentation', () => {
         })).toEqual({
             shouldKeepHomeMounted: true,
             shouldShowHomeSurface: false,
-            shouldRevealHomeSurface: false,
+            shouldRevealHomeSurface: true,
         });
+    });
+
+    it('hides Home while the player panel covers it', () => {
+        for (const isSettingsModalOpen of [false, true]) {
+            expect(buildHomeSurfacePresentation({
+                currentView: 'home',
+                isSettingsModalOpen,
+                isPanelOpen: true,
+            })).toEqual({
+                shouldKeepHomeMounted: true,
+                shouldShowHomeSurface: false,
+                shouldRevealHomeSurface: false,
+            });
+        }
     });
 
     it('keeps Home mounted and visible, but not interactive, while a wall handoff lands Lattice on it', () => {
