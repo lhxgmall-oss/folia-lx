@@ -6,7 +6,7 @@ import type { PerfDriver, PerfStageCounters } from './PerfStageHost';
 // dev/probes/bravais-perf/perfRun.ts
 // 一轮测量：挂 stage（首屏）→ 预热 → 运动 → 停稳，分阶段记 rAF 间隔、长动画帧（LoAF）与长任务；运动阶段另记
 // 磁贴渲染（dev 的 countRender，window.__renderCounts）、stage 的 React 提交（Profiler）、新挂进 DOM 的磁贴与块底板、
-// 已挂块底板路径的改写（MutationObserver）与每次触发时内容层在动的磁贴数（document.getAnimations()）。
+// 已挂块底板路径的改写（MutationObserver）与每次触发时在动的磁贴数（内容层的脚本动画；让位看 data-bravais-reflowing）。
 // B12b：底板改为按块 SVG 后，「遮罩重建」换成「块底板重画」（<path d> 被改写的次数与块）；缝开口补间会补裁剪，
 // drift 不再需要先空走一圈。
 // 帧采样用原生 rAF：设了帧率限制时 utils/frameRateLimiter 会把 window.requestAnimationFrame 换成限流版。
@@ -39,16 +39,27 @@ const readCounts = () => ({ ...((window as RenderCountWindow).__renderCounts ?? 
 const armCounts = () => { (window as RenderCountWindow).__renderCounts = {}; };
 
 /**
- * 这一个动画是不是在数的那种：翻牌 / 整墙出场入场是脚本建的 WAAPI 动画（内容层 element.animate）；聚焦放大的让位是外框上的
- * CSS 过渡（.bravais-tile.is-reflowing）。别的 CSS 过渡（换面时内容层的颜色 / 透明度过渡、悬停）不算——屏外只换不翻的磁贴
- * 也会因为换了类名起一段 CSS 过渡，算进来就把「屏外翻牌」误报了。
+ * 这一个动画是不是在数的那种：翻牌 / 整墙出场入场是脚本建的 WAAPI 动画（内容层 element.animate）。CSS 过渡（换面时内容层的
+ * 颜色 / 透明度过渡、悬停）不算——屏外只换不翻的磁贴也会因为换了类名起一段 CSS 过渡，算进来就把「屏外翻牌」误报了。
+ * 聚焦放大的让位不是动画对象（2026-10-09 起由 useBravaisReflowDriver 逐帧写外框），按 data-bravais-reflowing 数。
  */
-const animatedTileOf = (animation: Animation, scenario: PerfJob['scenario']) => {
+const animatedTileOf = (animation: Animation) => {
     const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null;
     if (!(target instanceof Element)) return null;
     const isCss = animation instanceof CSSTransition || animation instanceof CSSAnimation;
-    if (scenario === 'expand') return isCss && target.classList.contains('bravais-tile') ? target : null;
     return isCss ? null : target.closest('.bravais-tile');
+};
+
+/** 此刻在动的磁贴：让位场景是挂着 data-bravais-reflowing 的外框，其余是内容层上没放完的脚本动画。 */
+const animatedTiles = (root: HTMLElement, scenario: PerfJob['scenario']): Element[] => {
+    if (scenario === 'expand') return [...root.querySelectorAll('.bravais-tile[data-bravais-reflowing]')];
+    const tiles: Element[] = [];
+    for (const animation of document.getAnimations()) {
+        if (animation.playState === 'finished') continue;
+        const tile = animatedTileOf(animation);
+        if (tile) tiles.push(tile);
+    }
+    return tiles;
 };
 
 /**
@@ -69,10 +80,8 @@ const animationMargin = (root: HTMLElement) => {
  */
 const sampleAnimatedTiles = (root: HTMLElement, seen: Map<Element, string | null>, scenario: PerfJob['scenario']) => {
     let bounds: ReturnType<typeof animationMargin> | null = null;
-    for (const animation of document.getAnimations()) {
-        if (animation.playState === 'finished') continue;
-        const tile = animatedTileOf(animation, scenario);
-        if (!tile || seen.has(tile) || !root.contains(tile)) continue;
+    for (const tile of animatedTiles(root, scenario)) {
+        if (seen.has(tile) || !root.contains(tile)) continue;
         bounds ??= animationMargin(root);
         const { view, margin } = bounds;
         const rect = tile.getBoundingClientRect();

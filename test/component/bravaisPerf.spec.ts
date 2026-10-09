@@ -116,7 +116,7 @@ test.describe('[bravais] wall performance guard rails', () => {
         // 放大只让位一个块（12 张）、收起另一个块：在动的磁贴不超过两块。
         expect(expand.animation.peakAnimated).toBeGreaterThan(0);
         expect(expand.animation.peakAnimated).toBeLessThanOrEqual(24);
-        // 只重画放大的块（让位期间逐帧）与收起的那一块（一次）：重画过的块都在「展开过聚焦卡」的块里，块数不超过触发数 + 1。
+        // 只重画放大的块与收起归位的那一块（让位期间都逐帧）：重画过的块都在「展开过聚焦卡」的块里，块数不超过触发数 + 1。
         expect(expand.counts.plateRedraws).toBeGreaterThan(0);
         expect(expand.counts.strayPlateRedraws).toBe(0);
         expect(expand.counts.plateRedrawBlocks).toBeLessThanOrEqual(expand.animation.triggers + 1);
