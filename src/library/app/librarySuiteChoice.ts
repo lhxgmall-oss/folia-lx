@@ -64,6 +64,12 @@ export const confirmOnboardingLibrarySuite = (): void => {
     store.setSuite(resolveActiveLibrarySuiteId(store.suite));
 };
 
+/**
+ * 首页这套 suite 是不是一面墙（bravais）：墙与 Lattice 是同一类界面，左下角的正在播放卡片在墙上与在 Lattice 上一样常在，
+ * 不看「在首页显示」开关（那个开关管网格 / TUI 的首页）。
+ */
+export const isWallLibrarySuite = (suiteId: LibrarySuiteId): boolean => suiteId === 'bravais';
+
 /** 此刻实际生效的 suite（非响应式，命令面板用）。 */
 export const getActiveLibrarySuiteId = (): LibrarySuiteId => (
     resolveActiveLibrarySuiteId(useLibrarySuiteStore.getState().suite)

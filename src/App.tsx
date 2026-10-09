@@ -52,6 +52,7 @@ import { persistPlaybackCache } from './components/app/playback/persistPlaybackC
 import { useAppOverlaysModel } from './components/app/overlays/useAppOverlaysModel';
 import { resolveNextUpTrack } from './components/app/overlays/now-playing-toast/resolveNextUpTrack';
 import { shouldShowNowPlayingToast } from './components/app/overlays/now-playing-toast/nowPlayingToastVisibility';
+import { isWallLibrarySuite, useActiveLibrarySuiteId } from './library/app/librarySuiteChoice';
 import {
     createSearchAlbumCollection,
     createSearchArtistCollection,
@@ -1230,10 +1231,13 @@ export default function App() {
      * whole rule: how the app arrived at the home page does not enter into it, so a cold start that
      * lands there and a walk back from another page behave the same.
      */
+    const activeLibrarySuiteId = useActiveLibrarySuiteId();
     const stageTrackPillOnScreen = shouldShowNowPlayingToast({
         mode: stageTrackPillMode,
         view: currentView,
         showOnHome: stageTrackPillOnHome,
+        // bravais 的墙与 Lattice 同类：卡片在墙上常在，不看「在首页显示」（2026-10-10）。
+        homeIsWall: isWallLibrarySuite(activeLibrarySuiteId),
     });
 
     /**
