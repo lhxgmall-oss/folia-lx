@@ -6,7 +6,8 @@ import '../../dev/probes/homeBehavior/probeApi';
 // test/component/bravaisSeamMotion.spec.ts
 // 缝里的过渡（设计稿 §7「缝内的过渡」）：homeBehavior 探针 + setSuite('bravais')。
 // - 换层：整条缝的内容层翻牌（data-bravais-seam-flip 依次是 flip-out → flip-in，放完摘掉），换完内容是新的一层；
-// - 首页换页签：整条缝不翻、页签列还是原来那些节点，中段（data-bravais-home-body）自己翻；
+// - 首页换页签：整条缝不翻、页签列还是原来那些节点，中段（data-bravais-home-body）自己翻；旧的与新的选中页签各自原地
+//   转进半圈（2026-10-09：在线页签的中段常常是空的，光翻中段看不出来）；
 // - 「⋯」菜单：弹出时从缩小、透明开始，收起时放完动画才卸载，Esc 后焦点回到「⋯」；
 // - 降低动态效果（reduce_motion_lattice）：换层与中段都走 fade-out → fade-in，不出现翻转；菜单只淡入、不缩放。
 // 过渡很短，轮询抓不稳：在页面里用 MutationObserver 记下标记的每一次变化，再断言顺序。
@@ -75,10 +76,16 @@ const openOwnedPlaylist = async (page: Page) => {
 };
 
 test.describe('[bravais-only] seam motion', () => {
-    test('opening a collection flips the seam content; switching home tabs keeps the tabs and flips only the middle', async ({ mount, page }) => {
+    test('opening a collection flips the seam content; switching home tabs keeps the tabs and flips the middle and the two tabs', async ({ mount, page }) => {
         await mountBravais(mount, page);
-        await recordFlips(page, { content: '.bravais-seam-content', middle: '[data-bravais-home-body]' });
-        // 换页签：页签列是同一批节点（不翻、不重建），中段翻一次。
+        await recordFlips(page, {
+            content: '.bravais-seam-content',
+            middle: '[data-bravais-home-body]',
+            from: '[data-bravais-tab="playlist"]',
+            to: '[data-bravais-tab="albums"]',
+            other: '[data-bravais-tab="radio"]',
+        });
+        // 换页签：页签列是同一批节点（不重建、位置不动），中段翻一次，旧的与新的选中页签各自原地转进半圈，别的页签不动。
         await page.evaluate(() => {
             (document.querySelector('[data-bravais-tab="playlist"]') as HTMLElement & { __kept?: boolean }).__kept = true;
         });
@@ -88,6 +95,9 @@ test.describe('[bravais-only] seam motion', () => {
         let log = await flipLog(page);
         expect(log.content).toEqual(['still']);
         expect(log.middle).toEqual(['still', 'flip-out', 'flip-in', 'still']);
+        expect(log.from).toEqual(['still', 'flip-in', 'still']);
+        expect(log.to).toEqual(['still', 'flip-in', 'still']);
+        expect(log.other).toEqual(['still']);
         expect(await page.evaluate(() => (document.querySelector('[data-bravais-tab="playlist"]') as HTMLElement & { __kept?: boolean }).__kept)).toBe(true);
         await expect(seam(page).locator('[data-bravais-tab="albums"]')).toHaveAttribute('aria-selected', 'true');
         await settled(page);
@@ -128,12 +138,13 @@ test.describe('[bravais-only] seam motion', () => {
     test('with reduced motion the seam fades instead of flipping, and the menu only fades', async ({ mount, page }) => {
         await page.addInitScript(() => localStorage.setItem('reduce_motion_lattice', 'true'));
         await mountBravais(mount, page);
-        await recordFlips(page, { content: '.bravais-seam-content', middle: '[data-bravais-home-body]' });
+        await recordFlips(page, { content: '.bravais-seam-content', middle: '[data-bravais-home-body]', tab: '[data-bravais-tab="albums"]' });
         await seam(page).locator('[data-bravais-tab="albums"]').click();
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:albums');
         await seamStill(page);
         let log = await flipLog(page);
         expect(log.middle).toEqual(['still', 'fade-out', 'fade-in', 'still']);
+        expect(log.tab).toEqual(['still', 'fade-in', 'still']);
         await settled(page);
         await seam(page).locator('[data-bravais-tab="playlist"]').click();
         await settled(page);
