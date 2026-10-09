@@ -3612,6 +3612,7 @@ export default {
       "seen": "Already watched"
     },
     "summaries": {
+      "bravais_seam": "The gap down the middle of the wall: its three widths, the home tabs and tools, and filtering vs. searching.",
       "queue_shuffle": "Folia has no shuffle mode; it shuffles the queue instead. Here are the four ways to do it.",
       "audio_equalizer": "Ten bands and an effect chain \u2014 and one drag rewrites a custom slot.",
       "vis_playground": "Three invisible click regions sit on the preview.",
@@ -3730,6 +3731,45 @@ export default {
       "openLatticeSettings": "Open queue collage settings"
     },
     "anchors": {
+      "bravaisSeam": {
+        "collectionPage": "Collection page",
+        "strip": "Info strip",
+        "crumbs": "Back & breadcrumbs",
+        "title": "Title area",
+        "about": "Description",
+        "actions": "Play & favourite",
+        "list": "List",
+        "more": "⋯ More",
+        "menuFold": "Fold the info strip",
+        "spine": "Spine",
+        "spineTitle": "Vertical title",
+        "edgeTab": "Side tab",
+        "panel": "List panel",
+        "hoverRow": "Hovered row",
+        "linkedTile": "Same song on the wall",
+        "homePage": "Home",
+        "homeSeam": "Home strip",
+        "tabs": "Tabs",
+        "tabLocal": "Local",
+        "sections": "Sections",
+        "shortcuts": "Shortcuts",
+        "account": "Account entry",
+        "accountPopup": "Platform list",
+        "tools": "Tool grid",
+        "searchTool": "Search online platforms",
+        "homeMore": "⋯",
+        "menuPopup": "⋯ menu",
+        "stageRow": "Stage",
+        "filter": "Filter field",
+        "wall": "Wall",
+        "searchSeam": "Search",
+        "searchBox": "Search box",
+        "toolsButton": "Wall tools",
+        "toolsPanel": "Tools panel",
+        "toolsQuick": "One-shot actions",
+        "toolsVolume": "Volume",
+        "toolsAppearance": "Wall appearance"
+      },
       "audioEqualizer": {
         "panel": "Audio effects",
         "enable": "On / off",
@@ -4093,6 +4133,7 @@ export default {
       }
     },
     "targets": {
+      "bravaisSeam": "Bravais info strip",
       "queueShuffle": "Where is shuffle",
       "audioEqualizer": "Audio effects dialog",
       "visPlayground": "Lyric animation workbench",
@@ -4146,6 +4187,12 @@ export default {
       "settingsPage": "Options page"
     },
     "scenes": {
+      "bravaisSeamLevels": "Three widths: full, spine, folded",
+      "bravaisSeamCollection": "The strip on collection and artist pages",
+      "bravaisSeamHomeNavigation": "Home: tabs, sections and shortcuts",
+      "bravaisSeamHomeDock": "Account entry and tool grid",
+      "bravaisSeamFilter": "Filtering this page is not searching",
+      "bravaisSeamTools": "The wall tools in the corner",
       "queueShuffleNoMode": "No shuffle mode, just a queue shuffle",
       "queueShuffleCommand": "Shuffle with a command",
       "queueShuffleSlot": "Put it on the control bar",
@@ -4283,6 +4330,32 @@ export default {
       "panelSlideKeyboard": "Open it from the keyboard"
     },
     "captions": {
+      "bravaisSeam": {
+        "levelsIntro": "The info strip is the gap that opens down the middle of the wall. This level’s title, description and actions all live in it. It has three widths: full, spine and folded.",
+        "levelsSpine": "Click the title area (the quote marks plus the big vertical title) to collapse it into a narrow spine; the wall closes in on both sides. Click the vertical title on the spine to expand it back.",
+        "levelsFold": "To get it out of the way entirely, pick the last item in “⋯ More”: “Fold the info strip”. The icon at the top of the spine, two arrows meeting in the middle, folds it too.",
+        "levelsHidden": "Once folded, the wall closes into one piece and only a vertical tab with this level’s title stays at the side. Click it to return to the width you had before.",
+        "levelsGlobal": "The width is global: collapse it, open another playlist, and it stays collapsed. Windows narrower than 900px start with the spine. Each of the three widths also has a command in the command palette.",
+        "collectionCrumbs": "At the top: ‹ back and the breadcrumbs, Library › artist › album… Click any level to go straight back to it; when there are many in between they fold into “…”. The underlined field below filters this page.",
+        "collectionAbout": "Under the big title is this level’s description: the playlist blurb or album notes. On artist pages it holds the photo, name and bio, set like the author note on a book flap. Long text is clipped; click it to expand.",
+        "collectionActions": "Play all, add to queue, and the star at the end of the row to favourite it (only where the collection can be favourited). On artist pages these two act on the top songs.",
+        "collectionList": "“List” widens the strip into a song list, and the breadcrumbs gain a “List” level. Hover a row and every copy of that song on the wall lights up; click to go to it, double-click to play. Back closes the list first.",
+        "homeTabs": "On the home page the info strip is a narrow gap: “Library” and the fold button at the top, then the tabs written vertically: Playlists, Radio, Albums, Local, Navidrome.",
+        "homeFlip": "Switching tabs flips the whole strip once, and the whole wall changes to that tab. On the keyboard, F6 / Shift + F6 cycle through the tabs.",
+        "homeSections": "Local and Navidrome get an extra column of sections (folders, albums, artists, playlists…). Only the selected one spells out its name; the rest are icons, hover for the full name. Switching changes the wall without opening a new level.",
+        "homeShortcuts": "The small vertical words below are shortcuts: Liked Songs, Personal FM, All Songs… Clicking one is the same as clicking its card on the wall; Personal FM starts playing straight away. When space runs out they move into “⋯”.",
+        "dockAccount": "Right above the tool grid is the account entry: your avatar and name when signed in, “Connect a streaming service” when not.",
+        "dockPlatforms": "Click it and the platform list pops up above it. Click a row to switch to that platform; the small icon on the current row signs out. For platforms that need a login, you scan the QR code right inside the strip.",
+        "dockTools": "The bottom four: search online platforms, settings, the queue collage (into Lattice), and “⋯”.",
+        "dockMenu": "Everything else lives in “⋯”: this tab’s items first (filter this page, directory, manage hidden, import…), then after a divider the places to go, like “Back to the player”.",
+        "dockStage": "With stage mode on, a full-width “Stage” row appears at the top of the tool grid; it opens the stage player.",
+        "filterType": "To find something on this wall, just type on the wall: a filter field appears in the strip, and the wall shrinks to only the matches, laid out around the strip.",
+        "filterKeys": "Filtering never goes online; it only narrows the wall in front of you. Esc clears the text first, then ends typing; ↓ or Enter hands focus to the first tile on the wall.",
+        "filterSearch": "The magnifier is the online search (on the home page you can also press /): the whole strip turns into a boxed search field, and submitting takes you to the search page.",
+        "toolsQuick": "The button in the bottom-right corner is the wall tools. The top row holds one-shot actions: locate the playing song, shuffle the queue, generate a theme for this song, go to Lattice.",
+        "toolsVolume": "In the middle is the volume, the same one as on the player bar; click the icon on its left to mute.",
+        "toolsAppearance": "At the bottom is the wall appearance: transparency cycles through three levels, plus poster tint and lights on / off. Swipe the button left to open the command palette directly."
+      },
       "queueShuffle": {
         "noMode": "Folia has no traditional shuffle mode, and the loop button never switches to one. To listen in random order, shuffle the current queue.",
         "once": "Shuffling is a single action: the current queue is reordered in place and plays in the new order. Shuffle again for a different order.",

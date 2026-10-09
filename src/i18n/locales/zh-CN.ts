@@ -3611,6 +3611,7 @@ export default {
       "seen": "已看过"
     },
     "summaries": {
+      "bravais_seam": "墙中间那道缝：三档开合、首页的页签与工具格、过滤和搜索的区别。",
       "queue_shuffle": "Folia 没有随机播放模式，而是打乱队列；以及打乱队列的四个入口。",
       "audio_equalizer": "十段均衡和效果链；拖动推子会改写自定义槽。",
       "vis_playground": "预览上的三块隐藏点击区。",
@@ -3729,6 +3730,45 @@ export default {
       "openLatticeSettings": "打开队列拼贴设置"
     },
     "anchors": {
+      "bravaisSeam": {
+        "collectionPage": "集合页",
+        "strip": "完整信息条",
+        "crumbs": "返回与面包屑",
+        "title": "标题区域",
+        "about": "说明",
+        "actions": "播放与收藏",
+        "list": "列表",
+        "more": "⋯ 更多",
+        "menuFold": "折叠信息条",
+        "spine": "书脊",
+        "spineTitle": "竖排标题",
+        "edgeTab": "侧边标签",
+        "panel": "列表面板",
+        "hoverRow": "悬停的一行",
+        "linkedTile": "墙上同一首",
+        "homePage": "首页",
+        "homeSeam": "首页窄缝",
+        "tabs": "一级页签",
+        "tabLocal": "本地",
+        "sections": "二级切换",
+        "shortcuts": "直达入口",
+        "account": "账户入口",
+        "accountPopup": "平台列表",
+        "tools": "工具格",
+        "searchTool": "搜索在线平台",
+        "homeMore": "⋯",
+        "menuPopup": "⋯ 菜单",
+        "stageRow": "舞台",
+        "filter": "过滤输入位",
+        "wall": "墙",
+        "searchSeam": "搜索",
+        "searchBox": "搜索框",
+        "toolsButton": "墙面工具",
+        "toolsPanel": "工具面板",
+        "toolsQuick": "一次性动作",
+        "toolsVolume": "音量",
+        "toolsAppearance": "墙面外观"
+      },
       "audioEqualizer": {
         "panel": "音频效果",
         "enable": "总开关",
@@ -4092,6 +4132,7 @@ export default {
       }
     },
     "targets": {
+      "bravaisSeam": "Bravais 信息条",
       "queueShuffle": "随机播放在哪",
       "audioEqualizer": "音频效果对话框",
       "visPlayground": "歌词动画调参台",
@@ -4145,6 +4186,12 @@ export default {
       "settingsPage": "设置页面"
     },
     "scenes": {
+      "bravaisSeamLevels": "三档：完整、书脊、折叠",
+      "bravaisSeamCollection": "集合与歌手页的信息条",
+      "bravaisSeamHomeNavigation": "首页：页签、二级切换与直达",
+      "bravaisSeamHomeDock": "账户入口与工具格",
+      "bravaisSeamFilter": "过滤当前页，和搜索不是一回事",
+      "bravaisSeamTools": "右下角的墙面工具",
       "queueShuffleNoMode": "没有随机模式，只有打乱队列",
       "queueShuffleCommand": "用命令打乱",
       "queueShuffleSlot": "放进控制条按钮",
@@ -4282,6 +4329,32 @@ export default {
       "panelSlideKeyboard": "用键盘打开"
     },
     "captions": {
+      "bravaisSeam": {
+        "levelsIntro": "信息条是墙中间裂开的那道缝，这一层的标题、说明和操作都在里面。它有三档：完整、书脊、折叠。",
+        "levelsSpine": "点标题区域（引号连同竖排大标题）收成窄窄的书脊，两边的墙跟着合拢；在书脊上点竖排标题，又展开回完整信息条。",
+        "levelsFold": "要整条让开，点「⋯ 更多」的最后一项「折叠信息条」。书脊顶上那颗向中间合拢的图标也是折叠。",
+        "levelsHidden": "折叠之后墙合成一整面，侧边只留一枚竖排标签，写着这一层的标题。点它回到折叠前那一档。",
+        "levelsGlobal": "档位是全局的：收起之后再进别的歌单，信息条照样收着。窗口窄于 900px 时默认是书脊；三档在命令面板里也各有一条命令。",
+        "collectionCrumbs": "最上面是 ‹ 返回和面包屑：书库 › 歌手 › 专辑……点哪一项就退回哪一层，中间层多了会折成「…」。下面那道下划线是当前页过滤。",
+        "collectionAbout": "大标题下面是这一层的说明：歌单简介、专辑介绍。歌手页这一块是头像、名字和简介，排得像书勒口上的作者简介。正文长了会截断，点一下展开。",
+        "collectionActions": "播放全部、加入队列，行尾的星标是收藏（能收藏的集合才有）。歌手页上这两颗只管热门歌曲。",
+        "collectionList": "「列表」把信息条加宽成歌曲列表，面包屑多出一级「列表」。悬停一行，墙上同一首的磁贴跟着亮起；单击转到它，双击播放。返回先关列表。",
+        "homeTabs": "首页的信息条是一道窄缝：最上面是「书库」和折叠，下面竖排着一级页签——歌单、电台、专辑、本地、Navidrome。",
+        "homeFlip": "换页签时整条信息条翻一次，墙也整面换成那一页的内容。键盘上 F6 / Shift + F6 轮换页签。",
+        "homeSections": "本地和 Navidrome 多一列二级切换（文件夹、专辑、艺术家、歌单……）。只有选中的那项竖着写出名字，其余只留图标，悬停看全名。切换只换墙上的内容，不进新的一层。",
+        "homeShortcuts": "下面那几列竖排小字是直达入口：我喜欢的音乐、私人 FM、全部歌曲……点它和点墙上那张卡一样，私人 FM 直接开播。地方不够时，它们挪进「⋯」。",
+        "dockAccount": "工具格正上方是账户入口：登录了是头像和昵称，没登录时是「连接在线平台」。",
+        "dockPlatforms": "点它，平台列表从入口往上弹出。点一行切到那个平台；当前那行右侧的小图标是登出。需要登录的平台，二维码就在信息条里扫。",
+        "dockTools": "最底下四格：搜索在线平台、设置、队列拼贴（进入 Lattice）和「⋯」。",
+        "dockMenu": "其余的都在「⋯」里：这一页签的项在前（过滤当前页、目录、管理隐藏、导入……），分隔线之后是「回到播放页」这类去处。",
+        "dockStage": "开着舞台模式时，工具格最上面多一整行「舞台」，点它打开舞台播放器。",
+        "filterType": "想在这面墙里找东西，直接在墙上打字：信息条里冒出一道过滤输入位，墙收成以信息条为中心、只剩匹配项的一小片。",
+        "filterKeys": "过滤不联网，只收窄眼前这面墙。Esc 有词先清空，再按一次结束输入；↓ 或 Enter 把焦点交给墙上第一张。",
+        "filterSearch": "放大镜才是搜索在线平台（首页上也可以按 /）：整条信息条换成带框的搜索框，提交之后去搜索页看结果。",
+        "toolsQuick": "右下角那颗是墙面工具。顶上一排是一次性动作：定位正在播放、打乱队列、为当前歌曲生成主题、前往 Lattice。",
+        "toolsVolume": "中间是音量，和播放条上的是同一份；点左边的图标静音。",
+        "toolsAppearance": "最下面是墙面外观：透光在三档之间轮换，还有海报叠色和开灯 / 关灯。向左滑这颗按钮，直接打开命令面板。"
+      },
       "queueShuffle": {
         "noMode": "Folia 不提供传统的随机播放模式，循环按钮也不会切到随机。想随机听，就打乱当前队列。",
         "once": "打乱是一次操作：当前队列原地洗一次牌，之后按新顺序播放。想换个顺序，再打乱一次。",

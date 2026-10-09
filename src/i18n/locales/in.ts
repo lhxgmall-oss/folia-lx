@@ -3497,6 +3497,7 @@ export default {
       "seen": "Sudah ditonton"
     },
     "summaries": {
+      "bravais_seam": "Celah di tengah dinding: tiga lebarnya, tab dan alat di beranda, serta beda menyaring dan mencari.",
       "queue_shuffle": "Folia tidak punya mode acak; yang ada adalah mengacak antrean. Ini empat cara melakukannya.",
       "audio_equalizer": "Sepuluh pita dan satu rantai efek \u2014 dan satu tarikan menimpa slot kustom.",
       "vis_playground": "Ada tiga area klik tak terlihat di atas pratinjau.",
@@ -3615,6 +3616,45 @@ export default {
       "openLatticeSettings": "Buka pengaturan kolase antrean"
     },
     "anchors": {
+      "bravaisSeam": {
+        "collectionPage": "Halaman koleksi",
+        "strip": "Strip info",
+        "crumbs": "Kembali & remah roti",
+        "title": "Area judul",
+        "about": "Deskripsi",
+        "actions": "Putar & favorit",
+        "list": "Daftar",
+        "more": "⋯ Lainnya",
+        "menuFold": "Lipat strip info",
+        "spine": "Punggung",
+        "spineTitle": "Judul vertikal",
+        "edgeTab": "Tab samping",
+        "panel": "Panel daftar",
+        "hoverRow": "Baris yang disorot",
+        "linkedTile": "Lagu yang sama di dinding",
+        "homePage": "Beranda",
+        "homeSeam": "Strip beranda",
+        "tabs": "Tab",
+        "tabLocal": "Lokal",
+        "sections": "Bagian",
+        "shortcuts": "Pintasan",
+        "account": "Akun",
+        "accountPopup": "Daftar platform",
+        "tools": "Kisi alat",
+        "searchTool": "Cari di platform online",
+        "homeMore": "⋯",
+        "menuPopup": "Menu ⋯",
+        "stageRow": "Panggung",
+        "filter": "Kolom saring",
+        "wall": "Dinding",
+        "searchSeam": "Cari",
+        "searchBox": "Kotak pencarian",
+        "toolsButton": "Alat dinding",
+        "toolsPanel": "Panel alat",
+        "toolsQuick": "Aksi sekali jalan",
+        "toolsVolume": "Volume",
+        "toolsAppearance": "Tampilan dinding"
+      },
       "audioEqualizer": {
         "panel": "Efek audio",
         "enable": "Nyala / mati",
@@ -3978,6 +4018,7 @@ export default {
       }
     },
     "targets": {
+      "bravaisSeam": "Strip info Bravais",
       "queueShuffle": "Di mana putar acak",
       "audioEqualizer": "Dialog efek audio",
       "visPlayground": "Meja setel animasi lirik",
@@ -4031,6 +4072,12 @@ export default {
       "settingsPage": "Halaman Opsi"
     },
     "scenes": {
+      "bravaisSeamLevels": "Tiga lebar: penuh, punggung, terlipat",
+      "bravaisSeamCollection": "Strip di halaman koleksi dan artis",
+      "bravaisSeamHomeNavigation": "Beranda: tab, bagian, dan pintasan",
+      "bravaisSeamHomeDock": "Akun dan kisi alat",
+      "bravaisSeamFilter": "Menyaring halaman ini bukan mencari",
+      "bravaisSeamTools": "Alat dinding di pojok",
       "queueShuffleNoMode": "Tanpa mode acak, hanya acak antrean",
       "queueShuffleCommand": "Acak lewat perintah",
       "queueShuffleSlot": "Taruh di bilah kontrol",
@@ -4168,6 +4215,32 @@ export default {
       "panelSlideKeyboard": "Buka dari papan tombol"
     },
     "captions": {
+      "bravaisSeam": {
+        "levelsIntro": "Strip info adalah celah yang terbuka di tengah dinding. Judul, deskripsi, dan aksi tingkat ini semuanya ada di sana. Lebarnya ada tiga: penuh, punggung, dan terlipat.",
+        "levelsSpine": "Klik area judul (tanda kutip beserta judul vertikal besar) untuk menciutkannya jadi punggung yang sempit; dinding di kedua sisi ikut merapat. Klik judul vertikal di punggung untuk membentangkannya lagi.",
+        "levelsFold": "Supaya benar-benar menyingkir, pilih butir terakhir di “⋯ Lainnya”: “Lipat strip info”. Ikon di atas punggung, dua panah yang bertemu di tengah, juga melipatnya.",
+        "levelsHidden": "Setelah dilipat, dinding menutup jadi satu dan hanya tersisa tab vertikal berisi judul tingkat ini di samping. Klik tab itu untuk kembali ke lebar sebelumnya.",
+        "levelsGlobal": "Lebarnya berlaku global: ciutkan, buka playlist lain, dan strip tetap ciut. Jendela yang lebih sempit dari 900px dimulai dengan punggung. Ketiga lebar juga punya perintah masing-masing di palet perintah.",
+        "collectionCrumbs": "Paling atas: ‹ kembali dan remah roti, Pustaka › artis › album… Klik tingkat mana pun untuk langsung kembali ke sana; jika tingkat di tengah banyak, semuanya dilipat jadi “…”. Kolom bergaris bawah di bawahnya menyaring halaman ini.",
+        "collectionAbout": "Di bawah judul besar ada deskripsi tingkat ini: keterangan playlist atau catatan album. Di halaman artis isinya foto, nama, dan biografi, ditata seperti catatan penulis di sampul buku. Teks panjang dipotong; klik untuk membentangkan.",
+        "collectionActions": "Putar semua, tambah ke antrean, dan bintang di ujung baris untuk memfavoritkan (hanya untuk koleksi yang bisa difavoritkan). Di halaman artis, kedua tombol ini hanya untuk lagu populer.",
+        "collectionList": "“Daftar” melebarkan strip jadi daftar lagu, dan remah roti bertambah satu tingkat “Daftar”. Arahkan ke satu baris dan semua salinan lagu itu di dinding ikut menyala; klik untuk menuju ke sana, klik dua kali untuk memutar. Kembali menutup daftar lebih dulu.",
+        "homeTabs": "Di beranda, strip info adalah celah sempit: “Pustaka” dan tombol lipat di atas, lalu tab yang ditulis vertikal: Playlist, Radio, Album, Lokal, Navidrome.",
+        "homeFlip": "Berpindah tab membalik seluruh strip sekali, dan seluruh dinding berganti ke isi tab itu. Di keyboard, F6 / Shift + F6 berganti tab.",
+        "homeSections": "Lokal dan Navidrome punya satu kolom bagian tambahan (folder, album, artis, playlist…). Hanya yang terpilih yang menuliskan namanya; sisanya ikon, arahkan untuk nama lengkap. Berganti bagian hanya mengganti isi dinding, tanpa membuka tingkat baru.",
+        "homeShortcuts": "Kata-kata vertikal kecil di bawahnya adalah pintasan: Lagu Disukai, FM Pribadi, Semua Lagu… Mengklik satu sama dengan mengklik kartunya di dinding; FM Pribadi langsung diputar. Kalau tempatnya tidak cukup, pintasan pindah ke “⋯”.",
+        "dockAccount": "Tepat di atas kisi alat ada pintu masuk akun: avatar dan nama saat masuk, “Hubungkan layanan streaming” saat belum.",
+        "dockPlatforms": "Klik, dan daftar platform muncul ke atas darinya. Klik satu baris untuk beralih ke platform itu; ikon kecil di baris saat ini untuk keluar. Untuk platform yang perlu masuk, kode QR dipindai langsung di dalam strip.",
+        "dockTools": "Empat di paling bawah: cari di platform online, pengaturan, kolase antrean (masuk ke Lattice), dan “⋯”.",
+        "dockMenu": "Sisanya ada di “⋯”: butir tab ini lebih dulu (saring halaman ini, direktori, kelola yang disembunyikan, impor…), lalu setelah pemisah tujuan seperti “Kembali ke pemutar”.",
+        "dockStage": "Saat mode panggung aktif, baris “Panggung” selebar penuh muncul di atas kisi alat; ia membuka pemutar panggung.",
+        "filterType": "Untuk menemukan sesuatu di dinding ini, cukup ketik di dinding: kolom saring muncul di strip, dan dinding menyusut hanya ke yang cocok, tertata di sekitar strip.",
+        "filterKeys": "Menyaring tidak pernah online; ia hanya mempersempit dinding di depanmu. Esc mengosongkan teks dulu, lalu mengakhiri pengetikan; ↓ atau Enter memberi fokus ke ubin pertama di dinding.",
+        "filterSearch": "Kaca pembesar itulah pencarian online (di beranda bisa juga tekan /): seluruh strip berubah jadi kotak pencarian berbingkai, dan mengirimnya membawamu ke halaman pencarian.",
+        "toolsQuick": "Tombol di pojok kanan bawah adalah alat dinding. Baris atasnya berisi aksi sekali jalan: temukan lagu yang diputar, acak antrean, buat tema untuk lagu ini, buka Lattice.",
+        "toolsVolume": "Di tengah ada volume, sama dengan yang di bilah pemutar; klik ikon di kirinya untuk membisukan.",
+        "toolsAppearance": "Paling bawah adalah tampilan dinding: transparansi bergiliran di tiga tingkat, ditambah warna poster dan lampu nyala / mati. Geser tombol ini ke kiri untuk langsung membuka palet perintah."
+      },
       "queueShuffle": {
         "noMode": "Folia tidak menyediakan mode putar acak tradisional, dan tombol ulang tidak akan beralih ke acak. Untuk mendengar secara acak, acak antrean saat ini.",
         "once": "Mengacak adalah satu tindakan: antrean saat ini diacak di tempat lalu diputar dengan urutan baru. Acak lagi untuk urutan lain.",
