@@ -246,6 +246,12 @@ describe('select-all and tabs', () => {
         expect(cycleHomeTab(tabs, 'local', 1)).toBe('playlist');
         expect(cycleHomeTab([{ key: 'playlist' }, { key: 'radio', disabledReason: 'no' }], 'playlist', 1)).toBeNull();
     });
+
+    it('starts from the ends when the current tab is hidden (not in the list)', () => {
+        const tabs = [{ key: 'radio' }, { key: 'albums' }, { key: 'local' }] as const;
+        expect(cycleHomeTab(tabs, 'playlist', -1)).toBe('local');
+        expect(cycleHomeTab(tabs, 'playlist', 1)).toBe('radio');
+    });
 });
 
 describe('home keys', () => {

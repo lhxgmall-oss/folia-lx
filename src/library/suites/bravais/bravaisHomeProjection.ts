@@ -14,6 +14,7 @@ import {
     type LibraryHomeSpecialKind,
 } from '../../core/model/homeSpecialCards';
 import { resolveDirectoryRows } from '../../core/model/directoryTree';
+import { cycleIndex } from '../../core/model/homeSources';
 import { resolveDirectoryNodeSelection, resolveNextDirectoryNodeSelectionTarget } from '../../core/model/directoryBatch';
 import type { BravaisItem } from './bravaisLayer';
 import type { BravaisDirectoryRow } from './bravaisHomeModels';
@@ -269,18 +270,15 @@ export const resolveSelectAllState = (selectedCount: number, displayCount: numbe
     selectedCount === 0 ? 'none' : selectedCount >= displayCount ? 'all' : 'partial'
 );
 
-/** F6 / Shift+F6：从当前页签往前 / 往后找下一个可用的（绕回）；只有它自己可用时为 null。 */
+/**
+ * F6 / Shift+F6：从当前页签往前 / 往后找下一个可用的（绕回）；只有它自己可用时为 null。
+ * 走 core 的 cycleIndex，与网格 / TUI 的 Tab 循环同一套规则（当前页签被隐藏、不在列表里时，往前从最后一个找起）。
+ */
 export const cycleHomeTab = (
     tabs: readonly Pick<LibraryHomeTabView, 'key' | 'disabledReason'>[],
     active: string,
     delta: 1 | -1,
 ): string | null => {
-    const start = tabs.findIndex(tab => tab.key === active);
-    for (let step = 1; step < tabs.length + 1; step += 1) {
-        const index = ((start + delta * step) % tabs.length + tabs.length) % tabs.length;
-        const tab = tabs[index];
-        if (tab.key === active) return null;
-        if (!tab.disabledReason) return tab.key;
-    }
-    return null;
+    const index = cycleIndex(tabs, tabs.findIndex(tab => tab.key === active), delta, tab => !tab.disabledReason);
+    return index < 0 || tabs[index].key === active ? null : tabs[index].key;
 };
