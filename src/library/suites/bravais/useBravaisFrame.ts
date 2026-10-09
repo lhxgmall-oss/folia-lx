@@ -12,6 +12,8 @@ export type BravaisFrameState = {
     center: WallViewCenter;
     anchorX: number | null;
     openWidth: number;
+    /** 开口正在补间去的宽度（不补间时等于 openWidth）：开口张开途中给聚焦卡的相机让位按张开后的缝算。 */
+    targetOpenWidth: number;
     contentWidth: number;
     hidden: boolean;
 };
@@ -30,6 +32,7 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
         center: { x: 0, y: 0 },
         anchorX: null,
         openWidth: 0,
+        targetOpenWidth: 0,
         contentWidth: 0,
         hidden: false,
     });

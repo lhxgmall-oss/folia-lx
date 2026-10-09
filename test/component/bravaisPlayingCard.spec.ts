@@ -183,6 +183,45 @@ test.describe('[bravais-only] the playing song on the wall', () => {
         await expect(page.locator('[data-bravais-expanded]')).toHaveCount(0);
     });
 
+    test('coming back from Lattice, the playing card opens as the seam starts opening, not after the handoff', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        await openCard(page);
+        const { card, entry, playbackKey } = await expandSong(page);
+        await card.locator('[data-bravais-action="play"]').dispatchEvent('click');
+        await setNowPlaying(page, playbackKey, true);
+        await expect(card).toHaveAttribute('data-library-entry', entry);
+
+        // 回资料库墙的翻牌交接（探针里没有 Lattice：直接开一次会话，stage 重新挂载后报准备好，之后按时间表
+        // 翻进 → 缝张开 → 结束）。逐帧记下聚焦卡第一次出现时根节点的交接阶段（2026-10-10：在缝开始张开时就展开）。
+        await page.evaluate(async () => {
+            const storePath = '/src/stores/useWallHandoffStore.ts';
+            const timingPath = '/src/components/wall/wallHandoff.ts';
+            const { useWallHandoffStore } = await import(/* @vite-ignore */ storePath);
+            const { WALL_HANDOFF_TIMING } = await import(/* @vite-ignore */ timingPath);
+            const w = window as unknown as { __expandedAt?: string | null; __phases: string[] };
+            w.__phases = [];
+            const tick = () => {
+                const root = document.querySelector('[data-library-stage="bravais"]');
+                const phase = root?.getAttribute('data-wall-handoff-phase') ?? null;
+                if (phase && w.__phases.at(-1) !== phase) w.__phases.push(phase);
+                if (root?.querySelector('[data-bravais-expanded]')) {
+                    w.__expandedAt = phase;
+                    return;
+                }
+                requestAnimationFrame(tick);
+            };
+            useWallHandoffStore.getState().begin({ direction: 'from-lattice', mode: 'flip', seeThrough: null, timing: { ...WALL_HANDOFF_TIMING } });
+            window.__homeProbe!.remount();
+            requestAnimationFrame(tick);
+        });
+        await expect.poll(() => page.evaluate(() => (window as unknown as { __expandedAt?: string | null }).__expandedAt), { timeout: 10_000 })
+            .toBe('opening');
+        expect(await page.evaluate(() => (window as unknown as { __phases: string[] }).__phases)).toEqual(expect.arrayContaining(['flipping', 'opening']));
+        await expect(stage(page)).not.toHaveAttribute('data-wall-handoff', /.*/, { timeout: 10_000 });
+        await expect(page.locator('[data-bravais-expanded]')).toHaveAttribute('data-library-entry', entry);
+        await expect.poll(() => isInViewport(page)).toBe(true);
+    });
+
     test('nothing is forced open on a layer where the remembered song is not playing', async ({ mount, page }) => {
         await mountBravais(mount, page);
         await openCard(page);

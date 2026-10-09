@@ -32,8 +32,8 @@ import type { BravaisFrameState } from './useBravaisFrame';
 //   flipping 时视口里的每张磁贴按到起点的距离错开翻出半圈（WAAPI，只转内容层，fill forwards 停在侧立），翻完整面卸载。
 // - 回资料库墙（这面墙进来，role = in）：挂上时磁贴全部藏着（data-wall-handoff-hold）、缝合着、veil 盖着；画好之后报
 //   准备好（同时报有没有窗，visualizer 赶在窗打开之前装上）；flipping 时每张磁贴等到「同一位置上 Lattice 翻出半圈之后」
-//   翻进来（fill backwards 在等待期间保持侧立）；opening 时缝张开、veil 淡出，会话结束后墙才算落定（fb3 的正在播放那首
-//   在这之后照常展开）。
+//   翻进来（fill backwards 在等待期间保持侧立）；opening 时缝张开、veil 淡出，正在播放那首（fb3）同时展开（2026-10-10，
+//   之前等会话结束才展开，节奏拖沓）；会话结束后墙才算落定。
 // - 降低动态效果（mode = fade）：这面墙什么都不做，Lattice 整层淡入盖上 / 淡出露出。
 // 交接期间墙不接指针、不接键盘（stage 据 role 关掉 active），根节点挂 data-wall-handoff 与阶段，stage 视为 settling。
 // 动画只动 transform / opacity；DOM 读写只在阶段切换的那一刻各一次（量起点、给视口里的磁贴排动画），没有逐帧工作。

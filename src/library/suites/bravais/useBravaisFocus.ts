@@ -48,7 +48,8 @@ export const useBravaisFocus = ({
             view: frame.view,
             metrics: BRAVAIS_METRICS,
             anchorX: frame.anchorX,
-            seamWidth: frame.openWidth,
+            // 开口正在张开时按张开后的宽度让位（交接回来时缝张开与聚焦卡展开同时进行）。
+            seamWidth: Math.max(frame.openWidth, frame.targetOpenWidth),
             pad: BRAVAIS_REVEAL_PAD_PX,
             bottomInset: getBottomInset(),
         }));

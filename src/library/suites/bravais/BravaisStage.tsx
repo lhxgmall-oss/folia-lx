@@ -74,7 +74,8 @@ import './bravaisSeamLooks.css';
 // 聚焦卡在回来 / 返回这一层时重新展开（useBravaisPlayingCard）。
 // 翻牌交接（设计稿 §7「进入队列」）：进 / 出 Lattice 时这面墙与 Lattice 叠着换内容（useBravaisWallHandoff）。交接期间
 // 缝的开口目标是 0（合上）、透光档墙面之下垫一层实色 veil（窗关上）、墙不接指针与键盘、根节点挂 data-wall-handoff；
-// 回来时会话结束才算落定（fb3 的展开在这之后）。工具按钮在离开途中仍认领 dock，Lattice 后认领、盖在上面。
+// 回来时会话结束才算落定；fb3 的正在播放那首在缝开始张开时就展开（2026-10-10）。工具按钮在离开途中仍认领 dock，
+// Lattice 后认领、盖在上面。
 
 const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
     left: bounds.left - by,
@@ -254,8 +255,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         togglesCurrent: Boolean(onTogglePlayback),
         hasEnter: Boolean(onEnterPlaybackView),
     });
-    // 交接期间墙不算落定：fb3 的「正在播放那首重新展开」等交接放完（翻完、缝张开）才发生。
-    const settling = isSettling || handoff.role !== null;
+    // 交接期间墙不算落定。fb3 的「正在播放那首重新展开」：从 Lattice 回来时在翻完、缝开始张开（opening）那一刻就展开，
+    // 与缝张开、窗打开同时进行（2026-10-10 用户：先等缝张开再放大，节奏拖沓）；相机让位按张开后的缝算。
+    const settling = isSettling || (handoff.role !== null && !(handoff.role === 'in' && handoff.phase === 'opening'));
     useBravaisPlayingCard({ display, isSettling: settling, focus, frameRef });
     // 透光以墙上此刻显示的档位为准（换档时与翻牌同一次提交）；还没有显示时看偏好。
     const seeThrough = (display?.look ?? wallLook.look) !== 'solid';

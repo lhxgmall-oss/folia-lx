@@ -89,6 +89,7 @@ export const useBravaisSeam = ({
     /** 开口补间到目标宽度（每帧只写帧状态与 DOM；途中快到裁剪边缘时补裁剪，落定时按含开口的可见范围裁剪一次）。 */
     const tweenWidth = useCallback((to: number, from = frameRef.current.openWidth) => {
         widthAnimationRef.current?.stop();
+        frameRef.current.targetOpenWidth = to;
         if (reducedMotion || Math.abs(to - from) < 0.5) {
             widthAnimationRef.current = null;
             const changed = Math.abs(to - frameRef.current.openWidth) >= 0.5;
@@ -136,8 +137,8 @@ export const useBravaisSeam = ({
         tweenCamera(plan.center);
     }, [frameRef, isAnchorOnScreen, layer, layerKey, planOpening, setAnchor, targetWidth, tweenCamera]);
 
-    // 缝里的内容：换层或换形态时翻转（转到 90° 换内容与排版宽度），同一层的数据更新就地刷新（渲染时取最新的层）。
-    // 首页换页签（同一套首页内容、只是换了 `home:<页签>` 层）不整条翻：页签列留在原处，只翻中段（BravaisSeamHome）。
+    // 缝里的内容：换层（首页换页签也是换层，2026-10-09 起整条翻）或换形态时翻转（转到 90° 换内容与排版宽度），同一层的
+    // 数据更新就地刷新（渲染时取最新的层）。
     const renderedLayer = rendered.layer && layer && resolveSeamContentIdentity(rendered.layer) === resolveSeamContentIdentity(layer) ? layer : rendered.layer;
     const renderedKey = `${rendered.variant}|${rendered.layer ? resolveSeamContentIdentity(rendered.layer) : ''}`;
     const targetKey = `${targetVariant}|${layer ? resolveSeamContentIdentity(layer) : ''}`;
