@@ -29,8 +29,9 @@ describe('seam motion vocabulary', () => {
         expect(bravaisRevealMotion(true).initial).toEqual({ opacity: 0 });
     });
 
-    it('treats every home tab as the same seam content, other layers by key', () => {
-        expect(resolveSeamContentIdentity(layer('home:playlist', 'home'))).toBe(resolveSeamContentIdentity(layer('home:local', 'home')));
+    it('tells seam contents apart by layer key, home tabs included', () => {
+        // 2026-10-09：首页换页签也整条翻（与原型一致）。
+        expect(resolveSeamContentIdentity(layer('home:playlist', 'home'))).not.toBe(resolveSeamContentIdentity(layer('home:local', 'home')));
         expect(resolveSeamContentIdentity(layer('collection:a', 'collection'))).not.toBe(resolveSeamContentIdentity(layer('collection:b', 'collection')));
         expect(resolveSeamContentIdentity(layer('artist:a', 'artist'))).toBe('artist:a');
     });

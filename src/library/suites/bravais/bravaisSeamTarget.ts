@@ -84,7 +84,8 @@ export const resolveStageSeamTarget = (
 );
 
 /**
- * 缝里的内容换不换（整条翻不翻）的身份：首页各页签（`home:<页签>`）是同一套首页内容——换页签时页签列留在原处、只翻
- * 中段（设计稿 §7「缝内的过渡」）；集合与歌手页按层 key。
+ * 缝里的内容换不换（整条翻不翻）的身份：按层 key。首页换页签（`home:<页签>`）同样整条翻一次（2026-10-09 用户：与原型
+ * 一致；之前首页各页签算同一套内容、只翻中段，在线页签的中段常常是空的，看上去是硬切）。同一页签里换二级切换不换层，
+ * 不翻。
  */
-export const resolveSeamContentIdentity = (layer: Pick<BravaisLayer, 'key' | 'surface'>) => (layer.surface === 'home' ? 'home' : layer.key);
+export const resolveSeamContentIdentity = (layer: Pick<BravaisLayer, 'key' | 'surface'>) => layer.key;

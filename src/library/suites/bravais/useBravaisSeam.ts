@@ -16,7 +16,7 @@ import type { BravaisFrameState } from './useBravaisFrame';
 // 块边界、相机只做最小让位；不在屏内就在当前视口里另取最近的块边界（B5 的 blockSeamPlan）。
 // 缝内过渡（设计稿 §7「缝内的过渡」）：内容翻转用 bravaisSeamMotion 的半圈（与墙上磁贴同一种绕 Y 轴的翻牌），降低动效
 // （B11 的同一套判断）时换成 0.18s 淡出 → 换 → 淡入；从折叠回来时开口补间、内容随之淡入（降低动效时开口不补间，内容
-// 淡入）。过渡中内容层挂 data-bravais-seam-flip。首页换页签不整条翻（页签列留在原处），中段自己翻（BravaisSeamHome）。
+// 淡入）。过渡中内容层挂 data-bravais-seam-flip。首页换页签也整条翻（2026-10-09 起，与原型一致）。
 
 export type BravaisRenderedSeam = { variant: BravaisSeamContentVariant; layer: BravaisLayer | null };
 

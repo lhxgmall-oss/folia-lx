@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     CalendarPlus,
@@ -21,9 +21,9 @@ import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
 import BravaisSeamHomeTools from './BravaisSeamHomeTools';
 import { abbreviateSeamTabLabel, abbreviateSeamTabLabels } from './bravaisSeamTabLabels';
 import { useBravaisSeamTabsFit } from './useBravaisSeamTabsFit';
-import { BravaisSeamFlip, BravaisSeamFlipText, useBravaisSeamFade } from './BravaisSeamFlip';
+import { BravaisSeamFlipText, useBravaisSeamFade } from './BravaisSeamFlip';
 import { useBravaisReducedTransitions } from './bravaisMotion';
-import { bravaisRevealMotion, BRAVAIS_SEAM_FLIP_IN_EASING_BEZIER, playSeamFlipIn } from './bravaisSeamMotion';
+import { bravaisRevealMotion, BRAVAIS_SEAM_FLIP_IN_EASING_BEZIER } from './bravaisSeamMotion';
 import { BRAVAIS_SEAM_FLIP_IN_MS } from './bravaisConstants';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { useBravaisUiStore } from './bravaisUiStore';
@@ -59,11 +59,9 @@ import './bravaisHome.css';
 // 当前页过滤（设计稿 §7.6）：过滤输入位（BravaisSeamFilterField）只在正在输入或有过滤词时出现，排在导航区与账户入口
 // 之间（自然高度，导航区照旧是唯一可伸缩的一段，页签的缩减按剩下的高度重新量）；平时不占窄缝的纵向空间，入口是墙上
 // 直接打字与「⋯」里的「过滤当前页」。书脊（64px）放不下输入框：过滤中只有一个强调色的过滤图标，点它或打字先展开成窄缝。
-// 动效（设计稿 §7「缝内的过渡」）：换页签时页签列不动（选中的填色块淡出 / 淡入），中段像磁贴一样翻成新页签的内容
-// （BravaisSeamFlip）；换二级切换时各行滑到新位置、新的文字翻进来；缩减级别变了页头淡入新的样子；扫描进度、管理隐藏的
-// 开关淡入 / 淡出；状态文字换了翻进新的一行。降低动效时都只淡入淡出。
-// 2026-10-09（用户实测：在线页签的中段常常是空的，换歌单 / 电台看不到任何翻转）：换页签时旧的与新的选中页签各自原地
-// 翻一次（绕 Y 轴转进半圈，与中段同一条翻牌；useSeamTabFlip），页签列的位置仍不动。
+// 动效（设计稿 §7「缝内的过渡」）：换页签时整条缝像磁贴一样翻成新页签（useBravaisSeam，2026-10-09 起与原型一致；之前
+// 页签列不动、只翻中段，在线页签的中段常常是空的，看上去是硬切）；换二级切换时各行滑到新位置、新的文字翻进来；缩减
+// 级别变了页头淡入新的样子；扫描进度、管理隐藏的开关淡入 / 淡出；状态文字换了翻进新的一行。降低动效时都只淡入淡出。
 // 直达入口（特殊集合：我喜欢的音乐、私人 FM、全部歌曲…）：二级切换是「换这面墙看什么」（tab，选中态），入口是「打开那张
 // 集合」（普通按钮），所以分开成两组、中间一道线。点它交给 stage 的 openShortcut（与点墙上那张卡同一条打开路径）。放不下时
 // 入口先于二级切换让位，挪进「⋯」菜单（useBravaisSeamTabsFit）。
@@ -72,7 +70,7 @@ import './bravaisHome.css';
 //   最长那个的高度），显示种类的固定短名（libraryBravaisHome.special.*；provider 给的卡名可能带昵称、长短不一），全名仍在
 //   aria-label / title。字号小一级、字重常规、颜色是副文色——与强调色 + 粗体的激活二级切换分得开，不像又一组页签。
 // - 位置靠下：入口是中段的第二块（.bravais-seam-home-jumps），贴在中段底部（离账户入口 / 工具格一个段间距）；二级切换、
-//   扫描进度、状态仍在上面剩下的空间里竖直居中。换页签时它与中段同一个 key 一起翻（各自一个 BravaisSeamFlip）。
+//   扫描进度、状态仍在上面剩下的空间里竖直居中。
 
 /**
  * B10 账户位：首页在线页签窄缝里的平台切换（account-select / account-logout）放在这里。B9 只给一个空容器，挂着
@@ -208,29 +206,6 @@ const HomeSeamShortcuts: React.FC<{
 };
 
 /**
- * 换页签时，旧的与新的选中页签各自原地转进半圈（绕 Y 轴，与中段同一条翻牌；降低动效时淡入）。第一次挂载不翻；
- * 上一次还没放完又换了，取消上一次再翻。
- */
-const useSeamTabFlip = (listRef: React.RefObject<HTMLDivElement | null>, activeKey: string | null) => {
-    const reduced = useBravaisReducedTransitions();
-    const previousRef = useRef(activeKey);
-    const animationsRef = useRef<Animation[]>([]);
-    useLayoutEffect(() => {
-        const previous = previousRef.current;
-        if (previous === activeKey) return;
-        previousRef.current = activeKey;
-        const list = listRef.current;
-        if (!list) return;
-        animationsRef.current.forEach(animation => animation.cancel());
-        animationsRef.current = [previous, activeKey].flatMap((key) => {
-            const tab = key === null ? null : list.querySelector<HTMLElement>(`[data-bravais-tab="${CSS.escape(key)}"]`);
-            return tab ? [playSeamFlipIn(tab, 'y', reduced)] : [];
-        });
-    }, [activeKey, listRef, reduced]);
-    useLayoutEffect(() => () => animationsRef.current.forEach(animation => animation.cancel()), []);
-};
-
-/**
  * 页头：标题与竖排页签（真按钮），或它的全名测量副本（span，不可聚焦、不进无障碍树）。`lead` 是页签那一列旁边的
  * 东西（折叠按钮；测量副本里是同尺寸的占位）：单独一行，排在页签列上面（窄缝与书脊一样）。
  * fb2 第二轮（用户看了截图）：「书库」改成页头最上面一行小字（横排），不再与页签列并排占一大块；折叠按钮紧挨在它
@@ -246,8 +221,6 @@ const HomeSeamHead: React.FC<{
     onSelectTab?: (key: string) => void;
     measure?: boolean;
 }> = ({ title, hideTitle, tabs, shorts, lead, onSelectTab, measure = false }) => {
-    const listRef = useRef<HTMLDivElement>(null);
-    useSeamTabFlip(listRef, measure ? null : tabs.find(tab => tab.active)?.key ?? null);
     return (
         <div className="bravais-seam-home-head">
             <div className={`bravais-seam-home-title${hideTitle ? ' is-hidden' : ''}`} data-bravais-home-title={measure ? undefined : hideTitle ? 'hidden' : 'shown'}>
@@ -260,7 +233,7 @@ const HomeSeamHead: React.FC<{
                         {tabs.map(tab => <span key={tab.key} className="bravais-seam-home-tab">{tab.label}</span>)}
                     </div>
                 ) : (
-                    <div ref={listRef} className={`bravais-seam-tabs${shorts ? ' is-short' : ''}`} role="tablist" aria-label={title} aria-orientation="vertical">
+                    <div className={`bravais-seam-tabs${shorts ? ' is-short' : ''}`} role="tablist" aria-label={title} aria-orientation="vertical">
                         {tabs.map((tab, index) => (
                             <button
                                 key={tab.key}
@@ -344,8 +317,7 @@ const BravaisSeamHome: React.FC<{
                     </div>
                     {/* fb3：中段在页头与工具格之间的剩余空间里竖直居中。 */}
                     <div ref={middleRef} className="bravais-seam-home-middle">
-                        {/* 换页签：页签列不动，中段像磁贴一样翻成新页签的内容（BravaisSeamFlip）。 */}
-                        <BravaisSeamFlip ref={bodyRef} flipKey={layer.key} className="bravais-seam-home-body" data-bravais-home-body>
+                        <div ref={bodyRef} className="bravais-seam-home-body" data-bravais-home-body>
                             <AnimatePresence initial={false}>{meta}</AnimatePresence>
                             {sections && (
                                 <div ref={slotRef} className="bravais-seam-sections-slot">
@@ -365,13 +337,13 @@ const BravaisSeamHome: React.FC<{
                                 )}
                             </AnimatePresence>
                             {seam.status && <BravaisSeamFlipText as="div" axis="y" flipKey={seam.status} className="bravais-seam-vstatus" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
-                        </BravaisSeamFlip>
-                        {/* fb11：直达入口贴在中段底部（上面的内容在剩下的空间里居中），换页签时与中段一起翻。 */}
-                        <BravaisSeamFlip ref={jumpsRef} flipKey={layer.key} className="bravais-seam-home-jumps" data-bravais-home-jumps>
+                        </div>
+                        {/* fb11：直达入口贴在中段底部（上面的内容在剩下的空间里居中）。 */}
+                        <div ref={jumpsRef} className="bravais-seam-home-jumps" data-bravais-home-jumps>
                             {shortcuts && shortcutsInColumn && (
                                 <HomeSeamShortcuts shortcuts={shortcuts} label={home?.shortcutsLabel} rule={Boolean(sections)} onOpen={openShortcut} />
                             )}
-                        </BravaisSeamFlip>
+                        </div>
                     </div>
                 </div>
             </div>
