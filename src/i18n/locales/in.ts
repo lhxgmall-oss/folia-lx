@@ -1921,7 +1921,7 @@ export default {
     "stageTrackPillTimeout": "Durasi tampil",
     "disableVisualizerVignette": "Nonaktifkan vignette",
     "disableVisualizerVignetteDesc": "Hanya menghapus vignette tepi latar belakang geometris. Latar belakang transparan dan bentuk geometris tetap terpisah.",
-    "latticeSettings": "Kolase antrean & dinding pustaka",
+    "latticeSettings": "Tampilan dinding kolase",
     "latticeVignette": "Vignette tepi",
     "latticeVignetteDesc": "Gelapkan tepi kolase antrean dan dinding pustaka agar poster di tengah lebih menonjol.",
     "latticePosterTint": "Warna fokus poster",
@@ -3612,7 +3612,7 @@ export default {
       "openGridActionButton": "Ubah target gesernya",
       "openGrid3dCardStyle": "Buka gaya kartu beranda",
       "openGridViewCard": "Buka pengaturan kartu kisi",
-      "openLatticeSettings": "Buka pengaturan kolase antrean"
+      "openLatticeSettings": "Buka pengaturan tampilan dinding kolase"
     },
     "anchors": {
       "audioEqualizer": {
@@ -3882,7 +3882,7 @@ export default {
         "reset": "Kembalikan peluruhan"
       },
       "latticeStyle": {
-        "panel": "Pengaturan \u00b7 Kolase antrean",
+        "panel": "Pengaturan \u00b7 Tampilan dinding kolase",
         "vignette": "Vignette",
         "tint": "Lapisan warna poster",
         "customColor": "Warna tetap",
@@ -4008,7 +4008,7 @@ export default {
       "localGridMapDirectoryTree": "Pohon folder GridMap",
       "grid3dCardStyle": "Gaya kartu beranda",
       "gridViewCardSettings": "Pengaturan kartu kisi",
-      "latticeStyleSettings": "Gaya kolase antrean",
+      "latticeStyleSettings": "Tampilan dinding kolase",
       "panelCoverActions": "Empat tombol di atas sampul",
       "panelCoverTab": "Panel \u00b7 Tab sampul",
       "panelSourceTab": "Panel \u00b7 Tab sumber",

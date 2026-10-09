@@ -561,7 +561,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createToggleCommand('settings-toggle-transparent', 'settings', 'Toggle transparency', 'Toggle transparent player background', ['transparent', 'transparency', '透明', '透明化'], context => context.settings.toggleTransparentBackground()),
     createToggleCommand('settings-toggle-daylight', 'settings', 'Toggle light/dark', 'Toggle theme daylight/midnight mode', ['daylight', 'midnight', 'light', 'dark', '明暗', '切换明暗', '日夜', '日间', '夜间'], context => context.settings.toggleDaylightMode(), { executeShortcut: 'd' }),
     createToggleCommand('settings-toggle-player-back-button', 'settings', 'Always show player back button', 'Toggle whether the player page back button stays visible', ['always show back button', 'player back button', 'back button', '返回按钮', '始终显示返回按钮', '播放页返回按钮', 'fanhui annniu', 'bofangye fanhui annniu', 'fh', 'bfyfh'], context => context.settings.toggleAlwaysShowPlayerBackButton()),
-    createToggleCommand('settings-toggle-lattice-vignette', 'settings', 'Poster wall vignette', 'Turn the edge vignette on the queue collage (Lattice) and the library wall on or off', ['lattice', 'vignette', 'lattice vignette', 'queue collage vignette', 'collage vignette', 'library wall vignette', 'bravais', '暗角', '边缘暗角', '队列拼贴', '队列拼贴暗角', '拼贴暗角', '资料库墙', '海报墙暗角'], context => context.settings.toggleLatticeVignette()),
+    createToggleCommand('settings-toggle-lattice-vignette', 'settings', 'Poster wall vignette', 'Turn the edge vignette on the queue collage (Lattice) and the library wall on or off', ['lattice', 'vignette', 'lattice vignette', 'queue collage vignette', 'collage vignette', 'library wall vignette', 'tile wall appearance', 'bravais', '暗角', '边缘暗角', '队列拼贴', '队列拼贴暗角', '拼贴暗角', '资料库墙', '海报墙暗角', '拼贴墙外观'], context => context.settings.toggleLatticeVignette()),
     createToggleCommand('settings-toggle-lattice-auto-focus', 'settings', 'Lattice auto-focus', 'Toggle whether the queue collage follows the playing song when tracks change', ['lattice', 'lattice auto focus', 'queue collage', 'follow playing song', 'follow track changes', 'poster wall follow', '队列拼贴', '切歌自动聚焦', '自动聚焦当前歌曲', '海报墙跟随'], context => context.settings.toggleLatticeAutoFocusOnSongChange()),
     defineCommand({
         id: 'settings-gridview-cards',
@@ -592,7 +592,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         group: 'settings',
         title: 'Poster wall tint',
         description: 'Adjust the overlay that quiets posters outside the focus on the queue collage (Lattice) and the library wall',
-        keywords: ['lattice', 'lattice tint', 'lattice poster tint', 'poster overlay', 'focus tint', 'queue collage', 'queue collage tint', 'library wall tint', 'bravais', '队列拼贴', '海报叠色', '聚焦叠层', '队列拼贴叠层', '资料库墙', '海报墙叠色'],
+        keywords: ['lattice', 'lattice tint', 'lattice poster tint', 'poster overlay', 'focus tint', 'queue collage', 'queue collage tint', 'library wall tint', 'tile wall appearance', 'bravais', '队列拼贴', '海报叠色', '聚焦叠层', '队列拼贴叠层', '资料库墙', '海报墙叠色', '拼贴墙外观'],
         icon: Layers3,
         requiresInput: true,
         surface: latticePosterTintSurface,

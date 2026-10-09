@@ -39,7 +39,7 @@
 - [x] `theme-settings` 骨架与文案重做（Theme Park 是编辑器不是配色库；来源只有两个选项；补上下半截三个开关）
 - [x] `grid3d-card-style` — 首页卡片样式
 - [x] `grid-view-card-settings` — 网格卡片（全画幅封面解锁正方形卡片；两条滑杆调的是衰减下限）
-- [x] `lattice-style-settings` — 队列拼贴（暗角 + 层层嵌套的海报叠色）
+- [x] `lattice-style-settings` — 拼贴墙外观（暗角 + 层层嵌套的海报叠色）
 
 ### 入门与导航
 

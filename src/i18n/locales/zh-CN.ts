@@ -1928,7 +1928,7 @@ export default {
     "stageTrackPillTimeout": "显示时长",
     "disableVisualizerVignette": "禁用暗角",
     "disableVisualizerVignetteDesc": "关闭几何背景自带的边缘暗角，建议配合透明背景使用。",
-    "latticeSettings": "队列拼贴与资料库墙",
+    "latticeSettings": "拼贴墙外观",
     "latticeVignette": "边缘暗角",
     "latticeVignetteDesc": "在队列拼贴与资料库墙四周加一层淡淡的暗角，让视线落在中间的海报上。",
     "latticePosterTint": "海报聚焦叠色",
@@ -3726,7 +3726,7 @@ export default {
       "openGridActionButton": "去改滑动目标",
       "openGrid3dCardStyle": "打开首页卡片样式",
       "openGridViewCard": "打开网格卡片设置",
-      "openLatticeSettings": "打开队列拼贴设置"
+      "openLatticeSettings": "打开拼贴墙外观设置"
     },
     "anchors": {
       "audioEqualizer": {
@@ -3996,7 +3996,7 @@ export default {
         "reset": "恢复默认衰减"
       },
       "latticeStyle": {
-        "panel": "设置 · 队列拼贴",
+        "panel": "设置 · 拼贴墙外观",
         "vignette": "暗角",
         "tint": "海报叠色",
         "customColor": "使用固定颜色",
@@ -4122,7 +4122,7 @@ export default {
       "localGridMapDirectoryTree": "GridMap 目录树",
       "grid3dCardStyle": "首页卡片样式",
       "gridViewCardSettings": "网格卡片设置",
-      "latticeStyleSettings": "队列拼贴样式",
+      "latticeStyleSettings": "拼贴墙外观",
       "panelCoverActions": "封面上的四颗按钮",
       "panelCoverTab": "面板 · 封面页",
       "panelSourceTab": "面板 · 来源页",

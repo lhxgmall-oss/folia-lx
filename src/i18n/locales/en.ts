@@ -1929,7 +1929,7 @@ export default {
     "stageTrackPillTimeout": "Visible duration",
     "disableVisualizerVignette": "Disable vignette",
     "disableVisualizerVignetteDesc": "Only removes the geometric background edge vignette. Transparent background and geometric shapes stay separate.",
-    "latticeSettings": "Queue collage & library wall",
+    "latticeSettings": "Tile wall appearance",
     "latticeVignette": "Edge vignette",
     "latticeVignetteDesc": "Darkens the edges of the queue collage and the library wall so the middle of the wall carries the eye.",
     "latticePosterTint": "Poster focus tint",
@@ -3727,7 +3727,7 @@ export default {
       "openGridActionButton": "Go change the slide target",
       "openGrid3dCardStyle": "Open home card style",
       "openGridViewCard": "Open grid card settings",
-      "openLatticeSettings": "Open queue collage settings"
+      "openLatticeSettings": "Open tile wall appearance settings"
     },
     "anchors": {
       "audioEqualizer": {
@@ -3997,7 +3997,7 @@ export default {
         "reset": "Reset falloff"
       },
       "latticeStyle": {
-        "panel": "Settings \u00b7 Queue collage",
+        "panel": "Settings \u00b7 Tile wall appearance",
         "vignette": "Vignette",
         "tint": "Poster tint",
         "customColor": "Fixed colour",
@@ -4123,7 +4123,7 @@ export default {
       "localGridMapDirectoryTree": "GridMap folder tree",
       "grid3dCardStyle": "Home card style",
       "gridViewCardSettings": "Grid card settings",
-      "latticeStyleSettings": "Queue collage style",
+      "latticeStyleSettings": "Tile wall appearance",
       "panelCoverActions": "The four buttons on the artwork",
       "panelCoverTab": "Panel \u00b7 Artwork tab",
       "panelSourceTab": "Panel \u00b7 Source tab",
