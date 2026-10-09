@@ -211,12 +211,14 @@ describe('useLibraryWallLookStore', () => {
         expect((await loadStore({ [STACK_EDGES_KEY]: 'false' }, { throwOnGet: true })).getState().collectionStackEdges).toBe(true);
     });
 
-    // 2026-10-09：信息条的材质与墙后的画面。三个开关默认关、只认 'true'；预设默认主题纸色，非法值回默认。
-    it('keeps the info strip solid on theme paper and the backdrop plain by default, and persists the changes', async () => {
+    // 2026-10-09：信息条的材质与墙后的画面。信息条始终透明默认开（用户定，只认 'false' 为关）；歌词 / 模糊默认关、
+    // 只认 'true'；预设默认主题纸色，非法值回默认。
+    it('keeps the info strip clear and the backdrop plain by default, and persists the changes', async () => {
         const store = await loadStore();
-        expect(store.getState()).toMatchObject({ seamClear: false, seamStyle: 'paper', backdropLyrics: false, backdropBlur: false });
+        expect(store.getState()).toMatchObject({ seamClear: true, seamStyle: 'paper', backdropLyrics: false, backdropBlur: false });
         expect(storage.size).toBe(0);
 
+        store.getState().setSeamClear(false);
         store.getState().setSeamClear(true);
         store.getState().setSeamStyle('black');
         store.getState().setBackdropLyrics(true);
@@ -230,10 +232,12 @@ describe('useLibraryWallLookStore', () => {
         const restarted = await loadStore(Object.fromEntries(storage));
         expect(restarted.getState()).toMatchObject({ seamClear: true, seamStyle: 'black', backdropLyrics: true, backdropBlur: true });
 
-        // 非法预设回默认后再写；开关只认 'true'。
+        // 非法预设回默认后再写；透明只认 'false' 为关，读不到也按默认开。
         restarted.getState().setSeamStyle('neon' as never);
         expect(storage.get(SEAM_STYLE_KEY)).toBe('paper');
-        expect((await loadStore({ [SEAM_STYLE_KEY]: 'Dots', [SEAM_CLEAR_KEY]: 'yes' })).getState()).toMatchObject({ seamStyle: 'paper', seamClear: false });
+        expect((await loadStore({ [SEAM_STYLE_KEY]: 'Dots', [SEAM_CLEAR_KEY]: 'yes' })).getState()).toMatchObject({ seamStyle: 'paper', seamClear: true });
+        expect((await loadStore({ [SEAM_CLEAR_KEY]: 'false' })).getState().seamClear).toBe(false);
+        expect((await loadStore({ [SEAM_CLEAR_KEY]: 'false' }, { throwOnGet: true })).getState().seamClear).toBe(true);
         expect((await loadStore({ [BACKDROP_BLUR_KEY]: 'true' }, { throwOnGet: true })).getState().backdropBlur).toBe(false);
     });
 });

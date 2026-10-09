@@ -93,6 +93,14 @@ test('the Bravais group switches the info strip material and the backdrop', asyn
     await openGeneralSettings(page, 'bravaisSettings');
     await expect(group(page)).toBeVisible();
 
+    // 信息条始终透明默认开（2026-10-09）：先关掉，下面的实色预设才作用到缝。
+    const clear = page.getByRole('switch', { name: 'See-through info strip' });
+    await expect(clear).toHaveAttribute('aria-checked', 'true');
+    await expect(stage).toHaveClass(/\bhas-clear-seam\b/);
+    await clear.click();
+    await expect(clear).toHaveAttribute('aria-checked', 'false');
+    expect(await page.evaluate(() => localStorage.getItem('library_wall_seam_clear'))).toBe('false');
+
     // 预设：8 个色样，默认主题纸色；点「纯白印刷」写进存储，墙上的缝换样式。
     const options = group(page).locator('[data-bravais-seam-style-option]');
     await expect(options).toHaveCount(8);
@@ -102,8 +110,7 @@ test('the Bravais group switches the info strip material and the backdrop', asyn
     await expect(stage).toHaveAttribute('data-bravais-seam-style', 'white');
     expect(await page.evaluate(() => localStorage.getItem('library_wall_seam_style'))).toBe('white');
 
-    // 始终透明：开着时预设整组禁用（值保留），缝换成透明的纱。
-    const clear = page.getByRole('switch', { name: 'See-through info strip' });
+    // 再打开始终透明：开着时预设整组禁用（值保留），缝换成透明的纱。
     await expect(clear).toHaveAttribute('aria-checked', 'false');
     await clear.click();
     await expect(clear).toHaveAttribute('aria-checked', 'true');

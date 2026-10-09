@@ -9,7 +9,7 @@ import { normalizeLibraryWallSeamStyle, type LibraryWallSeamStyle } from '../uti
 // src/stores/useLibraryWallLookStore.ts
 // bravais 资料库界面的墙面偏好：「透光」档位 look（实色 / 部分透明 / 全透明，默认实色）与部分透明时每块的窗数
 // windowsPerBlock（1–6，默认 3）；集合磁贴的叠页边开关 collectionStackEdges（默认开，设计稿 §7.7）；
-// 信息条（缝）的材质：始终透明 seamClear（默认关）与实色模式的预设 seamStyle（默认主题纸色，透明开着时不生效）；
+// 信息条（缝）的材质：始终透明 seamClear（默认开，用户定 2026-10-09）与实色模式的预设 seamStyle（默认主题纸色，透明开着时不生效）；
 // 透出的播放页画面（backdrop）要不要画歌词文字 backdropLyrics、要不要模糊 backdropBlur（都默认关，§11「墙后的画面」）。
 // 放在 app 层而不是 suite 里，因为设置 UI（components/modal/settings）不能 import suite；bravais 的 stage 读这里。
 // 只在 bravais 是生效 suite 时才有界面入口（library/app/bravaisLibraryActive；界面设置的「Bravais」分组）。
@@ -57,13 +57,15 @@ const readStoredWindowsPerBlock = (): number => clampLibraryWallWindowsPerBlock(
 const readStoredStackEdges = (): boolean => readStored(LIBRARY_WALL_STACK_EDGES_KEY) !== 'false';
 /** 默认关的开关：只认 'true' 为开。 */
 const readStoredFlag = (key: string): boolean => readStored(key) === 'true';
+/** 信息条始终透明：默认开（用户定，2026-10-09）；只认 'false' 为关。 */
+const readStoredSeamClear = (): boolean => readStored(LIBRARY_WALL_SEAM_CLEAR_KEY) !== 'false';
 const readStoredSeamStyle = (): LibraryWallSeamStyle => normalizeLibraryWallSeamStyle(readStored(LIBRARY_WALL_SEAM_STYLE_KEY));
 
 const readAll = () => ({
     look: readStoredLook(),
     windowsPerBlock: readStoredWindowsPerBlock(),
     collectionStackEdges: readStoredStackEdges(),
-    seamClear: readStoredFlag(LIBRARY_WALL_SEAM_CLEAR_KEY),
+    seamClear: readStoredSeamClear(),
     seamStyle: readStoredSeamStyle(),
     backdropLyrics: readStoredFlag(LIBRARY_WALL_BACKDROP_LYRICS_KEY),
     backdropBlur: readStoredFlag(LIBRARY_WALL_BACKDROP_BLUR_KEY),

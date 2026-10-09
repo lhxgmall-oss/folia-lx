@@ -20,18 +20,22 @@ const surface = (page: Page) => page.getByTestId('player-visual-surface');
 /** visualizer 挂着没有：它是播放页视觉层里唯一的子树。 */
 const visualizerMounted = (page: Page) => surface(page).evaluate(element => element.childElementCount > 0);
 
-/** `look` 为 null 时不种透光档位，走 store 的默认档（实色）。 */
-const bootHome = async (page: Page, suite: 'bravais' | 'grid', look: 'solid' | 'partial' | null) => {
+/**
+ * `look` 为 null 时不种透光档位，走 store 的默认档（实色）。信息条始终透明 2026-10-09 起默认开（实色墙 + 透明缝不卸载
+ * visualizer），所以验证「实色档卸载」的用例显式种 `seamClear: false`；`seamClear: null` 不种、走默认。
+ */
+const bootHome = async (page: Page, suite: 'bravais' | 'grid', look: 'solid' | 'partial' | null, { seamClear = false }: { seamClear?: boolean | null } = {}) => {
     await installBaseState(page, { neteaseMode: 'guest' });
-    await page.addInitScript(([suiteId, wallLook]) => {
-        localStorage.setItem('library_suite', suiteId);
-        if (wallLook) localStorage.setItem('library_wall_look', wallLook);
+    await page.addInitScript(([suiteId, wallLook, clearSeam]) => {
+        localStorage.setItem('library_suite', suiteId as string);
+        if (wallLook) localStorage.setItem('library_wall_look', wallLook as string);
+        if (clearSeam !== null) localStorage.setItem('library_wall_seam_clear', String(clearSeam));
         // 打开设置弹窗要这两个桥接方法（与 homeCardPosition 同一份最小桥）。
         Object.assign((window as Window & { electron?: Record<string, unknown> }).electron ?? {}, {
             getSettings: async () => ({}),
             getCacheDirectory: async () => ({ path: '', isDefault: true }),
         });
-    }, [suite, look] as const);
+    }, [suite, look, seamClear] as const);
     await mockNeteaseApi(page, 'guest');
     await openApp(page);
 };
@@ -60,12 +64,22 @@ const setView = (page: Page, view: 'home' | 'player') => page.evaluate(async (ne
     useAppViewStore.getState().setView(next);
 }, view);
 
-test('with no stored look the bravais home defaults to solid and unmounts the visualizer', async ({ page }) => {
+test('with nothing stored the bravais home is a solid wall with a see-through info strip, so the visualizer stays', async ({ page }) => {
+    await bootHome(page, 'bravais', null, { seamClear: null });
+    const stage = page.locator('[data-library-stage="bravais"]');
+    await expect(stage).toHaveAttribute('data-bravais-look', 'solid');
+    // 信息条始终透明默认开（用户定，2026-10-09）：缝是透光处，visualizer 不卸载。
+    await expect(stage).toHaveClass(/\bhas-clear-seam\b/);
+    await page.waitForTimeout(800);
+    expect(await visualizerMounted(page)).toBe(true);
+    expect(await page.evaluate(() => [localStorage.getItem('library_wall_look'), localStorage.getItem('library_wall_seam_clear')])).toEqual([null, null]);
+});
+
+test('with only the info strip made solid, the default solid wall unmounts the visualizer', async ({ page }) => {
     await bootHome(page, 'bravais', null);
     await expect(page.locator('[data-library-stage="bravais"]')).toHaveAttribute('data-bravais-look', 'solid');
     await expect.poll(() => visualizerMounted(page)).toBe(false);
     await expect(surface(page).locator('canvas')).toHaveCount(0);
-    expect(await page.evaluate(() => localStorage.getItem('library_wall_look'))).toBeNull();
 });
 
 test('the solid bravais home unmounts the visualizer; see-through looks, the player and settings bring it back', async ({ page }) => {

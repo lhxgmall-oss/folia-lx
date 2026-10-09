@@ -23,8 +23,14 @@ const runChrome = (page: Page, id: string) => page.evaluate(actionId => window._
 const chromeAvailable = (page: Page) => page.evaluate(() => window.__homeProbe!.chrome()?.available ?? []);
 
 /** 挂 bravais 首页；`look` 非 null 时先把透光档位种进存储（store 在 import 时读存储），null 表示不种、走默认档。 */
-const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page, look: 'solid' | 'partial' | 'clear' | null = 'partial') => {
+/**
+ * 信息条始终透明 2026-10-09 起默认开；这里的用例看的是墙的透光档，默认把缝种成实色（`seamClear: false`），
+ * `seamClear: null` 时不种、走默认。
+ */
+const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page, look: 'solid' | 'partial' | 'clear' | null = 'partial',
+    { seamClear = false }: { seamClear?: boolean | null } = {}) => {
     if (look) await page.addInitScript(value => localStorage.setItem('library_wall_look', value), look);
+    if (seamClear !== null) await page.addInitScript(value => localStorage.setItem('library_wall_seam_clear', value), String(seamClear));
     await page.route(LOCAL_MUSIC_SERVICE_ROUTE, route => route.fulfill({
         contentType: 'text/javascript',
         body: buildServiceStubModule(),
@@ -122,6 +128,14 @@ const watchPlateWrites = (page: Page, blockKey: string) => page.evaluate((key) =
 }, blockKey);
 
 test.describe('[bravais] default look', () => {
+    test('with nothing stored the info strip is see-through over the solid wall, so the backdrop stays open', async ({ mount, page }) => {
+        await mountBravais(mount, page, null, { seamClear: null });
+        await expect(stage(page)).toHaveAttribute('data-bravais-look', 'solid');
+        await expect(stage(page)).toHaveClass(/\bhas-clear-seam\b/);
+        await expect(stage(page)).toHaveClass(/\bis-backdrop-open\b/);
+        await expect.poll(() => windowsPerRenderedBlock(page)).toEqual([0]);
+    });
+
     test('with nothing stored the wall is solid: no windows, no plates, the root paints the wall', async ({ mount, page }) => {
         await mountBravais(mount, page, null);
         await expect(stage(page)).toHaveAttribute('data-bravais-look', 'solid');

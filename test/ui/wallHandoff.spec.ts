@@ -39,6 +39,8 @@ const boot = async (page: Page, { suite, look = null, motion }: { suite: 'bravai
     await page.addInitScript(([suiteId, wallLook, fullMotion]) => {
         localStorage.setItem('library_suite', suiteId as string);
         if (wallLook) localStorage.setItem('library_wall_look', wallLook as string);
+        // 信息条始终透明 2026-10-09 起默认开；这里的用例按「实色墙 = 实色缝」写，显式关掉。
+        localStorage.setItem('library_wall_seam_clear', 'false');
         if (fullMotion) {
             localStorage.removeItem('reduce_motion_lattice');
             localStorage.removeItem('reduce_motion_collectionMorph');
