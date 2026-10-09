@@ -11,6 +11,7 @@ import PonderOnboardingSurface from './surfaces/PonderOnboardingSurface';
 import PonderDesktopFeaturesSurface from './surfaces/PonderDesktopFeaturesSurface';
 import PonderQueueCommandSurface from './surfaces/PonderQueueCommandSurface';
 import PonderLyricExportSurface from './surfaces/PonderLyricExportSurface';
+import PonderBravaisWallSurface from './surfaces/PonderBravaisWallSurface';
 import {
     PonderGridHotkeySurface,
     PonderLibraryWatchSurface,
@@ -309,6 +310,8 @@ const PonderSurfaceContents: React.FC<PonderSurfaceContentsProps> = ({ kind, acc
         ? <PonderQueueCommandSurface accent={accent} line={line} outline={outline} registerStateNode={registerStateNode} />
         : resolvedKind === 'lyric-export'
         ? <PonderLyricExportSurface accent={accent} line={line} outline={outline} registerStateNode={registerStateNode} />
+        : resolvedKind === 'bravais-wall'
+        ? <PonderBravaisWallSurface accent={accent} line={line} outline={outline} registerStateNode={registerStateNode} />
         : resolvedKind === 'desktop-features'
         ? <PonderDesktopFeaturesSurface accent={accent} line={line} outline={outline} registerStateNode={registerStateNode} />
         : resolvedKind === 'ponder-onboarding'

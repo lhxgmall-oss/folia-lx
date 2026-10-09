@@ -240,7 +240,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 
 ## 页面教程（Ponder）
 
-页面教程跟实际渲染的页面走，按可见的 `data-ponder-page-scope` 解析。网格首页、集合 / 歌手页和目录保留各自的教程标记；TUI 与 bravais 的 `home` / `collection` / `artist` 都显式声明 `data-ponder-page-scope="none"`，表示当前页面没有教程。某套 suite 回退到网格时，由网格页面的标记提供教程。
+页面教程跟实际渲染的页面走，按可见的 `data-ponder-page-scope` 解析。网格首页、集合 / 歌手页和目录保留各自的教程标记；TUI 的 `home` / `collection` / `artist` 显式声明 `data-ponder-page-scope="none"`，表示当前页面没有教程；bravais 的这三个 surface 声明 `bravais-wall`（墙的页面教程，信息条 `bravais-seam` 作为本页组件挂在它下面）。某套 suite 回退到网格时，由网格页面的标记提供教程。
 
 显式的 `none` 与没有标记不同：`none` 返回空目标；缺失或未知标记仍按主视图回退。隐藏或尺寸为零的标记不参与解析；设置、帮助等上层页面可覆盖底下的页面，首次使用引导优先打开总览。
 
@@ -444,7 +444,7 @@ account surface 只在 `login` 可见或 `pendingSwitch` 非空时渲染内容�
 **stage 与 surface 的分工**
 
 - `BravaisStage`（manifest 的 `stage`）拥有画面：墙（虚拟化的磁贴，最多约 400 张）、相机、缝（信息条 / 书脊 / 折叠三级开口，只开在 12×8 块的边界上）、翻牌、聚焦卡、键盘焦点、列表 / 目录树面板、表单态，以及外观动作的注册。
-- `BravaisHome` / `BravaisCollection` / `BravaisArtist` 订阅 core 的 binding，把数据投影成**层描述**（`BravaisLayer`：已投影的展示数据 + 身份稳定的回调，不放资源对象），经 `useBravaisLayerRegistration` 推进 suite 内的 `bravaisStageStore`（首页一个位、顶层一个位）；照常注册命令面板；自己只渲染不接指针的锚点（`data-ponder-page-scope="none"`）。
+- `BravaisHome` / `BravaisCollection` / `BravaisArtist` 订阅 core 的 binding，把数据投影成**层描述**（`BravaisLayer`：已投影的展示数据 + 身份稳定的回调，不放资源对象），经 `useBravaisLayerRegistration` 推进 suite 内的 `bravaisStageStore`（首页一个位、顶层一个位）；照常注册命令面板；自己只渲染不接指针的锚点（`data-ponder-page-scope="bravais-wall"`）。
 - `BravaisAccount` 渲染 null，把登录 / 确认表单的投影写进 `bravaisAccountStore`，stage 让缝翻成登录态 / 确认态（压过其他一切开口），挂 `data-folia-keyboard-window`。
 - stage 按导航快照的 `depth` 与上次显示时记下的深度决定换层种类：变深 = push（被点的磁贴成为起点，排序从它向外展开）、变浅 = back（按布局记忆恢复相机、缝的锚点、起点与焦点）、同深度换层 = replace（首页换页签，整墙出场 / 入场）、`origin` 为 search / player 时 0 ↔ ≥1 是整墙 enter / exit。栈里有重复的集合时，「同键不同深度且正是栈顶」也算换层。stage 根节点的 `data-bravais-shift` / `-seq` 记下每次换层。
 
