@@ -37,11 +37,6 @@ export interface TemperaGradientFill {
     angle: number;
 }
 
-/**
- * In gradient mode a shape is filled with the whole four-colour ramp instead of one tone.
- * Each stop is pulled halfway toward the tone the composition asked for, so the ramp carries
- * the cover's hues while the shape keeps the brightness its place in the composition needs.
- */
 // One gradient per ramp and tone. The ramp is in the shape's local space, so every shape of a
 // shot that asks for the same tone can share it, rather than each baking its own texture.
 const gradientFills = new WeakMap<TemperaGradientFill, Map<string, import('pixi.js').FillGradient>>();
@@ -60,6 +55,11 @@ const buildGradientFill = (pixi: PixiModule, gradient: TemperaGradientFill, colo
     return fill;
 };
 
+/**
+ * In gradient mode a shape is filled with the whole four-colour ramp instead of one tone.
+ * Each stop is pulled halfway toward the tone the composition asked for, so the ramp carries
+ * the cover's hues while the shape keeps the brightness its place in the composition needs.
+ */
 const createGradientFill = (pixi: PixiModule, gradient: TemperaGradientFill, color: string) => {
     const half = 0.5;
     const dx = Math.cos(gradient.angle) * half;

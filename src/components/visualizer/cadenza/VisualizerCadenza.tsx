@@ -238,6 +238,10 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
             }
             return entry;
         };
+        // A web font that finishes loading mid-line changes the ascent; measure again next frame.
+        const fontSet = typeof document !== 'undefined' ? document.fonts : undefined;
+        const forgetAscents = () => placementGlyphs.forEach(entry => { entry.ascent = undefined; });
+        fontSet?.addEventListener('loadingdone', forgetAscents);
         // Placements bucketed by status, each bucket in line order - what a stable sort on the
         // status gives, without the comparator re-deriving every status on every comparison.
         const byStatus: Record<'waiting' | 'passed' | 'active', WordPlacement[]> = { waiting: [], passed: [], active: [] };
@@ -476,6 +480,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
         draw();
         return () => {
             window.cancelAnimationFrame(frameId);
+            fontSet?.removeEventListener('loadingdone', forgetAscents);
             lastFrameTimeRef.current = null;
             clearOverlayWordNodes(overlayNodesRef.current);
         };
