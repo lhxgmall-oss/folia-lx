@@ -78,6 +78,26 @@ export const resolveLatentShaderSpeed = (
         ? baseSpeed * PAUSED_SPEED_SCALE
         : easeTowards(baseSpeed, audioSpeed, audioAmount),
 );
+type PaperShaderMount = NonNullable<PaperShaderElement['paperShaderMount']>;
+type ShaderUniforms = Parameters<PaperShaderMount['setUniforms']>[0];
+
+/**
+ * Pushes audio-driven uniforms to a running shader without drawing it. `setUniforms` renders the
+ * whole full-screen shader on the spot and re-arms the shader's own frame loop, which then draws
+ * it again on the next frame - two full passes per shader per frame. While the shader animates,
+ * its loop picks the new values up on its next draw; a stopped shader (speed 0) has no loop, so
+ * it still gets the immediate draw. `setUniformValues` is the mount's own uniform writer, private
+ * only in its typings; if a future version drops it, this falls back to `setUniforms`.
+ */
+const updateShaderUniforms = (mount: PaperShaderMount, uniforms: ShaderUniforms, animating: boolean) => {
+    const writer = (mount as unknown as { setUniformValues?: (values: ShaderUniforms) => void }).setUniformValues;
+    if (animating && typeof writer === 'function') {
+        writer(uniforms);
+        return;
+    }
+    mount.setUniforms(uniforms);
+};
+
 export const resolveLatentShaderColors = (
     coverColors: string[],
     theme: Theme,
@@ -163,6 +183,20 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
         }
 
         let animationFrame = 0;
+        // The full-screen layers' last written styles: once the smoothed audio settles (paused,
+        // silence) the strings stop changing, and the layers are left alone instead of being
+        // handed the same filter every frame.
+        const writtenStyles = new WeakMap<HTMLElement, Partial<Record<'opacity' | 'transform' | 'filter', string>>>();
+        const writeLayerStyle = (element: HTMLElement, property: 'opacity' | 'transform' | 'filter', value: string) => {
+            let written = writtenStyles.get(element);
+            if (!written) {
+                written = {};
+                writtenStyles.set(element, written);
+            }
+            if (written[property] === value) return;
+            written[property] = value;
+            element.style[property] = value;
+        };
         let smoothedPower = 0;
         let smoothedBass = 0;
         let smoothedMid = 0;
@@ -216,35 +250,41 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
             const currentDitheringMount = ditheringRef.current?.paperShaderMount;
             const currentMeshMount = meshRef.current?.paperShaderMount;
 
-            currentDitheringMount?.setSpeed(resolveLatentShaderSpeed(
-                tuning.ditheringSpeed,
-                tuning.ditheringAudioSpeed,
-                smoothedBeatSpeed,
-                isPaused,
-            ));
-            currentDitheringMount?.setUniforms({
-                u_pxSize: Math.max(0.5, tuning.ditheringSize - smoothedBass * tuning.ditheringSize * 0.34),
-            });
-            currentMeshMount?.setSpeed(resolveLatentShaderSpeed(
-                tuning.meshSpeed,
-                tuning.meshAudioSpeed,
-                smoothedBeatSpeed,
-                isPaused,
-            ));
-            currentMeshMount?.setUniforms({
-                u_distortion: tuning.meshDistortion + smoothedPower * 0.62,
-                u_swirl: tuning.meshSwirl + smoothedMid * 0.38,
-            });
+            if (currentDitheringMount) {
+                const ditheringSpeed = resolveLatentShaderSpeed(
+                    tuning.ditheringSpeed,
+                    tuning.ditheringAudioSpeed,
+                    smoothedBeatSpeed,
+                    isPaused,
+                );
+                currentDitheringMount.setSpeed(ditheringSpeed);
+                updateShaderUniforms(currentDitheringMount, {
+                    u_pxSize: Math.max(0.5, tuning.ditheringSize - smoothedBass * tuning.ditheringSize * 0.34),
+                }, ditheringSpeed !== 0);
+            }
+            if (currentMeshMount) {
+                const meshSpeed = resolveLatentShaderSpeed(
+                    tuning.meshSpeed,
+                    tuning.meshAudioSpeed,
+                    smoothedBeatSpeed,
+                    isPaused,
+                );
+                currentMeshMount.setSpeed(meshSpeed);
+                updateShaderUniforms(currentMeshMount, {
+                    u_distortion: tuning.meshDistortion + smoothedPower * 0.62,
+                    u_swirl: tuning.meshSwirl + smoothedMid * 0.38,
+                }, meshSpeed !== 0);
+            }
 
             if (ditheringLayerRef.current) {
-                ditheringLayerRef.current.style.opacity = showMesh
+                writeLayerStyle(ditheringLayerRef.current, 'opacity', showMesh
                     ? `${Math.min(1, tuning.ditheringOpacity + smoothedBass * 0.25)}`
-                    : '1';
-                ditheringLayerRef.current.style.transform = `scale(${1.015 + smoothedBass * 0.025})`;
+                    : '1');
+                writeLayerStyle(ditheringLayerRef.current, 'transform', `scale(${1.015 + smoothedBass * 0.025})`);
             }
             if (meshLayerRef.current) {
-                meshLayerRef.current.style.filter = `saturate(${1.04 + smoothedMid * 0.34}) brightness(${0.94 + smoothedPower * 0.16})`;
-                meshLayerRef.current.style.transform = `scale(${1.025 + smoothedPower * 0.018})`;
+                writeLayerStyle(meshLayerRef.current, 'filter', `saturate(${1.04 + smoothedMid * 0.34}) brightness(${0.94 + smoothedPower * 0.16})`);
+                writeLayerStyle(meshLayerRef.current, 'transform', `scale(${1.025 + smoothedPower * 0.018})`);
             }
 
             animationFrame = requestAnimationFrame(updateAudioResponse);
