@@ -3,7 +3,7 @@ import { Theme } from '../../../types';
 import { resolveThemeFontWeight } from '../../../utils/fontStacks';
 import type { RenderLineSlice, RenderSegmentSlice, SegmentMeta, WordRange } from './fumeTypes';
 import { clamp, splitGraphemes } from './fumeMath';
-import { measurePrefixOffsets } from '../textMeasureCache';
+import { measurePrefixOffsets, rememberBounded } from '../textMeasureCache';
 
 // src/components/visualizer/fume/fumeTextMeasure.ts
 // Text measurement for fume: pretext segments, glyph offsets and advances inside render lines.
@@ -181,6 +181,8 @@ export const buildFontSpec = (
 };
 
 let segmentMeasureCanvas: HTMLCanvasElement | null = null;
+// Bounded so a long session across many songs cannot grow it forever; far above one song's working set.
+const SEGMENT_MEASURE_CACHE_LIMIT = 2048;
 const segmentMeasureCache = new Map<string, number[]>();
 
 const measureSegmentGlyphOffsets = (
@@ -211,8 +213,7 @@ const measureSegmentGlyphOffsets = (
     context.font = fontSpec;
     const measured = measurePrefixOffsets(graphemes, prefix => context.measureText(prefix).width);
 
-    segmentMeasureCache.set(cacheKey, measured);
-    return measured;
+    return rememberBounded(segmentMeasureCache, cacheKey, measured, SEGMENT_MEASURE_CACHE_LIMIT);
 };
 
 export const buildWordRangeIndexByOffset = (
