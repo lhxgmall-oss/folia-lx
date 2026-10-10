@@ -41,7 +41,7 @@ App / ThemePark / VisPlayground / OBS source
 | `fume` | Fume | `fume/VisualizerFume.tsx`、`fume/tuning.ts` |
 | `cappella` | Cappella | `cappella/VisualizerCappella.tsx`、`CappellaMessageRow.tsx` / `CappellaBubbleParts.tsx`（消息行与气泡）、`cappellaMessages.ts`（消息编排）、`cappellaReveal.ts` / `cappellaBubbleMetrics.ts`（逐字时序与测量）、`avatarImages.ts`、`emoImages.ts` |
 | `tilt` | Tilt | `tilt/VisualizerTilt.tsx`、`tilt/tuning.ts` |
-| `claddagh` | Claddagh | `claddagh/VisualizerCladdagh.tsx`、`claddagh/tuning.ts` |
+| `claddagh` | Claddagh | `claddagh/VisualizerCladdagh.tsx`、`CladdaghRingLine.tsx`（环上一行）、`claddaghTimeline.ts` / `claddaghLayout.ts` / `claddaghGlow.ts`、`claddagh/tuning.ts` |
 | `monet` | Monet | `monet/VisualizerMonet.tsx`、`monet/monetLyricsModel.ts`、`monet/tuning.ts` |
 | `diorama` | 镜台 | `diorama/VisualizerDiorama.tsx`、`diorama/DioramaScene.tsx`、`diorama/dioramaTextRaster.ts` |
 | `pendolo` | Pendolo | `pendolo/VisualizerPendolo.tsx`、`pendolo/pendoloTextLayout.ts`、`pendolo/pendoloTimeline.ts` |
