@@ -38,6 +38,35 @@ export const readSonnetModulation = (modulation: Record<string, number> | undefi
     return typeof value === 'number' && Number.isFinite(value) ? value : 1;
 };
 
+type ShotTracking = {
+    trackSegments: ShotView['segments'];
+    revealDoneTime: number;
+    focusRanges: { startTime: number; endTime: number }[];
+};
+
+// The camera-tracked segments and their focus windows are fixed once a shot is built, so they
+// are worked out on the shot's first frame and reused for the rest of its life.
+const shotTrackingCache = new WeakMap<ShotView, ShotTracking>();
+
+const resolveShotTracking = (view: ShotView): ShotTracking => {
+    const cached = shotTrackingCache.get(view);
+    if (cached) return cached;
+    let trackSegments = view.segments.filter(s => s.role !== 'decoration' && s.trackingGlyphs.length > 0);
+    if (trackSegments.length === 0) {
+        trackSegments = view.segments.filter(s => s.trackingGlyphs.length > 0);
+    }
+    const revealDoneTime = trackSegments.length > 0
+        ? Math.max(...trackSegments.map(segment => segment.trackingGlyphs.at(-1)?.startTime ?? view.shot.endTime))
+        : view.shot.endTime;
+    const focusRanges = trackSegments.map(segment => ({
+        startTime: segment.trackingGlyphs[0]?.startTime ?? view.shot.startTime,
+        endTime: segment.trackingGlyphs.at(-1)?.startTime ?? view.shot.endTime,
+    }));
+    const tracking = { trackSegments, revealDoneTime, focusRanges };
+    shotTrackingCache.set(view, tracking);
+    return tracking;
+};
+
 export const updateSonnetShot = (
     view: ShotView,
     time: number,
@@ -74,16 +103,10 @@ export const updateSonnetShot = (
 
     const shake = resolveTimelineShake(time, shakeIntensity);
 
-    let trackSegments = view.segments.filter(s => s.role !== 'decoration' && s.trackingGlyphs.length > 0);
-    if (trackSegments.length === 0) {
-        trackSegments = view.segments.filter(s => s.trackingGlyphs.length > 0);
-    }
+    const { trackSegments, revealDoneTime, focusRanges } = resolveShotTracking(view);
 
     // Layer a deterministic breathing float once the lyric reveal completes, so the
     // frame never goes fully static while the shot holds or drifts through a gap.
-    const revealDoneTime = trackSegments.length > 0
-        ? Math.max(...trackSegments.map(segment => segment.trackingGlyphs.at(-1)?.startTime ?? view.shot.endTime))
-        : view.shot.endTime;
     const breathWeight = resolveSonnetBreathWeight(time, revealDoneTime);
     if (breathWeight > 0) {
         const breathPhase = (hashSonnetSeed(view.shot.id) % 1024) / 1024 * Math.PI * 2;
@@ -99,10 +122,6 @@ export const updateSonnetShot = (
     let currentFocusY = view.basePivotY;
 
     if (trackSegments.length > 0) {
-        const focusRanges = trackSegments.map(segment => ({
-            startTime: segment.trackingGlyphs[0]?.startTime ?? view.shot.startTime,
-            endTime: segment.trackingGlyphs.at(-1)?.startTime ?? view.shot.endTime,
-        }));
         const resolveFocusAtTime = (focusTime: number) => {
             let focusX = 0;
             let focusY = 0;

@@ -342,8 +342,10 @@ export class SonnetPixiRuntime {
                 this.sceneCache.ensure(previous);
             }
         }
-        const width = Math.max(this.options.host.clientWidth, 320);
-        const height = Math.max(this.options.host.clientHeight, 240);
+        // The size the renderer was last fitted to. Reading the host here instead would force a
+        // synchronous layout every frame, and the ResizeObserver refits both together anyway.
+        const width = this.lastWidth;
+        const height = this.lastHeight;
         const finalParagraph = this.options.program.paragraphs.at(-1);
         const creditsFrame = resolveSonnetCreditsFrame(
             time,
