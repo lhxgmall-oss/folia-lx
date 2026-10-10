@@ -3,6 +3,7 @@ import { DEFAULT_TEMPERA_LAYER_IMAGE, DEFAULT_TEMPERA_TUNING, TEMPERA_MAX_LAYER_
 import { resolveStoredTemperaTuning } from '@/stores/visualizerSettingsPersistence';
 import { TemperaPixiRuntime } from '@/components/visualizer/tempera/createTemperaPixiRuntime';
 import { PixiSongSwap } from '@/components/visualizer/pixiSongSwap';
+import { PixiSceneCache } from '@/components/visualizer/pixiSceneCache';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 
 // test/unit/visualizer/temperaSettings.test.ts
@@ -108,7 +109,7 @@ describe('Tempera live texture resolution', () => {
                 paused: false,
             },
             app: { renderer },
-            sceneCache: new Map(),
+            sceneCache: new PixiSceneCache({ count: () => 0, build: () => null, destroy: () => undefined }),
             songSwap: new PixiSongSwap({ stage: () => null, commit: () => undefined, discard: () => undefined }),
             activeParagraphIndex: -1,
             // Left at 0, as before the first resize pass: the snap then measures the host

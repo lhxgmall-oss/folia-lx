@@ -28,6 +28,7 @@ import {
     type TemperaShotView,
 } from './temperaSceneBuilder';
 import { loadPixi } from '../loadPixi';
+import { PixiSceneCache } from '../pixiSceneCache';
 import { PixiSongSwap } from '../pixiSongSwap';
 import { setTemperaTransitionBlur } from './temperaSceneFilters';
 import { resolveTemperaPalette } from './temperaPalette';
@@ -179,14 +180,22 @@ interface TemperaStagedSong {
 }
 
 export class TemperaPixiRuntime {
-    private readonly sceneCache = new Map<number, TemperaSceneView>();
     /**
-     * Scenes the song handover replaced, waiting to be freed. Destroying a scene walks every
-     * shot and every glyph's Text, and doing that for the whole cache on the frame the swap
-     * lands is exactly the stall the wipe was supposed to hide. They are dropped one per frame
-     * once the sweep is over instead.
+     * Scenes the song handover replaced wait in the cache's retired queue to be freed. Destroying
+     * a scene walks every shot and every glyph's Text, and doing that for the whole cache on the
+     * frame the swap lands is exactly the stall the wipe was supposed to hide. They are dropped
+     * one per frame once the sweep is over instead.
      */
-    private readonly retiredScenes: TemperaSceneView[] = [];
+    private readonly sceneCache = new PixiSceneCache<TemperaSceneView>({
+        count: () => this.options.program.paragraphs.length,
+        build: index => {
+            const scene = this.buildScene(this.liveSong, index);
+            this.sceneContainer.addChild(scene.container);
+            return scene;
+        },
+        destroy: scene => this.destroyScene(scene),
+        detach: scene => this.sceneContainer.removeChild(scene.container),
+    });
     private activeParagraphIndex = -1;
     private destroyed = false;
     private resizeObserver: ResizeObserver | null = null;
@@ -455,9 +464,6 @@ export class TemperaPixiRuntime {
     }
 
     private clearScenes() {
-        this.sceneCache.forEach(scene => {
-            this.destroyScene(scene);
-        });
         this.sceneCache.clear();
         this.activeParagraphIndex = -1;
     }
@@ -468,20 +474,8 @@ export class TemperaPixiRuntime {
      * the block was drawn to hide.
      */
     private retireScenes() {
-        this.sceneCache.forEach(scene => {
-            this.sceneContainer.removeChild(scene.container);
-            this.retiredScenes.push(scene);
-        });
-        this.sceneCache.clear();
+        this.sceneCache.retireAll();
         this.activeParagraphIndex = -1;
-    }
-
-    /** Frees one retired scene. Called on frames that are not doing anything else expensive. */
-    private drainRetiredScene() {
-        const scene = this.retiredScenes.shift();
-        if (!scene) return;
-        // Already detached by retireScenes; destroyScene's removeChild is a no-op here.
-        this.destroyScene(scene);
     }
 
     private destroyScene(scene: TemperaSceneView) {
@@ -523,24 +517,6 @@ export class TemperaPixiRuntime {
             theme: this.options.theme,
             coverColors: this.options.coverColors ?? [],
         };
-    }
-
-    private ensureScene(index: number) {
-        if (index < 0 || index >= this.options.program.paragraphs.length) return null;
-        const cached = this.sceneCache.get(index);
-        if (cached) return cached;
-        const scene = this.buildScene(this.liveSong, index);
-        this.sceneCache.set(index, scene);
-        this.sceneContainer.addChild(scene.container);
-        return scene;
-    }
-
-    private pruneScenes(index: number) {
-        this.sceneCache.forEach((scene, sceneIndex) => {
-            if (Math.abs(sceneIndex - index) <= 1) return;
-            this.destroyScene(scene);
-            this.sceneCache.delete(sceneIndex);
-        });
     }
 
     /**
@@ -683,8 +659,8 @@ export class TemperaPixiRuntime {
         const paragraphIndex = findTemperaParagraphIndexAtTime(this.options.program, time);
         if (paragraphIndex !== this.activeParagraphIndex) {
             this.activeParagraphIndex = paragraphIndex;
-            this.ensureScene(paragraphIndex);
-            this.pruneScenes(paragraphIndex);
+            this.sceneCache.ensure(paragraphIndex);
+            this.sceneCache.prune(paragraphIndex);
         } else if (!this.songSwap.active) {
             // One piece of expensive work per frame, in priority order: free what the last
             // handover left behind, then pre-roll a neighbour. Neighbours are for a boundary
@@ -693,12 +669,12 @@ export class TemperaPixiRuntime {
             // song handover it landed right where the block was supposed to hide the swap.
             const next = paragraphIndex + 1;
             const previous = paragraphIndex - 1;
-            if (this.retiredScenes.length > 0) {
-                this.drainRetiredScene();
+            if (this.sceneCache.hasRetired) {
+                this.sceneCache.drainRetired();
             } else if (next < this.options.program.paragraphs.length && !this.sceneCache.has(next)) {
-                this.ensureScene(next);
+                this.sceneCache.ensure(next);
             } else if (previous >= 0 && !this.sceneCache.has(previous)) {
-                this.ensureScene(previous);
+                this.sceneCache.ensure(previous);
             }
         }
         const width = Math.max(this.options.host.clientWidth, 320);
@@ -901,7 +877,7 @@ export class TemperaPixiRuntime {
         if (staged) {
             staged.scene.container.visible = true;
             this.sceneContainer.addChild(staged.scene.container);
-            this.sceneCache.set(staged.index, staged.scene);
+            this.sceneCache.adopt(staged.index, staged.scene);
             // Adopted as the active paragraph so the frame that cuts builds nothing at all.
             this.activeParagraphIndex = staged.index;
         }
@@ -1010,9 +986,7 @@ export class TemperaPixiRuntime {
         this.resizeObserver = null;
         this.app.stop();
         this.app.ticker.remove(this.renderFrame);
-        this.clearScenes();
-        this.retiredScenes.forEach(scene => this.destroyScene(scene));
-        this.retiredScenes.length = 0;
+        this.sceneCache.destroyAll();
         this.disposeCredits();
         this.wipeGraphics = null;
         // These textures were built here rather than owned by a scene, so they are released

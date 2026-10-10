@@ -38,6 +38,7 @@ import {
     resolveSonnetCreditsFrame,
 } from './sonnetCredits';
 import { loadPixi } from '../loadPixi';
+import { PixiSceneCache } from '../pixiSceneCache';
 import { sonnetDebugState } from './sonnetDebug';
 import { resolveSonnetSegmentCameraFocus } from './sonnetCameraTracking';
 
@@ -103,7 +104,15 @@ export interface SonnetRuntimeOptions {
 }
 
 export class SonnetPixiRuntime {
-    private readonly sceneCache = new Map<number, SceneView>();
+    private readonly sceneCache = new PixiSceneCache<SceneView>({
+        count: () => this.options.program.paragraphs.length,
+        build: index => {
+            const scene = this.buildScene(this.liveSong, this.iconTextures, index);
+            this.sceneContainer.addChild(scene.container);
+            return scene;
+        },
+        destroy: scene => this.destroyScene(scene),
+    });
     private readonly iconTextures = new Map<string, import('pixi.js').Texture>();
     private readonly iconUrls = new Set<string>();
     private activeParagraphIndex = -1;
@@ -383,9 +392,6 @@ export class SonnetPixiRuntime {
 
     private clearScenes() {
         this.clearOutroBlur();
-        this.sceneCache.forEach(scene => {
-            this.destroyScene(scene);
-        });
         this.sceneCache.clear();
         this.activeParagraphIndex = -1;
     }
@@ -430,24 +436,6 @@ export class SonnetPixiRuntime {
             program: this.options.program,
             theme: this.options.theme,
         };
-    }
-
-    private ensureScene(index: number) {
-        if (index < 0 || index >= this.options.program.paragraphs.length) return null;
-        const cached = this.sceneCache.get(index);
-        if (cached) return cached;
-        const scene = this.buildScene(this.liveSong, this.iconTextures, index);
-        this.sceneCache.set(index, scene);
-        this.sceneContainer.addChild(scene.container);
-        return scene;
-    }
-
-    private pruneScenes(index: number) {
-        this.sceneCache.forEach((scene, sceneIndex) => {
-            if (Math.abs(sceneIndex - index) <= 1) return;
-            this.destroyScene(scene);
-            this.sceneCache.delete(sceneIndex);
-        });
     }
 
     private updateShot(view: ShotView, time: number, width: number, height: number, shakeIntensity: number) {
@@ -709,8 +697,8 @@ export class SonnetPixiRuntime {
         const paragraphIndex = findSonnetParagraphIndexAtTime(this.options.program, time);
         if (paragraphIndex !== this.activeParagraphIndex) {
             this.activeParagraphIndex = paragraphIndex;
-            this.ensureScene(paragraphIndex);
-            this.pruneScenes(paragraphIndex);
+            this.sceneCache.ensure(paragraphIndex);
+            this.sceneCache.prune(paragraphIndex);
         } else if (!this.songSwap) {
             // Neighbours are pre-rolls for a boundary that is still ahead, so at most one is built
             // per frame rather than piling three onto the frame that just changed paragraph.
@@ -719,9 +707,9 @@ export class SonnetPixiRuntime {
             const next = paragraphIndex + 1;
             const previous = paragraphIndex - 1;
             if (next < this.options.program.paragraphs.length && !this.sceneCache.has(next)) {
-                this.ensureScene(next);
+                this.sceneCache.ensure(next);
             } else if (previous >= 0 && !this.sceneCache.has(previous)) {
-                this.ensureScene(previous);
+                this.sceneCache.ensure(previous);
             }
         }
         const width = Math.max(this.options.host.clientWidth, 320);
@@ -917,7 +905,7 @@ export class SonnetPixiRuntime {
         this.clearScenes();
         if (staged) {
             staged.scene.container.visible = true;
-            this.sceneCache.set(staged.index, staged.scene);
+            this.sceneCache.adopt(staged.index, staged.scene);
             // Adopted as the active paragraph so the frame that commits builds nothing at all.
             this.activeParagraphIndex = staged.index;
         }
