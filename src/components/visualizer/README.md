@@ -121,7 +121,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 
 ### Pendolo
 
-`pendolo/VisualizerPendolo.tsx` 是 React 外壳；`PendoloClockworkCanvas.tsx` 负责时钟机械 canvas，`pendoloTextLayout.ts`、`pendoloTimeline.ts`、`pendoloGeometry.ts` 负责有界布局与时间线，`PendoloSettingsPanel.tsx` 负责调参。
+`pendolo/VisualizerPendolo.tsx` 是 React 外壳；`PendoloClockworkCanvas.tsx` 负责时钟机械 canvas（优先 WebGL2：`pendoloClockworkWebGL.ts` 绘制、`pendoloClockworkMeshes.ts` 缓存齿轮几何、`pendoloClockworkMotion.ts` 推进摆动；不支持时退回 `pendoloClockworkDraw2d.ts` 的 Canvas2D；`pendoloClockworkScene.ts` 放共用的帧输入、配色与画布包围盒），`pendoloTextLayout.ts`、`pendoloTimeline.ts`、`pendoloGeometry.ts` 负责有界布局与时间线，`PendoloSettingsPanel.tsx` 负责调参。
 
 ### Sonnet
 
