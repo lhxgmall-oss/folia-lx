@@ -35,9 +35,9 @@ App / ThemePark / VisPlayground / OBS source
 | mode | 显示名 | 主要 renderer / 辅助文件 |
 | --- | --- | --- |
 | `still` | 静止 | `still/VisualizerStill.tsx`（不挂载共享背景层） |
-| `classic` | Luminous | `classic/Visualizer.tsx`、`classic/tuning.ts` |
+| `classic` | Luminous | `classic/Visualizer.tsx`、共用 `GlowWord.tsx` / `glowWordTiming.ts` / `glowWordVariants.ts`、`classic/tuning.ts` |
 | `cadenza` | Mindscape | `cadenza/VisualizerCadenza.tsx`（RAF 渲染）、`cadenzaPreparedState.ts` / `cadenzaFragments.ts` / `cadenzaPlacements.ts`（测量与落点）、`cadenzaEnvelopes.ts`（时序包络）、`cadenza/tuning.ts` |
-| `partita` | 云阶 | `partita/VisualizerPartita.tsx`、`partita/tuning.ts` |
+| `partita` | 云阶 | `partita/VisualizerPartita.tsx`、`partitaLayout.ts`（分栏布局与缓存）、`PartitaChunk.tsx`、共用 `GlowWord.tsx`、`partita/tuning.ts` |
 | `fume` | Fume | `fume/VisualizerFume.tsx`、`fume/tuning.ts` |
 | `cappella` | Cappella | `cappella/VisualizerCappella.tsx`、`CappellaMessageRow.tsx` / `CappellaBubbleParts.tsx`（消息行与气泡）、`cappellaMessages.ts`（消息编排）、`cappellaReveal.ts` / `cappellaBubbleMetrics.ts`（逐字时序与测量）、`avatarImages.ts`、`emoImages.ts` |
 | `tilt` | Tilt | `tilt/VisualizerTilt.tsx`、`tilt/tuning.ts` |
