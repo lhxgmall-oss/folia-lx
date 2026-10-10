@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { MotionValue } from 'framer-motion';
-import { X, Keyboard, Loader2, Check, AlertCircle, ChevronLeft, Download, ExternalLink, CircleHelp } from 'lucide-react';
+import { X, Keyboard, Loader2, Check, AlertCircle, ChevronLeft, Download, ExternalLink, CircleHelp, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getCacheUsageByCategory, clearCacheByCategory, clearAllData } from '../../services/db';
 import { DualTheme, StageStatus, StageSource, Theme, ThemeMode, type CadenzaTuning, type CappellaEmojiImage, type CappellaTuning, type FumeTuning, type NowPlayingConnectionStatus, type PartitaTuning, type ReplayGainMode, type TiltTuning, type StoredCustomLyricsFont, type VisualizerMode } from '../../types';
@@ -32,6 +32,7 @@ import SettingsHelpActions from './SettingsHelpActions';
 import { openPonderNavigation } from '../../services/ponder/pagePonderTarget';
 import ReleaseNotesDialog from './ReleaseNotesDialog';
 import { discordIconUrl, openDiscordInvite } from '../shared/discordCommunity';
+import { QQ_COMMUNITY_GROUP_NUMBER } from '../shared/qqCommunity';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
 import { type SettingsModalState, type SettingsSubviewId, type VisualizerSettingsSection } from '../../stores/useSettingsModalStore';
@@ -434,6 +435,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [showReleaseNotes, setShowReleaseNotes] = useState(false);
     const [versionCopied, setVersionCopied] = useState(false);
     const [stageAddressCopied, setStageAddressCopied] = useState(false);
+    const [qqGroupCopied, setQqGroupCopied] = useState(false);
     const [authorClickCount, setAuthorClickCount] = useState(0);
     const [meowEasterEgg, setMeowEasterEgg] = useState<{ id: number; } | null>(null);
     const shouldCloseModalOnSubviewBack = initialSubview !== null;
@@ -586,8 +588,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const copyText = async (text: string) => {
         if (navigator.clipboard?.writeText && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-            return;
+            try {
+                await navigator.clipboard.writeText(text);
+                return;
+            } catch (error) {
+                // 剪贴板写入权限被拒（例如内嵌浏览器）时退回到下面的 execCommand。
+                console.warn('Clipboard write was rejected, falling back to execCommand:', error);
+            }
         }
 
         const textarea = document.createElement('textarea');
@@ -600,7 +607,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         textarea.select();
 
         try {
-            document.execCommand('copy');
+            if (!document.execCommand('copy')) throw new Error('execCommand("copy") was refused');
         } finally {
             document.body.removeChild(textarea);
         }
@@ -614,6 +621,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         } catch (error) {
             console.error('Failed to copy version info:', error);
             setVersionCopied(false);
+        }
+    };
+
+    // QQ 群没有能直接打开的入群链接：点胶囊复制群号，胶囊上短暂显示「已复制」。
+    const handleCopyQqGroup = async () => {
+        try {
+            await copyText(QQ_COMMUNITY_GROUP_NUMBER);
+            setQqGroupCopied(true);
+            window.setTimeout(() => setQqGroupCopied(false), 1800);
+        } catch (error) {
+            console.error('Failed to copy the QQ group number:', error);
+            setQqGroupCopied(false);
         }
     };
 
@@ -1515,6 +1534,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                     >
                                         <img src={discordIconUrl} alt="" aria-hidden className="h-[18px] w-[18px] rounded-[5px]" />
                                         {t('help.joinDiscord', 'Join our Discord')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleCopyQqGroup()}
+                                        title={t('help.copyQqGroupNumber')}
+                                        className="px-6 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-full text-sm font-medium flex items-center gap-2"
+                                        style={{ color: 'var(--text-primary)' }}
+                                    >
+                                        {qqGroupCopied ? <Check size={16} /> : <Users size={16} />}
+                                        {qqGroupCopied
+                                            ? t('help.qqGroupNumberCopied')
+                                            : t('help.joinQqGroup', { number: QQ_COMMUNITY_GROUP_NUMBER })}
                                     </button>
                                 </div>
 
