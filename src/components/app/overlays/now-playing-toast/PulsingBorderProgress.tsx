@@ -109,8 +109,9 @@ const PulsingBorderProgress: React.FC<PulsingBorderProgressProps> = ({
     const radiusPx = cornerRadius ?? strokeHalfSpan;
     const perimeterPx = strokePerimeter(width, height, pad, radiusPx);
 
-    // 进度只写 uniform，不进 React。攒够「端点移动半个像素」再写；着色器在跑（speed 不为 0）时只写值，
-    // 由它自己的 rAF 画，不再用 setUniforms 当场多画一整张画布；停着的着色器没有帧循环，仍立即重绘。
+    // 进度只写 uniform，不进 React。setUniforms 会立刻重绘一帧，而着色器自己还在 rAF 里画，
+    // 所以攒够「端点移动半个像素」再写，避免动画期间每帧多画一整张画布。
+    // 着色器在跑（speed 不为 0）时只写值、由它自己的 rAF 画，不再走 setUniforms；停着的着色器没有帧循环，仍立即重绘。
     const animating = merged.speed !== 0;
     useLayoutEffect(() => {
         const threshold = 0.5 / perimeterPx;
