@@ -92,18 +92,18 @@ describe('validateDiagnosis', () => {
             needs_maintainer: false,
         }, playbook, 'qq');
         expect(ok.ok).toBe(true);
-        expect(ok.value.causes.map((item: { id: string }) => item.id)).toEqual(['qq-device-limit', 'network-reset']);
-        expect(ok.value.analysis).not.toMatch(/https?:/);
-        expect(ok.value.analysis).not.toContain('@s');
-        expect(ok.value.analysis).not.toContain('#1');
-        expect(ok.value.analysis).toContain('VITE\\_NETEASE\\_API\\_BASE');
-        expect(ok.value.suggestions).toEqual(['换个网络']);
+        expect(ok.value?.causes.map((item: { id: string }) => item.id)).toEqual(['qq-device-limit', 'network-reset']);
+        expect(ok.value?.analysis).not.toMatch(/https?:/);
+        expect(ok.value?.analysis).not.toContain('@s');
+        expect(ok.value?.analysis).not.toContain('#1');
+        expect(ok.value?.analysis).toContain('VITE\\_NETEASE\\_API\\_BASE');
+        expect(ok.value?.suggestions).toEqual(['换个网络']);
     });
 
     it('rejects causes that do not apply to the provider', () => {
         const verdict = validateDiagnosis({ causes: [{ id: 'qq-device-limit', confidence: 0.95 }] }, playbook, 'netease');
         expect(verdict.ok).toBe(true);
-        expect(verdict.value.causes).toEqual([]);
+        expect(verdict.value?.causes).toEqual([]);
     });
 });
 
@@ -112,8 +112,8 @@ describe('mergeDiagnosis', () => {
 
     it('puts rule hits first and drops low-confidence LLM causes', () => {
         const merged = mergeDiagnosis({ reportHash: 'r', ruleCauses: ['qq-device-limit'], llm: { status: 'ok', value: llmValue }, previous: null, playbook });
-        expect(merged.causes).toEqual(['qq-device-limit', 'network-reset']);
-        expect(merged.source).toBe('llm');
+        expect(merged?.causes).toEqual(['qq-device-limit', 'network-reset']);
+        expect(merged?.source).toBe('llm');
     });
 
     it('reuses the previous LLM verdict while the report is unchanged', () => {
