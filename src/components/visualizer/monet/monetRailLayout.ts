@@ -3,6 +3,7 @@ import { colorWithAlpha } from '../colorMix';
 import { resolveWordColor } from '../wordColoring';
 import { MONET_SCROLL_SPRING, MONET_SCALE_SPRING } from './monetLyricMotion';
 import { buildMonetLayoutCacheKey, measureMonetLineLayout, type MonetLineLayoutInputs, type MonetLineStatus, type MonetMeasuredLineLayout, type MonetVisibleLineEntry } from './monetLyricsModel';
+import { rememberBounded } from '../textMeasureCache';
 
 // src/components/visualizer/monet/monetRailLayout.ts
 // Monet 歌词栏的排布：栏尺寸与间距常量、行色调与状态、可滚动条目、测量缓存，以及按固定轨道算出的行位置。
@@ -155,17 +156,6 @@ export const buildScrollableRailEntries = (
     return nextEntries;
 };
 
-const trimOldestCacheEntry = <TValue,>(cache: Map<string, TValue>, limit: number) => {
-    if (cache.size < limit) {
-        return;
-    }
-
-    const oldestKey = cache.keys().next().value;
-    if (oldestKey) {
-        cache.delete(oldestKey);
-    }
-};
-
 const getOrMeasureMonetLineLayout = (
     cache: MonetLayoutCache,
     entry: MonetVisibleLineEntry,
@@ -182,9 +172,7 @@ const getOrMeasureMonetLineLayout = (
         status: entry.status,
         ...inputs,
     });
-    trimOldestCacheEntry(cache, MONET_LAYOUT_CACHE_LIMIT);
-    cache.set(cacheKey, layout);
-    return layout;
+    return rememberBounded(cache, cacheKey, layout, MONET_LAYOUT_CACHE_LIMIT);
 };
 
 export const buildPositionedEntries = (

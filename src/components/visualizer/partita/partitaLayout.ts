@@ -4,6 +4,7 @@ import { buildDisplayWordsFromLayoutUnits, buildPostLyricLayoutUnits, type Lyric
 import { getWordSegmentationKey } from '../../../utils/lyrics/wordSegmentation';
 import { type VisualizerPreheatWindow } from '../runtime';
 import { resolveWordColor } from '../wordColoring';
+import { rememberBounded } from '../textMeasureCache';
 
 // src/components/visualizer/partita/partitaLayout.ts
 // 云阶的分栏布局：把当前行切成 chunk 排进若干列，算出每个词的偏移 / 旋转 / 缩放，并按 key 缓存。
@@ -255,14 +256,5 @@ export const getOrBuildPartitaLayout = (
     }
 
     const layout = buildSequentialColumns(line, theme, windowHeight, tuning);
-    cache.set(cacheKey, layout);
-
-    if (cache.size > PARTITA_LAYOUT_CACHE_LIMIT) {
-        const oldestKey = cache.keys().next().value;
-        if (oldestKey) {
-            cache.delete(oldestKey);
-        }
-    }
-
-    return layout;
+    return rememberBounded(cache, cacheKey, layout, PARTITA_LAYOUT_CACHE_LIMIT);
 };

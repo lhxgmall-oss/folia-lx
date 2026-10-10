@@ -1,5 +1,6 @@
 import { measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext';
 import { isCJKChar } from './claddaghTimeline';
+import { measurePrefixOffsets, rememberBounded } from '../textMeasureCache';
 
 // src/components/visualizer/claddagh/claddaghLayout.ts
 // 环形排布的常量与字距测量：pretext 实测字素中心、按 key 缓存的间距、可读角度归一化。
@@ -27,17 +28,6 @@ export const normalizeReadableAngle = (degrees: number): number => {
     return normalized;
 };
 
-const rememberSpacingOffsets = (key: string, offsets: number[]) => {
-    if (claddaghSpacingCache.size >= CLADDAGH_SPACING_CACHE_LIMIT) {
-        const oldestKey = claddaghSpacingCache.keys().next().value;
-        if (oldestKey) {
-            claddaghSpacingCache.delete(oldestKey);
-        }
-    }
-    claddaghSpacingCache.set(key, offsets);
-    return offsets;
-};
-
 const measureCladdaghTextWidth = (text: string, fontSpec: string, fontPx: number, fallbackWidth: number): number => {
     if (!text) return 0;
     const prepared = prepareWithSegments(text, fontSpec, {
@@ -55,19 +45,18 @@ const measureCladdaghGraphemeOffsets = (graphemes: string[], fontSpec: string, f
     const cached = claddaghSpacingCache.get(cacheKey);
     if (cached) return cached;
 
-    const offsets = new Array<number>(graphemes.length + 1).fill(0);
     let fallbackWidth = 0;
-    for (let index = 1; index <= graphemes.length; index += 1) {
+    const offsets = measurePrefixOffsets(graphemes, (prefix, index, previousOffset) => {
         fallbackWidth += getFallbackGraphemeWidth(graphemes[index - 1], fontPx);
         const baseTracking = Math.max(0, index - 1) * fontPx * CLADDAGH_BASE_TRACKING_EM;
         // 每个字符间隙累加 letterSpacingOffsetPx，增大字符之间的距离
         const extraOffset = Math.max(0, index - 1) * letterSpacingOffsetPx;
-        offsets[index] = Math.max(
-            offsets[index - 1],
-            measureCladdaghTextWidth(graphemes.slice(0, index).join(''), fontSpec, fontPx, fallbackWidth) + baseTracking + extraOffset
+        return Math.max(
+            previousOffset,
+            measureCladdaghTextWidth(prefix, fontSpec, fontPx, fallbackWidth) + baseTracking + extraOffset
         );
-    }
-    return rememberSpacingOffsets(cacheKey, offsets);
+    });
+    return rememberBounded(claddaghSpacingCache, cacheKey, offsets, CLADDAGH_SPACING_CACHE_LIMIT);
 };
 
 export const buildMeasuredSpacingInfo = <T extends { char: string; }>(

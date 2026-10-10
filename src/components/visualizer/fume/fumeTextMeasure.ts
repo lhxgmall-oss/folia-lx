@@ -3,6 +3,7 @@ import { Theme } from '../../../types';
 import { resolveThemeFontWeight } from '../../../utils/fontStacks';
 import type { RenderLineSlice, RenderSegmentSlice, SegmentMeta, WordRange } from './fumeTypes';
 import { clamp, splitGraphemes } from './fumeMath';
+import { measurePrefixOffsets } from '../textMeasureCache';
 
 // src/components/visualizer/fume/fumeTextMeasure.ts
 // Text measurement for fume: pretext segments, glyph offsets and advances inside render lines.
@@ -208,12 +209,10 @@ const measureSegmentGlyphOffsets = (
     }
 
     context.font = fontSpec;
-    for (let index = 1; index <= graphemes.length; index += 1) {
-        offsets[index] = context.measureText(graphemes.slice(0, index).join('')).width;
-    }
+    const measured = measurePrefixOffsets(graphemes, prefix => context.measureText(prefix).width);
 
-    segmentMeasureCache.set(cacheKey, offsets);
-    return offsets;
+    segmentMeasureCache.set(cacheKey, measured);
+    return measured;
 };
 
 export const buildWordRangeIndexByOffset = (
