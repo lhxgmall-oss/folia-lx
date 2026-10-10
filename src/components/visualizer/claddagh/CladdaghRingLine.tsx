@@ -27,6 +27,15 @@ import { buildCladdaghGlowFilter } from './claddaghGlow';
 // src/components/visualizer/claddagh/CladdaghRingLine.tsx
 // 投影到 3D 椭圆环上的一行歌词：在 useLayoutEffect 里直接写每个字素 span 的变换与样式。
 
+/** The per-frame style of one glyph span, as strings ready to assign. */
+interface GlyphStyle {
+    transform: string;
+    opacity: string;
+    color: string;
+    textShadow: string;
+    filter: string;
+}
+
 interface RingLineProps {
     line: Line;
     lineIndex: number;
@@ -122,6 +131,22 @@ export const RingLine: React.FC<RingLineProps> = ({
     const holdResetFrameRef = useRef(false);
 
     useLayoutEffect(() => {
+        // What each glyph span currently shows. Most of these strings repeat frame to frame (a sung
+        // glyph keeps its colour and glow; the ring often holds still), and comparing them is far
+        // cheaper than handing the same declaration back to the style engine to parse. Fresh on
+        // every effect run: React only rewrites these properties when a dependency of this effect
+        // changes, which re-runs it.
+        const written = new WeakMap<HTMLSpanElement, GlyphStyle>();
+        const writeGlyph = (el: HTMLSpanElement, next: GlyphStyle) => {
+            const previous = written.get(el);
+            if (previous?.transform !== next.transform) el.style.transform = next.transform;
+            if (previous?.opacity !== next.opacity) el.style.opacity = next.opacity;
+            if (previous?.color !== next.color) el.style.color = next.color;
+            if (previous?.textShadow !== next.textShadow) el.style.textShadow = next.textShadow;
+            if (previous?.filter !== next.filter) el.style.filter = next.filter;
+            written.set(el, next);
+        };
+
         const handler = (latestTime: number) => {
             if (shouldHoldCladdaghFrameForPlaybackReset(previousTimeRef.current, latestTime, centerLineIndex)) {
                 holdResetFrameRef.current = true;
@@ -328,8 +353,7 @@ export const RingLine: React.FC<RingLineProps> = ({
                 const blur = 8.0 * (1 - D) * (1 - 0.5 * F);
                 const tiltAngle = clamp(tangentAngle * (0.4 + 0.6 * D), -38, 38);
 
-                el.style.transform = `translate3d(calc(-50% + ${x.toFixed(1)}px), calc(-50% + ${y.toFixed(1)}px), 0px) rotate(${tiltAngle.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
-                el.style.opacity = finalOpacity.toFixed(3);
+                const transform = `translate3d(calc(-50% + ${x.toFixed(1)}px), calc(-50% + ${y.toFixed(1)}px), 0px) rotate(${tiltAngle.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
                 const blurFilter = blur < 0.2 ? '' : `blur(${blur.toFixed(2)}px)`;
                 // The glow's drop-shadows go in front of the blur (see below); written together once the glow is known.
                 let glowFilter = '';
@@ -380,7 +404,7 @@ export const RingLine: React.FC<RingLineProps> = ({
                 const glowAsFilter = isGlowBlurQuantized();
                 const currentGlowRadius = baseGlow * (1.0 + flashPop);
 
-                el.style.color = targetColor;
+                let textShadow = 'none';
 
                 // Calculate a smooth fade-out factor so the shadow doesn't abruptly pop when it hits the 0.5px threshold.
                 // At radius 2.5+, it's 1.0 (full original intensity). At 0.5, it's 0.0 (completely transparent).
@@ -399,7 +423,6 @@ export const RingLine: React.FC<RingLineProps> = ({
                             shadowFade,
                             Boolean(line.isChorus),
                         );
-                        el.style.textShadow = 'none';
                     } else if (line.isChorus) {
                         // Blend targetColor with the theme's primary text color to create a bright inner core.
                         // We use shadowFade directly as the alpha so it blooms beautifully at 1.0 near the center,
@@ -407,16 +430,20 @@ export const RingLine: React.FC<RingLineProps> = ({
                         const innerGlowColor = mixColors(targetColor, theme.primaryColor || '#ffffff', 0.65, shadowFade);
                         
                         // Restored exact multiplier ratios from Image 1 (0.35, 1.0, 1.6)
-                        el.style.textShadow = `0 0 ${quantizeShadowBlur(currentGlowRadius * 0.35)}px ${innerGlowColor}, 0 0 ${quantizeShadowBlur(currentGlowRadius)}px ${fadedTargetColor}, 0 0 ${quantizeShadowBlur(currentGlowRadius * 1.6)}px ${fadedTargetColor}`;
+                        textShadow = `0 0 ${quantizeShadowBlur(currentGlowRadius * 0.35)}px ${innerGlowColor}, 0 0 ${quantizeShadowBlur(currentGlowRadius)}px ${fadedTargetColor}, 0 0 ${quantizeShadowBlur(currentGlowRadius * 1.6)}px ${fadedTargetColor}`;
                     } else {
                         // Restored exact multiplier ratio from Image 1
-                        el.style.textShadow = `0 0 ${quantizeShadowBlur(currentGlowRadius)}px ${fadedTargetColor}`;
+                        textShadow = `0 0 ${quantizeShadowBlur(currentGlowRadius)}px ${fadedTargetColor}`;
                     }
-                } else {
-                    el.style.textShadow = 'none';
                 }
 
-                el.style.filter = [glowFilter, blurFilter].filter(Boolean).join(' ') || 'none';
+                writeGlyph(el, {
+                    transform,
+                    opacity: finalOpacity.toFixed(3),
+                    color: targetColor,
+                    textShadow,
+                    filter: [glowFilter, blurFilter].filter(Boolean).join(' ') || 'none',
+                });
             }
         };
 
