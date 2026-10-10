@@ -36,7 +36,7 @@ App / ThemePark / VisPlayground / OBS source
 | --- | --- | --- |
 | `still` | 静止 | `still/VisualizerStill.tsx`（不挂载共享背景层） |
 | `classic` | Luminous | `classic/Visualizer.tsx`、`classic/tuning.ts` |
-| `cadenza` | Mindscape | `cadenza/VisualizerCadenza.tsx`、`cadenza/tuning.ts` |
+| `cadenza` | Mindscape | `cadenza/VisualizerCadenza.tsx`（RAF 渲染）、`cadenzaPreparedState.ts` / `cadenzaFragments.ts` / `cadenzaPlacements.ts`（测量与落点）、`cadenzaEnvelopes.ts`（时序包络）、`cadenza/tuning.ts` |
 | `partita` | 云阶 | `partita/VisualizerPartita.tsx`、`partita/tuning.ts` |
 | `fume` | Fume | `fume/VisualizerFume.tsx`、`fume/tuning.ts` |
 | `cappella` | Cappella | `cappella/VisualizerCappella.tsx`、`avatarImages.ts`、`emoImages.ts` |
