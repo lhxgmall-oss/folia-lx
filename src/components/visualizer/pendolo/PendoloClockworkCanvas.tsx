@@ -169,7 +169,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
         // A renderer belongs to one canvas. Turning every layer off unmounts the canvases, and
         // turning one back on mounts new ones, so a renderer for any other canvas is dropped.
         if (rendererRef.current && rendererRef.current.canvas !== webglCanvas) {
-            rendererRef.current.dispose();
+            rendererRef.current.release();
             rendererRef.current = null;
             useWebglRef.current = false;
         }
@@ -183,7 +183,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
                 useWebglRef.current = true;
                 if (canvas2dRef.current) canvas2dRef.current.style.visibility = 'hidden';
             } else {
-                created.dispose();
+                created.release();
                 useWebglRef.current = false;
                 webglCanvas.style.visibility = 'hidden';
                 if (canvas2dRef.current) canvas2dRef.current.style.visibility = 'visible';
@@ -254,18 +254,25 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             }
             const dpr = window.devicePixelRatio || 1;
 
-            if (useWebglRef.current && rendererRef.current?.isReady) {
+            const renderer = rendererRef.current;
+            if (useWebglRef.current && !renderer?.isReady) useWebglRef.current = false;
+            // WebGL cannot upload a cover served without CORS headers, so frames that show such
+            // a cover are drawn with Canvas2D, which can. The renderer stays attached.
+            const coverNeeds2d = Boolean(
+                frame.showCover && renderer?.isCoverRejected(frame.coverImage),
+            );
+
+            if (useWebglRef.current && renderer && !coverNeeds2d) {
                 if (webglCanvasRef.current) webglCanvasRef.current.style.visibility = 'visible';
                 if (canvas2dRef.current) canvas2dRef.current.style.visibility = 'hidden';
                 // Glow comes from the same CSS drop-shadow as Canvas2D, so both backends match.
-                rendererRef.current.draw({
+                renderer.draw({
                     input: frame,
                     cssWidth: width,
                     cssHeight: height,
                     dpr,
                 });
             } else {
-                useWebglRef.current = false;
                 if (webglCanvasRef.current) webglCanvasRef.current.style.visibility = 'hidden';
                 const canvas = canvas2dRef.current;
                 if (!canvas) {
@@ -304,7 +311,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
     }, [showGearDecor, showCenterGradient, showCover, audioBassMotionValue, escapementAngleMotionValue]);
 
     useEffect(() => () => {
-        rendererRef.current?.dispose();
+        rendererRef.current?.release();
         rendererRef.current = null;
     }, []);
 

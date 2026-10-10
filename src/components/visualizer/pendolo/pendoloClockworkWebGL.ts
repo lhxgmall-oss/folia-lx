@@ -318,6 +318,25 @@ export class PendoloClockworkRenderer {
         this.gl = null;
     }
 
+    /**
+     * Disposes and, once the canvas has left the document, gives the context back to the
+     * browser. Chromium keeps only about 16 live WebGL contexts and drops the oldest past that,
+     * which may belong to another visualizer. A canvas still in the document (StrictMode's
+     * simulated unmount) keeps its context, so the remount can attach to it again.
+     */
+    release() {
+        const gl = this.gl;
+        this.dispose();
+        if (gl && !this.canvas.isConnected && !gl.isContextLost()) {
+            gl.getExtension('WEBGL_lose_context')?.loseContext();
+        }
+    }
+
+    /** Whether this cover image could not be uploaded (a cross-origin cover without CORS). */
+    isCoverRejected(image: CanvasImageSource | null) {
+        return image !== null && image === this.failedCoverSource;
+    }
+
     /** Uploads cover art when the decoded image changes; returns whether a cover is ready. */
     private syncCoverImage(image: CanvasImageSource | null) {
         const gl = this.gl!;
