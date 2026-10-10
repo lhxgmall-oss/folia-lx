@@ -11,6 +11,7 @@ import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { resolveWordColor } from '../wordColoring';
 import { GlowWord } from '../GlowWord';
+import { buildGlowWordLayoutVariants, glowWordBodyVariants } from '../glowWordVariants';
 import { getGlowWordActiveEndTime, getGlowWordLineContainerMotion, resolveGlowWordRenderProfile, type GlowWordRenderProfile } from '../glowWordTiming';
 
 // This one is still word-driven, but unlike Classic it needs to pre-build a column/chunk structure first.
@@ -566,73 +567,8 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
     const translationFontSize = `clamp(${(1.05 * lyricsFontScale).toFixed(3)}rem, ${(2.2 * lyricsFontScale).toFixed(3)}vw, ${(1.2 * lyricsFontScale).toFixed(3)}rem)`;
     const upcomingFontSize = `clamp(${(0.875 * lyricsFontScale).toFixed(3)}rem, ${(1.8 * lyricsFontScale).toFixed(3)}vw, ${(1 * lyricsFontScale).toFixed(3)}rem)`;
 
-    const layoutVariants: Variants = {
-        waiting: ({ config }: any) => ({
-            opacity: 0,
-            scale: 0.5,
-            x: config.x + (Math.sin(config.y) * 100),
-            y: config.y + (Math.cos(config.x) * 50),
-            rotate: config.rotate + 20,
-            transition: { duration: 0.4 },
-        }),
-        active: ({ config }: any) => ({
-            opacity: 1,
-            scale: isNaN(config.scale) ? 1.5 : config.scale * 1.4,
-            x: config.x,
-            y: config.y,
-            rotate: config.rotate,
-            transition: {
-                type: 'spring' as const,
-                stiffness: 200,
-                damping: 20,
-                opacity: { duration: 0.1 },
-            },
-        }),
-        passed: ({ config }: any) => ({
-            opacity: theme.animationIntensity === 'chaotic' ? 0.9 : 0.82,
-            scale: config.scale || 1,
-            x: config.x,
-            y: config.y,
-            rotate: config.rotate + config.passedRotate,
-            transition: {
-                duration: 0.5,
-                rotate: {
-                    duration: 5,
-                    ease: 'linear',
-                },
-            },
-        }),
-    };
-
-    const bodyVariants: Variants = {
-        waiting: ({ baseColor }: any) => ({
-            color: baseColor,
-            filter: 'blur(10px)',
-            transition: { duration: 0.4 },
-        }),
-        active: ({ activeColor, duration, wordRevealMode }: any) => ({
-            color: activeColor,
-            filter: 'none',
-            transition: {
-                color: { duration: duration || 0.2, ease: 'linear' },
-                filter: { type: 'tween', duration: wordRevealMode === 'instant' ? 0.08 : wordRevealMode === 'fast' ? 0.12 : 0.2 },
-            },
-            transitionEnd: {
-                filter: 'none',
-            },
-        }),
-        passed: ({ baseColor, wordRevealMode }: any) => ({
-            color: baseColor,
-            filter: 'blur(0px)',
-            transition: {
-                color: { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.24 : 0.8, ease: 'easeInOut' },
-                filter: { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.2 : 0.5 },
-            },
-            transitionEnd: {
-                filter: 'none',
-            },
-        }),
-    };
+    const layoutVariants = buildGlowWordLayoutVariants(theme.animationIntensity);
+    const bodyVariants = glowWordBodyVariants;
 
     const lyricContainerFloat = useMemo(() => {
         const configByIntensity = {

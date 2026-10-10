@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_CLASSIC_TUNING, AudioBands, type ClassicTuning } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
@@ -13,6 +13,7 @@ import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fo
 import { resolveWordColor } from '../wordColoring';
 import { GlowWord } from '../GlowWord';
 import { getGlowWordLineContainerMotion, resolveGlowWordRenderProfile } from '../glowWordTiming';
+import { buildGlowWordLayoutVariants, glowWordBodyVariants } from '../glowWordVariants';
 
 // This mode is the most straightforward lyric pipeline in the folder.
 // First we ask runtime which line is active right now, then read renderHints from that line,
@@ -263,77 +264,8 @@ const Visualizer: React.FC<VisualizerProps> = (props) => {
         return { wordConfigs, lineConfig };
     }, [activeLine, displayWords, resolvedClassicTuning.enableWordRotation, resolvedClassicTuning.useLegacyLayout, resolvedClassicTuning.wordSpacing, theme, lyricsFontScale, viewportWidth]);
 
-    // Container motion is the "body" of each word.
-    // waiting/active/passed all reuse the same layout config but interpret it differently.
-    const layoutVariants: Variants = {
-        waiting: ({ config }: any) => ({
-            opacity: 0,
-            scale: 0.5,
-            x: config.x + (Math.sin(config.y) * 100),
-            y: config.y + (Math.cos(config.x) * 50),
-            rotate: resolvedClassicTuning.enableWordRotation ? config.rotate + 20 : 0,
-            transition: { duration: 0.4 }
-        }),
-        active: ({ config }: any) => ({
-            opacity: 1,
-            scale: isNaN(config.scale) ? 1.5 : config.scale * 1.4,
-            x: config.x,
-            y: config.y,
-            rotate: config.rotate,
-            transition: {
-                type: "spring" as const,
-                stiffness: 200,
-                damping: 20,
-                opacity: { duration: 0.1 }
-            }
-        }),
-        passed: ({ config, baseColor }: any) => ({
-            opacity: theme.animationIntensity === 'chaotic' ? 0.9 : 0.82,
-            scale: config.scale || 1,
-            x: config.x,
-            y: config.y,
-            rotate: config.rotate + config.passedRotate,
-            transition: {
-                duration: 0.5,
-                rotate: {
-                    duration: 5,
-                    ease: "linear"
-                }
-            }
-        })
-    };
-
-    // Body layer is where color transition and blur cleanup happen.
-    // Glow is separated so we can overdrive highlight without making the actual glyph unreadable.
-    const bodyVariants: Variants = {
-        waiting: ({ baseColor }: any) => ({
-            color: baseColor,
-            filter: "blur(10px)",
-            transition: { duration: 0.4 }
-        }),
-        active: ({ activeColor, duration, wordRevealMode }: any) => ({
-            color: activeColor,
-            filter: "none",
-            transition: {
-                color: { duration: duration || 0.2, ease: "linear" },
-                filter: { type: "tween", duration: wordRevealMode === 'instant' ? 0.08 : wordRevealMode === 'fast' ? 0.12 : 0.2 }
-            },
-            transitionEnd: {
-                filter: "none"
-            }
-        }),
-        passed: ({ baseColor, wordRevealMode }: any) => ({
-            color: baseColor,
-            filter: "blur(0px)",
-            transition: {
-                color: { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.24 : 0.8, ease: "easeInOut" },
-                filter: { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.2 : 0.5 }
-            },
-            transitionEnd: {
-                filter: "none"
-            }
-        })
-    };
+    const layoutVariants = buildGlowWordLayoutVariants(theme.animationIntensity, resolvedClassicTuning.enableWordRotation);
+    const bodyVariants = glowWordBodyVariants;
 
     const lyricContainerFloat = useMemo(() => {
         const multiplier = resolvedClassicTuning.breathingFloatMultiplier;
