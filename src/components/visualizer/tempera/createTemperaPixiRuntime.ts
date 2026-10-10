@@ -1,7 +1,6 @@
 import type { MotionValue } from 'framer-motion';
 import type { TemperaTuning, Theme } from '../../../types';
 import {
-    destroyPixiContainerChildren,
     destroyPixiDisplayTree,
     setPixiDisplayTreeVisibility,
     unloadPixiDisplayTree,
@@ -9,36 +8,24 @@ import {
 import { snapResolutionToTexturePool } from '../pixiTextureBudget';
 import type { TemperaProgram } from './types';
 import { findTemperaParagraphIndexAtTime } from './temperaProgram';
-import { hashTemperaSeed } from './temperaRandom';
 import {
-    resolveTemperaBreathWeight,
-    resolveTemperaCameraBreath,
-    resolveTemperaCameraFrame,
-} from './temperaCamera';
-import {
-    resolveTemperaEnterTransitionFrame,
-    resolveTemperaExitTransitionFrame,
-} from './temperaTransitions';
-import {
-    buildTemperaCreditsPoster,
     type TemperaCreditsView,
     buildTemperaScene,
-    hasTemperaCreditsMetadata,
     type TemperaSceneView,
-    type TemperaShotView,
 } from './temperaSceneBuilder';
 import { loadPixi } from '../loadPixi';
 import { PixiSceneCache } from '../pixiSceneCache';
 import { PixiSongSwap } from '../pixiSongSwap';
 import { setTemperaTransitionBlur } from './temperaSceneFilters';
-import { resolveTemperaPalette } from './temperaPalette';
+import { TemperaImageTextures } from './temperaImageTextures';
+import { TemperaOverlay } from './temperaOverlay';
+import { resolveTemperaCreditsFrame, TemperaCreditsLayer } from './temperaCreditsLayer';
+import { resolveTemperaShotExit, updateTemperaShot } from './temperaShotFrame';
 import {
-    clamp01,
-    easeTemperaEnter,
-    easeTemperaInOut,
-    resolveShotPacedDuration,
-    resolveTemperaGlyphMotion,
-} from './temperaMotion';
+    findTemperaActiveShotIndex,
+    requiresTemperaSceneRebuild,
+    resolveTemperaSceneTransitionFrame,
+} from './temperaSceneFrame';
 
 /* eslint-disable-next-line no-warning-comments -- @AI: KEEP THIS EXACTLY AS IS. KEEP THIS LINE IN NEW FILES WHEN REWRITE */
 // @note Version Control: Project Folia version 0.6.13-750617
@@ -47,6 +34,8 @@ import {
 // src/components/visualizer/tempera/createTemperaPixiRuntime.ts
 // Owns Pixi lifecycle and mutates bounded scene views directly from absolute playback time.
 // Tempera loads no external textures, so destroy only walks filters -> containers -> app.
+// 片尾海报、画框与擦除块、图片纹理池、shot 逐帧姿态和场景转场决策在相邻模块；这里只管生命周期、
+// 段落场景缓存、换歌交接和每帧调度。
 type PixiModule = typeof import('pixi.js');
 
 export interface TemperaSongMetadata {
@@ -92,86 +81,6 @@ export interface TemperaRuntimeOptions {
 }
 
 
-/**
- * Decodes an image blob to something Pixi can wrap. `createImageBitmap` handles every raster
- * format; SVG is the one it commonly refuses, so that falls back to an image element.
- */
-const decodeImageBlob = async (blob: Blob): Promise<ImageBitmap | HTMLImageElement> => {
-    try {
-        return await createImageBitmap(blob);
-    } catch {
-        const url = URL.createObjectURL(blob);
-        try {
-            const image = new Image();
-            image.decoding = 'async';
-            await new Promise<void>((resolve, reject) => {
-                image.onload = () => resolve();
-                image.onerror = () => reject(new Error('Tempera layer image failed to decode'));
-                image.src = url;
-            });
-            return image;
-        } finally {
-            URL.revokeObjectURL(url);
-        }
-    }
-};
-
-const closeImageBitmap = (source: unknown) => {
-    if (typeof ImageBitmap !== 'undefined' && source instanceof ImageBitmap) source.close();
-};
-
-const resolveAnimationScale = (theme: Theme) => (
-    theme.animationIntensity === 'calm' ? 0.65 : theme.animationIntensity === 'chaotic' ? 1.35 : 1
-);
-
-// Simple credits fade: the poster rises once the final paragraph's lyric tail ends.
-const resolveCreditsFrame = (time: number, finalEndTime: number) => {
-    const lyricAlpha = 1 - easeTemperaInOut((time - finalEndTime - 0.1) / 0.9);
-    const posterProgress = easeTemperaInOut((time - finalEndTime - 0.9) / 1.1);
-    return {
-        active: time > finalEndTime + 0.35,
-        lyricAlpha,
-        posterAlpha: posterProgress,
-        posterOffsetY: (1 - posterProgress) * 0.06,
-        posterScale: 0.96 + posterProgress * 0.04,
-    };
-};
-
-/**
- * Which tuning fields change what a scene *is*, as opposed to how it is animated. Camera and
- * glyph motion are read fresh every frame, and image placement is re-applied to the existing
- * sprites, so neither needs the cached scenes thrown away. The image *set* does: a new id has
- * no sprite yet.
- */
-const requiresSceneRebuild = (previous: TemperaTuning, next: TemperaTuning) => (
-    previous.colorMode !== next.colorMode
-    // Renderer resolution and fixed-resolution filter passes must change together.
-    || previous.textureResolution !== next.textureResolution
-    // Entrance pacing is baked into each glyph's settleTime at layout time, unlike glyphMotion
-    // which the solver reads fresh every frame.
-    || previous.glyphSettleStretch !== next.glyphSettleStretch
-    || previous.showBlocks !== next.showBlocks
-    || previous.showDecor !== next.showDecor
-    || previous.textInversion !== next.textInversion
-    || previous.enableTransitions !== next.enableTransitions
-    || previous.postProcessEnabled !== next.postProcessEnabled
-    // Baked into every filter on the scene at build time, so it cannot be pushed in place.
-    || previous.postProcessTextureCompression !== next.postProcessTextureCompression
-    || previous.postProcessGrain !== next.postProcessGrain
-    || previous.postProcessContrast !== next.postProcessContrast
-    || previous.postProcessRgbShift !== next.postProcessRgbShift
-    || previous.postProcessVignette !== next.postProcessVignette
-    || previous.postProcessLensDistortion !== next.postProcessLensDistortion
-    || previous.layerImageDepth !== next.layerImageDepth
-    || previous.layerImageFrequency !== next.layerImageFrequency
-    || previous.layerImages.length !== next.layerImages.length
-    || previous.layerImages.some((image, index) => (
-        image.id !== next.layerImages[index]?.id
-        || image.align !== next.layerImages[index]?.align
-        || image.verticalAlign !== next.layerImages[index]?.verticalAlign
-    ))
-);
-
 /** The incoming scene and poster, built a frame before the cut needs them. */
 interface TemperaStagedSong {
     scene: TemperaSceneView;
@@ -210,11 +119,9 @@ export class TemperaPixiRuntime {
     private renderResolution = 1;
 
     private sceneContainer!: import('pixi.js').Container;
-    private creditsContainer!: import('pixi.js').Container;
-    private credits: TemperaCreditsView | null = null;
-    private readonly imageTextures = new Map<string, import('pixi.js').Texture>();
-    private overlayContainer!: import('pixi.js').Container;
-    private wipeGraphics: import('pixi.js').Graphics | null = null;
+    private creditsLayer!: TemperaCreditsLayer;
+    private imageTextures!: TemperaImageTextures;
+    private overlay!: TemperaOverlay;
     /**
      * An in-flight song handover, spread over exactly two frames. A track change is a plain cut
      * here - no wipe, no dissolve - but a cut must not also be a stall, so the incoming scene is
@@ -259,13 +166,14 @@ export class TemperaPixiRuntime {
         runtime.sceneContainer = new pixi.Container();
         // Paragraph scenes overlap during a boundary, so they must stack by paragraph order.
         runtime.sceneContainer.sortableChildren = true;
-        runtime.creditsContainer = new pixi.Container();
-        runtime.overlayContainer = new pixi.Container();
-        app.stage.addChild(runtime.sceneContainer, runtime.creditsContainer, runtime.overlayContainer);
+        runtime.creditsLayer = new TemperaCreditsLayer(pixi);
+        runtime.overlay = new TemperaOverlay(pixi);
+        app.stage.addChild(runtime.sceneContainer, runtime.creditsLayer.container, runtime.overlay.container);
 
         // Textures are loaded once and shared by every scene: paragraph scenes are rebuilt as
         // playback moves, and reloading a character cut-out on each one would thrash.
-        await runtime.loadImageTextures();
+        runtime.imageTextures = new TemperaImageTextures(pixi);
+        await runtime.imageTextures.load(options.imageBlobs, () => runtime.destroyed);
 
         if (options.signal?.aborted) {
             runtime.destroy();
@@ -319,51 +227,28 @@ export class TemperaPixiRuntime {
         return true;
     }
 
-    /**
-     * Builds the credits poster for a song without installing it, so a handover can prepare the
-     * incoming one under the block rather than on the frame the swap lands.
-     */
+    /** The incoming or live song's poster, against the metadata and tuning in force right now. */
     private buildCreditsView(
         song: TemperaSongContext,
         scenePalette: TemperaSceneView['palette'] | undefined,
         width: number,
         height: number,
     ): TemperaCreditsView | null {
-        const metadata = {
-            title: this.options.songTitle,
-            artist: this.options.songArtist,
-            album: this.options.songAlbum,
-        };
-        if (!hasTemperaCreditsMetadata(metadata)) return null;
-        // Before any scene exists (metadata-only songs) the poster uses a freshly resolved palette.
-        const palette = scenePalette
-            ?? resolveTemperaPalette(song.theme, this.options.tuning, song.coverColors);
-        return buildTemperaCreditsPoster(this.pixi, {
+        return this.creditsLayer.build({
             theme: song.theme,
+            coverColors: song.coverColors,
             tuning: this.options.tuning,
-            palette,
-            metadata,
-            width,
-            height,
+            metadata: {
+                title: this.options.songTitle,
+                artist: this.options.songArtist,
+                album: this.options.songAlbum,
+            },
             lyricsFontScale: this.options.lyricsFontScale,
-        });
-    }
-
-    private adoptCredits(view: TemperaCreditsView | null, width: number, height: number) {
-        this.disposeCredits();
-        this.credits = view;
-        if (!view) return;
-        this.creditsContainer.addChild(view.container);
-        // The poster is already built around its own origin, so the pivot stays at zero and
-        // the per-frame position alone centres it. Giving it a viewport pivot as well parked
-        // the whole card in the top-left corner with half of it off screen.
-        this.creditsContainer.pivot.set(0, 0);
-        this.creditsContainer.position.set(width / 2, height / 2);
-        this.creditsContainer.visible = false;
+        }, scenePalette, width, height);
     }
 
     private drawCredits(width: number, height: number) {
-        this.adoptCredits(
+        this.creditsLayer.adopt(
             this.buildCreditsView(
                 this.liveSong,
                 this.sceneCache.get(Math.max(0, this.activeParagraphIndex))?.palette,
@@ -401,7 +286,7 @@ export class TemperaPixiRuntime {
                     this.lastWidth,
                     this.lastHeight,
                 );
-                if (stale) this.destroyCreditsView(stale);
+                if (stale) this.creditsLayer.destroyView(stale);
             }
             return;
         }
@@ -412,55 +297,7 @@ export class TemperaPixiRuntime {
     }
 
     private drawOverlay(width: number, height: number) {
-        // 画框与擦除块都是自建 context 的 Graphics，逐节点销毁才会连 GPU 批数据一起放掉。
-        destroyPixiContainerChildren(this.overlayContainer);
-        // The wipe block lives in the overlay so it sweeps above the scene during cuts.
-        this.wipeGraphics = new this.pixi.Graphics();
-        this.wipeGraphics.visible = false;
-        this.overlayContainer.addChild(this.wipeGraphics);
-
-        if (!this.options.tuning.showCornerMarks) return;
-        const g = new this.pixi.Graphics();
-        const primary = this.pixi.Color.shared.setValue(this.options.theme.primaryColor).toNumber();
-        const paddingX = Math.max(28, width * 0.045);
-        const paddingY = Math.max(28, height * 0.045);
-        // Minimal corner registration marks echo the print-like block aesthetic.
-        g.moveTo(paddingX, paddingY + 14).lineTo(paddingX, paddingY).lineTo(paddingX + 14, paddingY)
-            .stroke({ color: primary, width: 1.5, alpha: 0.5 });
-        g.moveTo(width - paddingX - 14, height - paddingY).lineTo(width - paddingX, height - paddingY).lineTo(width - paddingX, height - paddingY - 14)
-            .stroke({ color: primary, width: 1.5, alpha: 0.5 });
-        this.overlayContainer.addChild(g);
-    }
-
-    /**
-     * Decodes the user's images straight from their blobs. `Assets.load` is deliberately not
-     * used: it chooses a parser from the URL's file extension, and a blob URL has none, so it
-     * refuses the load outright. Decoding here also means there is no object URL to leak.
-     */
-    private async loadImageTextures() {
-        const blobs = this.options.imageBlobs;
-        if (!blobs || blobs.size === 0) return;
-        await Promise.all([...blobs].map(async ([id, blob]) => {
-            try {
-                const source = await decodeImageBlob(blob);
-                if (this.destroyed) {
-                    closeImageBitmap(source);
-                    return;
-                }
-                this.imageTextures.set(id, this.pixi.Texture.from(source));
-            } catch {
-                // A corrupt or unsupported file simply leaves that placement unrendered.
-            }
-        }));
-    }
-
-    private disposeCredits() {
-        this.credits?.container.children.forEach(child => {
-            child.filters = null;
-        });
-        this.credits?.filters.forEach(filter => filter.destroy());
-        this.credits = null;
-        destroyPixiContainerChildren(this.creditsContainer);
+        this.overlay.draw(width, height, this.options.tuning, this.options.theme);
     }
 
     private clearScenes() {
@@ -505,7 +342,7 @@ export class TemperaPixiRuntime {
             lyricsFontScale: this.options.lyricsFontScale,
             staticMode: this.options.staticMode,
             coverColors: song.coverColors,
-            imageTextures: this.imageTextures,
+            imageTextures: this.imageTextures.textures,
         }, song.program.paragraphs[index]);
     }
 
@@ -517,136 +354,6 @@ export class TemperaPixiRuntime {
             theme: this.options.theme,
             coverColors: this.options.coverColors ?? [],
         };
-    }
-
-    /**
-     * How long a finished shot keeps sliding out while the next one is already sliding in.
-     * The overlap is the whole point: two compositions share the frame and the outgoing one
-     * carries the eye into the incoming one instead of being cut away.
-     */
-    private resolveShotHandoff(view: TemperaShotView) {
-        return resolveShotPacedDuration(view.shot.endTime - view.shot.startTime, 0.3, 0.4, 1.1);
-    }
-
-    private resolveShotExit(view: TemperaShotView, time: number) {
-        return clamp01((time - view.shot.endTime) / this.resolveShotHandoff(view));
-    }
-
-    private updateShot(view: TemperaShotView, time: number, width: number, height: number) {
-        const { tuning } = this.options;
-        const duration = Math.max(view.shot.endTime - view.shot.startTime, 0.001);
-        const rawProgress = (time - view.shot.startTime) / duration;
-        const animationScale = resolveAnimationScale(this.options.theme);
-        const camera = tuning.cameraIntensity * animationScale;
-        const motion = tuning.glyphMotion * animationScale;
-        const frame = resolveTemperaCameraFrame(view.shot, rawProgress);
-
-        const breathWeight = resolveTemperaBreathWeight(time, view.revealDoneTime);
-        if (breathWeight > 0) {
-            const breathPhase = (hashTemperaSeed(view.shot.id) % 1024) / 1024 * Math.PI * 2;
-            const breath = resolveTemperaCameraBreath(time, breathPhase);
-            frame.x += breath.x * breathWeight;
-            frame.y += breath.y * breathWeight;
-            frame.scale += breath.scale * breathWeight;
-            frame.rotation += breath.rotation * breathWeight;
-        }
-
-        // Hand-off: the shot arrives from upstream on its own flow vector and, once it is
-        // over, keeps travelling downstream out of frame. Both shots run this at the same
-        // time during the overlap, so the outgoing composition visibly pushes past the
-        // incoming one rather than being cut away.
-        const handoff = this.resolveShotHandoff(view);
-        const span = Math.max(width, height);
-        // The arrival is front-loaded on purpose: the glyphs start revealing on the shot's
-        // own timeline, so a slow entrance would expose type that is still off frame.
-        const enter = easeTemperaEnter(clamp01((time - view.shot.startTime) / (handoff * 0.8)));
-        const exit = easeTemperaInOut(this.resolveShotExit(view, time));
-        const travel = exit * span * 0.55 - (1 - enter) * span * 0.32;
-        view.container.position.set(
-            view.baseX + frame.x * width * camera + Math.cos(view.shot.flowAngle) * travel,
-            view.baseY + frame.y * height * camera + Math.sin(view.shot.flowAngle) * travel,
-        );
-        // Opaque on the way in: this is a push, not a dissolve. Only the exit fades.
-        view.container.alpha = 1 - exit;
-        view.container.scale.set((1 + (frame.scale - 1) * camera) * (1 - exit * 0.08));
-        view.container.rotation = frame.rotation * camera;
-
-        // Two ends on purpose. The graphics' entrance stagger is paced against the lyric this
-        // shot carries; the steady flow creep runs for the shot's whole visible life, which is
-        // tiled up to the next shot's start and can be seconds longer.
-        view.blocks.updateTime(time, view.shot.startTime, view.shot.endTime, view.shot.lyricEndTime);
-        view.images.updateTime(time, view.shot.startTime, view.shot.endTime, view.shot.lyricEndTime);
-
-        view.glyphs.forEach(glyph => {
-            const frame = resolveTemperaGlyphMotion(glyph.motion, time, motion);
-            const x = glyph.baseX + frame.x;
-            const y = glyph.baseY + frame.y;
-            glyph.display.alpha = frame.alpha;
-            glyph.display.visible = frame.visible;
-            glyph.display.position.set(x, y);
-            glyph.display.scale.set(frame.scaleX, frame.scaleY);
-            glyph.display.rotation = frame.rotation;
-            if (glyph.shadow) {
-                glyph.shadow.alpha = frame.alpha * 0.34;
-                glyph.shadow.visible = frame.visible;
-                glyph.shadow.position.set(x + glyph.shadowDX, y + glyph.shadowDY);
-                glyph.shadow.scale.set(frame.scaleX, frame.scaleY);
-                glyph.shadow.rotation = frame.rotation;
-            }
-            // Echoes trail further back along the entrance vector the deeper they sit.
-            const echoVisible = frame.visible && frame.echoAlpha > 0.004;
-            glyph.echoes.forEach((echo, index) => {
-                echo.visible = echoVisible;
-                if (!echoVisible) return;
-                const depth = 1 + index * 0.85;
-                echo.alpha = frame.echoAlpha / (index + 1.4);
-                echo.position.set(
-                    glyph.baseX + frame.echoX * depth,
-                    glyph.baseY + frame.echoY * depth,
-                );
-                echo.scale.set(frame.scaleX, frame.scaleY);
-                echo.rotation = frame.rotation;
-            });
-        });
-    }
-
-    // Slides a screen-sized block along `angle`. `travel` runs 0..2: at 1 the block covers the
-    // frame exactly, which is the instant the scene underneath is allowed to swap.
-    private drawWipe(travel: number, angle: number, width: number, height: number, color: string) {
-        const wipe = this.wipeGraphics;
-        if (!wipe) return;
-        if (travel <= 0.001 || travel >= 1.999) {
-            if (wipe.visible) {
-                wipe.clear();
-                wipe.visible = false;
-            }
-            return;
-        }
-        // Drawn in a rotated local frame sized to the screen diagonal so it stays full-bleed at
-        // any angle. Both edges carry the same chevron, which keeps it in the diamond language
-        // of the compositions; geometry is rebuilt per frame because it depends on travel.
-        const span = Math.hypot(width, height);
-        const notch = span * 0.08;
-        const length = span + notch * 2;
-        const start = -span / 2 - notch + (travel - 1) * length;
-        const end = start + length;
-        const half = span / 2;
-        wipe.clear();
-        wipe
-            .poly([
-                start, -half,
-                end, -half,
-                end + notch, 0,
-                end, half,
-                start, half,
-                start + notch, 0,
-            ])
-            .fill({ color: this.pixi.Color.shared.setValue(color).toNumber() });
-        wipe.pivot.set(0, 0);
-        wipe.position.set(width / 2, height / 2);
-        wipe.rotation = angle;
-        wipe.scale.set(1, 1);
-        wipe.visible = true;
     }
 
     private renderFrame = () => {
@@ -680,11 +387,11 @@ export class TemperaPixiRuntime {
         const width = Math.max(this.options.host.clientWidth, 320);
         const height = Math.max(this.options.host.clientHeight, 240);
         const finalParagraph = this.options.program.paragraphs.at(-1);
-        const creditsFrame = resolveCreditsFrame(
+        const creditsFrame = resolveTemperaCreditsFrame(
             time,
             finalParagraph?.endTime ?? Number.POSITIVE_INFINITY,
         );
-        const hasCredits = this.creditsContainer.children.length > 0;
+        const hasCredits = this.creditsLayer.hasPoster;
         let wipeDrawn = false;
 
         const transitionsEnabled = this.options.tuning.enableTransitions && !this.options.staticMode;
@@ -721,51 +428,16 @@ export class TemperaPixiRuntime {
                 return;
             }
 
-            const previousTransition = index > 0
-                ? this.options.program.paragraphs[index - 1]?.transitionOut
-                : null;
-            const enterDuration = previousTransition
-                ? Math.max(0.35, Math.min(1, previousTransition.endTime - previousTransition.startTime))
-                : 0;
-            // Only a wipe still enters after the boundary; everything else has already
-            // arrived by then, because it was pre-rolled through the outgoing window.
-            const entering = transitionsEnabled
-                && previousTransition !== null
-                && previousTransition.kind === 'block-wipe'
-                && time >= scene.paragraph.startTime
-                && time <= scene.paragraph.startTime + enterDuration;
-            const paragraphTransitionFrame = isIncoming && outgoingTransition
-                ? resolveTemperaEnterTransitionFrame(
-                    outgoingTransition.kind,
-                    time - outgoingTransition.startTime,
-                    Math.max(0.001, outgoingTransition.endTime - outgoingTransition.startTime),
-                    true,
-                    // Enter on the incoming paragraph's own flow, so the arrival continues
-                    // the direction the outgoing composition was already travelling.
-                    scene.paragraph.shots[0]?.flowAngle ?? 0,
-                )
-                : entering && previousTransition
-                    ? resolveTemperaEnterTransitionFrame(
-                        previousTransition.kind,
-                        time - scene.paragraph.startTime,
-                        enterDuration,
-                        true,
-                        scene.paragraph.shots[0]?.flowAngle ?? 0,
-                    )
-                    : resolveTemperaExitTransitionFrame(
-                        scene.paragraph,
-                        time,
-                        transitionsEnabled,
-                    );
-
-            // Strictly determine the single active shot within this scene to avoid intra-scene residues.
-            let activeShotIndex = 0;
-            for (let i = scene.shots.length - 1; i >= 0; i--) {
-                if (time >= scene.shots[i].shot.startTime) {
-                    activeShotIndex = i;
-                    break;
-                }
-            }
+            const paragraphTransitionFrame = resolveTemperaSceneTransitionFrame(
+                this.options.program,
+                scene,
+                index,
+                time,
+                isIncoming,
+                outgoingTransition,
+                transitionsEnabled,
+            );
+            const activeShotIndex = findTemperaActiveShotIndex(scene, time);
 
             // Shot boundaries need no scene-level transition any more: the compositions hand
             // off to each other directly, which is what makes a paragraph read as one take.
@@ -775,10 +447,10 @@ export class TemperaPixiRuntime {
                 // compositions overlap exactly while one is pushing the other out.
                 const isShotActive = shotIndex === activeShotIndex;
                 const isHandingOff = shotIndex < activeShotIndex
-                    && this.resolveShotExit(shot, time) < 1;
+                    && resolveTemperaShotExit(shot, time) < 1;
                 setPixiDisplayTreeVisibility(shot.container, isShotActive || isHandingOff);
                 if (!shot.container.visible) return;
-                this.updateShot(shot, time, width, height);
+                updateTemperaShot(shot, time, width, height, this.options.tuning, this.options.theme);
             });
             scene.activeShotIndex = activeShotIndex;
 
@@ -796,7 +468,7 @@ export class TemperaPixiRuntime {
             // over the lyric inversion's backdrop copy (`temperaSceneFilters.ts`).
             setTemperaTransitionBlur(scene, transitionFrame.blur);
             if (transitionFrame.wipe > 0.001 && transitionFrame.wipe < 1.999) {
-                this.drawWipe(
+                this.overlay.drawWipe(
                     transitionFrame.wipe,
                     transitionFrame.wipeAngle,
                     width,
@@ -807,19 +479,8 @@ export class TemperaPixiRuntime {
             }
         });
 
-        if (!wipeDrawn) this.drawWipe(0, 0, width, height, '#000000');
-        this.creditsContainer.visible = creditsFrame.active && hasCredits;
-        this.creditsContainer.alpha = creditsFrame.posterAlpha;
-        // The card is never a still frame: shapes keep drifting under the fixed title, so the
-        // inversion filter re-cuts it for as long as the outro runs.
-        if (this.creditsContainer.visible) {
-            this.credits?.updateTime(time - (finalParagraph?.endTime ?? time));
-        }
-        this.creditsContainer.position.set(
-            width / 2,
-            height / 2 + creditsFrame.posterOffsetY * height,
-        );
-        this.creditsContainer.scale.set(creditsFrame.posterScale);
+        if (!wipeDrawn) this.overlay.drawWipe(0, 0, width, height, '#000000');
+        this.creditsLayer.applyFrame(creditsFrame, hasCredits, time, finalParagraph?.endTime, width, height);
     };
 
     renderOnce() {
@@ -885,24 +546,15 @@ export class TemperaPixiRuntime {
         // will draw both against real dimensions.
         if (this.lastWidth > 0 && this.lastHeight > 0) {
             this.drawOverlay(this.lastWidth, this.lastHeight);
-            if (staged) this.adoptCredits(staged.credits, this.lastWidth, this.lastHeight);
+            if (staged) this.creditsLayer.adopt(staged.credits, this.lastWidth, this.lastHeight);
             else this.drawCredits(this.lastWidth, this.lastHeight);
         }
-    }
-
-    /** Frees a poster that was never installed in the credits container. */
-    private destroyCreditsView(view: TemperaCreditsView) {
-        view.container.children.forEach(child => {
-            child.filters = null;
-        });
-        view.filters.forEach(filter => filter.destroy());
-        destroyPixiDisplayTree(view.container);
     }
 
     /** Frees a staged scene and poster that will never be adopted. */
     private discardStaged(staged: { scene: TemperaSceneView; credits: TemperaCreditsView | null }) {
         this.destroyScene(staged.scene);
-        if (staged.credits) this.destroyCreditsView(staged.credits);
+        if (staged.credits) this.creditsLayer.destroyView(staged.credits);
     }
 
     /**
@@ -943,7 +595,7 @@ export class TemperaPixiRuntime {
             // fixed-resolution filters against that new surface.
             this.app.renderer.resolution = resolution;
         }
-        if (requiresSceneRebuild(previous, tuning)) {
+        if (requiresTemperaSceneRebuild(previous, tuning)) {
             // Staged against the old tuning, so it can no longer be adopted.
             this.songSwap.dropStaged();
             this.clearScenes();
@@ -987,16 +639,9 @@ export class TemperaPixiRuntime {
         this.app.stop();
         this.app.ticker.remove(this.renderFrame);
         this.sceneCache.destroyAll();
-        this.disposeCredits();
-        this.wipeGraphics = null;
-        // These textures were built here rather than owned by a scene, so they are released
-        // here too; app.destroy only walks what is still on the stage.
-        this.imageTextures.forEach(texture => {
-            const source = texture.source.resource;
-            texture.destroy(true);
-            closeImageBitmap(source);
-        });
-        this.imageTextures.clear();
+        this.creditsLayer.dispose();
+        this.overlay.release();
+        this.imageTextures.destroy();
         this.app.destroy({ removeView: true }, { children: true, texture: true });
     }
 }

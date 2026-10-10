@@ -7,6 +7,8 @@ import {
 } from '@/components/visualizer/pixiDisplayResources';
 import { SonnetPixiRuntime } from '@/components/visualizer/sonnet/createSonnetPixiRuntime';
 import { TemperaPixiRuntime } from '@/components/visualizer/tempera/createTemperaPixiRuntime';
+import { TemperaOverlay } from '@/components/visualizer/tempera/temperaOverlay';
+import type { TemperaTuning, Theme } from '@/types';
 
 // test/unit/visualizer/pixiGpuRelease.test.ts
 // 场景 / 画框 / 片尾卡被丢掉时，Graphics 自建的 GraphicsContext 要当场销毁，不能留给 Pixi 的 GC（空闲 60 秒才收）。
@@ -91,17 +93,14 @@ describe('商籁 / 凝彩运行时丢场景时放掉 Graphics 的 context', () =
     });
 
     it('凝彩重画画框：上一版的角标与擦除块的 context 一起销毁', () => {
-        const overlayContainer = new pixi.Container();
-        const runtime = Object.assign(Object.create(TemperaPixiRuntime.prototype), {
-            pixi,
-            overlayContainer,
-            options: { tuning: { showCornerMarks: true }, theme: { primaryColor: '#ff8800' } },
-        }) as unknown as { drawOverlay: (width: number, height: number) => void };
-        runtime.drawOverlay(1600, 900);
-        const first = (overlayContainer.children as pixi.Graphics[]).map(graphics => graphics.context);
+        const overlay = new TemperaOverlay(pixi);
+        const tuning = { showCornerMarks: true } as TemperaTuning;
+        const theme = { primaryColor: '#ff8800' } as Theme;
+        overlay.draw(1600, 900, tuning, theme);
+        const first = (overlay.container.children as pixi.Graphics[]).map(graphics => graphics.context);
         expect(first).toHaveLength(2);
-        runtime.drawOverlay(1600, 900);
+        overlay.draw(1600, 900, tuning, theme);
         expect(first.every(context => context.destroyed)).toBe(true);
-        expect(overlayContainer.children).toHaveLength(2);
+        expect(overlay.container.children).toHaveLength(2);
     });
 });
