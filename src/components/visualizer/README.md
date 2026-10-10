@@ -39,7 +39,7 @@ App / ThemePark / VisPlayground / OBS source
 | `cadenza` | Mindscape | `cadenza/VisualizerCadenza.tsx`（RAF 渲染）、`cadenzaPreparedState.ts` / `cadenzaFragments.ts` / `cadenzaPlacements.ts`（测量与落点）、`cadenzaEnvelopes.ts`（时序包络）、`cadenza/tuning.ts` |
 | `partita` | 云阶 | `partita/VisualizerPartita.tsx`、`partita/tuning.ts` |
 | `fume` | Fume | `fume/VisualizerFume.tsx`、`fume/tuning.ts` |
-| `cappella` | Cappella | `cappella/VisualizerCappella.tsx`、`avatarImages.ts`、`emoImages.ts` |
+| `cappella` | Cappella | `cappella/VisualizerCappella.tsx`、`CappellaMessageRow.tsx` / `CappellaBubbleParts.tsx`（消息行与气泡）、`cappellaMessages.ts`（消息编排）、`cappellaReveal.ts` / `cappellaBubbleMetrics.ts`（逐字时序与测量）、`avatarImages.ts`、`emoImages.ts` |
 | `tilt` | Tilt | `tilt/VisualizerTilt.tsx`、`tilt/tuning.ts` |
 | `claddagh` | Claddagh | `claddagh/VisualizerCladdagh.tsx`、`claddagh/tuning.ts` |
 | `monet` | Monet | `monet/VisualizerMonet.tsx`、`monet/monetLyricsModel.ts`、`monet/tuning.ts` |
