@@ -2,47 +2,59 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { type MotionValue } from 'framer-motion';
 import * as THREE from 'three';
-import { type AudioBands, type DioramaGeometryVisibility, type Line, type Theme } from '../../../types';
+import { type AudioBands, type DioramaGeometryVisibility, type Theme } from '../../../types';
 import { buildLineGraphemeTimeline, splitLyricGraphemes, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
 import { prepareDioramaKeywordMatchers, resolveDioramaKeywordUnitColors } from './dioramaKeywordColor';
-import {
-    buildFormation,
-    DIORAMA_HERO_DISTANCE,
-    getFrame,
-    type DioramaFrame,
-    type DioramaMotionParams,
-    type DioramaTextPlacement,
-    getDioramaShot,
-    getDioramaTextPlacement,
-} from './cameraPath';
+import { buildFormation, DIORAMA_HERO_DISTANCE, type DioramaMotionParams, getDioramaShot, getDioramaTextPlacement } from './cameraPath';
 import { resolveGlobal, type SequencerState, totalGlobalLines } from './dioramaSequencer';
-import {
-    DIORAMA_CLUSTER_COLLISION_LINE_SPAN,
-    selectVisibleDioramaClusters,
-    type DioramaParticleClusterAnchor,
-} from './dioramaGeometry';
-import {
-    buildDioramaFontSpec,
-    DIORAMA_RASTER_FONT_PX,
-    type DioramaLineRaster,
-    measureDioramaText,
-    rasterDioramaLine,
-    rasterDioramaUnit,
-    type DioramaUnitRaster,
-} from './dioramaTextRaster';
+import { DIORAMA_CLUSTER_COLLISION_LINE_SPAN, selectVisibleDioramaClusters, type DioramaParticleClusterAnchor } from './dioramaGeometry';
+import { buildDioramaFontSpec, DIORAMA_RASTER_FONT_PX, type DioramaLineRaster, measureDioramaText, rasterDioramaLine, rasterDioramaUnit } from './dioramaTextRaster';
 import { DioramaParticleField } from './DioramaParticleField';
 import { buildDioramaParticleCorridorWindow } from './dioramaParticleCorridor';
+import { DIORAMA_MOTE_LINES_AHEAD, DIORAMA_MOTE_LINES_BEHIND, DIORAMA_MOTE_WINDOW_LINES, dioramaMoteSlot, extendDioramaFrame, resolveDioramaMoteCircumference, resolveDioramaMoteRadial, writeDioramaMoteLine } from './dioramaMoteField';
 import {
-    DIORAMA_MOTE_LINES_AHEAD,
-    DIORAMA_MOTE_LINES_BEHIND,
-    DIORAMA_MOTE_WINDOW_LINES,
-    dioramaMoteSlot,
-    extendDioramaFrame,
-    resolveDioramaMoteCircumference,
-    resolveDioramaMoteRadial,
-    writeDioramaMoteLine,
-} from './dioramaMoteField';
+    ACTIVE_LINE_OPACITY,
+    COLOR_DAMP_RATE,
+    CORRIDOR_LINES_AHEAD,
+    CORRIDOR_LINES_BEHIND,
+    FOG_FAR,
+    FOG_NEAR,
+    LINES_AHEAD,
+    LINES_BEHIND,
+    LINE_FONT_SIZE,
+    NEIGHBOR_RASTER_BUDGET,
+    OUTGOING_LINES_AHEAD,
+    OUTGOING_LINES_BEHIND,
+    SOUL_ACTIVE_LIFT_EM,
+    SOUL_ACTIVE_SWELL,
+    SOUL_DETACH_LIFT_EM,
+    SOUL_DETACH_SWELL,
+    SOUL_HANDOFF_SECONDS,
+    SOUL_MAX_OPACITY,
+    UNIT_GLOW_MAX_OPACITY,
+    UNSUNG_UNIT_OPACITY,
+    clamp01,
+    resolveNeighborLineOpacity,
+    resolveOutgoingLineOpacity,
+    smoothstep01,
+    stepEnvelope,
+} from './dioramaSceneConstants';
+import {
+    frameQuaternion,
+    resolveDioramaUnitFill,
+    resolveFrameFitScale,
+    resolveGradientEnergy,
+    resolveTextLife,
+    shouldResetDioramaUnitState,
+} from './dioramaSceneUnits';
+import {
+    CJK_GRAPHEME_RE,
+    type DampedThemeColors,
+    type LyricUnit,
+    type PlacedUnitRaster,
+    type VisibleLineEntry,
+} from './dioramaSceneTypes';
 
 // src/components/visualizer/diorama/DioramaScene.tsx
 // Renders the lyric corridor along the winding path. Each nearby lyric line is staged on its path
@@ -120,212 +132,6 @@ interface DioramaSceneProps {
     keywordColoringEnabled: boolean;
 }
 
-// Which lines get mounted as 3D text + formations, relative to the current line. Past lines stay
-// mounted so a finished line recedes visibly instead of vanishing; upcoming lines mount ahead and are
-// born out of the far haze by the lifecycle fade.
-const LINES_AHEAD = 3;
-const LINES_BEHIND = 2;
-// The outgoing TEXT during a transition needs only a small departing cluster on screen (it is being left
-// behind), so its window is tighter than the live one - fewer meshes/rasters mounted per switch. This
-// pair is text-only; the corridor sizes its outgoing window from clearance instead (see below).
-const OUTGOING_LINES_BEHIND = 2;
-const OUTGOING_LINES_AHEAD = 1;
-// The corridor gets a LONGER window than the text, and it has to clear the visible band at BOTH ends: a
-// point stops existing past DIORAMA_SHAPE_FADE_IN_END (27) and fog closes at FOG_FAR (30), so an end
-// nearer than that is a hole you can look through. Lines sit DIORAMA_STEP_DISTANCE (8) apart, and the
-// camera trails the read head by DIORAMA_HERO_DISTANCE (5.2), stretched to ~15 in the worst case (the
-// widest shot pulls back to 2x hero, and 运镜幅度 scales that excursion by up to 1.6):
-//   ahead:  7 * 8 - 3.4 (nearest shot) = 52 units clear - most visible at a song's start, staring down
-//           the tunnel from line 0.
-//   behind: 6 * 8 - 15 (widest shot)   = 33 units clear. This was 2, i.e. 16 - 15 = ONE unit clear: any
-//           shot that swung the camera off the forward axis showed the tunnel's open back end.
-const CORRIDOR_LINES_AHEAD = 7;
-const CORRIDOR_LINES_BEHIND = 6;
-// How many neighbour line textures to rasterise per animation frame - keeps the per-frame cost bounded so
-// a song change (several new lines at once) spreads across a few frames instead of hitching one.
-const NEIGHBOR_RASTER_BUDGET = 2;
-// Opacity for a non-active mounted line, by SIGNED offset from the current line. Past lines stay as a
-// receding trail but MUTED - bright enough to exist, dim enough that a lingering credits line can
-// never read as a second subtitle stamped over the current one.
-const resolveNeighborLineOpacity = (offset: number): number => {
-    if (offset === -1) return 0.3;
-    if (offset === -2) return 0.1;
-    if (offset === 1) return 0.34;
-    if (offset === 2) return 0.16;
-    if (offset === 3) return 0.06;
-    return 0;
-};
-// Opacity for an OUTGOING corridor's lines during a transition: a soft, uniform departing glow. Its own
-// former-active line reads brightest, the rest a touch dimmer, so the leaving scene still looks like a
-// real scene. Uniform ON PURPOSE - the fade-out is the camera flying away from them, applied by the
-// distance lifecycle (resolveTextLife) and dressed by the fog, not baked into this curve.
-const resolveOutgoingLineOpacity = (offsetFromOutgoing: number): number =>
-    offsetFromOutgoing === 0 ? 0.7 : Math.abs(offsetFromOutgoing) <= 2 ? 0.45 : 0.25;
-
-// Nominal world size of one em of lyric text. A line is always exactly one row (the rasteriser never
-// wraps); longer lines are shrunk to fit via the frame-fit scale below.
-const LINE_FONT_SIZE = 0.62;
-// Fraction of the visible frame width a full line may occupy AT THE HERO DISTANCE. The fit scale is
-// computed against this FIXED reference distance, not the live camera distance, so the camera
-// approaching/passing a line genuinely grows/foreshortens it (real dolly motion).
-const TARGET_FRAME_WIDTH_FRACTION = 0.72;
-// Floor for the fit scale so an extremely long line becomes small-but-readable instead of vanishing.
-const MIN_FIT_SCALE = 0.28;
-const DEG_TO_RAD = Math.PI / 180;
-// Fog band: far enough to keep the hero line and its formation crisp, near enough that the +3 line
-// and its set-piece are born inside the haze (the lifecycle fade and the fog work together).
-const FOG_NEAR = 12;
-const FOG_FAR = 30;
-// Text-specific near-dissolve band (tighter than the shapes'): a lyric passing right by the lens
-// melts away instead of smearing across it, but no shot's normal framing distance ever triggers it.
-const TEXT_DISSOLVE_START = 2.0;
-const TEXT_DISSOLVE_END = 0.9;
-// Far end of the text lifecycle - the half that was missing. Sits entirely PAST the fog's far plane, so
-// it can never dim a line the scene actually means to show (a mounted neighbour tops out around 24-30
-// units even in the widest shot); it exists to guarantee a line reaches true zero rather than merely
-// fog-coloured. Fog recolours a fragment toward the background, it does not remove it - a fully-fogged
-// lyric still draws background-coloured glyphs at its own opacity, which over the corridor's points
-// (rather than over the empty shell background) reads as a ghost line that is not in this scene. A song
-// change parks the previous corridor TRANSITION_DISTANCE (46) away while its last lines stay mounted as
-// the new song's index-adjacent trail, so that is the normal path, not a corner case.
-const TEXT_FADE_IN_START = 32;
-const TEXT_FADE_IN_END = 40;
-// How quickly the damped theme colours chase their targets (per-second rate for the exp smoothing).
-// Deliberately gentle (~1.5s to settle) so on a song change the palette eases over roughly the same span
-// the outgoing scene takes to recede into the fog - the departing elements don't visibly snap to the new
-// song's theme mid-flight, and manual/AI theme changes glide instead of stepping.
-const COLOR_DAMP_RATE = 1.2;
-// Per-unit sung-state rendering, copying the project's classic-visualizer reveal model: a unit that
-// has not been sung yet sits dim; the unit being sung RIGHT NOW turns accent-coloured and glows; a
-// finished unit returns to plain bright text.
-const ACTIVE_LINE_OPACITY = 0.92;
-const UNSUNG_UNIT_OPACITY = 0.5;
-// Ceiling for the glow plane's additive opacity (scaled by the per-frame level and the 辉光 slider).
-const UNIT_GLOW_MAX_OPACITY = 0.9;
-// 灵魂出窍跟唱: an additive GHOST copy of the sung glyph (the crisp base raster, not the blurred
-// glow). While the unit is being sung the ghost hovers just off the text; once the unit finishes,
-// its envelope releases slowly and the ghost DETACHES - rising, swelling and fading out, like the
-// glyph's energy layer leaving the body. All ceilings scale with the 灵魂出窍 slider.
-const SOUL_MAX_OPACITY = 0.6;
-const SOUL_ACTIVE_LIFT_EM = 0.06;
-const SOUL_DETACH_LIFT_EM = 0.5;
-const SOUL_ACTIVE_SWELL = 0.1;
-const SOUL_DETACH_SWELL = 0.3;
-// How long AFTER a glyph finishes the ghost eases from "registered on the glyph" (当前字漂移) to full
-// "out-of-body flight" (灵魂出窍强度). Read from the clock, so it is exactly 0 the whole time the glyph
-// is being sung - the currently-sung glyph can never pick up the flight, no matter its envelope charge.
-const SOUL_HANDOFF_SECONDS = 0.5;
-
-const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
-
-// Fast-attack / slow-release envelope step: a rising target is chased quickly (beats hit on time), a
-// falling one slowly (long notes sustain, then breathe out). Everything music-reactive in the scene
-// tracks these smoothed envelopes instead of raw per-frame FFT values, so nothing can flicker.
-const stepEnvelope = (current: number, target: number, attack: number, release: number, delta: number): number =>
-    current + (target - current) * (1 - Math.exp(-(target > current ? attack : release) * delta));
-
-const smoothstep01 = (t: number): number => t * t * (3 - 2 * t);
-
-// 渐变跟唱 wake, in seconds AFTER a unit stops being sung: a brief hold at full tint, then a bounded
-// decay that lands on exactly 0. Total wake is HOLD + TRAIL, the same order as the trail this replaces.
-const GRADIENT_HOLD_SECONDS = 0.35;
-const GRADIENT_TRAIL_SECONDS = 1.8;
-
-/**
- * 渐变跟唱 energy for ONE unit at ONE instant: 0 before it is sung, easing to 1 across its own span,
- * holding, then decaying one-way to 0 - 出现 / 保持 / 衰减 / 回到底色.
- *
- * Reads ONLY this unit's own start/end time. It deliberately knows nothing about the line's progress:
- * the previous version summed a `0.25 * lineProgress` term into every sung unit, so each finished word
- * was re-tinted, brighter and brighter, by later words still being sung (measured: a line's first word
- * decayed to 0.42 and then climbed back to 0.60 over a 12s line). It also had a 0.35 floor, so a
- * finished word never reached its base colour - the whole line un-tinted together when a line-level
- * gate released, instead of each word settling on its own.
- *
- * PURE, and carries no frame-to-frame state. That is what makes seeking, looping, pausing and song
- * changes correct BY CONSTRUCTION: the colour is a function of the playback clock, so there is nothing
- * to reset and nothing that can drift out of step with it. The gate it replaces was an envelope
- * advanced by real frame delta, which kept fading the tint for seconds after a pause froze the clock.
- */
-export const resolveGradientEnergy = (
-    now: number,
-    unit: { startTime: number; endTime: number },
-): number => {
-    if (now <= unit.startTime) return 0;
-    if (now < unit.endTime) {
-        const span = Math.max(unit.endTime - unit.startTime, 0.001);
-        return smoothstep01(clamp01((now - unit.startTime) / span));
-    }
-    const sinceSung = now - unit.endTime;
-    if (sinceSung <= GRADIENT_HOLD_SECONDS) return 1;
-    return 1 - smoothstep01(clamp01((sinceSung - GRADIENT_HOLD_SECONDS) / GRADIENT_TRAIL_SECONDS));
-};
-
-/**
- * The fill colour of ONE lyric unit: its resting colour, dyed toward `target` by its OWN sung progress.
- *
- * Every unit rests at `primary` - keyword or not. `target` is the ONLY thing 关键字着色 changes, and that
- * is precisely what keeps an AI keyword hidden until the singing reaches it: at progress 0 this returns
- * exactly `primary`, so no target colour can leak ahead of the read-head, whatever colour it is. An AI
- * keyword marks what colour a word BECOMES when sung, never what colour it starts as.
- *
- * One base, one target, one interpolation - so keyword colour and follow-sing colour can never be two
- * finished colours fighting to overwrite each other. Writes into `out`; allocates nothing per frame.
- */
-export const resolveDioramaUnitFill = (
-    out: THREE.Color,
-    primary: THREE.Color,
-    target: THREE.Color,
-    progress: number,
-): THREE.Color => out.copy(primary).lerp(target, clamp01(progress));
-
-/**
- * Whether the active line's per-unit state (the light/soul envelope arrays and the material ref slots)
- * must be reallocated this frame.
- *
- * The obvious trigger is a new active line. The second one is not obvious and was missing: a lyric swap
- * under a LIVE index. updateActiveSegmentLines rebuilds the active corridor IN PLACE - same globalStart,
- * same index, different words - when a slow load's lyrics arrive late or a provider reprocesses them. The
- * line changes, its unit count changes with it, and the global index does not move, so keying the reset on
- * the index alone left the envelope arrays sized for the PREVIOUS line.
- *
- * That failed silently, which is why it has a test. A Float32Array read past its end is `undefined`, not an
- * error; `undefined` then flows through the envelope step into NaN, a write of NaN past the end is
- * swallowed, and the unit's fill lerps by NaN - so every unit past the old length renders a NaN colour for
- * the rest of the line. Comparing the LENGTH catches it directly and covers the first allocation too
- * (`undefined !== count`), so there is no separate init path.
- */
-export const shouldResetDioramaUnitState = (
-    previousGlobalIndex: number,
-    globalIndex: number,
-    unitStateLength: number | undefined,
-    unitCount: number,
-): boolean => previousGlobalIndex !== globalIndex || unitStateLength !== unitCount;
-
-/**
- * Distance lifecycle for a lyric plane, BOTH ends - the same shape resolveShapeLifeOpacity gives the
- * set-pieces: 0 beyond the far haze, 1 through the mid-range, dissolving again as it passes the lens.
- */
-export const resolveTextLife = (distanceToCamera: number): number => {
-    const farT = clamp01((TEXT_FADE_IN_END - distanceToCamera) / (TEXT_FADE_IN_END - TEXT_FADE_IN_START));
-    const nearT = clamp01((distanceToCamera - TEXT_DISSOLVE_END) / (TEXT_DISSOLVE_START - TEXT_DISSOLVE_END));
-    return (farT * farT * (3 - 2 * farT)) * (nearT * nearT * (3 - 2 * nearT));
-};
-
-// Uniform scale that shrinks a rendered line so it occupies at most TARGET_FRAME_WIDTH_FRACTION of
-// the visible frame width at `distance`. three.js `fov` is the VERTICAL field of view.
-const resolveFrameFitScale = (
-    renderedWidth: number,
-    distance: number,
-    verticalFovDeg: number,
-    aspect: number
-): number => {
-    if (renderedWidth <= 0 || distance <= 0) return 1;
-    const frameWidth = 2 * distance * Math.tan((verticalFovDeg * DEG_TO_RAD) / 2) * aspect;
-    const targetWidth = frameWidth * TARGET_FRAME_WIDTH_FRACTION;
-    return Math.min(1, Math.max(MIN_FIT_SCALE, targetWidth / renderedWidth));
-};
-
 // Gradient colour temporaries (no per-frame alloc), all derived live from the theme's damped colours
 // so a manual/AI theme switch re-colours the gradient automatically. _sungTint = the theme accent,
 // made hue-safe when the palette is degenerate (see useFrame); _gradDeep = a darker, HUE-PRESERVING
@@ -333,72 +139,6 @@ const resolveFrameFitScale = (
 const _sungTint = new THREE.Color();
 const _gradDeep = new THREE.Color();
 const _neutral = new THREE.Color();
-
-// Reusable temporaries for building a line's text orientation from its path frame (no per-call alloc).
-const _basisMatrix = new THREE.Matrix4();
-const _basisQuat = new THREE.Quaternion();
-const _tiltQuat = new THREE.Quaternion();
-const _basisRight = new THREE.Vector3();
-const _basisUp = new THREE.Vector3();
-const _basisFwd = new THREE.Vector3();
-const _axisY = new THREE.Vector3(0, 1, 0);
-const _axisZ = new THREE.Vector3(0, 0, 1);
-
-// Orient a line's text to face back along the path toward the trailing camera (local +X -> frame
-// right, +Y -> frame up, +Z -> -forward: a proper rotation, never mirrored), then stage it with the
-// placement's slight yaw and in-plane roll so the typography sits expressively rather than level.
-const frameQuaternion = (frame: DioramaFrame, roll = 0, yaw = 0): [number, number, number, number] => {
-    _basisRight.set(frame.right.x, frame.right.y, frame.right.z);
-    _basisUp.set(frame.up.x, frame.up.y, frame.up.z);
-    _basisFwd.set(-frame.forward.x, -frame.forward.y, -frame.forward.z);
-    _basisMatrix.makeBasis(_basisRight, _basisUp, _basisFwd);
-    _basisQuat.setFromRotationMatrix(_basisMatrix);
-    if (yaw !== 0) _basisQuat.multiply(_tiltQuat.setFromAxisAngle(_axisY, yaw));
-    if (roll !== 0) _basisQuat.multiply(_tiltQuat.setFromAxisAngle(_axisZ, roll));
-    return [_basisQuat.x, _basisQuat.y, _basisQuat.z, _basisQuat.w];
-};
-
-interface VisibleLineEntry {
-    index: number;
-    line: Line;
-    placement: DioramaTextPlacement;
-    position: [number, number, number];
-    quaternion: [number, number, number, number];
-    /** True for lines belonging to the OUTGOING corridor during a transition (a different segment than
-     * the active one): rendered as a receding departing cluster rather than the current-song neighbours. */
-    isOutgoing: boolean;
-}
-
-interface DampedThemeColors {
-    primary: THREE.Color;
-    accent: THREE.Color;
-    secondary: THREE.Color;
-    bg: THREE.Color;
-}
-
-// One "unit" of the active line, rendered as its OWN plane: a single grapheme for CJK (每个字单独),
-// a whole word for other scripts (每个词单独). charStart/charEnd are code-unit indices into the line
-// string, used to measure the unit's exact slot in the full-line layout (kerning preserved).
-interface LyricUnit {
-    text: string;
-    charStart: number;
-    charEnd: number;
-    startTime: number;
-    endTime: number;
-}
-
-// Graphemes that split per character: han, kana, compatibility ideographs, half-width kana, PLUS
-// bullets/geometric shapes (the interlude countdown dots ●●● must each be their own unit so the
-// glow can centre on each dot). Everything else (latin etc.) groups into per-word units.
-const CJK_GRAPHEME_RE = /[⺀-鿿぀-ヿ豈-﫿ｦ-ﾟ•·■-◿]/;
-
-// A laid-out, rasterised unit of the active line, in world units at scale 1.
-interface PlacedUnitRaster {
-    raster: DioramaUnitRaster;
-    centerX: number;
-    width: number;
-    height: number;
-}
 
 const DioramaScene: React.FC<DioramaSceneProps> = ({
     theme,
