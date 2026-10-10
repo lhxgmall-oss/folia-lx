@@ -3,58 +3,41 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { type MotionValue } from 'framer-motion';
 import * as THREE from 'three';
 import { type AudioBands, type DioramaGeometryVisibility, type Theme } from '../../../types';
-import { buildLineGraphemeTimeline, splitLyricGraphemes, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
+import { buildLineGraphemeTimeline, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
 import { prepareDioramaKeywordMatchers, resolveDioramaKeywordUnitColors } from './dioramaKeywordColor';
-import { buildFormation, DIORAMA_HERO_DISTANCE, type DioramaMotionParams, getDioramaShot, getDioramaTextPlacement } from './cameraPath';
+import { DIORAMA_HERO_DISTANCE, type DioramaMotionParams } from './cameraPath';
 import { resolveGlobal, type SequencerState, totalGlobalLines } from './dioramaSequencer';
-import { DIORAMA_CLUSTER_COLLISION_LINE_SPAN, selectVisibleDioramaClusters, type DioramaParticleClusterAnchor } from './dioramaGeometry';
-import { buildDioramaFontSpec, DIORAMA_RASTER_FONT_PX, type DioramaLineRaster, measureDioramaText, rasterDioramaLine, rasterDioramaUnit } from './dioramaTextRaster';
+import { buildDioramaFontSpec } from './dioramaTextRaster';
 import { DioramaParticleField } from './DioramaParticleField';
-import { buildDioramaParticleCorridorWindow } from './dioramaParticleCorridor';
-import { DIORAMA_MOTE_LINES_AHEAD, DIORAMA_MOTE_LINES_BEHIND, DIORAMA_MOTE_WINDOW_LINES, dioramaMoteSlot, extendDioramaFrame, resolveDioramaMoteCircumference, resolveDioramaMoteRadial, writeDioramaMoteLine } from './dioramaMoteField';
+import { DIORAMA_MOTE_WINDOW_LINES, resolveDioramaMoteCircumference, resolveDioramaMoteRadial } from './dioramaMoteField';
 import {
-    ACTIVE_LINE_OPACITY,
     COLOR_DAMP_RATE,
-    CORRIDOR_LINES_AHEAD,
-    CORRIDOR_LINES_BEHIND,
     FOG_FAR,
     FOG_NEAR,
-    LINES_AHEAD,
-    LINES_BEHIND,
     LINE_FONT_SIZE,
-    NEIGHBOR_RASTER_BUDGET,
-    OUTGOING_LINES_AHEAD,
-    OUTGOING_LINES_BEHIND,
-    SOUL_ACTIVE_LIFT_EM,
-    SOUL_ACTIVE_SWELL,
-    SOUL_DETACH_LIFT_EM,
-    SOUL_DETACH_SWELL,
-    SOUL_HANDOFF_SECONDS,
-    SOUL_MAX_OPACITY,
-    UNIT_GLOW_MAX_OPACITY,
-    UNSUNG_UNIT_OPACITY,
-    clamp01,
     resolveNeighborLineOpacity,
     resolveOutgoingLineOpacity,
-    smoothstep01,
     stepEnvelope,
 } from './dioramaSceneConstants';
+import { resolveFrameFitScale, resolveTextLife, shouldResetDioramaUnitState } from './dioramaSceneUnits';
+import { type DampedThemeColors, type LyricUnit } from './dioramaSceneTypes';
 import {
-    frameQuaternion,
-    resolveDioramaUnitFill,
-    resolveFrameFitScale,
-    resolveGradientEnergy,
-    resolveTextLife,
-    shouldResetDioramaUnitState,
-} from './dioramaSceneUnits';
+    buildDioramaCorridorSpans,
+    buildDioramaParticleClusters,
+    buildDioramaVisibleLines,
+    layoutDioramaActiveUnits,
+    resolveDioramaMountedIndices,
+    splitDioramaLyricUnits,
+} from './dioramaSceneLayout';
+import { DioramaLineRasterCache } from './dioramaLineRasterCache';
 import {
-    CJK_GRAPHEME_RE,
-    type DampedThemeColors,
-    type LyricUnit,
-    type PlacedUnitRaster,
-    type VisibleLineEntry,
-} from './dioramaSceneTypes';
+    type DioramaUnitPlanes,
+    recycleDioramaMoteWindow,
+    updateDioramaActiveUnits,
+    updateDioramaNeighborLines,
+} from './dioramaSceneFrame';
+import { DioramaActiveUnitPlanes } from './DioramaActiveUnitPlanes';
 
 // src/components/visualizer/diorama/DioramaScene.tsx
 // Renders the lyric corridor along the winding path. Each nearby lyric line is staged on its path
@@ -78,6 +61,9 @@ import {
 // from the far haze (no pop-in) and dissolving gracefully when the camera closes in. Theme colours
 // are DAMPED per-frame (fog, lights, materials), so theme/AI theme changes and song switches glide
 // instead of snapping. All per-frame values are refs inside useFrame - never React state.
+//
+// 结构推导在 dioramaSceneLayout（纯函数），邻行栅格缓存在 dioramaLineRasterCache，每帧的写入在
+// dioramaSceneFrame，当前行逐单元平面在 DioramaActiveUnitPlanes；这里只做 React 装配与 useFrame 调度。
 interface DioramaSceneProps {
     theme: Theme;
     // The continuous-tunnel sequencer + the sticky GLOBAL line index. The scene resolves each global
@@ -132,14 +118,6 @@ interface DioramaSceneProps {
     keywordColoringEnabled: boolean;
 }
 
-// Gradient colour temporaries (no per-frame alloc), all derived live from the theme's damped colours
-// so a manual/AI theme switch re-colours the gradient automatically. _sungTint = the theme accent,
-// made hue-safe when the palette is degenerate (see useFrame); _gradDeep = a darker, HUE-PRESERVING
-// version the sung glyphs are dyed toward; _neutral = scratch for building a neutral grey.
-const _sungTint = new THREE.Color();
-const _gradDeep = new THREE.Color();
-const _neutral = new THREE.Color();
-
 const DioramaScene: React.FC<DioramaSceneProps> = ({
     theme,
     sequencer,
@@ -176,11 +154,7 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // tints it), glow material/mesh (additive cadenza glow raster - 普通辉光), and soul material/mesh
     // (additive crisp ghost copy that drifts out - 灵魂出窍).
     const unitsGroupRef = useRef<THREE.Group>(null);
-    const unitBaseMatRefs = useRef<Array<THREE.MeshBasicMaterial | null>>([]);
-    const unitGlowMatRefs = useRef<Array<THREE.MeshBasicMaterial | null>>([]);
-    const unitGlowMeshRefs = useRef<Array<THREE.Mesh | null>>([]);
-    const unitSoulMatRefs = useRef<Array<THREE.MeshBasicMaterial | null>>([]);
-    const unitSoulMeshRefs = useRef<Array<THREE.Mesh | null>>([]);
+    const unitPlanesRef = useRef<DioramaUnitPlanes>({ baseMats: [], glowMats: [], glowMeshes: [], soulMats: [], soulMeshes: [] });
     // Per-unit smoothed values (one slot per unit): lightVals drive the glow (fast release), soulVals
     // the ghost (slow release so it lingers and drifts after the word finishes). Both reset on a line
     // change via prevActiveGlobalRef. 渐变跟唱 keeps no state here - it is a pure function of the clock.
@@ -245,45 +219,16 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // on screen and recedes into the fog instead of vanishing - two spatially-separated clusters, one
     // scene. The outgoing cluster may be a different segment (song change) or the far end of the SAME
     // segment (loop back to start), so membership is by index proximity, not by segment.
-    const mountedIndices = useMemo(() => {
-        const indices = new Set<number>();
-        const addWindow = (center: number, behind: number, ahead: number) => {
-            const start = Math.max(center - behind, 0);
-            const end = Math.min(center + ahead, total - 1);
-            for (let i = start; i <= end; i += 1) indices.add(i);
-        };
-        addWindow(globalIndex, LINES_BEHIND, LINES_AHEAD);
-        if (transitionOutgoingIndex != null) addWindow(transitionOutgoingIndex, OUTGOING_LINES_BEHIND, OUTGOING_LINES_AHEAD);
-        return Array.from(indices).sort((a, b) => a - b);
-    }, [globalIndex, transitionOutgoingIndex, total]);
+    const mountedIndices = useMemo(
+        () => resolveDioramaMountedIndices(globalIndex, transitionOutgoingIndex, total),
+        [globalIndex, transitionOutgoingIndex, total],
+    );
 
-    const visibleLines = useMemo(() => {
-        const result: VisibleLineEntry[] = [];
-        for (const i of mountedIndices) {
-            const resolved = resolveGlobal(sequencer, i);
-            if (!resolved || !resolved.line) continue;
-            const { frame } = resolved;
-            const placement = getDioramaTextPlacement(resolved.localIndex, resolved.segment.seed, motion.weaveScale);
-            const position = {
-                x: frame.position.x + frame.right.x * placement.offsetR + frame.up.x * placement.offsetU,
-                y: frame.position.y + frame.right.y * placement.offsetR + frame.up.y * placement.offsetU,
-                z: frame.position.z + frame.right.z * placement.offsetR + frame.up.z * placement.offsetU,
-            };
-            result.push({
-                index: i,
-                line: resolved.line,
-                placement,
-                position: [position.x, position.y, position.z],
-                quaternion: frameQuaternion(frame, placement.roll, placement.yaw),
-                // A line belongs to the departing cluster if it sits nearer the outgoing centre than the
-                // current one (works whether that cluster is a different segment or this corridor's own end).
-                isOutgoing: transitionOutgoingIndex != null
-                    && Math.abs(i - transitionOutgoingIndex) <= Math.abs(i - globalIndex),
-            });
-        }
-        return result;
+    const visibleLines = useMemo(
+        () => buildDioramaVisibleLines(sequencer, mountedIndices, globalIndex, transitionOutgoingIndex, motion.weaveScale),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mountedIndices, sequencer, linesEpoch, transitionOutgoingIndex, globalIndex, motion.weaveScale]);
+        [mountedIndices, sequencer, linesEpoch, transitionOutgoingIndex, globalIndex, motion.weaveScale],
+    );
 
     // Which shape the point-cloud layer takes: independent per-line formations, or one path tunnel.
     const geometryMode = geometryVisibility.mode ?? 'clouds';
@@ -295,26 +240,11 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // song's start, where the camera sits at line 0 and stares straight down the tunnel.
     // During a song change the outgoing window is included too, so both tunnels exist: the departing one
     // recedes and disperses while the incoming one is born in the fog and gathers as the camera arrives.
-    const corridorSpans = useMemo(() => {
-        // Same master-toggle gate the clouds path gets inside selectVisibleDioramaClusters: with the
-        // point-cloud geometry switched off the tunnel must vanish too, not just the clouds.
-        if (!geometryVisibility.enabled || geometryMode !== 'corridor') return [];
-        // Each window extends its OWN segment past that segment's ends (see the builder). During a song
-        // change the two tunnels genuinely coexist - the departing one receding, the incoming one born in
-        // the fog - so both windows are built whole and simply concatenated. They can hold the same global
-        // index (one as a real line, the other as its own extension) and that is correct: they are
-        // TRANSITION_DISTANCE apart in the world.
-        const live = buildDioramaParticleCorridorWindow(
-            sequencer, globalIndex, CORRIDOR_LINES_BEHIND, CORRIDOR_LINES_AHEAD,
-        );
-        if (transitionOutgoingIndex == null) return live;
-        return [
-            ...buildDioramaParticleCorridorWindow(
-                sequencer, transitionOutgoingIndex, CORRIDOR_LINES_BEHIND, CORRIDOR_LINES_AHEAD,
-            ),
-            ...live,
-        ];
-    }, [geometryVisibility.enabled, geometryMode, globalIndex, transitionOutgoingIndex, sequencer, linesEpoch]);
+    const corridorSpans = useMemo(
+        () => buildDioramaCorridorSpans(sequencer, globalIndex, transitionOutgoingIndex, geometryVisibility, geometryMode),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [geometryVisibility.enabled, geometryMode, globalIndex, transitionOutgoingIndex, sequencer, linesEpoch],
+    );
 
     // Clouds mode only: per-line point-cloud anchors matched to each camera move and kept outside the
     // lyric/camera rail. The stable particleSeed excludes GLOBAL indices so a loop rebuilds the same
@@ -325,38 +255,11 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // wherever the camera is. Ranking by the current line instead re-ran that pass in a different order on
     // every line advance and silently re-shuffled the whole surrounding composition. The margin clusters
     // only vote; they are dropped again below.
-    const particleClusters = useMemo(() => {
-        if (geometryMode !== 'clouds') return [];
-        const result: DioramaParticleClusterAnchor[] = [];
-        const mounted = new Set(mountedIndices);
-        const clusterIndices = new Set<number>();
-        for (const i of mountedIndices) {
-            for (let back = 0; back <= DIORAMA_CLUSTER_COLLISION_LINE_SPAN; back += 1) {
-                if (i - back >= 0) clusterIndices.add(i - back);
-            }
-        }
-        for (const i of Array.from(clusterIndices).sort((a, b) => a - b)) {
-            const resolved = resolveGlobal(sequencer, i);
-            if (!resolved) continue;
-            const { frame, localIndex, segment } = resolved;
-            const placement = getDioramaTextPlacement(localIndex, segment.seed, motion.weaveScale);
-            const shot = getDioramaShot(localIndex, segment.lines, segment.seed, motion.subMode);
-            buildFormation(localIndex, segment.seed, shot, frame, placement, particleScale).forEach((piece, slot) => {
-                result.push({
-                    ...piece,
-                    key: `${i}-${slot}`,
-                    sourceLine: i,
-                    particleSeed: `${segment.seed ?? 'seed'}:${localIndex}:${slot}:${piece.kind}`,
-                    role: 'formation',
-                });
-            });
-            // Foreground gate clouds are intentionally omitted: their negative depth placed them on the
-            // camera side of the lyric rail and was the main source of path crossings and one-sided piles.
-        }
-        return selectVisibleDioramaClusters(result, geometryVisibility)
-            .filter((cluster) => mounted.has(cluster.sourceLine));
+    const particleClusters = useMemo(
+        () => buildDioramaParticleClusters(sequencer, mountedIndices, geometryMode, motion, geometryVisibility, particleScale),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [geometryMode, mountedIndices, sequencer, motion.weaveScale, motion.subMode, geometryVisibility, particleScale]);
+        [geometryMode, mountedIndices, sequencer, motion.weaveScale, motion.subMode, geometryVisibility, particleScale],
+    );
 
     // Background mote field: one Points draw call holding a sliding WINDOW of lines around the read head
     // (see dioramaMoteField.ts). The buffer is fixed-size and recycled in place per-frame below, so the
@@ -395,50 +298,10 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // Split the active line into individually-rendered units: every CJK grapheme is its own unit,
     // consecutive non-CJK graphemes of the same word form one unit. Whitespace separates units and is
     // never a unit itself (its advance still shapes the layout via prefix measurement).
-    const activeLineUnits: LyricUnit[] = useMemo(() => {
-        if (!activeLine || activeLineTimeline.length === 0) return [];
-        const graphemes = splitLyricGraphemes(activeLine.fullText);
-        // Prefix code-unit offset of each grapheme, mapping grapheme index -> string index.
-        const charOffsets: number[] = [];
-        let acc = 0;
-        for (const g of graphemes) { charOffsets.push(acc); acc += g.length; }
-        const units: LyricUnit[] = [];
-        const pushUnit = (from: number, to: number) => {
-            const text = graphemes.slice(from, to).join('');
-            if (text.trim().length === 0) return;
-            units.push({
-                text,
-                charStart: charOffsets[from] ?? 0,
-                charEnd: (charOffsets[to - 1] ?? 0) + (graphemes[to - 1]?.length ?? 1),
-                startTime: activeLineTimeline[from].startTime,
-                endTime: activeLineTimeline[to - 1].endTime,
-            });
-        };
-        let i = 0;
-        while (i < activeLineTimeline.length) {
-            const g = graphemes[i] ?? '';
-            if (g.trim().length === 0) { i += 1; continue; }
-            if (CJK_GRAPHEME_RE.test(g)) {
-                pushUnit(i, i + 1);
-                i += 1;
-                continue;
-            }
-            // Non-CJK: extend across the same word (same wordIndex), stopping at whitespace or CJK.
-            const wordIndex = activeLineTimeline[i].wordIndex;
-            let j = i + 1;
-            while (
-                j < activeLineTimeline.length
-                && activeLineTimeline[j].wordIndex === wordIndex
-                && (graphemes[j] ?? '').trim().length > 0
-                && !CJK_GRAPHEME_RE.test(graphemes[j] ?? '')
-            ) {
-                j += 1;
-            }
-            pushUnit(i, j);
-            i = j;
-        }
-        return units;
-    }, [activeLine, activeLineTimeline]);
+    const activeLineUnits: LyricUnit[] = useMemo(
+        () => splitDioramaLyricUnits(activeLine, activeLineTimeline),
+        [activeLine, activeLineTimeline],
+    );
 
     // 关键字着色. The keywords and their colours are the THEME's own `wordColors` - written by the AI
     // theme from the song's own lyrics, and the exact source every other visualizer draws from -
@@ -466,23 +329,10 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // Rasterise + lay out the active line's units. Layout measures PREFIX strings of the full line, so
     // every unit lands at its exact kerned slot; each unit's base/glow textures share one canvas
     // geometry, so the glow registers on the strokes exactly. Synchronous - ready the frame it's built.
-    const activeUnitsRaster = useMemo(() => {
-        if (!activeLine?.fullText || activeLineUnits.length === 0) return null;
-        const worldPerPx = LINE_FONT_SIZE / DIORAMA_RASTER_FONT_PX;
-        const full = activeLine.fullText;
-        const totalPx = measureDioramaText(full, fontSpec);
-        const units: PlacedUnitRaster[] = activeLineUnits.map((unit) => {
-            const prefixPx = measureDioramaText(full.slice(0, unit.charStart), fontSpec);
-            const raster = rasterDioramaUnit(full.slice(unit.charStart, unit.charEnd), fontSpec);
-            return {
-                raster,
-                centerX: (-totalPx / 2 + prefixPx + raster.advancePx / 2) * worldPerPx,
-                width: raster.canvasWidthPx * worldPerPx,
-                height: raster.canvasHeightPx * worldPerPx,
-            };
-        });
-        return { units, lineWidth: totalPx * worldPerPx };
-    }, [activeLine, activeLineUnits, fontSpec]);
+    const activeUnitsRaster = useMemo(
+        () => layoutDioramaActiveUnits(activeLine, activeLineUnits, fontSpec),
+        [activeLine, activeLineUnits, fontSpec],
+    );
     // Dispose the previous line's unit textures once a new set is in place.
     useEffect(() => {
         const current = activeUnitsRaster;
@@ -500,56 +350,19 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // but rasterises the MISSING lines only a couple per animation frame - and since incoming lines start
     // fog-hidden, the few-frame delay before a plane can mount is invisible. The tick state re-renders as
     // textures land (so their planes mount); every consumer reads the cache ref live.
-    const lineRasterCacheRef = useRef<Map<number, DioramaLineRaster>>(new Map());
-    const lineRasterFontRef = useRef('');
-    const lineRasterEpochRef = useRef(-1);
+    const lineRasterCacheRef = useRef<DioramaLineRasterCache | null>(null);
+    if (!lineRasterCacheRef.current) lineRasterCacheRef.current = new DioramaLineRasterCache();
+    const lineRasters = lineRasterCacheRef.current;
     const [, bumpNeighborTick] = useState(0);
-    useEffect(() => {
-        const cache = lineRasterCacheRef.current;
-        // A cached raster is only ever built for a MISSING index, so a lyric swap under a live index would
-        // otherwise keep serving the previous song's words at the right place forever. Flush on the epoch
-        // for the same reason the font change flushes: every entry is now derived from stale input.
-        if (lineRasterFontRef.current !== fontSpec || lineRasterEpochRef.current !== linesEpoch) {
-            cache.forEach((raster) => raster.texture.dispose());
-            cache.clear();
-            lineRasterFontRef.current = fontSpec;
-            lineRasterEpochRef.current = linesEpoch;
-        }
-        const wanted = new Set<number>();
-        visibleLines.forEach(({ index, line }) => {
-            if (line?.fullText && index !== globalIndex) wanted.add(index);
-        });
-        let changed = false;
-        cache.forEach((raster, index) => {
-            if (!wanted.has(index)) {
-                raster.texture.dispose();
-                cache.delete(index);
-                changed = true;
-            }
-        });
-        const missing: number[] = [];
-        wanted.forEach((index) => { if (!cache.has(index)) missing.push(index); });
-        if (missing.length === 0) {
-            if (changed) bumpNeighborTick((v) => v + 1);
-            return undefined;
-        }
-        let cancelled = false;
-        let rafId = 0;
-        let qi = 0;
-        const buildBatch = () => {
-            if (cancelled) return;
-            for (let n = 0; n < NEIGHBOR_RASTER_BUDGET && qi < missing.length; n += 1, qi += 1) {
-                const entry = visibleLines.find((e) => e.index === missing[qi]);
-                if (entry?.line?.fullText && !cache.has(missing[qi])) {
-                    cache.set(missing[qi], rasterDioramaLine(entry.line.fullText, fontStack, fontWeight));
-                }
-            }
-            bumpNeighborTick((v) => v + 1);
-            if (qi < missing.length) rafId = requestAnimationFrame(buildBatch);
-        };
-        rafId = requestAnimationFrame(buildBatch);
-        return () => { cancelled = true; if (rafId) cancelAnimationFrame(rafId); };
-    }, [visibleLines, globalIndex, fontSpec, fontStack, fontWeight, linesEpoch]);
+    useEffect(() => lineRasters.sync({
+        visibleLines,
+        globalIndex,
+        fontSpec,
+        fontStack,
+        fontWeight,
+        linesEpoch,
+        onChange: () => bumpNeighborTick((v) => v + 1),
+    }), [visibleLines, globalIndex, fontSpec, fontStack, fontWeight, linesEpoch, lineRasters]);
 
     // Free the neighbour cache's WebGL textures on UNMOUNT. The incremental effect above only disposes
     // textures it prunes (index no longer wanted) or flushes (font change); its cleanup just cancels the
@@ -558,20 +371,16 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
     // on the GPU. A dedicated []-deps effect: its cleanup runs ONLY on unmount, so it can't drop textures
     // that are still in use across an ordinary re-render.
     useEffect(() => () => {
-        lineRasterCacheRef.current.forEach((raster) => raster.texture.dispose());
-        lineRasterCacheRef.current.clear();
-    }, []);
+        lineRasters.disposeAll();
+    }, [lineRasters]);
 
     // The line the camera is LEAVING was, until this frame, drawn as per-glyph units (which never build a
     // whole-line neighbour raster). The instant a transition demotes it to a receding plane it needs that
     // raster THIS render, or it blinks out for the frame or two the async builder above would take (a
     // one-frame disappear/reappear of the outgoing lyric). Build just that ONE line synchronously - no
     // spike - so the swap from units to plane is seamless; all the genuinely new lines stay async.
-    if (transitionOutgoingIndex != null && !lineRasterCacheRef.current.has(transitionOutgoingIndex)) {
-        const leaving = visibleLines.find((entry) => entry.index === transitionOutgoingIndex);
-        if (leaving?.line?.fullText) {
-            lineRasterCacheRef.current.set(transitionOutgoingIndex, rasterDioramaLine(leaving.line.fullText, fontStack, fontWeight));
-        }
+    if (transitionOutgoingIndex != null) {
+        lineRasters.ensureOutgoing(transitionOutgoingIndex, visibleLines, fontStack, fontWeight);
     }
 
     // Fog toward the shell's background colour (the colour itself is damped per-frame below): distant
@@ -628,26 +437,16 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
         // exactly the lines that entered the window on the frames where it has. Lines past either end of
         // the lyrics get a straight procedural frame, so the dust keeps going where the path stops.
         if (showParticles) {
-            const written = moteWrittenRef.current;
-            const lastLine = Math.max(0, total - 1);
-            let dirty = false;
-            for (let line = globalIndex - DIORAMA_MOTE_LINES_BEHIND; line <= globalIndex + DIORAMA_MOTE_LINES_AHEAD; line += 1) {
-                const slot = dioramaMoteSlot(line);
-                if (written[slot] === line) continue;
-                const anchorLine = Math.min(Math.max(line, 0), lastLine);
-                const resolved = resolveGlobal(sequencer, anchorLine);
-                if (!resolved) continue;
-                writeDioramaMoteLine(
-                    motePositions,
-                    extendDioramaFrame(resolved.frame, line - anchorLine),
-                    line,
-                    moteCircumference,
-                    moteRadial,
-                    activeSeg?.seed,
-                );
-                written[slot] = line;
-                dirty = true;
-            }
+            const dirty = recycleDioramaMoteWindow({
+                written: moteWrittenRef.current,
+                motePositions,
+                sequencer,
+                globalIndex,
+                total,
+                moteCircumference,
+                moteRadial,
+                seed: activeSeg?.seed,
+            });
             if (dirty && moteAttrRef.current) moteAttrRef.current.needsUpdate = true;
         }
 
@@ -669,28 +468,18 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
         const { camera } = frameState;
         const aspect = camera instanceof THREE.PerspectiveCamera ? camera.aspect : 1;
         const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 55;
-        visibleLines.forEach(({ index, placement, isOutgoing }) => {
-            if (index === globalIndex) return;
-            const mesh = lineMeshRefs.current.get(index);
-            const mat = lineMatRefs.current.get(index);
-            const raster = lineRasterCacheRef.current.get(index);
-            if (!mesh || !mat || !raster) return;
-            const worldWidth = raster.advancePx * (LINE_FONT_SIZE / raster.fontPx);
-            const fit = resolveFrameFitScale(worldWidth, DIORAMA_HERO_DISTANCE, fov, aspect) * placement.scale * lyricsFontScale;
-            mesh.scale.setScalar(fit);
-            const life = resolveTextLife(mesh.position.distanceTo(camPos));
-            if (isOutgoing) {
-                // Departing corridor: a soft primary-toned cluster the camera is flying away from; `life`
-                // fades it out as it recedes, the fog dresses the way down (see resolveOutgoingLineOpacity).
-                mat.opacity = resolveOutgoingLineOpacity(index - (transitionOutgoingIndex ?? index)) * life;
-                mat.color.copy(damped.primary);
-            } else {
-                const offset = index - globalIndex;
-                mat.opacity = resolveNeighborLineOpacity(offset) * life;
-                // Past (already-sung) lines glow in the primary/bright tone as a lit trail; upcoming lines
-                // sit in the dim secondary tone, waiting in the dark.
-                mat.color.copy(offset < 0 ? damped.primary : damped.secondary);
-            }
+        updateDioramaNeighborLines({
+            visibleLines,
+            globalIndex,
+            transitionOutgoingIndex,
+            meshes: lineMeshRefs.current,
+            materials: lineMatRefs.current,
+            rasters: lineRasters.rasters,
+            camPos,
+            fov,
+            aspect,
+            lyricsFontScale,
+            damped,
         });
 
         // Per-unit reveal + the three INDEPENDENT follow-sing effects. The base reveal (dim -> bright
@@ -709,11 +498,12 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
             prevActiveGlobalRef.current = globalIndex;
             unitLightValsRef.current = new Float32Array(activeLineUnits.length);
             unitSoulValsRef.current = new Float32Array(activeLineUnits.length);
-            unitBaseMatRefs.current.length = activeLineUnits.length;
-            unitGlowMatRefs.current.length = activeLineUnits.length;
-            unitGlowMeshRefs.current.length = activeLineUnits.length;
-            unitSoulMatRefs.current.length = activeLineUnits.length;
-            unitSoulMeshRefs.current.length = activeLineUnits.length;
+            const planes = unitPlanesRef.current;
+            planes.baseMats.length = activeLineUnits.length;
+            planes.glowMats.length = activeLineUnits.length;
+            planes.glowMeshes.length = activeLineUnits.length;
+            planes.soulMats.length = activeLineUnits.length;
+            planes.soulMeshes.length = activeLineUnits.length;
         }
         if (unitsGroup && activeUnitsRaster && activeEntry && activeLine) {
             const fit = resolveFrameFitScale(activeUnitsRaster.lineWidth, DIORAMA_HERO_DISTANCE, fov, aspect)
@@ -724,132 +514,22 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
             const life = resolveTextLife(unitsGroup.position.distanceTo(camPos));
             const now = currentTime.get();
             const breath = 0.9 + 0.1 * Math.sin(frameState.clock.elapsedTime * 1.9);
-            const lightVals = unitLightValsRef.current;
-            const soulVals = unitSoulValsRef.current;
-
-            // 渐变跟唱 strength tier. There is deliberately no line-level gate: each unit owns its own
-            // wake (resolveGradientEnergy), so a line hands over to the next simply by its units running
-            // out of wake, and nothing at line scope can re-tint a word that has already settled.
-            const gradientStrength = Math.min(1.5, gradientIntensity);
-            // Sung-tint axis for this frame, from the theme's damped colours: normally the accent as
-            // is. When the palette is DEGENERATE (accent ~= primary - e.g. the built-in 墨染/素白
-            // themes ship the SAME colour for both, so any accent<->primary blend is mathematically
-            // invisible), the accent is blended toward a NEUTRAL grey offset in VALUE from the primary
-            // (darker on light-text themes, brighter on dark-text). Neutral, never a hue: amplifying
-            // the accent's sub-perceptual channel noise would tint a greyscale theme.
-            const tintSeparation = Math.abs(damped.accent.r - damped.primary.r)
-                + Math.abs(damped.accent.g - damped.primary.g)
-                + Math.abs(damped.accent.b - damped.primary.b);
-            _sungTint.copy(damped.accent);
-            if (tintSeparation < 0.4) {
-                const deficit = 1 - tintSeparation / 0.4;
-                const primaryLum = (damped.primary.r + damped.primary.g + damped.primary.b) / 3;
-                const accentLum = (damped.accent.r + damped.accent.g + damped.accent.b) / 3;
-                const targetLum = primaryLum > 0.5 ? accentLum * (1 - 0.5 * deficit) : accentLum + (1 - accentLum) * 0.55 * deficit;
-                _neutral.setRGB(targetLum, targetLum, targetLum);
-                _sungTint.lerp(_neutral, deficit);
-            }
-            // The gradient's DEEP anchor: a darker, hue-PRESERVING (multiply, not HSL - HSL would
-            // amplify channel noise into a fake hue) version of the sung-tint. The sung glyphs are
-            // dyed from the plain primary toward this, so the wave carries a deep, saturated,
-            // same-family colour that no palette washes out. The 强 tier makes the anchor deeper.
-            const gradHot01 = Math.min(1, Math.max(0, (gradientStrength - 0.1) / 1.4));
-            _gradDeep.copy(_sungTint).multiplyScalar(0.8 - 0.18 * gradHot01);
-
-            activeLineUnits.forEach((unit, i) => {
-                const baseMat = unitBaseMatRefs.current[i];
-                if (!baseMat || !lightVals || !soulVals) return;
-                const isCurrent = now >= unit.startTime && now < unit.endTime;
-                const sung = now >= unit.endTime;
-                const span = Math.max(unit.endTime - unit.startTime, 0.001);
-                const sungMix = sung ? 1 : isCurrent ? clamp01((now - unit.startTime) / span) : 0;
-
-                // Shared sung-state envelope: swells fast while this unit is sung, trails off after.
-                // It TIMES all three effects, but colour is written exactly once below.
-                lightVals[i] = stepEnvelope(lightVals[i], isCurrent ? 1 : 0, 14, 4.5, delta);
-
-                // 渐变跟唱 energy for this unit (its OWN follow-sing computation, alive with the other
-                // two effects off): a bounded wake that peaks as the unit is sung and relaxes to zero
-                // behind the singing - a wave travelling through the line, leaving each word back at its
-                // base colour. Unsung glyphs are untouched (energy 0).
-                const gradientEnergy = resolveGradientEnergy(now, unit) * gradientStrength;
-
-                // BASE REVEAL (always on): dim while unsung, sweeping to full as the unit is sung.
-                // The gradient effect adds a small opacity lift on top.
-                baseMat.opacity = Math.min(
-                    1,
-                    (UNSUNG_UNIT_OPACITY + (ACTIVE_LINE_OPACITY - UNSUNG_UNIT_OPACITY) * sungMix + 0.08 * Math.min(1, gradientEnergy)) * life
-                );
-
-                // ---- UNIFIED sung-colour state: the fill colour is computed exactly ONCE ----
-                // Glow and soul only READ this colour below (never re-dye), so stacking never double-
-                // deepens or over-saturates - and it is what makes them follow a keyword's own colour
-                // instead of glowing in the ordinary sung tint around AI-coloured glyphs.
-                //
-                // ONE base, ONE target, ONE interpolation driven by this unit's own sung progress:
-                //   unsung -> exactly damped.primary       sung -> target       after -> back to primary
-                // 关键字着色 changes only the TARGET. An AI keyword is a HIDDEN colour: it is not a
-                // resting colour and must never appear before the singing arrives, or a line shows its
-                // own answers ahead of itself. It emerges only as the unit is sung, everything else
-                // dyes toward the same colour, and it decays back to the plain lyric colour behind the
-                // singing. Ordinary units keep the shared sung tint as their target, exactly as before.
-                const unitTarget = keywordUnitColors.get(i)
-                    ?? (gradientIntensity > 0 ? _gradDeep : _sungTint);
-                // 渐变跟唱 times the dye when it is on (a pure, one-way function of this unit's own
-                // start/end - so a keyword emerges, peaks and decays with the word itself, and a seek
-                // or a loop recomputes it from the clock). Otherwise the shared baseline envelope does.
-                const unitProgress = gradientIntensity > 0 ? gradientEnergy : lightVals[i] * 1.15;
-                resolveDioramaUnitFill(baseMat.color, damped.primary, unitTarget, unitProgress);
-
-                // 普通辉光 (visual layer only - reads the unified colour, never writes it): brightness
-                // rides the shared envelope, breath and the music-power envelope AFTER smoothing.
-                // CRITICAL: the glow plane NEVER scales or moves - a scaled/offset additive glyph
-                // copy reads as a displaced ghost (that displacement IS the soul-drift mechanism,
-                // owned by the soul plane below). The glow stays registered on the strokes.
-                const glowStrength = Math.min(1.5, glowIntensity);
-                const glowLevel = lightVals[i] * life * breath * (0.6 + 0.4 * powerEnv) * glowStrength;
-                const glowMat = unitGlowMatRefs.current[i];
-                const glowMesh = unitGlowMeshRefs.current[i];
-                if (glowMat) {
-                    glowMat.opacity = Math.min(1, UNIT_GLOW_MAX_OPACITY * glowLevel);
-                    glowMat.color.copy(baseMat.color);
-                }
-                if (glowMesh) {
-                    glowMesh.visible = glowLevel > 0.012;
-                }
-
-                // 灵魂出窍 (visual layer only - reads the unified colour as its energy tint): TWO disjoint
-                // ghosts split by the glyph's PLAYBACK PHASE, read from the clock - NOT from the envelope
-                // magnitude (that was the leak: a short/fast glyph never lets soulVals reach 1, so
-                // `1-soulVals` fed the flight onto the glyph WHILE it was still being sung):
-                //   while CURRENT (now in [start,end)) -> registered ghost ON the glyph, the reading-
-                //     obstruction doubling            -> gated by the 当前字漂移 ON/OFF switch
-                //   once FINISHED (now >= end)         -> flight ghost rising, swelling and fading away, the trail
-                //     -> always on, at 灵魂出窍强度 (soulIntensity)
-                // `flightMix` is exactly 0 for the WHOLE time the glyph is current (sung is false then) and
-                // eases 0->1 over SOUL_HANDOFF_SECONDS after it finishes. 当前字漂移 is a plain on/off: ON lets
-                // the CURRENT glyph drift at the SAME soulIntensity as the trail; OFF holds it registered and
-                // clean (opacity/lift/swell all 0) until it finishes, while the trail still flies at full
-                // strength. The mix is continuous from 0 at the hand-off so nothing pops when the singing steps
-                // to the next glyph. soulVals stays the fade-in/out CHARGE (so the trail still fades as it
-                // flies). With 当前字漂移 ON, opacity collapses to SOUL_MAX*life*soulVals - the old look.
-                soulVals[i] = stepEnvelope(soulVals[i], isCurrent ? 1 : 0, 12, 2.2, delta);
-                const soulMat = unitSoulMatRefs.current[i];
-                const soulMesh = unitSoulMeshRefs.current[i];
-                if (soulMat && soulMesh) {
-                    const soulStrength = Math.min(1.5, soulIntensity);       // 灵魂出窍强度: drives both phases
-                    const flightMix = sung ? smoothstep01(clamp01((now - unit.endTime) / SOUL_HANDOFF_SECONDS)) : 0;
-                    // 当前字漂移 ON => the current glyph drifts at the same strength as everything else; OFF => 0.
-                    const activeReach = soulActiveEnabled ? soulStrength : 0;
-                    const onGlyph = (1 - flightMix) * activeReach;   // registered doubling, current glyph only
-                    const flown = flightMix * soulStrength;          // out-of-body flight, finished glyph only
-                    soulMat.color.copy(baseMat.color);
-                    soulMat.opacity = Math.min(1, SOUL_MAX_OPACITY * life * soulVals[i] * (onGlyph + flown));
-                    soulMesh.position.y = LINE_FONT_SIZE * (SOUL_ACTIVE_LIFT_EM * onGlyph + SOUL_DETACH_LIFT_EM * flown);
-                    const soulSwell = 1 + SOUL_ACTIVE_SWELL * onGlyph + SOUL_DETACH_SWELL * flown;
-                    soulMesh.scale.set(soulSwell, soulSwell, 1);
-                    soulMesh.visible = soulMat.opacity > 0.015;
-                }
+            updateDioramaActiveUnits({
+                activeLineUnits,
+                planes: unitPlanesRef.current,
+                lightVals: unitLightValsRef.current,
+                soulVals: unitSoulValsRef.current,
+                now,
+                delta,
+                life,
+                breath,
+                powerEnv,
+                damped,
+                keywordUnitColors,
+                glowIntensity,
+                soulIntensity,
+                soulActiveEnabled,
+                gradientIntensity,
             });
         } else {
             activeLineWidthRef.current = 0;
@@ -910,7 +590,7 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
                     ? resolveOutgoingLineOpacity(index - (transitionOutgoingIndex ?? index))
                     : resolveNeighborLineOpacity(offset);
                 if (initialOpacity <= 0) return null;
-                const raster = lineRasterCacheRef.current.get(index);
+                const raster = lineRasters.get(index);
                 if (!raster) return null;
                 const worldPerPx = LINE_FONT_SIZE / raster.fontPx;
                 const initialColor = isOutgoing || offset < 0 ? colors.primary : colors.secondary;
@@ -945,60 +625,12 @@ const DioramaScene: React.FC<DioramaSceneProps> = ({
                 // scale breathe per-frame. The active line never depth-tests, so geometry can frame it
                 // from any angle without covering the words.
                 <group key={globalIndex} ref={unitsGroupRef} position={activeEntry.position} quaternion={activeEntry.quaternion}>
-                    {activeUnitsRaster.units.map((placed, unitIndex) => (
-                        <React.Fragment key={unitIndex}>
-                            <mesh
-                                ref={el => { unitGlowMeshRefs.current[unitIndex] = el; }}
-                                visible={false}
-                                position={[placed.centerX, 0, -0.01]}
-                                renderOrder={17}
-                            >
-                                <planeGeometry args={[placed.width, placed.height]} />
-                                <meshBasicMaterial
-                                    ref={el => { unitGlowMatRefs.current[unitIndex] = el; }}
-                                    map={placed.raster.glowTexture}
-                                    transparent
-                                    opacity={0}
-                                    depthTest={false}
-                                    depthWrite={false}
-                                    blending={THREE.AdditiveBlending}
-                                    color={colors.accent}
-                                />
-                            </mesh>
-                            {/* 灵魂出窍 ghost: the CRISP base raster (not the blurred glow) drawn
-                                additively; useFrame lifts/swells/fades it as its envelope releases. */}
-                            <mesh
-                                ref={el => { unitSoulMeshRefs.current[unitIndex] = el; }}
-                                visible={false}
-                                position={[placed.centerX, 0, -0.005]}
-                                renderOrder={18}
-                            >
-                                <planeGeometry args={[placed.width, placed.height]} />
-                                <meshBasicMaterial
-                                    ref={el => { unitSoulMatRefs.current[unitIndex] = el; }}
-                                    map={placed.raster.baseTexture}
-                                    transparent
-                                    opacity={0}
-                                    depthTest={false}
-                                    depthWrite={false}
-                                    blending={THREE.AdditiveBlending}
-                                    color={colors.accent}
-                                />
-                            </mesh>
-                            <mesh position={[placed.centerX, 0, 0]} renderOrder={19}>
-                                <planeGeometry args={[placed.width, placed.height]} />
-                                <meshBasicMaterial
-                                    ref={el => { unitBaseMatRefs.current[unitIndex] = el; }}
-                                    map={placed.raster.baseTexture}
-                                    transparent
-                                    opacity={UNSUNG_UNIT_OPACITY}
-                                    depthTest={false}
-                                    depthWrite={false}
-                                    color={colors.primary}
-                                />
-                            </mesh>
-                        </React.Fragment>
-                    ))}
+                    <DioramaActiveUnitPlanes
+                        units={activeUnitsRaster.units}
+                        planes={unitPlanesRef.current}
+                        primaryColor={colors.primary}
+                        accentColor={colors.accent}
+                    />
                 </group>
             )}
 

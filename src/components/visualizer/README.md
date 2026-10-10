@@ -117,7 +117,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 
 ### Diorama
 
-`diorama/VisualizerDiorama.tsx` 进入 React Three Fiber 场景；场景/粒子/相机/文字光栅化分别看 `DioramaScene.tsx`、`dioramaParticle*.ts`、`cameraPath.ts`、`dioramaTextRaster.ts`。连续场景数据不要提升到 React state。
+`diorama/VisualizerDiorama.tsx` 进入 React Three Fiber 场景；场景/粒子/相机/文字光栅化分别看 `DioramaScene.tsx`（结构推导 `dioramaSceneLayout.ts`、每帧写入 `dioramaSceneFrame.ts`、邻行栅格缓存 `dioramaLineRasterCache.ts`、当前行单元平面 `DioramaActiveUnitPlanes.tsx`）、`dioramaParticle*.ts`、`cameraPath.ts`、`dioramaTextRaster.ts`。连续场景数据不要提升到 React state。
 
 ### Pendolo
 
