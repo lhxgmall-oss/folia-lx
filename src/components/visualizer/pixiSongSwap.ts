@@ -16,8 +16,10 @@ export interface PixiSongSwapHooks<TSong, TStaged> {
 interface PendingSwap<TSong, TStaged> {
     song: TSong;
     staged: TStaged | null;
+    /** Set once the build has been attempted, even when it produced nothing. */
     prepared: boolean;
     settle: () => void;
+    /** Drops the abort listener, so a long skip session cannot pile them up on one signal. */
     detachAbort: () => void;
 }
 
@@ -63,7 +65,13 @@ export class PixiSongSwap<TSong, TStaged> {
         });
     }
 
-    /** 每帧开头调用：第一帧 stage，第二帧 commit。 */
+    /**
+     * 每帧开头调用：第一帧 stage，第二帧 commit。
+     *
+     * One frame of the handover. First frame builds the incoming scene while the outgoing song
+     * still holds the picture; second frame cuts to it. Nothing is drawn over the change - the
+     * point is that the cut costs no work, not that it is hidden.
+     */
     advance() {
         const pending = this.pending;
         if (!pending) return;
@@ -75,13 +83,18 @@ export class PixiSongSwap<TSong, TStaged> {
         this.settle(true);
     }
 
-    /** 立即了结：commit 为 false（运行时正在销毁）时只丢弃 staged。 */
+    /**
+     * 立即了结：commit 为 false（运行时正在销毁）时只丢弃 staged。
+     *
+     * Finishes an in-flight handover immediately, committing whatever it was still holding.
+     */
     settle(commit: boolean) {
         const pending = this.pending;
         if (!pending) return;
         this.pending = null;
         pending.detachAbort();
         if (commit) this.hooks.commit(pending.song, pending.staged);
+        // Never adopted, so nothing else will ever free it.
         else if (pending.staged) this.hooks.discard(pending.staged);
         pending.settle();
     }

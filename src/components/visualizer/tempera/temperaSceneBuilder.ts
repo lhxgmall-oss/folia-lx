@@ -341,7 +341,7 @@ export const buildTemperaCreditsPoster = (
     return { container, filters, updateTime };
 };
 
-// Assembles the scene post-process chain from tuning; the chain itself is shared with sonnet.
+// Assembles the scene post-process chain from tuning; GLSL factories are shared with sonnet.
 const applyTemperaScenePostProcess = (
     pixi: PixiModule,
     container: import('pixi.js').Container,

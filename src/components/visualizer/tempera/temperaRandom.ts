@@ -4,7 +4,10 @@ import { hashVisualizerSeed } from '../visualizerSeedHash';
 // Supplies deterministic selection without relying on process-global random state.
 export {
     hashVisualizerSeed as hashTemperaSeed,
+    // Mixes a numeric seed with a salt so different sub-systems (blocks, decor,
+    // per-glyph jitter) stay decorrelated.
     mixVisualizerSeed as mixTemperaSeed,
+    // Deterministic 0..1 jitter per element index; seek-safe and rebuild-stable.
     visualizerHash01 as temperaHash01,
 } from '../visualizerSeedHash';
 

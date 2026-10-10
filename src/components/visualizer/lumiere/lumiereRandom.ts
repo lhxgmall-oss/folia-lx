@@ -4,7 +4,8 @@ import { hashVisualizerSeed } from '../visualizerSeedHash';
 // src/components/visualizer/lumiere/lumiereRandom.ts
 // 绘光的确定性随机数：按 key 播种的 mulberry32 流（key 先经 FNV-1a 散列）。场景构建与编译里的随机量
 // 全部从这里取，同一首歌同一个种子永远得到同一帧——seek、重建、预热都不会改变画面。
-// FNV 散列与 temperaRandom / sonnetRandom 共用 visualizerSeedHash；它们没有可连续取值的流，所以流在这里单独保留一份。
+// folia 已有的 temperaRandom / sonnetRandom 只提供 FNV 散列与逐元素哈希，没有可连续取值的流，所以这里单独保留一份。
+// FNV 散列本身与它们共用 visualizerSeedHash。
 
 /** mulberry32：32 位状态，周期 2^32，对装饰用的随机足够。数字种子直接当状态，字符串种子先散列。 */
 export const createRng = (seed: string | number) => {

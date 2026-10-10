@@ -15,7 +15,7 @@ import type { WordColorMatcher } from '../../wordColoring';
 // 构建结果只由（行、种子）决定，与构建顺序无关。
 type PixiModule = typeof import('pixi.js');
 
-/** 按需构建：往后预先建几行、离开窗口多远才释放。 */
+/** 按需构建：当前行前后各画几行、往后预先建几行、离开窗口多远才释放。 */
 const PREBUILD = 2;
 const KEEP_MARGIN = 2;
 

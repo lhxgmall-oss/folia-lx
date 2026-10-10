@@ -72,6 +72,7 @@ export const GlowWord = <TConfig extends { id: string }>({
             variants={layoutVariants}
             initial="waiting"
             animate={status}
+            // Add `whitespace-nowrap` to prevent unexpected line breaks
             className="inline-block origin-center relative will-change-transform whitespace-nowrap"
             style={{
                 fontSize,
@@ -80,7 +81,7 @@ export const GlowWord = <TConfig extends { id: string }>({
                 ...layoutStyle,
             }}
         >
-            {/* Glow Layer */}
+            {/* Glow Layer - Handles Text Shadow - Absolute Position */}
             <span
                 className="absolute inset-0 select-none pointer-events-none block"
                 aria-hidden="true"
@@ -116,7 +117,7 @@ export const GlowWord = <TConfig extends { id: string }>({
                 )}
             </span>
 
-            {/* Body Layer */}
+            {/* Body Layer - Handles Color and Blur - Relative Position */}
             <motion.span
                 variants={bodyVariants}
                 custom={{ config, activeColor, baseColor, duration, wordRevealMode: renderProfile.wordRevealMode }}
@@ -125,7 +126,7 @@ export const GlowWord = <TConfig extends { id: string }>({
                 {word.text}
             </motion.span>
 
-            {/* Chorus Ripple */}
+            {/* Chorus Ripple Effect */}
             <AnimatePresence>
                 {isChorus && status === 'active' && (
                     <motion.span

@@ -62,8 +62,8 @@ export class TemperaImageTextures {
     }
 
     /**
-     * These textures were built here rather than owned by a scene, so they are released here
-     * too; app.destroy only walks what is still on the stage.
+     * These textures were built here rather than owned by a scene, so they are released
+     * here too; app.destroy only walks what is still on the stage.
      */
     destroy() {
         this.textures.forEach(texture => {

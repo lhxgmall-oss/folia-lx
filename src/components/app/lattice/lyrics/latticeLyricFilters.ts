@@ -1,9 +1,11 @@
 import type { Filter, Texture, UniformGroup } from 'pixi.js';
-import { PIXI_FILTER_VERTEX as filterVertex } from '../../../visualizer/pixiFilterVertex';
+import { PIXI_FILTER_VERTEX } from '../../../visualizer/pixiFilterVertex';
 
 // src/components/app/lattice/lyrics/latticeLyricFilters.ts
 type Pixi = typeof import('pixi.js');
 
+/** Filter vertex stage (Pixi filter conventions): used by the whole-stage edge fade only. */
+const filterVertex = PIXI_FILTER_VERTEX;
 const fade = `
 in vec2 vTextureCoord;
 out vec4 finalColor;

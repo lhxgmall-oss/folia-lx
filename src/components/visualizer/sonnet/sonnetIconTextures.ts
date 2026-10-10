@@ -12,7 +12,7 @@ export interface SonnetIconTextures {
 }
 
 /**
- * Acquires the decor icon textures a theme asks for. Kept separate from the live set so a
+ * Acquires the decor icon textures a theme asks for. Kept separate from the live maps so a
  * song handover can warm the incoming theme's icons while the outgoing one is still on
  * screen, and only adopt them once the cover hides the swap.
  */
@@ -47,7 +47,7 @@ export const loadSonnetIconTextures = async (
     return loaded;
 };
 
-/** Hands the pool back the urls a runtime is holding. Refcounted, so order does not matter. */
+/** Hands the pool back the urls this runtime is holding. Refcounted, so order does not matter. */
 export const releaseSonnetIconUrls = (pixi: PixiModule, urls: Set<string>) => {
     const texturePool = getSonnetTexturePool(pixi);
     urls.forEach(url => {

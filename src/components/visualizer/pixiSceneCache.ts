@@ -17,6 +17,14 @@ export interface PixiSceneCacheHooks<TScene> {
 
 export class PixiSceneCache<TScene> {
     private readonly scenes = new Map<number, TScene>();
+    /**
+     * Scenes the song handover replaced, waiting to be freed. Destroying a scene walks every
+     * shot and every glyph's Text, and doing that for the whole cache on the frame the swap
+     * lands is exactly the stall the wipe was supposed to hide. They are dropped one per frame
+     * once the sweep is over instead.
+     *
+     * 换歌时换下来的场景，之后一帧销毁一个，免得交接那一帧卡住。
+     */
     private readonly retired: TScene[] = [];
 
     constructor(private readonly hooks: PixiSceneCacheHooks<TScene>) { }
@@ -81,10 +89,15 @@ export class PixiSceneCache<TScene> {
         this.scenes.clear();
     }
 
-    /** 销毁一个换下的场景；没有可销毁的返回 false。 */
+    /**
+     * 销毁一个换下的场景；没有可销毁的返回 false。
+     *
+     * Frees one retired scene. Called on frames that are not doing anything else expensive.
+     */
     drainRetired() {
         const scene = this.retired.shift();
         if (scene === undefined) return false;
+        // Already detached by retireScenes; destroyScene's removeChild is a no-op here.
         this.hooks.destroy(scene);
         return true;
     }
