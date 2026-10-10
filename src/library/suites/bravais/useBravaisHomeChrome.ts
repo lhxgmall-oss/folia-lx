@@ -36,6 +36,7 @@ type ChromeProps = Pick<
     LibraryHomeSurfaceProps,
     | 'onSearchCommitted' | 'onOpenLattice' | 'onBackToPlayer' | 'onOpenStagePlayer' | 'stageEnabled' | 'stageIsActive' | 'onOpenSettings'
     | 'localSongs' | 'localLibraryCatalog'
+    | 'extraTabs'
 >;
 
 export const useBravaisHomeChrome = ({
@@ -61,19 +62,23 @@ export const useBravaisHomeChrome = ({
     const latest = useRef({ tab, tabs, providerId, selectTab, props });
     latest.current = { tab, tabs, providerId, selectTab, props };
 
-    const onSelectTab = useCallback((key: string) => { latest.current.selectTab(key as LibraryHomeTabKey); }, []);
+    const onSelectTab = useCallback((key: string) => {
+        const extra = latest.current.props.extraTabs?.find(tab => tab.id === key);
+        if (extra) extra.select();
+        else latest.current.selectTab(key as LibraryHomeTabKey);
+    }, []);
     const cycleTab = useCallback((delta: 1 | -1) => {
         const { tab: current, tabs: all, selectTab: select } = latest.current;
         const next = cycleHomeTab(all, current, delta);
         return next ? select(next as LibraryHomeTabKey) : false;
     }, []);
 
-    const seamTabs = useMemo<BravaisSeamTab[]>(() => tabs.map(candidate => ({
+    const seamTabs = useMemo<BravaisSeamTab[]>(() => [...tabs.map(candidate => ({
         key: candidate.key,
         label: candidate.label,
         active: candidate.key === tab,
         disabled: Boolean(candidate.disabledReason),
-    })), [tab, tabs]);
+    })), ...(props.extraTabs ?? []).map(entry => ({ key: entry.id, label: entry.label, active: false, disabled: false }))], [tab, tabs, props.extraTabs]);
 
     // 与网格首页同一条路：先 submitSearch 发请求（搜索页随它打开并显示加载中），完成后再 onSearchCommitted 压历史。
     // 只压历史时，历史恢复按「来源 + 词」查缓存，查不到就是空结果，要在搜索页再回车一次才真正搜索。
