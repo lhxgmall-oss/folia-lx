@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { motion, useTransform, MotionValue } from 'framer-motion';
+import { motion, motionValue, useTransform, MotionValue } from 'framer-motion';
 import { type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { colorWithAlpha, mixColors } from '../colorMix';
@@ -10,6 +10,9 @@ import type { PositionedMonetLineEntry } from './monetRailLayout';
 
 // src/components/visualizer/monet/MonetRailTokens.tsx
 // 行内的逐词渲染：按时间着色的 token 与当前行的扫字遮罩 / 填充 / glow。
+
+/** A clock that never moves, for words whose look does not depend on the time. */
+const STILL_TIME = motionValue(0);
 
 export const MonetTimedTokenSpan: React.FC<{
     entry: PositionedMonetLineEntry;
@@ -125,17 +128,25 @@ const MonetWordSweep: React.FC<{
             [text, fontPx, fontSpec, fontsEpoch],
         );
 
-        const wordStatus = useTransform(currentTime, latest => (
+        // Only a line being sung moves with the clock, and only sung lines can still be glowing.
+        // Every other word reads a clock that never ticks: its transforms already ignore the time
+        // when the line is not active, so the values are the same, but dozens of words per rail no
+        // longer each run four transforms on every frame. useTransform re-subscribes on every
+        // render, so a word picks the live clock up on the render that makes its line active.
+        const sweepTime = isLineActive ? currentTime : STILL_TIME;
+        const glowTime = canRenderGlow ? currentTime : STILL_TIME;
+
+        const wordStatus = useTransform(sweepTime, latest => (
             isLineActive ? resolveMonetWordStatus(latest, startTime, endTime) : lineStatus
         ));
 
-        const wordProgress = useTransform(currentTime, latest => {
+        const wordProgress = useTransform(sweepTime, latest => {
             if (!isLineActive || latest <= startTime) return 0;
             if (latest >= endTime) return 1;
             return (latest - startTime) / Math.max(0.001, endTime - startTime);
         });
 
-        const fillWidth = useTransform(currentTime, latest => (
+        const fillWidth = useTransform(sweepTime, latest => (
             isLineActive ? resolveMonetFillWidth(latest, startTime, endTime, graphemeOffsets, graphemeTimings) : 0
         ));
 
@@ -158,7 +169,7 @@ const MonetWordSweep: React.FC<{
             (isLineActive && status === 'passed') || lineStatus === 'passed' ? wordColor : baseColor,
         );
 
-        const glowShadow = useTransform(currentTime, latest => {
+        const glowShadow = useTransform(glowTime, latest => {
             if (!canRenderGlow || latest <= startTime) return 'none';
 
             const intensity = resolveMonetGlow(latest, startTime, endTime, lineRenderEndTime);

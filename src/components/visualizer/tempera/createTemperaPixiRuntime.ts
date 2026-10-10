@@ -17,6 +17,7 @@ import { loadPixi } from '../loadPixi';
 import { PixiSceneCache } from '../pixiSceneCache';
 import { PixiSongSwap } from '../pixiSongSwap';
 import { setTemperaTransitionBlur } from './temperaSceneFilters';
+import { destroyTemperaGradientFills } from './temperaShapes';
 import { TemperaImageTextures } from './temperaImageTextures';
 import { TemperaOverlay } from './temperaOverlay';
 import { resolveTemperaCreditsFrame, TemperaCreditsLayer } from './temperaCreditsLayer';
@@ -323,6 +324,7 @@ export class TemperaPixiRuntime {
             shot.textLayer.filters = null;
         });
         scene.postProcessFilters.forEach(filter => filter.destroy());
+        destroyTemperaGradientFills(this.pixi, scene.container);
         // 逐节点销毁：destroy({ children: true }) 会留下每个 Graphics 自建的 GraphicsContext 与它的 GPU 缓冲。
         destroyPixiDisplayTree(scene.container);
     }
@@ -384,8 +386,10 @@ export class TemperaPixiRuntime {
                 this.sceneCache.ensure(previous);
             }
         }
-        const width = Math.max(this.options.host.clientWidth, 320);
-        const height = Math.max(this.options.host.clientHeight, 240);
+        // The size the renderer was last fitted to. Reading the host here instead would force a
+        // synchronous layout every frame, and the ResizeObserver refits both together anyway.
+        const width = this.lastWidth || Math.max(this.options.host.clientWidth, 320);
+        const height = this.lastHeight || Math.max(this.options.host.clientHeight, 240);
         const finalParagraph = this.options.program.paragraphs.at(-1);
         const creditsFrame = resolveTemperaCreditsFrame(
             time,

@@ -166,6 +166,7 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
      * 径迹：字在画面上过去 TRACK_TIME 秒里真正走过的路（叠加了行本身的移动、转动与缩放），加一点
      * 垂直方向的抖动，像云室里的粒子径迹；字到位后尾端追上来，径迹收拢消失。只画这一次滑动开始之后的部分。
      */
+    let tracksDrawn = false;
     const drawTracks = (index: number, view: LineView, time: number, transform: LineTransform, alpha: number, color: number) => {
         if (alpha <= 0.003 || !Number.isFinite(transform.slideStart)) return;
         if (time > transform.slideStart + SLIDE + TRACK_TIME) return;
@@ -175,6 +176,7 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
         const transforms = samples.map(sample => lineTransform(index, sample));
         if (!transforms.some(sample => sample.fly)) return;
         const width = 1.2;
+        tracksDrawn = true;
         view.glyphs.forEach(glyph => {
             if (glyph.blank) return;
             let length = 0;
@@ -202,14 +204,20 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
             const strength = Math.min(1, length / (heroPx * 3));
             const head = previous as Point | null;
             const shield = head ? protection.shield(index, head.x, head.y, fontPx / 2, flying) : 1;
-            trackLayer.stroke({ width, color, alpha: strength > 0.05 ? alpha * 0.55 * strength * shield : 0, cap: 'round', join: 'round' });
+            // 几乎不动的字不留径迹：路径直接丢掉，不让一条看不见的线也去三角化。
+            if (strength > 0.05) trackLayer.stroke({ width, color, alpha: alpha * 0.55 * strength * shield, cap: 'round', join: 'round' });
+            else trackLayer.beginPath();
         });
     };
 
     const update = (frame: LyricWindowFrame) => {
         const { time, beams, litColor, unlitColor, unlitAlpha, intensity } = frame;
         trackLayer.visible = frame.hideTrails !== true;
-        trackLayer.clear();
+        // 径迹只在行滑动时有；空着的层不再每帧 clear（clear 一个空 Graphics 也会让它重新合批）。
+        if (tracksDrawn) {
+            trackLayer.clear();
+            tracksDrawn = false;
+        }
         if (KEYWORDS) lines.refreshKeywordTints(litColor);
         const litHex = hexOf(litColor);
         const starHex = hexOf(mixRgb(litColor, WHITE, 0.5));

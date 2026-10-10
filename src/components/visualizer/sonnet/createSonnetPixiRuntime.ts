@@ -342,8 +342,10 @@ export class SonnetPixiRuntime {
                 this.sceneCache.ensure(previous);
             }
         }
-        const width = Math.max(this.options.host.clientWidth, 320);
-        const height = Math.max(this.options.host.clientHeight, 240);
+        // The size the renderer was last fitted to. Reading the host here instead would force a
+        // synchronous layout every frame, and the ResizeObserver refits both together anyway.
+        const width = this.lastWidth;
+        const height = this.lastHeight;
         const finalParagraph = this.options.program.paragraphs.at(-1);
         const creditsFrame = resolveSonnetCreditsFrame(
             time,
@@ -595,6 +597,30 @@ export class SonnetPixiRuntime {
 
     /** Reads a mod modulation key, falling back to 1 so the frame is unchanged when absent. */
     private readonly mod = (key: string): number => readSonnetModulation(this.options.modulation, key);
+
+    /**
+     * Applies a settings change to the live runtime. Every scene is rebuilt against the new
+     * tuning, but the WebGL context, the canvas and the icon textures stay; the settings that
+     * shape those (`textureResolution`, `showOnlyText`, `showBackgroundDecor`) are part of the
+     * host's rebuild key instead.
+     */
+    setTuning(tuning: SonnetTuning) {
+        if (this.destroyed || this.options.tuning === tuning) return;
+        this.options.tuning = tuning;
+        // Staged against the old tuning, so it can no longer be adopted.
+        if (this.songSwap?.staged) {
+            this.destroyScene(this.songSwap.staged.scene);
+            this.songSwap.staged = null;
+        }
+        this.clearScenes();
+        // Before the first resize pass there is nothing sized to redraw; the install pass
+        // draws both against real dimensions.
+        if (this.lastWidth > 0 && this.lastHeight > 0) {
+            this.drawCredits(this.lastWidth, this.lastHeight);
+            this.drawOverlay(this.lastWidth, this.lastHeight);
+        }
+        if (this.options.paused) this.renderOnce();
+    }
 
     /** Hot-swaps the modulation map every time a mod slider moves, without recreating the Pixi context. */
     setModulation(modulation: Record<string, number>) {

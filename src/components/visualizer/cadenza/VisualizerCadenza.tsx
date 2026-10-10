@@ -10,8 +10,20 @@ import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { resolveSubtitleFontSizes } from '../subtitleFontSizes';
-import type { AnimatedPlacementState, OverlayWordNodes, PreparedState, PreparedStateCacheContext } from './cadenzaTypes';
-import { clearOverlayWordNodes, createOverlayWordNodes, syncOverlayGlyphSpans } from './cadenzaOverlayNodes';
+import type {
+    AnimatedPlacementState,
+    OverlayWordNodes,
+    PreparedState,
+    PreparedStateCacheContext,
+    WordPlacement,
+} from './cadenzaTypes';
+import {
+    clearOverlayWordNodes,
+    createOverlayWordNodes,
+    syncOverlayGlyphSpans,
+    writeOverlayGlyphShadow,
+    writeOverlayWord,
+} from './cadenzaOverlayNodes';
 import {
     ACTIVE_PULSE_FREQUENCY,
     buildDomTextShadow,
@@ -40,6 +52,9 @@ import { buildPreparedState } from './cadenzaPreparedState';
 // active -> this is the main event, drive beam, glow, emphasis, and body color here.
 // passed -> line already sang, keep some drift and residue so it fades out gracefully instead of snapping away.
 type VisualizerProps = VisualizerSharedProps;
+
+/** Words are drawn waiting first and active last, so the word being sung sits on top. */
+const STATUS_DRAW_ORDER = ['waiting', 'passed', 'active'] as const;
 
 const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
     const {
@@ -205,6 +220,33 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
         const textContext = textCanvas.getContext('2d');
         if (!textContext) return;
 
+        // Everything below is fixed for this prepared line, so it is worked out once per effect
+        // run rather than every frame: the placement ids, and per placement its graphemes and
+        // the ascent of its text in the line's font.
+        const placementIds = new Set(preparedState?.placements.map(placement => placement.id));
+        animatedPlacementRef.current.forEach((_value, key) => {
+            if (!placementIds.has(key)) {
+                animatedPlacementRef.current.delete(key);
+            }
+        });
+        const placementGlyphs = new Map<WordPlacement, { glyphs: string[]; cjk: boolean; ascent?: number }>();
+        const glyphsOf = (placement: WordPlacement) => {
+            let entry = placementGlyphs.get(placement);
+            if (!entry) {
+                entry = { glyphs: splitGraphemes(placement.text), cjk: isCJK(placement.text) };
+                placementGlyphs.set(placement, entry);
+            }
+            return entry;
+        };
+        // A web font that finishes loading mid-line changes the ascent; measure again next frame.
+        const fontSet = typeof document !== 'undefined' ? document.fonts : undefined;
+        const forgetAscents = () => placementGlyphs.forEach(entry => { entry.ascent = undefined; });
+        fontSet?.addEventListener('loadingdone', forgetAscents);
+        // Placements bucketed by status, each bucket in line order - what a stable sort on the
+        // status gives, without the comparator re-deriving every status on every comparison.
+        const byStatus: Record<'waiting' | 'passed' | 'active', WordPlacement[]> = { waiting: [], passed: [], active: [] };
+        let frameNumber = 0;
+
         const draw = () => {
             const now = performance.now();
             const dt = lastFrameTimeRef.current === null
@@ -257,176 +299,176 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
             textContext.lineJoin = 'round';
             textContext.lineCap = 'round';
 
-            const placements = [...preparedState.placements].sort((a, b) => {
-                const order = { waiting: 0, passed: 1, active: 2 } as const;
-                return order[getWordStatus(time, lineTiming, a.word)] - order[getWordStatus(time, lineTiming, b.word)];
-            });
-            const placementIds = new Set(placements.map(placement => placement.id));
+            byStatus.waiting.length = 0;
+            byStatus.passed.length = 0;
+            byStatus.active.length = 0;
+            for (const placement of preparedState.placements) {
+                byStatus[getWordStatus(time, lineTiming, placement.word)].push(placement);
+            }
             const overlayNodes = overlayNodesRef.current;
-            const usedOverlayIds = new Set<string>();
+            frameNumber += 1;
 
-            placements.forEach((placement, placementIndex) => {
-                const status = getWordStatus(time, lineTiming, placement.word);
-                const progress = getWordProgress(time, wordRevealMode, placement.word);
-                const passedAlpha = isInstantWordReveal
-                    ? 0
-                    : theme.animationIntensity === 'chaotic'
-                        ? 0.9
-                        : 0.82;
-                const pulse = status === 'active'
-                    && !isInstantWordReveal
-                    ? 1 + Math.sin(time * ACTIVE_PULSE_FREQUENCY + placement.word.startTime * 5) * 0.04 * tuning.motionAmount
-                    : 1;
-                const passedDriftProgress = isInstantWordReveal ? 0 : getClassicPassedDrift(time, placement.word);
-                const targetScale = status === 'waiting'
-                    ? isInstantWordReveal
-                        ? placement.scale
-                        : Math.max(placement.scale * 0.5, 0.5)
-                    : status === 'active'
+            let placementIndex = -1;
+            for (const status of STATUS_DRAW_ORDER) {
+                for (const placement of byStatus[status]) {
+                    placementIndex += 1;
+                    const progress = getWordProgress(time, wordRevealMode, placement.word);
+                    const passedAlpha = isInstantWordReveal
+                        ? 0
+                        : theme.animationIntensity === 'chaotic'
+                            ? 0.9
+                            : 0.82;
+                    const pulse = status === 'active'
+                        && !isInstantWordReveal
+                        ? 1 + Math.sin(time * ACTIVE_PULSE_FREQUENCY + placement.word.startTime * 5) * 0.04 * tuning.motionAmount
+                        : 1;
+                    const passedDriftProgress = isInstantWordReveal ? 0 : getClassicPassedDrift(time, placement.word);
+                    const targetScale = status === 'waiting'
                         ? isInstantWordReveal
                             ? placement.scale
-                            : placement.scale * 1.3 * pulse
-                        : placement.scale;
-                const targetRotation = status === 'waiting'
-                    ? isInstantWordReveal
-                        ? placement.rotate
-                        : placement.rotate + 20
-                    : status === 'passed'
+                            : Math.max(placement.scale * 0.5, 0.5)
+                        : status === 'active'
+                            ? isInstantWordReveal
+                                ? placement.scale
+                                : placement.scale * 1.3 * pulse
+                            : placement.scale;
+                    const targetRotation = status === 'waiting'
                         ? isInstantWordReveal
                             ? placement.rotate
-                            : placement.rotate + placement.passedRotate * passedDriftProgress
-                        : placement.rotate;
-                const localFloatX = Math.sin(time * 1.2 + placementIndex * 0.6) * motionEnergy * 4;
-                const localFloatY = Math.cos(time * 1.5 + placementIndex * 0.4) * motionEnergy * 2.5;
-                const passedDriftX = status === 'passed' ? placement.passedDriftX * passedDriftProgress : 0;
-                const passedDriftY = status === 'passed' ? placement.passedDriftY * passedDriftProgress : 0;
-                const targetX = width / 2 + placement.x + localFloatX + passedDriftX + (status === 'waiting' ? placement.entryOffsetX : 0);
-                const targetY = focusY + placement.y + localFloatY + passedDriftY + (status === 'waiting' ? placement.entryOffsetY : 0);
-                const targetBodyAlpha = status === 'waiting' ? 0 : status === 'active' ? 1 : passedAlpha;
-                const targetBlur = status === 'waiting' && !isInstantWordReveal ? 10 : 0;
-                const targetActiveMix = getClassicBodyMix(time, lineTiming, placement.word);
-                const targetGlowAlpha = getClassicGlowEnvelope(time, lineTiming, placement.word);
-                const transformTransitionAmount = 1 - Math.exp(-11 * dt);
-                const visualTransitionAmount = 1 - Math.exp(-14 * dt);
-                const stateMap = animatedPlacementRef.current;
-                const existingState = stateMap.get(placement.id);
-                const shouldInitializeAsActive = isInstantWordReveal && time >= placement.word.startTime;
-                const animatedState = existingState ?? {
-                    x: width / 2 + placement.x + placement.entryOffsetX,
-                    y: focusY + placement.y + placement.entryOffsetY,
-                    rotation: shouldInitializeAsActive ? targetRotation : targetRotation + 16,
-                    scale: shouldInitializeAsActive ? targetScale : Math.max(placement.scale * 0.5, 0.5),
-                    bodyAlpha: shouldInitializeAsActive ? targetBodyAlpha : 0,
-                    blur: shouldInitializeAsActive ? targetBlur : 10,
-                    activeMix: shouldInitializeAsActive ? targetActiveMix : 0,
-                    glowAlpha: shouldInitializeAsActive ? targetGlowAlpha : 0,
-                };
+                            : placement.rotate + 20
+                        : status === 'passed'
+                            ? isInstantWordReveal
+                                ? placement.rotate
+                                : placement.rotate + placement.passedRotate * passedDriftProgress
+                            : placement.rotate;
+                    const localFloatX = Math.sin(time * 1.2 + placementIndex * 0.6) * motionEnergy * 4;
+                    const localFloatY = Math.cos(time * 1.5 + placementIndex * 0.4) * motionEnergy * 2.5;
+                    const passedDriftX = status === 'passed' ? placement.passedDriftX * passedDriftProgress : 0;
+                    const passedDriftY = status === 'passed' ? placement.passedDriftY * passedDriftProgress : 0;
+                    const targetX = width / 2 + placement.x + localFloatX + passedDriftX + (status === 'waiting' ? placement.entryOffsetX : 0);
+                    const targetY = focusY + placement.y + localFloatY + passedDriftY + (status === 'waiting' ? placement.entryOffsetY : 0);
+                    const targetBodyAlpha = status === 'waiting' ? 0 : status === 'active' ? 1 : passedAlpha;
+                    const targetBlur = status === 'waiting' && !isInstantWordReveal ? 10 : 0;
+                    const targetActiveMix = getClassicBodyMix(time, lineTiming, placement.word);
+                    const targetGlowAlpha = getClassicGlowEnvelope(time, lineTiming, placement.word);
+                    const transformTransitionAmount = 1 - Math.exp(-11 * dt);
+                    const visualTransitionAmount = 1 - Math.exp(-14 * dt);
+                    const stateMap = animatedPlacementRef.current;
+                    const existingState = stateMap.get(placement.id);
+                    const shouldInitializeAsActive = isInstantWordReveal && time >= placement.word.startTime;
+                    const animatedState = existingState ?? {
+                        x: width / 2 + placement.x + placement.entryOffsetX,
+                        y: focusY + placement.y + placement.entryOffsetY,
+                        rotation: shouldInitializeAsActive ? targetRotation : targetRotation + 16,
+                        scale: shouldInitializeAsActive ? targetScale : Math.max(placement.scale * 0.5, 0.5),
+                        bodyAlpha: shouldInitializeAsActive ? targetBodyAlpha : 0,
+                        blur: shouldInitializeAsActive ? targetBlur : 10,
+                        activeMix: shouldInitializeAsActive ? targetActiveMix : 0,
+                        glowAlpha: shouldInitializeAsActive ? targetGlowAlpha : 0,
+                    };
 
-                animatedState.x = mix(animatedState.x, targetX, transformTransitionAmount);
-                animatedState.y = mix(animatedState.y, targetY, transformTransitionAmount);
-                animatedState.rotation = mix(animatedState.rotation, targetRotation, transformTransitionAmount);
-                animatedState.scale = mix(animatedState.scale, targetScale, transformTransitionAmount);
-                animatedState.bodyAlpha = mix(animatedState.bodyAlpha, targetBodyAlpha, visualTransitionAmount);
-                animatedState.blur = mix(animatedState.blur, targetBlur, visualTransitionAmount);
-                animatedState.activeMix = mix(animatedState.activeMix, targetActiveMix, visualTransitionAmount);
-                animatedState.glowAlpha = mix(animatedState.glowAlpha, targetGlowAlpha, 1 - Math.exp(-16 * dt));
-                stateMap.set(placement.id, animatedState);
+                    animatedState.x = mix(animatedState.x, targetX, transformTransitionAmount);
+                    animatedState.y = mix(animatedState.y, targetY, transformTransitionAmount);
+                    animatedState.rotation = mix(animatedState.rotation, targetRotation, transformTransitionAmount);
+                    animatedState.scale = mix(animatedState.scale, targetScale, transformTransitionAmount);
+                    animatedState.bodyAlpha = mix(animatedState.bodyAlpha, targetBodyAlpha, visualTransitionAmount);
+                    animatedState.blur = mix(animatedState.blur, targetBlur, visualTransitionAmount);
+                    animatedState.activeMix = mix(animatedState.activeMix, targetActiveMix, visualTransitionAmount);
+                    animatedState.glowAlpha = mix(animatedState.glowAlpha, targetGlowAlpha, 1 - Math.exp(-16 * dt));
+                    stateMap.set(placement.id, animatedState);
 
-                if (animatedState.bodyAlpha < 0.015 && animatedState.glowAlpha < 0.015) {
-                    return;
-                }
-
-                const drawX = animatedState.x;
-                const drawBaselineY = animatedState.y;
-                const visualWidth = placement.width * animatedState.scale;
-                const visualHeight = placement.height * animatedState.scale;
-                const highlightHeight = visualHeight * (status === 'active' ? 1.08 : 1);
-                const scaledLeft = drawX - (visualWidth - placement.width) / 2;
-                if (status === 'active' && !placement.isInterlude) {
-                    if (activeLine.isChorus) {
-                        const rippleRadius = Math.max(visualWidth, highlightHeight) * (0.55 + progress * 0.45);
-                        textContext.strokeStyle = colorWithAlpha(placement.color, 0.45 * (1 - progress) * animatedState.bodyAlpha);
-                        textContext.lineWidth = 1.2;
-                        textContext.beginPath();
-                        textContext.arc(
-                            scaledLeft + visualWidth / 2,
-                            drawBaselineY - visualHeight * 0.42,
-                            rippleRadius,
-                            0,
-                            Math.PI * 2,
-                        );
-                        textContext.stroke();
+                    if (animatedState.bodyAlpha < 0.015 && animatedState.glowAlpha < 0.015) {
+                        continue;
                     }
-                }
 
-                const textX = -placement.width / 2;
-                const textY = placement.height * 0.42;
-                const textColor = mixColors(theme.primaryColor, placement.color, animatedState.activeMix);
+                    const drawX = animatedState.x;
+                    const drawBaselineY = animatedState.y;
+                    const visualWidth = placement.width * animatedState.scale;
+                    const visualHeight = placement.height * animatedState.scale;
+                    const highlightHeight = visualHeight * (status === 'active' ? 1.08 : 1);
+                    const scaledLeft = drawX - (visualWidth - placement.width) / 2;
+                    if (status === 'active' && !placement.isInterlude) {
+                        if (activeLine.isChorus) {
+                            const rippleRadius = Math.max(visualWidth, highlightHeight) * (0.55 + progress * 0.45);
+                            textContext.strokeStyle = colorWithAlpha(placement.color, 0.45 * (1 - progress) * animatedState.bodyAlpha);
+                            textContext.lineWidth = 1.2;
+                            textContext.beginPath();
+                            textContext.arc(
+                                scaledLeft + visualWidth / 2,
+                                drawBaselineY - visualHeight * 0.42,
+                                rippleRadius,
+                                0,
+                                Math.PI * 2,
+                            );
+                            textContext.stroke();
+                        }
+                    }
 
-                const overlayAnchorX = drawX + placement.width / 2;
-                const overlayAnchorY = drawBaselineY - placement.height * 0.42;
-                const overlayOffsetX = textX;
-                const textMetrics = textContext.measureText(placement.text);
-                const measuredAscent = textMetrics.actualBoundingBoxAscent || preparedState.fontPx * 0.78;
-                const overlayOffsetY = textY - measuredAscent;
-                const glyphs = splitGraphemes(placement.text);
-                const shouldSplitGlow = wordRevealMode === 'normal' && !isCJK(placement.text) && glyphs.length > 1;
-                const blurScale = 1 + energy * 0.22;
-                usedOverlayIds.add(placement.id);
-                let overlayWord = overlayNodes.get(placement.id);
-                if (!overlayWord) {
-                    overlayWord = createOverlayWordNodes();
-                    overlayNodes.set(placement.id, overlayWord);
-                    overlay.appendChild(overlayWord.outer);
-                }
+                    const textX = -placement.width / 2;
+                    const textY = placement.height * 0.42;
+                    const textColor = mixColors(theme.primaryColor, placement.color, animatedState.activeMix);
 
-                overlayWord.outer.style.transform = `translate3d(${overlayAnchorX}px, ${overlayAnchorY}px, 0) rotate(${animatedState.rotation}deg) scale(${animatedState.scale})`;
-                // Own compositing layer while Lab > Fix lyric animation freeze on Linux is on: otherwise every
-                // new scale re-rasterizes the word and its 40px text-shadow at a new device size, and Chromium's
-                // glyph cache leaks shared memory for each one. See utils/glowBlurQuantize.ts.
-                const willChange = isGlowBlurQuantized() ? 'transform' : '';
-                if (overlayWord.outer.style.willChange !== willChange) overlayWord.outer.style.willChange = willChange;
-                overlayWord.outer.style.transformOrigin = '0 0';
-                overlayWord.inner.style.font = preparedState.font;
-                overlayWord.inner.style.transform = `translate3d(${overlayOffsetX}px, ${overlayOffsetY}px, 0)`;
-                overlayWord.body.textContent = placement.text;
-                overlayWord.body.style.color = textColor;
-                overlayWord.body.style.opacity = animatedState.bodyAlpha.toString();
-                overlayWord.body.style.filter = animatedState.blur > 0.05 ? `blur(${animatedState.blur.toFixed(2)}px)` : 'none';
+                    const overlayAnchorX = drawX + placement.width / 2;
+                    const overlayAnchorY = drawBaselineY - placement.height * 0.42;
+                    const overlayOffsetX = textX;
+                    const placementText = glyphsOf(placement);
+                    // Measured once per placement: the canvas font is the prepared line's font on every frame.
+                    placementText.ascent ??= textContext.measureText(placement.text).actualBoundingBoxAscent;
+                    const measuredAscent = placementText.ascent || preparedState.fontPx * 0.78;
+                    const overlayOffsetY = textY - measuredAscent;
+                    const glyphs = placementText.glyphs;
+                    const shouldSplitGlow = wordRevealMode === 'normal' && !placementText.cjk && glyphs.length > 1;
+                    const blurScale = 1 + energy * 0.22;
+                    let overlayWord = overlayNodes.get(placement.id);
+                    if (!overlayWord) {
+                        overlayWord = createOverlayWordNodes();
+                        overlayNodes.set(placement.id, overlayWord);
+                        overlay.appendChild(overlayWord.outer);
+                    }
+                    overlayWord.frame = frameNumber;
 
-                const glowTexts = shouldSplitGlow ? glyphs : [placement.text];
-                syncOverlayGlyphSpans(overlayWord, glowTexts);
-
-                if (shouldSplitGlow) {
-                    overlayWord.glyphSpans.forEach((glyphSpan, glyphIndex) => {
-                        const absoluteIndex = placement.fragmentStartInWord + glyphIndex;
-                        const intensity = getClassicCharGlow(
-                            time,
-                            placement.word,
-                            absoluteIndex,
-                            Math.max(placement.wordGraphemeCount, glyphs.length),
-                            placement.wordGraphemeTimings,
-                        ) * clamp(animatedState.glowAlpha, 0, 1) * Math.max(tuning.glowIntensity, 0);
-
-                        glyphSpan.style.textShadow = buildDomTextShadow(placement.color, intensity, blurScale);
+                    writeOverlayWord(overlayWord, {
+                        outerTransform: `translate3d(${overlayAnchorX}px, ${overlayAnchorY}px, 0) rotate(${animatedState.rotation}deg) scale(${animatedState.scale})`,
+                        // Own compositing layer while Lab > Fix lyric animation freeze on Linux is on: otherwise every
+                        // new scale re-rasterizes the word and its 40px text-shadow at a new device size, and Chromium's
+                        // glyph cache leaks shared memory for each one. See utils/glowBlurQuantize.ts.
+                        willChange: isGlowBlurQuantized() ? 'transform' : '',
+                        font: preparedState.font,
+                        innerTransform: `translate3d(${overlayOffsetX}px, ${overlayOffsetY}px, 0)`,
+                        text: placement.text,
+                        color: textColor,
+                        opacity: animatedState.bodyAlpha.toString(),
+                        filter: animatedState.blur > 0.05 ? `blur(${animatedState.blur.toFixed(2)}px)` : 'none',
                     });
-                } else if (overlayWord.glyphSpans[0]) {
-                    const intensity = getClassicGlowEnvelope(time, lineTiming, placement.word)
-                        * clamp(animatedState.glowAlpha, 0, 1)
-                        * Math.max(tuning.glowIntensity, 0);
-                    overlayWord.glyphSpans[0].style.textShadow = buildDomTextShadow(placement.color, intensity, blurScale);
-                }
 
-            });
+                    const glowTexts = shouldSplitGlow ? glyphs : [placement.text];
+                    syncOverlayGlyphSpans(overlayWord, glowTexts);
 
-            animatedPlacementRef.current.forEach((_value, key) => {
-                if (!placementIds.has(key)) {
-                    animatedPlacementRef.current.delete(key);
+                    if (shouldSplitGlow) {
+                        for (let glyphIndex = 0; glyphIndex < overlayWord.glyphSpans.length; glyphIndex += 1) {
+                            const absoluteIndex = placement.fragmentStartInWord + glyphIndex;
+                            const intensity = getClassicCharGlow(
+                                time,
+                                placement.word,
+                                absoluteIndex,
+                                Math.max(placement.wordGraphemeCount, glyphs.length),
+                                placement.wordGraphemeTimings,
+                            ) * clamp(animatedState.glowAlpha, 0, 1) * Math.max(tuning.glowIntensity, 0);
+
+                            writeOverlayGlyphShadow(overlayWord, glyphIndex, buildDomTextShadow(placement.color, intensity, blurScale));
+                        }
+                    } else if (overlayWord.glyphSpans[0]) {
+                        const intensity = getClassicGlowEnvelope(time, lineTiming, placement.word)
+                            * clamp(animatedState.glowAlpha, 0, 1)
+                            * Math.max(tuning.glowIntensity, 0);
+                        writeOverlayGlyphShadow(overlayWord, 0, buildDomTextShadow(placement.color, intensity, blurScale));
+                    }
+
                 }
-            });
+            }
 
             overlayNodes.forEach((nodes, key) => {
-                if (!usedOverlayIds.has(key)) {
+                if (nodes.frame !== frameNumber) {
                     nodes.outer.remove();
                     overlayNodes.delete(key);
                 }
@@ -438,6 +480,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
         draw();
         return () => {
             window.cancelAnimationFrame(frameId);
+            fontSet?.removeEventListener('loadingdone', forgetAscents);
             lastFrameTimeRef.current = null;
             clearOverlayWordNodes(overlayNodesRef.current);
         };
