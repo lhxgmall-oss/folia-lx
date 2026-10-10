@@ -12,6 +12,8 @@ type PixiModule = typeof import('pixi.js');
 export class TemperaOverlay {
     readonly container: import('pixi.js').Container;
     private wipeGraphics: import('pixi.js').Graphics | null = null;
+    /** The size and colour the wipe geometry was last built for. */
+    private wipeKey = '';
 
     constructor(private readonly pixi: PixiModule) {
         this.container = new pixi.Container();
@@ -23,6 +25,7 @@ export class TemperaOverlay {
         // The wipe block lives in the overlay so it sweeps above the scene during cuts.
         this.wipeGraphics = new this.pixi.Graphics();
         this.wipeGraphics.visible = false;
+        this.wipeKey = '';
         this.container.addChild(this.wipeGraphics);
 
         if (!tuning.showCornerMarks) return;
@@ -44,34 +47,40 @@ export class TemperaOverlay {
         const wipe = this.wipeGraphics;
         if (!wipe) return;
         if (travel <= 0.001 || travel >= 1.999) {
-            if (wipe.visible) {
-                wipe.clear();
-                wipe.visible = false;
-            }
+            wipe.visible = false;
             return;
         }
         // Drawn in a rotated local frame sized to the screen diagonal so it stays full-bleed at
         // any angle. Both edges carry the same chevron, which keeps it in the diamond language
-        // of the compositions; geometry is rebuilt per frame because it depends on travel.
+        // of the compositions. The shape depends only on the frame size and colour; travel just
+        // slides it along its own axis, so that is a transform rather than new geometry.
         const span = Math.hypot(width, height);
         const notch = span * 0.08;
         const length = span + notch * 2;
-        const start = -span / 2 - notch + (travel - 1) * length;
-        const end = start + length;
-        const half = span / 2;
-        wipe.clear();
-        wipe
-            .poly([
-                start, -half,
-                end, -half,
-                end + notch, 0,
-                end, half,
-                start, half,
-                start + notch, 0,
-            ])
-            .fill({ color: this.pixi.Color.shared.setValue(color).toNumber() });
+        const key = `${width}x${height}|${color}`;
+        if (key !== this.wipeKey) {
+            this.wipeKey = key;
+            const start = -span / 2 - notch;
+            const end = start + length;
+            const half = span / 2;
+            wipe.clear();
+            wipe
+                .poly([
+                    start, -half,
+                    end, -half,
+                    end + notch, 0,
+                    end, half,
+                    start, half,
+                    start + notch, 0,
+                ])
+                .fill({ color: this.pixi.Color.shared.setValue(color).toNumber() });
+        }
+        const offset = (travel - 1) * length;
         wipe.pivot.set(0, 0);
-        wipe.position.set(width / 2, height / 2);
+        wipe.position.set(
+            width / 2 + Math.cos(angle) * offset,
+            height / 2 + Math.sin(angle) * offset,
+        );
         wipe.rotation = angle;
         wipe.scale.set(1, 1);
         wipe.visible = true;

@@ -85,12 +85,32 @@ describe('商籁 / 凝彩运行时丢场景时放掉 Graphics 的 context', () =
         const tree = buildTree();
         const sceneContainer = new pixi.Container();
         sceneContainer.addChild(tree.root);
-        const runtime = Object.assign(Object.create(TemperaPixiRuntime.prototype), { sceneContainer });
+        const runtime = Object.assign(Object.create(TemperaPixiRuntime.prototype), { sceneContainer, pixi });
         const scene = { container: tree.root, shots: [{ textLayer: tree.branch }], postProcessFilters: [] };
         (runtime as unknown as { destroyScene: (value: unknown) => void }).destroyScene(scene);
         expect(sceneContainer.children).toHaveLength(0);
         expect(tree.ownedContexts.every(context => context.destroyed)).toBe(true);
         expect(tree.shared.destroyed).toBe(false);
+    });
+
+    it('凝彩 destroyScene：渐变模式的填充纹理随场景销毁，同一个渐变只销毁一次', () => {
+        const gradient = new pixi.FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 1, y: 0 }, colorStops: [{ offset: 0, color: '#000000' }, { offset: 1, color: '#ffffff' }], textureSpace: 'local' });
+        // 测试环境没有 document，渐变自己画不了 canvas，换成一张空纹理。
+        vi.spyOn(gradient, 'buildGradient').mockImplementation(() => {
+            gradient.texture ??= new pixi.Texture();
+            gradient.transform ??= new pixi.Matrix();
+        });
+        const destroy = vi.spyOn(gradient, 'destroy');
+        const root = new pixi.Container();
+        const group = new pixi.Container();
+        group.addChild(new pixi.Graphics().rect(0, 0, 10, 10).fill({ fill: gradient }));
+        root.addChild(new pixi.Graphics().rect(0, 0, 20, 20).fill({ fill: gradient }), group);
+        const sceneContainer = new pixi.Container();
+        sceneContainer.addChild(root);
+        const runtime = Object.assign(Object.create(TemperaPixiRuntime.prototype), { sceneContainer, pixi });
+        (runtime as unknown as { destroyScene: (value: unknown) => void }).destroyScene({ container: root, shots: [], postProcessFilters: [] });
+        expect(destroy).toHaveBeenCalledTimes(1);
+        expect(gradient.texture).toBeNull();
     });
 
     it('凝彩重画画框：上一版的角标与擦除块的 context 一起销毁', () => {
