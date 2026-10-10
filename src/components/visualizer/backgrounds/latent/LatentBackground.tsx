@@ -10,6 +10,7 @@ import {
     type Theme,
 } from '../../../../types';
 import { extractRepresentativeColors } from '../../../../utils/colorExtractor';
+import { updatePaperShaderUniforms } from '../../../../utils/paperShaderUniforms';
 
 // src/components/visualizer/backgrounds/latent/LatentBackground.tsx
 // Layers two cover-colored Paper shaders and drives their uniforms without React frame updates.
@@ -78,26 +79,6 @@ export const resolveLatentShaderSpeed = (
         ? baseSpeed * PAUSED_SPEED_SCALE
         : easeTowards(baseSpeed, audioSpeed, audioAmount),
 );
-type PaperShaderMount = NonNullable<PaperShaderElement['paperShaderMount']>;
-type ShaderUniforms = Parameters<PaperShaderMount['setUniforms']>[0];
-
-/**
- * Pushes audio-driven uniforms to a running shader without drawing it. `setUniforms` renders the
- * whole full-screen shader on the spot and re-arms the shader's own frame loop, which then draws
- * it again on the next frame - two full passes per shader per frame. While the shader animates,
- * its loop picks the new values up on its next draw; a stopped shader (speed 0) has no loop, so
- * it still gets the immediate draw. `setUniformValues` is the mount's own uniform writer, private
- * only in its typings; if a future version drops it, this falls back to `setUniforms`.
- */
-const updateShaderUniforms = (mount: PaperShaderMount, uniforms: ShaderUniforms, animating: boolean) => {
-    const writer = (mount as unknown as { setUniformValues?: (values: ShaderUniforms) => void }).setUniformValues;
-    if (animating && typeof writer === 'function') {
-        writer(uniforms);
-        return;
-    }
-    mount.setUniforms(uniforms);
-};
-
 export const resolveLatentShaderColors = (
     coverColors: string[],
     theme: Theme,
@@ -258,7 +239,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                     isPaused,
                 );
                 currentDitheringMount.setSpeed(ditheringSpeed);
-                updateShaderUniforms(currentDitheringMount, {
+                updatePaperShaderUniforms(currentDitheringMount, {
                     u_pxSize: Math.max(0.5, tuning.ditheringSize - smoothedBass * tuning.ditheringSize * 0.34),
                 }, ditheringSpeed !== 0);
             }
@@ -270,7 +251,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                     isPaused,
                 );
                 currentMeshMount.setSpeed(meshSpeed);
-                updateShaderUniforms(currentMeshMount, {
+                updatePaperShaderUniforms(currentMeshMount, {
                     u_distortion: tuning.meshDistortion + smoothedPower * 0.62,
                     u_swirl: tuning.meshSwirl + smoothedMid * 0.38,
                 }, meshSpeed !== 0);

@@ -3,6 +3,7 @@ import { ShaderMount } from '@paper-design/shaders-react';
 import type { PaperShaderElement } from '@paper-design/shaders';
 import type { MotionValue } from 'framer-motion';
 import { buildProgressBorderUniforms, pulsingBorderProgressFragmentShader } from './pulsingBorderProgressShader';
+import { updatePaperShaderUniforms } from '../../../../utils/paperShaderUniforms';
 // src/components/app/overlays/now-playing-toast/PulsingBorderProgress.tsx
 
 /**
@@ -108,8 +109,9 @@ const PulsingBorderProgress: React.FC<PulsingBorderProgressProps> = ({
     const radiusPx = cornerRadius ?? strokeHalfSpan;
     const perimeterPx = strokePerimeter(width, height, pad, radiusPx);
 
-    // 进度只写 uniform，不进 React。setUniforms 会立刻重绘一帧，而着色器自己还在 rAF 里画，
-    // 所以攒够「端点移动半个像素」再写，避免动画期间每帧多画一整张画布。
+    // 进度只写 uniform，不进 React。攒够「端点移动半个像素」再写；着色器在跑（speed 不为 0）时只写值，
+    // 由它自己的 rAF 画，不再用 setUniforms 当场多画一整张画布；停着的着色器没有帧循环，仍立即重绘。
+    const animating = merged.speed !== 0;
     useLayoutEffect(() => {
         const threshold = 0.5 / perimeterPx;
         const apply = (value: number) => {
@@ -118,12 +120,13 @@ const PulsingBorderProgress: React.FC<PulsingBorderProgressProps> = ({
             const settled = next <= 0 || next >= 1;
             if (!settled && Math.abs(next - sentProgress.current) < threshold) return;
             sentProgress.current = next;
-            elementRef.current?.paperShaderMount?.setUniforms({ u_progress: next });
+            const mount = elementRef.current?.paperShaderMount;
+            if (mount) updatePaperShaderUniforms(mount, { u_progress: next }, animating);
         };
         sentProgress.current = clampProgress(progress.get());
         apply(progress.get());
         return progress.on('change', apply);
-    }, [progress, perimeterPx]);
+    }, [progress, perimeterPx, animating]);
 
     const uniforms = buildProgressBorderUniforms({
         colors,
