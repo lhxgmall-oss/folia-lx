@@ -6,6 +6,7 @@ import {
     unloadPixiDisplayTree,
 } from '@/components/visualizer/pixiDisplayResources';
 import { SonnetPixiRuntime } from '@/components/visualizer/sonnet/createSonnetPixiRuntime';
+import { SonnetOutroBlur } from '@/components/visualizer/sonnet/sonnetOutroBlur';
 import { TemperaPixiRuntime } from '@/components/visualizer/tempera/createTemperaPixiRuntime';
 import { TemperaOverlay } from '@/components/visualizer/tempera/temperaOverlay';
 import type { TemperaTuning, Theme } from '@/types';
@@ -72,7 +73,7 @@ describe('商籁 / 凝彩运行时丢场景时放掉 Graphics 的 context', () =
         const tree = buildTree();
         const sceneContainer = new pixi.Container();
         sceneContainer.addChild(tree.root);
-        const runtime = Object.assign(Object.create(SonnetPixiRuntime.prototype), { sceneContainer, outroBlurScene: null });
+        const runtime = Object.assign(Object.create(SonnetPixiRuntime.prototype), { sceneContainer, outroBlur: new SonnetOutroBlur(pixi) });
         const scene = { container: tree.root, shots: [{ haloLayer: tree.branch }], postProcessFilters: [] };
         (runtime as unknown as { destroyScene: (value: unknown) => void }).destroyScene(scene);
         expect(sceneContainer.children).toHaveLength(0);

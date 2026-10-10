@@ -125,7 +125,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 
 ### Sonnet
 
-`sonnet/VisualizerSonnet.tsx` 负责 React shell/subtitle，`createSonnetPixiRuntime.ts` 创建 Pixi runtime；其余 `sonnet*` 文件按 scene builder、shot flow、glyph/typography、post-process、resource pool 分工。注意 Pixi runtime、纹理和 RAF 的销毁。
+`sonnet/VisualizerSonnet.tsx` 负责 React shell/subtitle，`createSonnetPixiRuntime.ts` 创建 Pixi runtime（只管生命周期、段落场景缓存、换歌溶解和每帧调度；shot 逐帧姿态 `sonnetShotFrame.ts`、场景转场选择 `sonnetSceneFrame.ts`、画框 `sonnetFrameOverlay.ts`、片尾模糊 `sonnetOutroBlur.ts`、主题图标纹理 `sonnetIconTextures.ts`）；其余 `sonnet*` 文件按 scene builder、shot flow、glyph/typography、post-process、resource pool 分工。注意 Pixi runtime、纹理和 RAF 的销毁。
 
 ### Tempera
 
