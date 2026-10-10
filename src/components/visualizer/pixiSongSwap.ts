@@ -1,10 +1,10 @@
 // Copyright (c) 2026 chthollyphile
-// src/components/visualizer/lumiere/lumiereSongSwap.ts
-// 换歌交接的两帧状态机（同 tempera 的 songSwap）：第一帧在旧歌还在画的时候把新歌当前段落的场景建好
+// src/components/visualizer/pixiSongSwap.ts
+// 换歌交接的两帧状态机（tempera、lumiere 共用）：第一帧在旧歌还在画的时候把新歌当前段落的场景建好
 // （stage），第二帧切过去（commit）。切的那一帧不做任何重活；中途被取消（abort）或运行时销毁时立即了结，
 // 等交接的 promise 一定会 settle，pixiRuntimeHost 的 drain 循环不会挂住。
 
-export interface LumiereSongSwapHooks<TSong, TStaged> {
+export interface PixiSongSwapHooks<TSong, TStaged> {
     /** 离屏建好新歌的场景；没有可建的返回 null。 */
     stage: (song: TSong) => TStaged | null;
     /** 切到新歌；staged 为 null 时由调用方自己重建。 */
@@ -21,13 +21,18 @@ interface PendingSwap<TSong, TStaged> {
     detachAbort: () => void;
 }
 
-export class LumiereSongSwap<TSong, TStaged> {
+export class PixiSongSwap<TSong, TStaged> {
     private pending: PendingSwap<TSong, TStaged> | null = null;
 
-    constructor(private readonly hooks: LumiereSongSwapHooks<TSong, TStaged>) { }
+    constructor(private readonly hooks: PixiSongSwapHooks<TSong, TStaged>) { }
 
     get active() {
         return this.pending !== null;
+    }
+
+    /** 正在交接的新歌（还没切过去）。 */
+    get song() {
+        return this.pending?.song ?? null;
     }
 
     /** 已经建好、还没切过去的场景（tuning / 尺寸变化时需要一起更新或丢弃）。 */

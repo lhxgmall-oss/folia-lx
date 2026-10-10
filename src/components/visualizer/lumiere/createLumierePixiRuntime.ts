@@ -23,7 +23,7 @@ import {
 } from './lumiereSceneEntry';
 import { LumiereCreditsLayer } from './lumiereCreditsLayer';
 import { LumiereDarkFieldLayer } from './lumiereDarkField';
-import { LumiereSongSwap } from './lumiereSongSwap';
+import { PixiSongSwap } from '../pixiSongSwap';
 import { buildLumiereOverlay } from './overlay';
 import { createLightSprites, type LightSprites } from './light/sprites';
 import type { LumiereSceneTuning } from './types';
@@ -85,7 +85,7 @@ export class LumierePixiRuntime {
     private readonly sceneTuning: LumiereSceneTuning;
     private rebuildTimer: ReturnType<typeof setTimeout> | null = null;
     private rebuildDue = false;
-    private readonly songSwap = new LumiereSongSwap<LumiereSongContext, LumiereSceneEntry>({
+    private readonly songSwap = new PixiSongSwap<LumiereSongContext, LumiereSceneEntry>({
         stage: song => this.stageSong(song),
         commit: (song, staged) => this.commitSong(song, staged),
         discard: entry => this.destroyEntry(entry),

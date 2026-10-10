@@ -28,6 +28,7 @@ import {
     type TemperaShotView,
 } from './temperaSceneBuilder';
 import { loadPixi } from '../loadPixi';
+import { PixiSongSwap } from '../pixiSongSwap';
 import { setTemperaTransitionBlur } from './temperaSceneFilters';
 import { resolveTemperaPalette } from './temperaPalette';
 import {
@@ -170,6 +171,13 @@ const requiresSceneRebuild = (previous: TemperaTuning, next: TemperaTuning) => (
     ))
 );
 
+/** The incoming scene and poster, built a frame before the cut needs them. */
+interface TemperaStagedSong {
+    scene: TemperaSceneView;
+    index: number;
+    credits: TemperaCreditsView | null;
+}
+
 export class TemperaPixiRuntime {
     private readonly sceneCache = new Map<number, TemperaSceneView>();
     /**
@@ -204,16 +212,11 @@ export class TemperaPixiRuntime {
      * built on the first frame while the outgoing song still holds the picture, and the content
      * changes on the second. What it replaces is freed later, one scene per frame.
      */
-    private songSwap: {
-        pending: TemperaSongContext | null;
-        /** The incoming scene and poster, built a frame before the cut needs them. */
-        staged: { scene: TemperaSceneView; index: number; credits: TemperaCreditsView | null } | null;
-        /** Set once the build has been attempted, even when it produced nothing. */
-        prepared: boolean;
-        settle: () => void;
-        /** Drops the abort listener, so a long skip session cannot pile them up on one signal. */
-        detachAbort: () => void;
-    } | null = null;
+    private readonly songSwap = new PixiSongSwap<TemperaSongContext, TemperaStagedSong>({
+        stage: song => this.stageSong(song),
+        commit: (song, staged) => this.commitSongContext(song, staged),
+        discard: staged => this.discardStaged(staged),
+    });
 
     private constructor(
         private readonly pixi: PixiModule,
@@ -300,10 +303,7 @@ export class TemperaPixiRuntime {
         this.renderResolution = this.resolveRenderResolution(this.options.tuning);
         this.app.renderer.resize(width, height, this.renderResolution);
         // Staged against the old viewport, so its layout no longer fits.
-        if (this.songSwap?.staged) {
-            this.discardStaged(this.songSwap.staged);
-            this.songSwap.staged = null;
-        }
+        this.songSwap.dropStaged();
         this.clearScenes();
         this.drawCredits(width, height);
         this.drawOverlay(width, height);
@@ -379,14 +379,16 @@ export class TemperaPixiRuntime {
         // Metadata lands in the same React commit as a track change, and the handover already
         // builds the incoming poster on its own frame. Redrawing here would be a second build.
         const swap = this.songSwap;
-        if (swap) {
+        if (swap.active) {
             // Unless it changed in the one frame between staging and the cut, in which case the
             // staged card carries the outgoing song's name and has to be rebuilt.
-            if (swap.pending && swap.staged && this.lastWidth > 0 && this.lastHeight > 0) {
-                const stale = swap.staged.credits;
-                swap.staged.credits = this.buildCreditsView(
-                    swap.pending,
-                    swap.staged.scene.palette,
+            const pending = swap.song;
+            const staged = swap.staged;
+            if (pending && staged && this.lastWidth > 0 && this.lastHeight > 0) {
+                const stale = staged.credits;
+                staged.credits = this.buildCreditsView(
+                    pending,
+                    staged.scene.palette,
                     this.lastWidth,
                     this.lastHeight,
                 );
@@ -676,14 +678,14 @@ export class TemperaPixiRuntime {
         const time = this.options.currentTime.get();
         // Advanced before the paragraph lookup so a cut lands on this frame's scene selection
         // instead of leaving one frame of the outgoing program on the incoming one.
-        this.advanceSongSwap();
+        this.songSwap.advance();
         if (this.options.program.paragraphs.length === 0) return;
         const paragraphIndex = findTemperaParagraphIndexAtTime(this.options.program, time);
         if (paragraphIndex !== this.activeParagraphIndex) {
             this.activeParagraphIndex = paragraphIndex;
             this.ensureScene(paragraphIndex);
             this.pruneScenes(paragraphIndex);
-        } else if (!this.songSwap) {
+        } else if (!this.songSwap.active) {
             // One piece of expensive work per frame, in priority order: free what the last
             // handover left behind, then pre-roll a neighbour. Neighbours are for a boundary
             // that is still ahead, so nothing here is ever needed on this frame - which is the
@@ -869,7 +871,7 @@ export class TemperaPixiRuntime {
         // gets one either - see TemperaSongContext.seed.
         if (
             next.seed === this.options.songSeed
-            || this.songSwap
+            || this.songSwap.active
             || this.lastWidth === 0
             || this.options.program.paragraphs.length === 0
             || this.options.paused
@@ -880,23 +882,13 @@ export class TemperaPixiRuntime {
             return Promise.resolve();
         }
 
-        return new Promise<void>(resolve => {
-            const onAbort = () => this.settleSongSwap();
-            this.songSwap = {
-                pending: next,
-                staged: null,
-                prepared: false,
-                settle: resolve,
-                detachAbort: () => signal?.removeEventListener('abort', onAbort),
-            };
-            signal?.addEventListener('abort', onAbort, { once: true });
-        });
+        return this.songSwap.begin(next, signal);
     }
 
     /** The cut itself. Mirrors `setTuning`'s rebuild branch, minus the synchronous teardown. */
     private commitSongContext(
         next: TemperaSongContext,
-        staged?: { scene: TemperaSceneView; index: number; credits: TemperaCreditsView | null } | null,
+        staged?: TemperaStagedSong | null,
     ) {
         this.options.songSeed = next.seed;
         this.options.program = next.program;
@@ -937,44 +929,12 @@ export class TemperaPixiRuntime {
         if (staged.credits) this.destroyCreditsView(staged.credits);
     }
 
-    /** Finishes an in-flight handover immediately, committing whatever it was still holding. */
-    private settleSongSwap() {
-        const swap = this.songSwap;
-        if (!swap) return;
-        this.songSwap = null;
-        swap.detachAbort();
-        if (this.destroyed) {
-            // Never adopted, so nothing else will ever free it.
-            if (swap.staged) this.discardStaged(swap.staged);
-        } else {
-            if (swap.pending) this.commitSongContext(swap.pending, swap.staged);
-            else if (swap.staged) this.discardStaged(swap.staged);
-        }
-        swap.settle();
-    }
-
-    /**
-     * One frame of the handover. First frame builds the incoming scene while the outgoing song
-     * still holds the picture; second frame cuts to it. Nothing is drawn over the change - the
-     * point is that the cut costs no work, not that it is hidden.
-     */
-    private advanceSongSwap() {
-        const swap = this.songSwap;
-        if (!swap) return;
-        if (!swap.prepared) {
-            swap.prepared = true;
-            if (swap.pending) swap.staged = this.stageSong(swap.pending);
-            return;
-        }
-        this.settleSongSwap();
-    }
-
     /**
      * Builds the incoming scene and poster off screen. This is the expensive half of a track
      * change - the layout fit loop over every grapheme, a `pixi.Text` per glyph, and the poster's
      * own filters and discs - and it is spent here so the frame that cuts does none of it.
      */
-    private stageSong(song: TemperaSongContext) {
+    private stageSong(song: TemperaSongContext): TemperaStagedSong | null {
         const index = findTemperaParagraphIndexAtTime(song.program, this.options.currentTime.get());
         if (index < 0 || index >= song.program.paragraphs.length) return null;
         const scene = this.buildScene(song, index);
@@ -1009,10 +969,7 @@ export class TemperaPixiRuntime {
         }
         if (requiresSceneRebuild(previous, tuning)) {
             // Staged against the old tuning, so it can no longer be adopted.
-            if (this.songSwap?.staged) {
-                this.discardStaged(this.songSwap.staged);
-                this.songSwap.staged = null;
-            }
+            this.songSwap.dropStaged();
             this.clearScenes();
             // Before the first resize pass there is nothing sized to redraw; the install pass
             // will draw both against real dimensions.
@@ -1048,7 +1005,7 @@ export class TemperaPixiRuntime {
         this.destroyed = true;
         // Release whoever is awaiting the handover before tearing the app down, otherwise that
         // promise never settles and the caller's drain loop stays parked on it.
-        this.settleSongSwap();
+        this.songSwap.settle(false);
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
         this.app.stop();
