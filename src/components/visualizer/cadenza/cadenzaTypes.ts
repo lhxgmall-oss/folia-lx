@@ -82,6 +82,24 @@ export interface OverlayWordNodes {
     glow: HTMLSpanElement;
     glyphSpans: HTMLSpanElement[];
     glyphSignature: string;
+    /** What the nodes currently show, so a frame only touches what changed; null before the first write. */
+    written: OverlayWordFrame | null;
+    /** The text-shadow each glyph span currently has, index-aligned with `glyphSpans`. */
+    glyphShadows: string[];
+    /** The draw-loop frame that last used these nodes; older ones are removed at the end of a frame. */
+    frame: number;
+}
+
+/** One word's DOM state for a frame, as strings ready to assign. */
+export interface OverlayWordFrame {
+    outerTransform: string;
+    willChange: string;
+    font: string;
+    innerTransform: string;
+    text: string;
+    color: string;
+    opacity: string;
+    filter: string;
 }
 
 export interface PreparedState {

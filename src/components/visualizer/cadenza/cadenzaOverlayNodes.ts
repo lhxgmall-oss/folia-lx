@@ -1,4 +1,4 @@
-import type { OverlayWordNodes } from './cadenzaTypes';
+import type { OverlayWordFrame, OverlayWordNodes } from './cadenzaTypes';
 
 // src/components/visualizer/cadenza/cadenzaOverlayNodes.ts
 // 每个词落点对应的 DOM 叠层节点（外框 / 内框 / 正文 / 逐字 glow），由 RAF 循环直接写样式。
@@ -7,6 +7,7 @@ export const createOverlayWordNodes = (): OverlayWordNodes => {
     const outer = document.createElement('div');
     outer.className = 'absolute left-0 top-0';
     outer.setAttribute('aria-hidden', 'true');
+    outer.style.transformOrigin = '0 0';
 
     const inner = document.createElement('div');
     inner.className = 'whitespace-nowrap';
@@ -42,7 +43,35 @@ export const createOverlayWordNodes = (): OverlayWordNodes => {
         glow,
         glyphSpans: [],
         glyphSignature: '',
+        written: null,
+        glyphShadows: [],
+        frame: -1,
     };
+};
+
+/**
+ * Writes one frame of a word, skipping every value that is already on the node. Re-assigning
+ * `textContent` swaps the text node even when the string is the same, and the font and text
+ * are what make the browser lay the word out again - most words keep both for a whole line.
+ */
+export const writeOverlayWord = (nodes: OverlayWordNodes, next: OverlayWordFrame) => {
+    const written = nodes.written;
+    if (written?.outerTransform !== next.outerTransform) nodes.outer.style.transform = next.outerTransform;
+    if (written?.willChange !== next.willChange) nodes.outer.style.willChange = next.willChange;
+    if (written?.font !== next.font) nodes.inner.style.font = next.font;
+    if (written?.innerTransform !== next.innerTransform) nodes.inner.style.transform = next.innerTransform;
+    if (written?.text !== next.text) nodes.body.textContent = next.text;
+    if (written?.color !== next.color) nodes.body.style.color = next.color;
+    if (written?.opacity !== next.opacity) nodes.body.style.opacity = next.opacity;
+    if (written?.filter !== next.filter) nodes.body.style.filter = next.filter;
+    nodes.written = next;
+};
+
+/** Sets a glyph span's text-shadow only when it differs from what the span already has. */
+export const writeOverlayGlyphShadow = (nodes: OverlayWordNodes, index: number, shadow: string) => {
+    if (nodes.glyphShadows[index] === shadow) return;
+    nodes.glyphShadows[index] = shadow;
+    nodes.glyphSpans[index]!.style.textShadow = shadow;
 };
 
 export const syncOverlayGlyphSpans = (nodes: OverlayWordNodes, texts: string[]) => {
@@ -60,6 +89,7 @@ export const syncOverlayGlyphSpans = (nodes: OverlayWordNodes, texts: string[]) 
         nodes.glow.appendChild(span);
         return span;
     });
+    nodes.glyphShadows = [];
     nodes.glyphSignature = glyphSignature;
 };
 
