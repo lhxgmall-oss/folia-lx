@@ -272,11 +272,10 @@ export class LumierePixiRuntime {
         // 暗场强度每帧从共享 tuning 现读：拖滑块不重建场景；场景还没建好的第一帧也已经铺上。
         this.darkField.update(theme, this.sceneTuning.darkField, this.width, this.height);
         const frames = resolveLumiereSceneFrames(program, time, !this.options.staticMode);
-        const visible = new Set(frames.layers.map(layer => layer.index));
         let builtThisFrame = false;
         if (frames.activeIndex !== this.activeIndex) {
             this.activeIndex = frames.activeIndex;
-            this.sceneCache.prune(frames.activeIndex, visible);
+            this.sceneCache.prune(frames.activeIndex, new Set(frames.layers.map(layer => layer.index)));
         }
         frames.layers.forEach(layer => {
             if (!this.sceneCache.has(layer.index)) {
@@ -304,12 +303,12 @@ export class LumierePixiRuntime {
             this.credits.build(this.creditBuildContext(theme));
         }
 
-        const layerByIndex = new Map(frames.layers.map(layer => [layer.index, layer]));
         const lyricAlpha = creditsFrame.active ? creditsFrame.lyricAlpha : 1;
         const lyricBlur = creditsFrame.active ? creditsFrame.lyricBlur : 0;
         const blurResolution = this.renderResolution * 0.5;
         this.sceneCache.forEach((entry, index) => {
-            const layer = layerByIndex.get(index);
+            // 同时在画的段落最多两三个，直接找，不必每帧建一张表。
+            const layer = frames.layers.find(candidate => candidate.index === index);
             const alpha = (layer?.alpha ?? 0) * lyricAlpha;
             entry.holder.visible = alpha > 0.002;
             if (!entry.holder.visible || !layer) return;
