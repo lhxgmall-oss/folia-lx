@@ -36,6 +36,8 @@ type LatticeProps = {
     queue: SongResult[];
     isDaylight: boolean;
     onBack: () => void;
+    /** 工具面板的「主页」：总是回首页（左上角返回仍是历史返回）；缺省时没有那一格。 */
+    onGoHome?: () => void;
     onOpenPlayer: () => void;
     onPlaySong: (song: SongResult, queue: SongResult[]) => void;
     onTogglePlayback: () => void;
@@ -55,6 +57,7 @@ export default function Lattice({
     queue,
     isDaylight,
     onBack,
+    onGoHome,
     onOpenPlayer,
     onPlaySong,
     onTogglePlayback,
@@ -143,7 +146,7 @@ export default function Lattice({
                 onOpenPlayer={wall.onOpenPlayer}
                 onBack={onBack}
             />
-            <LatticeFocusButton isDaylight={isDaylight} />
+            <LatticeFocusButton isDaylight={isDaylight} onGoHome={onGoHome} />
             <WallBackButton label={t('home.latticeBack')} onBack={onBack} />
             {tiles.length === 0 && (
                 <div className="lattice-empty">

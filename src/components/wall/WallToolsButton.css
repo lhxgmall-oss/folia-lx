@@ -1,5 +1,6 @@
 /* src/components/wall/WallToolsButton.css — 墙面右下角工具按钮与锚定玻璃面板（WallToolsButton），Lattice 与 bravais 共用。
-   原来是 components/app/lattice/LatticeFocusButton.css，整份搬来，类名沿用 .lattice-tools*（测试与 Ponder 依赖它们）。 */
+   原来是 components/app/lattice/LatticeFocusButton.css，整份搬来，类名沿用 .lattice-tools*（测试与 Ponder 依赖它们）。
+   紧凑档：面板 296px、行 38px、快捷格 40px 纯图标。 */
 
 .lattice-tools {
     position: absolute;
@@ -12,15 +13,23 @@
 /* App 的 dock（WallToolsDock）不接指针，只有按钮与面板接（翻牌交接时两面墙共用这一颗）。 */
 .wall-tools-dock .lattice-tools { pointer-events: auto; }
 
-.lattice-tools-panel {
+/* 按钮上方的一列：面板（与第二步的队列浮岛）在里面，从下往上排；定位在这一层，面板自己不 absolute。 */
+.lattice-tools-stack {
     position: absolute;
     right: 0;
     bottom: 64px;
     display: flex;
-    width: min(320px, calc(100vw - 48px));
     flex-direction: column;
-    gap: 4px;
-    padding: 12px;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.lattice-tools-panel {
+    display: flex;
+    width: min(296px, calc(100vw - 32px));
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px;
     overflow: hidden;
     border: 1px solid rgb(255 255 255 / 8%);
     border-radius: 24px;
@@ -38,15 +47,15 @@
 .lattice-tools-action {
     display: flex;
     width: 100%;
-    min-height: 48px;
+    min-height: 38px;
     align-items: center;
-    gap: 12px;
-    padding: 0 14px;
+    gap: 11px;
+    padding: 0 12px;
     border: 0;
-    border-radius: 14px;
+    border-radius: 12px;
     background: transparent;
     color: inherit;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     text-align: left;
     cursor: pointer;
@@ -75,15 +84,15 @@
 }
 
 .lattice-tools-action:disabled:hover { background: transparent; }
-.lattice-tools-action svg { width: 19px; height: 19px; flex: 0 0 auto; }
+.lattice-tools-action svg { width: 17px; height: 17px; flex: 0 0 auto; }
 
 .lattice-tools-action kbd {
     margin-left: auto;
-    padding: 2px 7px;
+    padding: 1px 6px;
     border: 1px solid currentColor;
-    border-radius: 7px;
+    border-radius: 6px;
     font-family: inherit;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     opacity: 0.42;
 }
@@ -98,8 +107,8 @@
 }
 
 .lattice-tools-toggle {
-    width: 34px;
-    height: 20px;
+    width: 30px;
+    height: 18px;
     margin-left: auto;
     padding: 2px;
     border: 1px solid currentColor;
@@ -110,8 +119,8 @@
 
 .lattice-tools-toggle > span {
     display: block;
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     background: currentColor;
     transition: transform 160ms ease;
@@ -124,7 +133,7 @@
 
 .lattice-tools-toggle.is-on > span {
     color: var(--text-primary, #f7f4ee);
-    transform: translateX(14px);
+    transform: translateX(12px);
 }
 
 .lattice-tools-help-section {
@@ -133,7 +142,7 @@
     align-items: center;
     justify-content: space-between;
     margin-top: 4px;
-    padding-top: 8px;
+    padding-top: 6px;
     border-top: 1px solid rgb(255 255 255 / 10%);
 }
 
@@ -150,11 +159,11 @@
 }
 
 .lattice-tools-lights-toggle span {
-    min-width: 48px;
-    padding: 5px 10px;
+    min-width: 44px;
+    padding: 4px 9px;
     border-radius: 999px;
     color: color-mix(in srgb, currentColor 58%, transparent);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 650;
     text-align: center;
     transition: color 160ms ease, background-color 160ms ease;
@@ -174,8 +183,8 @@
 }
 
 .lattice-tools-help-trigger {
-    width: 38px;
-    min-height: 38px;
+    width: 32px;
+    min-height: 32px;
     justify-content: center;
     align-self: flex-end;
     padding: 0;
@@ -204,7 +213,7 @@
 
 .lattice-tools-help li {
     display: flex;
-    min-height: 34px;
+    min-height: 30px;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
@@ -245,31 +254,26 @@
     font-size: 11px;
 }
 
-/* —— 以下是可选能力（bravais 的工具面板用；Lattice 不传，这些类不出现）—— */
+/* —— 快捷排、音量滑条、分组小标题（两面墙都有）—— */
 
-/* 顶部一排图标快捷动作：图标 + 短字的小方块，悬停与条目同一种底。 */
+/* 顶部一排纯图标快捷格：固定 6 列（缺的格子跳过，剩下的靠左），名字与按键在 title / aria 里，悬停与条目同一种底。 */
 .lattice-tools-quick {
     display: grid;
-    gap: 6px;
-    margin-bottom: 6px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+    margin-bottom: 4px;
 }
 
 .lattice-tools-quick-action {
-    display: flex;
+    display: grid;
     min-width: 0;
-    min-height: 64px;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 4px;
+    height: 40px;
+    place-items: center;
+    padding: 0;
     border: 0;
-    border-radius: 16px;
+    border-radius: 12px;
     background: rgb(255 255 255 / 6%);
     color: inherit;
-    font-size: 11px;
-    font-weight: 650;
-    line-height: 1.2;
     cursor: pointer;
     transition: background-color 160ms ease, opacity 160ms ease;
 }
@@ -283,15 +287,7 @@
 .lattice-tools.is-daylight .lattice-tools-quick-action:hover,
 .lattice-tools.is-daylight .lattice-tools-quick-action:focus-visible { background: rgb(0 0 0 / 10%); }
 
-.lattice-tools-quick-action svg { width: 20px; height: 20px; flex: 0 0 auto; }
-
-.lattice-tools-quick-action span {
-    max-width: 100%;
-    overflow: hidden;
-    color: color-mix(in srgb, currentColor 80%, transparent);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+.lattice-tools-quick-action svg { width: 18px; height: 18px; flex: 0 0 auto; }
 
 .lattice-tools-quick-action:disabled {
     opacity: 0.35;
@@ -320,11 +316,11 @@
 /* 滑条一行（音量）：左侧图标（可点：静音）、轨道、右侧数值，一块浅底。 */
 .lattice-tools-slider {
     display: flex;
-    min-height: 48px;
+    min-height: 38px;
     align-items: center;
     gap: 8px;
-    padding: 0 12px 0 5px;
-    border-radius: 14px;
+    padding: 0 12px 0 4px;
+    border-radius: 12px;
     background: rgb(255 255 255 / 6%);
 }
 
@@ -332,13 +328,13 @@
 
 .lattice-tools-slider-icon {
     display: grid;
-    width: 38px;
-    height: 38px;
+    width: 30px;
+    height: 30px;
     flex: 0 0 auto;
     place-items: center;
     padding: 0;
     border: 0;
-    border-radius: 11px;
+    border-radius: 9px;
     background: transparent;
     color: inherit;
 }
@@ -346,7 +342,7 @@
 button.lattice-tools-slider-icon { cursor: pointer; transition: background-color 160ms ease; }
 button.lattice-tools-slider-icon:hover { background: rgb(255 255 255 / 10%); }
 .lattice-tools.is-daylight button.lattice-tools-slider-icon:hover { background: rgb(0 0 0 / 7%); }
-.lattice-tools-slider-icon svg { width: 19px; height: 19px; }
+.lattice-tools-slider-icon svg { width: 17px; height: 17px; }
 button.lattice-tools-slider-icon[aria-pressed="true"] { color: var(--text-accent, currentColor); }
 
 .lattice-tools-slider input[type="range"] {
@@ -422,11 +418,11 @@ button.lattice-tools-slider-icon[aria-pressed="true"] { color: var(--text-accent
 
 /* 分组小标题：一道发丝线 + 小号字，之后的几行属于它。 */
 .lattice-tools-heading {
-    margin-top: 6px;
-    padding: 10px 14px 2px;
+    margin-top: 4px;
+    padding: 7px 12px 1px;
     border-top: 1px solid rgb(255 255 255 / 10%);
     color: color-mix(in srgb, currentColor 52%, transparent);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.06em;
 }
@@ -442,6 +438,4 @@ button.lattice-tools-slider-icon[aria-pressed="true"] { color: var(--text-accent
 
 @media (max-width: 640px) {
     .lattice-tools { right: 16px; bottom: 16px; }
-    .lattice-tools-panel { width: min(320px, calc(100vw - 32px)); }
-    .lattice-tools-quick-action { min-height: 58px; }
 }
