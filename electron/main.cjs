@@ -54,6 +54,7 @@ const {
   runAiConnectionTest,
   runAiJsonCompletion,
 } = require('./aiTextClient.cjs');
+const { createAiCredentialStore, isAiCredentialKey, isSealedAiCredentialKey } = require('./aiCredentialStore.cjs');
 const {
   SEGMENTATION_GEMINI_GENERATION_CONFIG,
   SEGMENTATION_JSON_SCHEMA,
@@ -203,6 +204,8 @@ const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
   },
 });
 const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
+// AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext (#586).
+const aiCredentials = createAiCredentialStore({ store, safeStorage });
 
 // --- Desktop wallpaper mode (Wayland layer-shell via windowtolayer / X11 desktop window) ---
 // Settings keys follow the existing electron-store key/value chain; values are normalized here in
@@ -1951,7 +1954,7 @@ function readStoredBoolean(settingKey, fallback = false) {
 
 function getPublicSettings() {
   return {
-    ...store.store,
+    ...aiCredentials.toPublicSettings(store.store),
     [MINIMIZE_TO_TRAY_SETTING_KEY]: readStoredBoolean(MINIMIZE_TO_TRAY_SETTING_KEY, false),
     [CLOSE_TO_TRAY_SETTING_KEY]: readStoredBoolean(CLOSE_TO_TRAY_SETTING_KEY, false),
     [HIDE_TASKBAR_ICON_SETTING_KEY]: readStoredBoolean(HIDE_TASKBAR_ICON_SETTING_KEY, false),
@@ -5157,6 +5160,13 @@ app.whenReady().then(async () => {
     }
   }
 
+  // Seal AI API keys that older versions left in config.json as plaintext.
+  try {
+    aiCredentials.migrate();
+  } catch (error) {
+    console.warn('[AiCredentials] Migrating plaintext API keys failed', error);
+  }
+
   setupFileSystemAccessPermissionHandlers();
   setupCorsBypassHandlers();
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
@@ -5467,7 +5477,11 @@ ipcMain.handle('set-app-locale', (event, localeKey) => {
 });
 
 ipcMain.handle('save-settings', (event, key, value) => {
-  if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID') {
+  if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || isSealedAiCredentialKey(key)) {
+    return getPublicSettings();
+  }
+  if (isAiCredentialKey(key)) {
+    aiCredentials.set(key, value);
     return getPublicSettings();
   }
 
@@ -6579,7 +6593,7 @@ ipcMain.handle('generate-theme', async (event, lyricsText, options = {}) => {
       const sourcePrompt = buildThemeSourcePrompt(snippet, isPureMusic, songTitle);
       const apiUrl = normalizeOpenAIChatCompletionsUrl(store.get('OPENAI_API_URL'));
       const content = await runAiJsonCompletion({
-        store,
+        store: aiCredentials.settingsView,
         systemPrompt,
         sourcePrompt,
         schema: THEME_JSON_SCHEMA,
@@ -6600,7 +6614,7 @@ ipcMain.handle('generate-theme', async (event, lyricsText, options = {}) => {
       dualTheme.dark.provider = 'OpenAI Compatible (Local)';
 
     } else {
-      const apiKey = store.get('GEMINI_API_KEY');
+      const apiKey = aiCredentials.get('GEMINI_API_KEY');
       if (!apiKey) {
         throw new Error("GEMINI_API_KEY is not configured in settings");
       }
@@ -6666,7 +6680,7 @@ ipcMain.handle('segment-lyrics', async (event, lines) => {
       + ` via ${store.get('AI_PROVIDER') || 'gemini'}${useSystemProxy ? ' (system proxy)' : ''}`);
 
     rawResponse = await runAiJsonCompletion({
-      store,
+      store: aiCredentials.settingsView,
       systemPrompt: buildSegmentationSystemPrompt(),
       sourcePrompt: buildSegmentationSourcePrompt(sourceLines),
       schema: SEGMENTATION_JSON_SCHEMA,

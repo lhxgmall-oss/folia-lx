@@ -1,0 +1,127 @@
+import { describe, expect, it, vi } from 'vitest';
+
+// test/unit/electron/aiCredentialStore.test.ts
+
+const {
+    createAiCredentialStore,
+} = require('../../../electron/aiCredentialStore.cjs') as {
+    createAiCredentialStore: (options: Record<string, unknown>) => {
+        get: (key: string) => unknown;
+        set: (key: string, value: unknown) => void;
+        migrate: () => void;
+        toPublicSettings: (settings: Record<string, unknown>) => Record<string, unknown>;
+        settingsView: { get: (key: string) => unknown };
+    };
+};
+
+function createStore(initial: Record<string, unknown> = {}) {
+    const values = new Map<string, unknown>(Object.entries(initial));
+    return {
+        values,
+        get: vi.fn((key: string) => values.get(key)),
+        set: vi.fn((key: string, value: unknown) => values.set(key, value)),
+        delete: vi.fn((key: string) => values.delete(key)),
+    };
+}
+
+// Reversible byte transformation so the persisted value is not just base64 of the plaintext.
+function createSafeStorage({ available = true, backend = 'gnome_libsecret' } = {}) {
+    return {
+        isEncryptionAvailable: vi.fn(() => available),
+        getSelectedStorageBackend: vi.fn(() => backend),
+        encryptString: vi.fn((plaintext: string): Buffer =>
+            Buffer.from(Buffer.from(plaintext, 'utf8').map((byte) => byte ^ 0xa5))),
+        decryptString: vi.fn((ciphertext: Buffer) =>
+            Buffer.from(Buffer.from(ciphertext).map((byte) => byte ^ 0xa5)).toString('utf8')),
+    };
+}
+
+const persistedText = (store: ReturnType<typeof createStore>) => JSON.stringify(Object.fromEntries(store.values));
+
+describe('AI credential store', () => {
+    it('keeps API keys out of the persisted settings in plaintext', () => {
+        const store = createStore();
+        const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
+
+        credentials.set('OPENAI_API_KEY', 'sk-secret-123');
+
+        expect(persistedText(store)).not.toContain('sk-secret-123');
+        expect(store.values.has('OPENAI_API_KEY')).toBe(false);
+        expect(store.values.get('OPENAI_API_KEY_SEALED')).toEqual(expect.any(String));
+
+        const reopened = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
+        expect(reopened.get('OPENAI_API_KEY')).toBe('sk-secret-123');
+        expect(reopened.settingsView.get('OPENAI_API_KEY')).toBe('sk-secret-123');
+    });
+
+    it('migrates plaintext keys written by older versions', () => {
+        const store = createStore({ GEMINI_API_KEY: 'gemini-plain', AI_PROVIDER: 'gemini' });
+        const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'darwin' });
+
+        credentials.migrate();
+
+        expect(persistedText(store)).not.toContain('gemini-plain');
+        expect(credentials.get('GEMINI_API_KEY')).toBe('gemini-plain');
+        expect(store.values.get('AI_PROVIDER')).toBe('gemini');
+    });
+
+    it('exposes decrypted keys under their usual names and hides the sealed blobs', () => {
+        const store = createStore();
+        const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
+        credentials.set('GEMINI_API_KEY', 'gemini-key');
+
+        const settings = credentials.toPublicSettings(Object.fromEntries(store.values));
+
+        expect(settings.GEMINI_API_KEY).toBe('gemini-key');
+        expect(settings.OPENAI_API_KEY).toBe('');
+        expect(Object.keys(settings).some((key) => key.endsWith('_SEALED'))).toBe(false);
+    });
+
+    it('clears both the sealed and plaintext entries when a key is emptied', () => {
+        const store = createStore({ OPENAI_API_KEY: 'legacy' });
+        const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
+        credentials.set('OPENAI_API_KEY', 'sk-new');
+
+        credentials.set('OPENAI_API_KEY', '');
+
+        expect(store.values.has('OPENAI_API_KEY')).toBe(false);
+        expect(store.values.has('OPENAI_API_KEY_SEALED')).toBe(false);
+        expect(credentials.get('OPENAI_API_KEY')).toBe('');
+    });
+
+    it('falls back to plaintext on Linux basic_text instead of losing the key', () => {
+        const warn = vi.fn();
+        const store = createStore({ GEMINI_API_KEY: 'plain' });
+        const safeStorage = createSafeStorage({ backend: 'basic_text' });
+        const credentials = createAiCredentialStore({ store, safeStorage, platform: 'linux', warn });
+
+        credentials.migrate();
+        expect(store.values.get('GEMINI_API_KEY')).toBe('plain');
+
+        credentials.set('OPENAI_API_KEY', 'sk-linux');
+        expect(store.values.get('OPENAI_API_KEY')).toBe('sk-linux');
+        expect(safeStorage.encryptString).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalled();
+    });
+
+    it('returns an empty key without discarding ciphertext it cannot decrypt', () => {
+        const warn = vi.fn();
+        const store = createStore({ OPENAI_API_KEY_SEALED: 'Ym9ndXM=' });
+        const safeStorage = createSafeStorage();
+        safeStorage.decryptString.mockImplementation(() => {
+            throw new Error('Error while decrypting the ciphertext provided to safeStorage.decryptString.');
+        });
+        const credentials = createAiCredentialStore({ store, safeStorage, platform: 'win32', warn });
+
+        expect(credentials.get('OPENAI_API_KEY')).toBe('');
+        expect(store.values.get('OPENAI_API_KEY_SEALED')).toBe('Ym9ndXM=');
+        expect(warn).toHaveBeenCalled();
+    });
+
+    it('passes non-credential keys straight through', () => {
+        const store = createStore({ OPENAI_API_URL: 'https://api.deepseek.com' });
+        const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
+
+        expect(credentials.settingsView.get('OPENAI_API_URL')).toBe('https://api.deepseek.com');
+    });
+});
