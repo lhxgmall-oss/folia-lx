@@ -103,6 +103,7 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Mintcolour"><img src="https://avatars.githubusercontent.com/u/43575730?v=4?s=100" width="100px;" alt="mintcolor"/><br /><sub><b>mintcolor</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=Mintcolour" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://fonstage.space"><img src="https://avatars.githubusercontent.com/u/190753033?v=4?s=100" width="100px;" alt="Fons"/><br /><sub><b>Fons</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=UndefinedFons" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/tabidachinokaze"><img src="https://avatars.githubusercontent.com/u/36873309?v=4?s=100" width="100px;" alt="旅立ちの風"/><br /><sub><b>旅立ちの風</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/commits?author=tabidachinokaze" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/w-j-y-wjy"><img src="https://avatars.githubusercontent.com/u/194654120?v=4?s=100" width="100px;" alt="Yjan"/><br /><sub><b>Yjan</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3Aw-j-y-wjy" title="Bug reports">🐛</a></td>
     </tr>
   </tbody>
 </table>

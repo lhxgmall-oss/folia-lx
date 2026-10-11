@@ -699,6 +699,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "w-j-y-wjy",
+      "name": "Yjan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/194654120?v=4",
+      "profile": "https://github.com/w-j-y-wjy",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "commit": false,
