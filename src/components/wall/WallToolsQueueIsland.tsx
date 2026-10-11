@@ -46,7 +46,10 @@ export const queueIslandHeight = (rowCount: number) => Math.max(
 /** 按行数算出的列表理想高度（还没量到真实高度时先用它）。 */
 const idealListHeight = (rowCount: number) => queueIslandHeight(rowCount) - ISLAND_BORDER_HEIGHT - ISLAND_HEADER_HEIGHT;
 
-export function WallToolsQueueIsland({ id, host }: { id: string; host: WallToolsHost }) {
+/** 与面板一起打开时浮岛晚出现的那一拍（秒）：面板入场 0.2s，浮岛在它走了一小半时才开始浮现。 */
+const TRAIL_PANEL_DELAY = 0.09;
+
+export function WallToolsQueueIsland({ id, host, trailsPanel = false }: { id: string; host: WallToolsHost; trailsPanel?: boolean }) {
     const { t } = useTranslation();
     const playQueue = usePlaybackStore(state => state.playQueue);
     const currentSong = usePlaybackStore(state => state.currentSong);
@@ -257,7 +260,7 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
                 if (event.key === 'Delete' && !isTextEntryTarget(event.target)) event.preventDefault();
             }}
             initial={{ opacity: 0, scale: 0.96, originX: 1, originY: 1 }}
-            animate={{ opacity: 1, scale: 1 }}
+            animate={{ opacity: 1, scale: 1, transition: { duration: 0.18, ease: 'easeOut', delay: trailsPanel ? TRAIL_PANEL_DELAY : 0 } }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
         >

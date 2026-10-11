@@ -73,6 +73,9 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
+    // 面板正在随这次打开浮现：浮岛与它同时挂上时晚一拍出现（下面的面板先到，浮岛跟上）；面板入场动画结束后复位，
+    // 之后在开着的面板上点「队列」格展开浮岛不再等。
+    const [islandTrailsPanel, setIslandTrailsPanel] = useState(false);
     // dock 里换了墙（Ctrl+B 进 / 出 Lattice、翻牌交接）：idPrefix 变了就收起面板，不让新墙接着开着旧墙的面板。
     const [shownPrefix, setShownPrefix] = useState(idPrefix);
     if (shownPrefix !== idPrefix) {
@@ -168,6 +171,7 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
                             transition={{ duration: 0.2, ease: 'easeOut' }}
+                            onAnimationComplete={() => setIslandTrailsPanel(false)}
                             className={quick.length > 0 ? 'lattice-tools-panel has-quick-actions' : 'lattice-tools-panel'}
                         >
                             {quick.length > 0 && <WallToolsQuickRow actions={quick} onDone={close} />}
@@ -218,17 +222,20 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
                     )}
                 </AnimatePresence>
                 <AnimatePresence initial={false}>
-                    {showQueueIsland && <WallToolsQueueIsland key="queue-island" id={queueIslandId} host={host} />}
+                    {showQueueIsland && <WallToolsQueueIsland key="queue-island" id={queueIslandId} host={host} trailsPanel={islandTrailsPanel} />}
                 </AnimatePresence>
             </div>
 
             <SlideActionButton
                 icon={isOpen ? X : Settings2}
                 title={label}
-                onActivate={() => setIsOpen(open => {
-                    if (open) setShowHelp(false);
-                    return !open;
-                })}
+                onActivate={() => {
+                    setIslandTrailsPanel(!isOpen);
+                    setIsOpen(open => {
+                        if (open) setShowHelp(false);
+                        return !open;
+                    });
+                }}
                 slideIcon={Command}
                 slideTitle={t('options.gridSlideTargetCommandPalette')}
                 onSlide={handleOpenCommandPalette}
