@@ -423,7 +423,7 @@ describe('where a login diagnostics report goes', () => {
         result: {} as never,
         verdict: { kind, detail: null, proxy: null } as never,
     });
-    const official = { official: true, web: false };
+    const official = { build: 'official' as const, web: false };
 
     it('sends official desktop failures to GitHub', () => {
         expect(resolveLoginReportRoute(official, { failure: 'check-error', selfCheck: null })).toBe('github');
@@ -431,13 +431,17 @@ describe('where a login diagnostics report goes', () => {
     });
 
     it('treats a web build that cannot start or reach its API as a deployment problem', () => {
-        expect(resolveLoginReportRoute({ official: false, web: true }, { failure: 'start-error', selfCheck: null })).toBe('web-deployment');
-        expect(resolveLoginReportRoute({ official: true, web: true }, { failure: 'check-error', selfCheck: doneWith('remote-unreachable') })).toBe('web-deployment');
-        expect(resolveLoginReportRoute({ official: true, web: true }, { failure: 'check-error', selfCheck: doneWith('network-ok') })).toBe('github');
+        expect(resolveLoginReportRoute({ build: 'unofficial' as const, web: true }, { failure: 'start-error', selfCheck: null })).toBe('web-deployment');
+        expect(resolveLoginReportRoute({ build: 'self-hosted' as const, web: true }, { failure: 'check-error', selfCheck: doneWith('remote-unreachable') })).toBe('web-deployment');
+        expect(resolveLoginReportRoute({ build: 'self-hosted' as const, web: true }, { failure: 'check-error', selfCheck: doneWith('network-ok') })).toBe('github');
+    });
+
+    it('sends self-hosted failures that are not deployment problems to GitHub', () => {
+        expect(resolveLoginReportRoute({ build: 'self-hosted', web: false }, { failure: 'check-error', selfCheck: null })).toBe('github');
     });
 
     it('never sends unofficial builds to GitHub', () => {
-        expect(resolveLoginReportRoute({ official: false, web: false }, { failure: 'check-error', selfCheck: null })).toBe('unofficial-build');
-        expect(resolveLoginReportRoute({ official: false, web: true }, { failure: 'check-error', selfCheck: doneWith('network-ok') })).toBe('unofficial-build');
+        expect(resolveLoginReportRoute({ build: 'unofficial' as const, web: false }, { failure: 'check-error', selfCheck: null })).toBe('unofficial-build');
+        expect(resolveLoginReportRoute({ build: 'unofficial' as const, web: true }, { failure: 'check-error', selfCheck: doneWith('network-ok') })).toBe('unofficial-build');
     });
 });

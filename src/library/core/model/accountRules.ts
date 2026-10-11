@@ -152,13 +152,16 @@ export const resolveLoginDiagnosticsPrompt = (failure: QrLoginFailureKind): Libr
     key: failure === 'expired-after-scan' ? 'home.qrDiagnosticsPromptScanned' : 'home.qrDiagnosticsPrompt',
 });
 
-/** 跑这个前端的构建与运行环境（反馈去向用）：是否本仓库 CI 构建的官方版本、是否网页版。 */
-export type LibraryLoginReportEnvironment = { official: boolean; web: boolean };
+/**
+ * 跑这个前端的构建与运行环境（反馈去向用）。build 与 utils/buildProvenance 的 BuildKind 相同：official 是本仓库 CI
+ * 构建的，self-hosted 是文档里的自部署方式（Docker、Vercel、Cloudflare），unofficial 是其余一切。web 即网页版。
+ */
+export type LibraryLoginReportEnvironment = { build: 'official' | 'self-hosted' | 'unofficial'; web: boolean };
 
 /**
- * 诊断报告该交给谁。github：照常去本仓库反馈；web-deployment：网页版的后端没配置或连不上，是部署问题，
- * 该找网站的部署者；unofficial-build：不是本仓库 CI 构建的版本（别人的打包、fork、自己部署的网页），该找提供者。
- * 部署问题优先：它比「非官方」更能告诉用户该怎么办。
+ * 诊断报告该交给谁。github：照常去本仓库反馈（官方构建与自部署）；web-deployment：网页版的后端没配置或连不上，
+ * 是部署问题，该找网站的部署者；unofficial-build：不是本仓库 CI 构建、也不是文档里的自部署方式（fork 的 CI、
+ * 本地构建、他人打包），该找提供者。部署问题优先：它比「非官方」更能告诉用户该怎么办。
  */
 export type LibraryLoginReportRoute = 'github' | 'web-deployment' | 'unofficial-build';
 
@@ -169,7 +172,7 @@ export const resolveLoginReportRoute = (
     const remoteUnreachable = session.selfCheck?.status === 'done' && session.selfCheck.verdict.kind === 'remote-unreachable';
     // 网页版一开始要码就失败（没配 VITE_*_API_BASE、Failed to fetch、跨域）几乎都是部署配置问题。
     if (environment.web && (session.failure === 'start-error' || remoteUnreachable)) return 'web-deployment';
-    if (!environment.official) return 'unofficial-build';
+    if (environment.build === 'unofficial') return 'unofficial-build';
     return 'github';
 };
 

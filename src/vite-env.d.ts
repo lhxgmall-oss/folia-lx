@@ -9,8 +9,10 @@ declare global {
   const __BUILD_REPO__: string;
   /** 十六进制短 commit，拿不到时为 'dev'。 */
   const __BUILD_COMMIT__: string;
-  /** 是否本仓库 GitHub Actions 构建的官方版本（见 dev/build/buildIdentity.mjs）。 */
-  const __OFFICIAL_BUILD__: boolean;
+  /** 构建类别 official / self-hosted / unofficial（见 dev/build/buildIdentity.mjs）。 */
+  const __BUILD_KIND__: string;
+  /** 自部署平台 docker / vercel / cloudflare；其他类别为空串。 */
+  const __BUILD_HOST__: string;
   const __APP_VERSION__: string;
   const __APP_VERSION_LABEL__: string;
   const __APP_RELEASE_CHANNEL__: string;

@@ -182,6 +182,16 @@ describe('login diagnosis in issue triage', () => {
         expect(plan.comments[0]).toContain('不是 Folia 仓库 CI 构建的官方版本');
     });
 
+    it('keeps self-hosted reports open unless the deployment itself is broken', async () => {
+        const selfHosted = formatQrLoginDiagnosticReport({
+            generatedAt: NOW, appVersion: '0.7.18', userAgent: 'Mozilla/5.0 Chrome/150 Safari/537.36', build: 'self-hosted vercel (someone/folia-major@abc1234)',
+            origin: 'https://folia.example.com', providerId: 'qq', methodId: 'qq', failure: 'check-error', timeline: [], providerLines: [],
+        });
+        const { plan } = await run({ title: '[QR login] qq login failed', body: selfHosted }).result;
+        expect(plan.close).toBeNull();
+        expect(plan.labelsAdd).toContain('self-hosted');
+    });
+
     it('keeps reports from official builds open', async () => {
         const official = formatQrLoginDiagnosticReport({
             generatedAt: NOW, appVersion: '0.7.18', userAgent: 'Mozilla/5.0 Folia/0.7.18 Electron/43.7.5', build: 'official (chthollyphile/folia-major@abc1234)',

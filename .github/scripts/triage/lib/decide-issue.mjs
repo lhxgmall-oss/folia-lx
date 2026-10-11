@@ -95,6 +95,7 @@ export function decideIssue(input) {
     }
     if (providerRequest) plan.labelsAdd.push('provider-request');
     if (facts.unofficialBuild) plan.labelsAdd.push('unofficial build');
+    else if (facts.selfHosted) plan.labelsAdd.push('self-hosted');
 
     // ---- 关闭 ----
     const related = [];

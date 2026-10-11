@@ -44,12 +44,15 @@ describe('decideIssue', () => {
         expect(plan.labelsAdd).toContain('module: omni');
     });
 
-    it('labels bugs whose copied version line carries the unofficial build tag', () => {
+    it('labels bugs by the build tag on their copied version line', () => {
         const body = filledBugBody.replace('c69afdc/水仙的守护与龙', 'c69afdc/水仙的守护与龙 · Unofficial build');
         const plan = decide({ title: '[BUG] 歌词乱码', body, labels: ['bug'] });
         expect(plan.labelsAdd).toContain('unofficial build');
         expect(plan.close).toBeNull();
         expect(decide({ title: '[BUG] 歌词乱码', body: filledBugBody, labels: ['bug'] }).labelsAdd).not.toContain('unofficial build');
+        const selfHosted = decide({ title: '[BUG] 歌词乱码', body: filledBugBody.replace('c69afdc/水仙的守护与龙', 'c69afdc/水仙的守护与龙 · Self-hosted'), labels: ['bug'] });
+        expect(selfHosted.labelsAdd).toContain('self-hosted');
+        expect(selfHosted.labelsAdd).not.toContain('unofficial build');
     });
 
     it('asks for missing info on a bug and labels the module', () => {

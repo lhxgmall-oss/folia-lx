@@ -5,9 +5,8 @@ WORKDIR /app
 ARG VCS_REF=local
 ARG STACK_VERSION=local
 ARG REQUIRE_COMMIT_NAME=false
-# 官方构建标记（dev/build/buildIdentity.mjs）：只有本仓库的 docker-stack-publish workflow 会传入这两个值，
-# 自己 docker build 出来的镜像默认是非官方构建。
-ARG GITHUB_ACTIONS=false
+# 构建来源仓库（dev/build/buildIdentity.mjs）：本仓库的 docker-stack-publish workflow 会传入，写进诊断报告的 build 行；
+# 镜像本身按 APP_RELEASE_CHANNEL=docker 一律算自部署。
 ARG GITHUB_REPOSITORY=
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci
@@ -23,7 +22,6 @@ ENV APP_VERSION_LABEL=Docker
 ENV APP_RELEASE_CHANNEL=docker
 ENV DOCKER_STACK_VERSION=${STACK_VERSION}
 ENV REQUIRE_COMMIT_NAME=${REQUIRE_COMMIT_NAME}
-ENV GITHUB_ACTIONS=${GITHUB_ACTIONS}
 ENV GITHUB_REPOSITORY=${GITHUB_REPOSITORY}
 RUN npm exec vite build
 

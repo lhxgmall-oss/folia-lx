@@ -120,7 +120,7 @@ const CLOSE_TEXT = {
         '在官方版本（[GitHub Releases](https://github.com/chthollyphile/folia-major/releases) 的桌面版，或官方 Docker 镜像）上也能复现的话，请用官方版本重新生成诊断后回复，维护者会复核。',
     ].join('\n\n'),
     'unofficial-build': () => [
-        '诊断报告显示这不是 Folia 仓库 CI 构建的官方版本（`build: unofficial`），可能是他人打包、fork 或自行部署的版本，本仓库无法排查其中的问题，已关闭。',
+        '诊断报告显示这不是 Folia 仓库 CI 构建的官方版本，也不是文档里的自部署方式（`build: unofficial`），可能是他人打包、fork 或修改过的版本，本仓库无法排查其中的问题，已关闭。',
         '请向提供这个版本的人反馈。如果在官方版本（[GitHub Releases](https://github.com/chthollyphile/folia-major/releases) 的桌面版，或官方 Docker 镜像）上也能复现，请用官方版本重新生成诊断后回复，维护者会复核。',
     ].join('\n\n'),
     duplicate: ({ target }) => `该 issue 与 #${target} 重复，已关闭，请在 #${target} 继续讨论。`,

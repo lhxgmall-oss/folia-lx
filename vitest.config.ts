@@ -10,7 +10,8 @@ export default defineConfig({
   plugins: [commandPinyinPlugin()],
   // 单测默认按官方构建跑（vite.config 构建期注入的值）；非官方分支由各自的用例显式传入构建环境。
   define: {
-    __OFFICIAL_BUILD__: 'true',
+    __BUILD_KIND__: JSON.stringify('official'),
+    __BUILD_HOST__: JSON.stringify(''),
   },
   resolve: {
     alias: {

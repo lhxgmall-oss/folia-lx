@@ -23,7 +23,7 @@ import {
     resolveProviderSwitchCopy,
 } from '../model/accountRules';
 import { translateHomeMessage } from '../model/homeSources';
-import { isOfficialBuild } from '../../../utils/buildProvenance';
+import { getBuildKind } from '../../../utils/buildProvenance';
 import {
     LOGIN_SELF_CHECK_COPY,
     resolveLoginSelfCheckItemLabel,
@@ -165,7 +165,7 @@ export const translateLoginSession = (
     t: TFunction,
     session: LibraryLoginSessionSnapshot,
     providerLabel: string = session.providerId,
-    reportEnvironment: LibraryLoginReportEnvironment = { official: true, web: false },
+    reportEnvironment: LibraryLoginReportEnvironment = { build: 'official', web: false },
 ): LibraryLoginView => {
     const { copy, methods, selectedMethodId } = session;
     const selected = methods.find(method => method.id === selectedMethodId);
@@ -237,9 +237,9 @@ const selectLoginProviderLabel = (snapshot: LibraryAccountSnapshot): string | nu
     snapshot.login ? providerLabelOf(snapshot.providers, snapshot.login.providerId) : null
 );
 
-// 构建与运行环境在页面生命周期内不变：官方构建由构建期注入，网页版即没有 Electron 桥。
+// 构建与运行环境在页面生命周期内不变：构建类别由构建期注入，网页版即没有 Electron 桥。
 const LOGIN_REPORT_ENVIRONMENT: LibraryLoginReportEnvironment = {
-    official: isOfficialBuild(),
+    build: getBuildKind(),
     web: typeof window !== 'undefined' && !window.electron,
 };
 
