@@ -12,7 +12,7 @@ const TYPE_LABELS = ['bug', 'enhancement', 'question', 'documentation'];
 const CLOSE_TRIGGERS = new Set(['opened', 'manual', 'rerun']);
 const FOLLOWUP_TRIGGERS = new Set(['edited', 'author-comment']);
 // 已知原因表里属于「网页版部署没配好后端」的条目（login-playbook.json），命中就按部署问题关闭。
-const WEB_DEPLOYMENT_CAUSES = new Set(['web-api-not-configured', 'web-api-unreachable']);
+const WEB_DEPLOYMENT_CAUSES = new Set(['web-api-not-configured', 'web-api-loopback', 'web-api-unreachable']);
 
 function typeLabelFor(type) {
     if (type === 'bug') return 'bug';

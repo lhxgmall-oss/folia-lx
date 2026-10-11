@@ -38,6 +38,13 @@ const webFetchFailedReport = (userAgent: string) => report('kugou', {
     timeline: [{ at: NOW, event: 'start:error', detail: { name: 'TypeError', message: 'Failed to fetch' } }],
 });
 
+// #573 的原始报告：照抄 .env.example 的 localhost:3000 打包进安卓 App，自检的 no-cors 探测还被当成了可达。
+const loopbackWebViewReport = report('netease', {
+    userAgent: 'Mozilla/5.0 (Linux; Android 16; 24117RK2CC Build/BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/153.0.8010.39 Mobile Safari/537.36',
+    timeline: [{ at: NOW, event: 'state', detail: { state: 'error', message: 'code 404: Not Found' } }],
+    providerLines: ['runtime: web (remote API http://localhost:3000)', 'session: login cookie=no, anonymous cookie=no'],
+});
+
 const networkResetReport = report('netease', {
     providerLines: ['login requests (1, oldest first, UTC):', '  20:07:34.253 /api/login/qrcode/client/login rejected status=502 code=502 msg="read ECONNRESET" 114ms'],
 });
@@ -55,6 +62,7 @@ describe('login playbook rules', () => {
         expect(matchPlaybook(webMissingApiReport, 'netease', playbook)).toEqual(['web-api-not-configured']);
         expect(matchPlaybook(webFetchFailedReport('Mozilla/5.0 (Linux; Android 16) Chrome/148 Mobile Safari/537.36'), 'kugou', playbook)).toEqual(['web-api-unreachable']);
         expect(matchPlaybook(networkResetReport, 'netease', playbook)).toEqual(['network-reset']);
+        expect(matchPlaybook(loopbackWebViewReport, 'netease', playbook)).toEqual(['web-api-loopback']);
     });
 
     it('does not apply provider-specific or web-only causes elsewhere', () => {
@@ -169,6 +177,23 @@ describe('login diagnosis in issue triage', () => {
         const unreachable = await run({ title: '[QR login] kugou login failed', body: webFetchFailedReport('Mozilla/5.0 (Linux; Android 16; wv) Chrome/148 Mobile Safari/537.36') }).result;
         expect(unreachable.plan.close?.reason).toBe('web-deployment');
         expect(unreachable.plan.comments[0]).toContain('网页版连不上部署的 API 服务');
+    });
+
+    it('closes web builds whose API address points at the device itself', async () => {
+        const { plan } = await run({ title: '[QR login] netease login failed', body: loopbackWebViewReport }).result;
+        expect(plan.close).toEqual({ reason: 'web-deployment', stateReason: 'not_planned' });
+        expect(plan.comments[0]).toContain('网页版的 API 地址指向本机');
+
+        // 本机开发（页面和 API 都在本机、桌面浏览器）不算。
+        const localDev = formatQrLoginDiagnosticReport({
+            generatedAt: NOW, appVersion: '0.7.18', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/150 Safari/537.36',
+            origin: 'http://localhost:5173', providerId: 'netease', methodId: null, failure: 'check-error', timeline: [],
+            providerLines: ['runtime: web (remote API http://localhost:3000)'],
+        });
+        expect(matchPlaybook(localDev, 'netease', playbook)).not.toContain('web-api-loopback');
+        // 桌面版内置后端也在 127.0.0.1，不能误伤。
+        const desktop = report('netease', { providerLines: ['runtime: electron (local API)', 'local api: running 127.0.0.1:62598'] });
+        expect(matchPlaybook(desktop, 'netease', playbook)).not.toContain('web-api-loopback');
     });
 
     it('closes reports from unofficial builds and labels them', async () => {
