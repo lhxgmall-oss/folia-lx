@@ -24,6 +24,7 @@ import {
     resolveNavidromePlaybackCarrier,
 } from '../utils/appPlaybackGuards';
 import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
+import { moveQueueItem } from '../utils/queueReorder';
 import { buildStagePlayerSnapshot, resolveStagePlayerQueueItemIndex } from '../utils/stagePlayerSnapshot';
 import type { LocalLibraryDisplayCatalog } from '../services/playbackAdapters';
 import type { SearchReturnView, SearchSource } from '../stores/useSearchNavigationStore';
@@ -1222,12 +1223,10 @@ export function usePlaybackQueueController({
                 if (fromIndex < 0 || toIndex < 0 || toIndex >= baseQueue.length) {
                     throw new Error('Queue move requires valid from and to indexes.');
                 }
-                nextQueue = [...baseQueue];
-                const [movedSong] = nextQueue.splice(fromIndex, 1);
-                if (!movedSong) {
+                if (!baseQueue[fromIndex]) {
                     throw new Error('Queue item was not found.');
                 }
-                nextQueue.splice(toIndex, 0, movedSong);
+                nextQueue = moveQueueItem(baseQueue, fromIndex, toIndex);
                 diffDraft = fromIndex === toIndex ? { ops: [] } : { ops: [{ op: 'move', from: fromIndex, to: toIndex }] };
             } else if (request.action === 'select') {
                 const selectIndex = resolveStageQueueIndex(baseQueue, request);

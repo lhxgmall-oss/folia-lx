@@ -5,6 +5,7 @@ import type { NavidromeSong } from '../../../types/navidrome';
 import type { QueueAddBehavior, SongResult, StatusMessage } from '../../../types';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { applyQueueBatchOperation as transformQueueBatch } from '../../../utils/queueBatchOperations';
+import { moveQueueItem } from '../../../utils/queueReorder';
 import type { QueueBatchAction } from '../../command-palette/queueQuery';
 import { setStatusMessage as setStatusMsg } from '../../../stores/useStatusMessageStore';
 import { setPlayQueue } from '../../../stores/usePlaybackStore';
@@ -85,6 +86,13 @@ export const createQueueMutations = ({
         updateQueueOrder(nextQueue);
     };
 
+    // 把 from 的那首移到 to（拖拽排序）；没变或越界时什么都不做。
+    const moveQueueSong = (from: number, to: number) => {
+        const nextQueue = moveQueueItem(playQueue, from, to);
+        if (nextQueue === playQueue) return;
+        updateQueueOrder(nextQueue);
+    };
+
     const applyQueueBatchOperation = (action: QueueBatchAction, targetIndices: number[]) => {
         const result = transformQueueBatch({
             queue: playQueue,
@@ -119,5 +127,6 @@ export const createQueueMutations = ({
         removeQueueSong,
         moveQueueSongToEnd,
         moveQueueSongToNext,
+        moveQueueSong,
     };
 };
