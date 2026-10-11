@@ -18,6 +18,7 @@ import {
     LOGIN_METHOD_STEP_COPY,
     LOGIN_REPORT_ELSEWHERE_COPY,
     resolveLoginDiagnosticsPrompt,
+    resolveLoginFailureTips,
     resolveLoginReportRoute,
     type LibraryLoginReportEnvironment,
     resolveProviderSwitchCopy,
@@ -171,6 +172,7 @@ export const translateLoginSession = (
     const selected = methods.find(method => method.id === selectedMethodId);
     const reportRoute = resolveLoginReportRoute(reportEnvironment, session);
     const reportElsewhereNote = reportRoute === 'github' ? null : translateHomeMessage(t, LOGIN_REPORT_ELSEWHERE_COPY[reportRoute]);
+    const failureTips = session.failure ? resolveLoginFailureTips(session.failure) : null;
     return {
         session,
         visible: isLoginDialogVisible(session),
@@ -191,10 +193,10 @@ export const translateLoginSession = (
         diagnosticsPrompt: session.failure && canShowLoginDiagnostics(session)
             ? reportElsewhereNote ?? translateHomeMessage(t, resolveLoginDiagnosticsPrompt(session.failure))
             : null,
-        failureTips: session.failure && canShowLoginDiagnostics(session)
+        failureTips: failureTips && canShowLoginDiagnostics(session)
             ? {
-                title: translateHomeMessage(t, LOGIN_FAILURE_TIPS.title),
-                items: LOGIN_FAILURE_TIPS.items.map(item => translateHomeMessage(t, item)),
+                title: translateHomeMessage(t, failureTips.title),
+                items: failureTips.items.map(item => translateHomeMessage(t, item)),
                 escalation: translateHomeMessage(t, reportElsewhereNote ? LOGIN_FAILURE_TIPS.escalationElsewhere : LOGIN_FAILURE_TIPS.escalation),
             }
             : null,

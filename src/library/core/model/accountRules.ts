@@ -147,6 +147,19 @@ export const LOGIN_FAILURE_TIPS: Readonly<{
     escalationElsewhere: { key: 'home.qrDiagnosticsToggleElsewhere' },
 };
 
+/** 登录设备超限时的简单办法：重启和换网络都没用，换成清理登录设备的步骤（triage playbook 的 qq-device-limit）。 */
+const LOGIN_DEVICE_LIMIT_TIPS: Readonly<{ title: LibraryHomeMessage; items: readonly LibraryHomeMessage[] }> = {
+    title: { key: 'home.qrDeviceLimitTipsTitle' },
+    items: [{ key: 'home.qrDeviceLimitTipRemove' }, { key: 'home.qrDeviceLimitTipQuota' }, { key: 'home.qrDeviceLimitTipRescan' }],
+};
+
+/** 失败后先给的简单办法：账号侧的原因有自己的步骤，其余都是重启与换网络。 */
+export const resolveLoginFailureTips = (
+    failure: QrLoginFailureKind,
+): Readonly<{ title: LibraryHomeMessage; items: readonly LibraryHomeMessage[] }> => (
+    failure === 'device-limit' ? LOGIN_DEVICE_LIMIT_TIPS : LOGIN_FAILURE_TIPS
+);
+
 /** 诊断入口的提示语：扫过码却过期（多半是手机端拒绝）单独一句（buildQrLoginFailureHelpProps）。 */
 export const resolveLoginDiagnosticsPrompt = (failure: QrLoginFailureKind): LibraryHomeMessage => ({
     key: failure === 'expired-after-scan' ? 'home.qrDiagnosticsPromptScanned' : 'home.qrDiagnosticsPrompt',
@@ -249,7 +262,7 @@ export const describeLoginError = (error: unknown): Record<string, unknown> => {
     return Object.fromEntries(Object.entries(detail).filter(([, value]) => value !== undefined && value !== null));
 };
 
-const QR_LOGIN_ERROR_REASONS: ReadonlySet<string> = new Set<QrLoginErrorReason>(['canceled-on-device', 'connection-reset']);
+const QR_LOGIN_ERROR_REASONS: ReadonlySet<string> = new Set<QrLoginErrorReason>(['canceled-on-device', 'connection-reset', 'device-limit']);
 
 /** 扫码失败的结构化原因只认已知的几种；provider 或主进程带回的其它值按普通失败处理。 */
 export const knownQrLoginErrorReason = (reason: unknown): QrLoginErrorReason | null => (
@@ -290,7 +303,7 @@ export const shouldResumeLoginAfterBackendRestart = (health: LibraryNeteaseBacke
 );
 
 /**
- * 失败时的状态行：在手机上取消、连接被重置、以及要等后端冷却时，换成说明原因 / 剩余秒数的文案；其余按阶段。
+ * 失败时的状态行：在手机上取消、连接被重置、登录设备超限、以及要等后端冷却时，换成说明原因 / 剩余秒数的文案；其余按阶段。
  * 秒数按失败那一刻算，不随时间倒数；冷却结束时快照清掉秒数，状态行回到普通文案、重试同时可用。
  */
 const resolveLoginFailureStatus = (
@@ -304,6 +317,9 @@ const resolveLoginFailureStatus = (
     }
     if (session.failure === 'connection-reset' && seconds === null) {
         return { key: 'home.qrConnectionReset' };
+    }
+    if (session.failure === 'device-limit' && seconds === null) {
+        return { key: 'home.qrDeviceLimit' };
     }
     if (seconds !== null && (session.phase === 'error' || session.phase === 'expired')) {
         return { key: 'home.qrRetryCooldown', values: { seconds } };
