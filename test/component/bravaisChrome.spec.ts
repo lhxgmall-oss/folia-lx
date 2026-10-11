@@ -260,7 +260,7 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         // 探针的宿主缺省没给 onOpenLattice：没有那一格。
         await expect(quick(page, 'open-lattice')).toHaveCount(0);
 
-        // 缺省（没有歌）：主题、洗牌与前往播放页都不可用，tooltip / aria-description 写原因；队列格在（第二步接浮岛）。
+        // 缺省（没有歌）：主题、洗牌与前往播放页都不可用，tooltip / aria-description 写原因；队列格在（开合队列浮岛，浮岛本身见 wallToolsIsland.spec）。
         await expect(quick(page, 'generate-theme')).toBeDisabled();
         await expect(quick(page, 'generate-theme')).toHaveAttribute('aria-description', 'Needs a playing song with lyrics (or pure music)');
         await expect(quick(page, 'generate-theme')).toHaveAttribute('title', /Needs a playing song/);

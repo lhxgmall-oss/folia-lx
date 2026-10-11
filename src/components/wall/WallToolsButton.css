@@ -13,19 +13,24 @@
 /* App 的 dock（WallToolsDock）不接指针，只有按钮与面板接（翻牌交接时两面墙共用这一颗）。 */
 .wall-tools-dock .lattice-tools { pointer-events: auto; }
 
-/* 按钮上方的一列：面板（与第二步的队列浮岛）在里面，从下往上排；定位在这一层，面板自己不 absolute。 */
+/* 按钮上方的一列：面板与队列浮岛在里面，从下往上排（column-reverse：DOM 里面板在前、浮岛在后，Tab 顺序是
+   面板 → 浮岛 → 按钮，视觉上浮岛在面板上方）；定位在这一层，面板自己不 absolute。
+   max-height 是按钮上方到窗口顶（留 16px）的距离：窗口矮时只压缩浮岛（它 flex-shrink、最小 112px），面板不缩。
+   --wall-tools-bottom 是按钮此刻的底距（WallToolsSurface 随底栏抬升量写到根节点上）。 */
 .lattice-tools-stack {
     position: absolute;
     right: 0;
     bottom: 64px;
     display: flex;
-    flex-direction: column;
+    max-height: calc(100vh - var(--wall-tools-bottom, 24px) - 80px);
+    flex-direction: column-reverse;
     align-items: flex-end;
     gap: 8px;
 }
 
 .lattice-tools-panel {
     display: flex;
+    flex: none;
     width: min(296px, calc(100vw - 32px));
     flex-direction: column;
     gap: 2px;

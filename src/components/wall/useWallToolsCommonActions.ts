@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { Disc3, ListMusic, Shuffle, Sparkles, Volume1, Volume2, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
+import { useLatticeSettingsStore } from '../../stores/useLatticeSettingsStore';
 import { usePlaybackStore } from '../../stores/usePlaybackStore';
 import type { WallToolsEntry, WallToolsQuickAction } from './WallToolsRows';
 import { useWallToolsHost, type WallToolsHostSnapshot } from './wallToolsHost';
@@ -10,6 +11,8 @@ import { useWallToolsHost, type WallToolsHostSnapshot } from './wallToolsHost';
 // 墙面工具面板里与墙无关的公共部分（两面墙一样）：快捷排的洗牌、主题、队列、播放器四格，以及音量滑条。
 // 动作来自宿主（wallToolsHost，App 经 WallToolsDockHost 提供）；没有宿主时（组件探针、Ponder 合成界面）洗牌、主题、
 // 播放器三格跳过，队列格照画但禁用，音量照常读写音量 store、只是拖动时不预览。
+// 队列格开合面板上方的队列浮岛（WallToolsQueueIsland）：开合记在 useLatticeSettingsStore.wallToolsQueueIslandOpen，
+// 私人 FM 下禁用、浮岛不显示（偏好保留，FM 结束后照旧展开）。
 // 每面墙只给和场景有关的 locate / destination 两格与自己的 entries，由 WallToolsSurface 按固定顺序拼起来。
 
 const NO_HOST_SNAPSHOT: WallToolsHostSnapshot = { themeGeneration: 'unavailable', canShuffleQueue: false };
@@ -31,10 +34,12 @@ export type WallToolsCommonActions = {
     queue: WallToolsQuickAction;
     openPlayer: WallToolsQuickAction | null;
     volume: WallToolsEntry;
+    /** 队列浮岛此刻该不该显示（面板打开时）：有宿主、不在私人 FM、偏好是展开。 */
+    queueIslandShown: boolean;
 };
 
-/** 组装公共的四格与音量（每次渲染重算；只在面板打开时用到）。 */
-export const useWallToolsCommonActions = (): WallToolsCommonActions => {
+/** 组装公共的四格与音量（每次渲染重算；只在面板打开时用到）。queueIslandId 是浮岛的 id（队列格的 aria-controls）。 */
+export const useWallToolsCommonActions = ({ queueIslandId }: { queueIslandId: string }): WallToolsCommonActions => {
     const { t } = useTranslation();
     const host = useWallToolsHost();
     const snapshot = useSyncExternalStore(host?.subscribe ?? noopSubscribe, host?.getSnapshot ?? readNoHostSnapshot);
@@ -42,6 +47,7 @@ export const useWallToolsCommonActions = (): WallToolsCommonActions => {
     const hasCurrentSong = usePlaybackStore(state => state.currentSong !== null);
     const volume = useAudioSettingsStore(state => state.volume);
     const isMuted = useAudioSettingsStore(state => state.isMuted);
+    const queueIslandOpen = useLatticeSettingsStore(state => state.wallToolsQueueIslandOpen);
 
     const themeBusy = snapshot.themeGeneration === 'busy';
     const shuffle: WallToolsQuickAction | null = host ? {
@@ -68,17 +74,22 @@ export const useWallToolsCommonActions = (): WallToolsCommonActions => {
         keepOpen: true,
         onSelect: host.generateTheme,
     } : null;
-    // 私人 FM 没有可编辑的队列：禁用并写原因。
+    // 私人 FM 没有可编辑的队列：禁用并写原因。其余时候这一格开合队列浮岛（aria-expanded / aria-controls），状态写下一步会怎样。
+    const queueAvailable = host !== null && !isFmMode;
+    const queueIslandShown = queueAvailable && queueIslandOpen;
     const queue: WallToolsQuickAction = {
         id: 'queue',
         icon: ListMusic,
         label: t('wallTools.queue'),
-        disabled: !host || isFmMode,
-        status: host && isFmMode ? t('wallTools.queueUnavailableInFm') : undefined,
+        disabled: !queueAvailable,
+        status: host && isFmMode
+            ? t('wallTools.queueUnavailableInFm')
+            : queueAvailable ? t(queueIslandShown ? 'wallTools.queueHide' : 'wallTools.queueShow') : undefined,
         // 不收起：队列浮岛叠在面板上面，和面板一起开着。
         keepOpen: true,
-        // TODO(墙面工具第二步): 在这里开合队列浮岛（WallToolsQueueIsland），并带上 expanded / controls。
-        onSelect: () => {},
+        expanded: queueAvailable ? queueIslandShown : undefined,
+        controls: queueIslandShown ? queueIslandId : undefined,
+        onSelect: () => useLatticeSettingsStore.getState().setWallToolsQueueIslandOpen(!queueIslandOpen),
     };
     const openPlayer: WallToolsQuickAction | null = host ? {
         id: 'open-player',
@@ -112,5 +123,5 @@ export const useWallToolsCommonActions = (): WallToolsCommonActions => {
         },
     };
 
-    return { shuffle, theme, queue, openPlayer, volume: volumeEntry };
+    return { shuffle, theme, queue, openPlayer, volume: volumeEntry, queueIslandShown };
 };

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SongResult } from '@/types';
-import { clearPrefetchRuntime, getPrefetchedData, updatePrefetchedAudioUrl } from '@/services/prefetchService';
+import { clearPrefetchRuntime, getPrefetchWindowKey, getPrefetchedData, updatePrefetchedAudioUrl } from '@/services/prefetchService';
 
 // test/unit/prefetchService.test.ts
 
@@ -44,5 +44,29 @@ describe('prefetched online ReplayGain metadata', () => {
             audioUrl: null,
             replayGain: undefined,
         });
+    });
+});
+
+describe('prefetch window key', () => {
+    const track = (id: string): SongResult => ({
+        ...song,
+        id,
+        sourceRef: { kind: 'online', providerId: 'netease', mediaId: id },
+    });
+    const queue = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(track);
+
+    it('changes only when the songs around the playing one change', () => {
+        const current = queue[2];
+        const window = getPrefetchWindowKey(current, queue);
+        // 窗口（b c d e）外的编辑（把 g 挪到 f 前面）不需要重新预取。
+        expect(getPrefetchWindowKey(current, [queue[0], queue[1], queue[2], queue[3], queue[4], queue[6], queue[5]])).toBe(window);
+        // 下一首换了（把 f 挪到正在播放的下一首）就要。
+        expect(getPrefetchWindowKey(current, [queue[0], queue[1], queue[2], queue[5], queue[3], queue[4], queue[6]])).not.toBe(window);
+        // 上一首换了也要（「上一首」是预取的）。
+        expect(getPrefetchWindowKey(current, [queue[1], queue[0], queue[2], queue[3], queue[4], queue[5], queue[6]])).not.toBe(window);
+    });
+
+    it('is empty when the playing song is not in the queue', () => {
+        expect(getPrefetchWindowKey(track('z'), queue)).toBe('');
     });
 });

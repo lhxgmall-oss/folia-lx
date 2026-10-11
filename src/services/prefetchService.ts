@@ -533,6 +533,20 @@ export const clearPrefetchRuntime = (): void => {
 };
 
 /**
+ * 正在播放那首的预取窗口（前 PREFETCH_COUNT_PREV 首、它自己、后 PREFETCH_COUNT_NEXT 首）的身份串；
+ * 当前歌不在队列里时是空串。队列被编辑（拖拽排序、下一首播放、移到末尾、移除）前后这个串变了，才需要重新预取。
+ */
+export const getPrefetchWindowKey = (currentSong: SongResult, queue: SongResult[]): string => {
+    const currentSongKey = getPrefetchSongKey(currentSong);
+    const currentIndex = queue.findIndex(song => getPrefetchSongKey(song) === currentSongKey);
+    if (currentIndex < 0) return '';
+    return queue
+        .slice(Math.max(0, currentIndex - PREFETCH_COUNT_PREV), currentIndex + PREFETCH_COUNT_NEXT + 1)
+        .map(getPrefetchSongKey)
+        .join('|');
+};
+
+/**
  * Force re-prefetch (e.g., after queue shuffle)
  */
 export const invalidateAndRefetch = async (

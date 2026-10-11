@@ -6,7 +6,7 @@ import { getSongReplacement, isSongUnavailable } from '../services/onlineMusic/s
 import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import { omni } from '../services/onlineMusic/omni';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../services/onlineMusic/resourceCache';
-import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '../services/prefetchService';
+import { getPrefetchWindowKey, getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs } from '../services/prefetchService';
 import { retireBlobUrl } from '../services/playbackBlobUrls';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { loadOnlineLyricsState } from '../utils/onlineLyricsState';
@@ -1309,6 +1309,17 @@ export function usePlaybackQueueController({
         }
     }, [audioQuality, currentSong, isNowPlayingStageActive, playQueue, setPlayQueue, setStatusMsg, t, userId]);
 
+    // 队列被就地编辑之后（墙面工具队列浮岛的拖拽排序、下一首播放、移到末尾、移除）：正在播放那首前后的预取窗口变了，
+    // 就与洗牌一样重新预取。automix 与「下一首」提示每次都读 store 里最新的队列，能感知顺序变化；但下一首的地址与歌词
+    // 只在切歌与洗牌时预取，不补这一步的话，刚挪到下一首的那首到交叉淡入时还没有预取数据（混音只能盲排、不能预热）。
+    // previousQueue 是编辑前的队列；编辑本身同步写 store，这里读到的是编辑后的。
+    const refreshPrefetchAfterQueueEdit = useCallback((previousQueue: SongResult[]) => {
+        const { currentSong: song, playQueue: queue } = usePlaybackStore.getState();
+        if (!song || queue === previousQueue || queue.length <= 1) return;
+        if (getPrefetchWindowKey(song, queue) === getPrefetchWindowKey(song, previousQueue)) return;
+        void invalidateAndRefetch(song, queue, audioQuality, userId);
+    }, [audioQuality, userId]);
+
     const clearQueue = useCallback(() => {
         if (isNowPlayingStageActive) return;
         if (!playQueue || playQueue.length === 0) return;
@@ -1341,5 +1352,6 @@ export function usePlaybackQueueController({
         handleStageExternalPlayRequest,
         shuffleQueue,
         clearQueue,
+        refreshPrefetchAfterQueueEdit,
     });
 }

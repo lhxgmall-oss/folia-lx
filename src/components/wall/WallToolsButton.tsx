@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
+import { AnimatePresence, motion, useIsPresent, useTransform, type MotionStyle } from 'framer-motion';
 import { CircleHelp, Command, Layers3, Settings2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLatticeSettingsStore } from '../../stores/useLatticeSettingsStore';
@@ -9,6 +9,8 @@ import { usePlayerBottomBarBottomPx } from '../../hooks/usePlayerBottomBarBottom
 import { SlideActionButton } from '../shared/SlideActionButton';
 import { WallToolsQuickRow, WallToolsRow, type WallToolsEntry, type WallToolsQuickAction } from './WallToolsRows';
 import { useWallToolsCommonActions } from './useWallToolsCommonActions';
+import { WallToolsQueueIsland } from './WallToolsQueueIsland';
+import { useWallToolsHost } from './wallToolsHost';
 import './WallToolsButton.css';
 
 // src/components/wall/WallToolsButton.tsx
@@ -18,7 +20,10 @@ import './WallToolsButton.css';
 // （bravais 前往 Lattice、Lattice 回到首页）两格、自己的条目（bravais 的「墙面外观」与透光、Lattice 的「墙面」与切歌自动聚焦）
 // 和帮助内容。洗牌、主题、队列、播放器四格与音量滑条是公共部分，由 useWallToolsCommonActions 从宿主（wallToolsHost）组装；
 // 快捷格的固定顺序是 locate-playing / shuffle-queue / generate-theme / queue / destination / open-player，缺的跳过。
-// 面板与（第二步的）队列浮岛都放在 .lattice-tools-stack 里、都在 rootRef 之内：点外部关闭天然把浮岛算作「里面」。
+// 面板与队列浮岛（WallToolsQueueIsland，由快捷排的「队列」格开合、偏好记在 useLatticeSettingsStore）都放在
+// .lattice-tools-stack 里、都在 rootRef 之内：点外部关闭天然把浮岛算作「里面」。stack 是 column-reverse：DOM 里面板在前、
+// 浮岛在后（Tab 顺序面板 → 浮岛 → 按钮），视觉上浮岛在面板上方。浮岛只在面板打开、偏好展开、有宿主且不在私人 FM 时显示；
+// Esc 先由浮岛撤自己的那一步（拖拽、内联输入、清空待确认，preventDefault），没有可撤的才收起面板与浮岛（偏好不变）。
 // 叠色与灯光读写同一个 useLatticeSettingsStore——一套墙面外观设置同时作用于 Lattice 与资料库墙。
 // 从 LatticeFocusButton 抽出（实测反馈 1），条目的行组件在 WallToolsRows。
 // 翻牌交接（设计稿 §7「进入队列」）：App 在首页层与 Lattice 之上挂一个 WallToolsDock，两面墙的按钮都「认领」进同一个
@@ -82,6 +87,9 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
     const handleToggleLatticePosterTint = useLatticeSettingsStore(state => state.handleToggleLatticePosterTint);
     const isWideLayout = useMediaQuery('(min-width: 640px)');
     const bottomPx = usePlayerBottomBarBottomPx(isWideLayout ? 24 : 16);
+    // stack 的 max-height 要减掉按钮此刻的底距（随底栏抬升量变），经 CSS 变量交给样式。
+    const bottomVar = useTransform(bottomPx, value => `${value}px`);
+    const host = useWallToolsHost();
 
     const close = () => {
         setIsOpen(false);
@@ -123,7 +131,9 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
 
     const panelId = `${idPrefix}-panel`;
     const helpId = `${idPrefix}-help`;
-    const common = useWallToolsCommonActions();
+    const queueIslandId = `${idPrefix}-queue-island`;
+    const common = useWallToolsCommonActions({ queueIslandId });
+    const showQueueIsland = isOpen && common.queueIslandShown && host !== null;
     const rows = isOpen ? (typeof entries === 'function' ? entries() : entries) : [];
     // 快捷排的固定顺序：定位、洗牌、主题、队列、去处、播放器；缺的跳过。
     const quick: WallToolsQuickAction[] = isOpen
@@ -141,8 +151,12 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
     };
 
     return (
-        <motion.div ref={rootRef} style={{ bottom: bottomPx }} className={`lattice-tools group ${isDaylight ? 'is-daylight' : ''}`}>
-            {/* 面板（与第二步的队列浮岛）叠在按钮上方的一列里：定位在 stack 上，面板自己不再 absolute。 */}
+        <motion.div
+            ref={rootRef}
+            style={{ bottom: bottomPx, '--wall-tools-bottom': bottomVar } as unknown as MotionStyle}
+            className={`lattice-tools group ${isDaylight ? 'is-daylight' : ''}`}
+        >
+            {/* 面板与队列浮岛叠在按钮上方的一列里（column-reverse：面板在下、浮岛在上）：定位在 stack 上，面板自己不再 absolute。 */}
             <div className="lattice-tools-stack">
                 <AnimatePresence initial={false}>
                     {isOpen && (
@@ -202,6 +216,9 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
                             </div>
                         </motion.div>
                     )}
+                </AnimatePresence>
+                <AnimatePresence initial={false}>
+                    {showQueueIsland && <WallToolsQueueIsland key="queue-island" id={queueIslandId} host={host} />}
                 </AnimatePresence>
             </div>
 
