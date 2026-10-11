@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '../../../src/types';
-import { usePlaybackStore } from '../../../src/stores/usePlaybackStore';
 import {
     WALL_TOOLS_SHUFFLE_COMMAND,
     WALL_TOOLS_THEME_COMMAND,
@@ -10,7 +9,7 @@ import {
 
 // test/unit/app/wallToolsHost.test.ts
 // App 给墙面工具的宿主（useWallToolsHost 的纯部分 createWallToolsHostStore）：快照去重后才通知、动作总读最新依赖、
-// 点歌播放不跳页、队列动作接到对应的应用实现、就地编辑之后带着编辑前的队列交给预取刷新。
+// 点歌播放不跳页、队列动作接到对应的应用实现（就地编辑之后的重新预取在 createQueueMutations 里，不经宿主）。
 
 const song = (id: number): SongResult => ({
     id,
@@ -34,7 +33,6 @@ const makeDeps = (overrides: Partial<WallToolsHostDeps> = {}): WallToolsHostDeps
     moveQueueSong: vi.fn(),
     clearQueue: vi.fn(),
     saveCurrentQueueAsLocalPlaylist: vi.fn(async () => {}),
-    refreshPrefetchAfterQueueEdit: vi.fn(),
     ...overrides,
 });
 
@@ -101,28 +99,14 @@ describe('createWallToolsHostStore', () => {
         await expect(host.saveQueueAsPlaylist('Mix')).rejects.toThrow('nope');
     });
 
-    it('hands every in-place queue edit the queue from before it to the prefetch refresh', () => {
-        const before = [song(1), song(2), song(3)];
-        usePlaybackStore.setState({ playQueue: before });
-        const after = [song(1), song(3), song(2)];
-        const deps = makeDeps({
-            moveQueueSong: vi.fn(() => usePlaybackStore.setState({ playQueue: after })),
-        });
-        const { host } = createWallToolsHostStore({ current: deps });
+    it('routes queue edits to the latest app implementations', () => {
+        const latest = { current: makeDeps() };
+        const { host } = createWallToolsHostStore(latest);
+        const nextDeps = makeDeps();
+        latest.current = nextDeps;
         host.moveQueueSong(2, 1);
-        expect(deps.moveQueueSong).toHaveBeenCalledWith(2, 1);
-        expect(deps.refreshPrefetchAfterQueueEdit).toHaveBeenCalledTimes(1);
-        expect(vi.mocked(deps.refreshPrefetchAfterQueueEdit).mock.calls[0][0]).toBe(before);
-
         host.playQueueSongNext(2);
-        host.moveQueueSongToEnd(0);
-        host.removeQueueSong(1);
-        expect(deps.refreshPrefetchAfterQueueEdit).toHaveBeenCalledTimes(4);
-        // 洗牌（命令自己会重新预取）、清空与点歌都不经这一步。
-        host.shuffleQueue();
-        host.clearQueue();
-        host.playQueueSong(song(1));
-        expect(deps.refreshPrefetchAfterQueueEdit).toHaveBeenCalledTimes(4);
-        usePlaybackStore.setState({ playQueue: [] });
+        expect(nextDeps.moveQueueSong).toHaveBeenCalledWith(2, 1);
+        expect(nextDeps.moveQueueSongToNext).toHaveBeenCalledWith(2);
     });
 });

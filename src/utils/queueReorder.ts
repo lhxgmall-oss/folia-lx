@@ -2,7 +2,7 @@ import type { SongResult } from '../types';
 import { getPlaybackSongSource, hasMixedPlaybackSources, isLocalPlaybackSong } from './appPlaybackGuards';
 
 // src/utils/queueReorder.ts
-// 播放队列的纯变换与判定：单项移动（墙面工具的队列浮岛拖拽、Electron 舞台的 move 请求共用），
+// 播放队列的纯变换与判定：单项移动（墙面工具的队列浮岛拖拽、Electron 舞台的 move 请求共用）、「下一首播放」的挪动，
 // 以及「当前队列能不能存成本地歌单」（播放页面板的队列页与墙面工具的队列浮岛共用同一个判定）。
 
 /**
@@ -17,6 +17,19 @@ export const moveQueueItem = <T>(queue: readonly T[], from: number, to: number):
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);
     return next;
+};
+
+/**
+ * 「下一首播放」：把 index 那一项挪到 currentIndex 的下一位（currentIndex 是正在播放那首的下标，不在队列里时为 -1，
+ * 这时挪到队首）。插入位置按「移除前」算成 currentIndex + 1，移除后再插入自然落在当前那首后面——当前那首在队尾时也一样
+ * （不能把目标夹到 length − 1，否则会插到当前那首前面）。index 越界、本来就在那里、或就是当前那一项时原样返回同一个数组。
+ */
+export const moveQueueItemToNext = <T>(queue: readonly T[], index: number, currentIndex: number): T[] => {
+    const target = currentIndex + 1;
+    if (!Number.isInteger(index) || index < 0 || index >= queue.length || index === currentIndex || index === target) {
+        return queue as T[];
+    }
+    return moveQueueItem(queue, index, index < target ? target - 1 : target);
 };
 
 /**

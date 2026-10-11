@@ -6,7 +6,7 @@ import { WallToolsHostContext, type WallToolsHost, type WallToolsHostSnapshot } 
 import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
 import { useLatticeSettingsStore } from '../../src/stores/useLatticeSettingsStore';
 import { getPlaybackSongKey } from '../../src/utils/appPlaybackGuards';
-import { moveQueueItem } from '../../src/utils/queueReorder';
+import { moveQueueItem, moveQueueItemToNext } from '../../src/utils/queueReorder';
 import type { IslandProbeApi, IslandProbeCall } from './wallToolsIsland/islandProbeApi';
 
 // dev/probes/wallToolsIsland.probe.tsx
@@ -66,9 +66,8 @@ const PROBE_HOST: WallToolsHost = {
             const { currentSong } = usePlaybackStore.getState();
             const currentKey = currentSong ? getPlaybackSongKey(currentSong) : null;
             const currentIndex = currentKey ? queue.findIndex(song => getPlaybackSongKey(song) === currentKey) : -1;
-            const target = Math.min(currentIndex + 1, queue.length - 1);
-            if (index === currentIndex || index === target) return queue;
-            return moveQueueItem(queue, index, index < target ? target - 1 : target);
+            // 与真 App 的 createQueueMutations.moveQueueSongToNext 同一个纯函数。
+            return moveQueueItemToNext(queue, index, currentIndex);
         });
     },
     moveQueueSongToEnd: index => {

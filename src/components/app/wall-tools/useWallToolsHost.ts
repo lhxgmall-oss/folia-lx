@@ -12,8 +12,7 @@ import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 // - 音量预览走应用的 handlePreviewVolume；前往播放器是 navigateToPlayer；
 // - 队列动作：点歌播放（不跳页）、下一首播放、移到末尾、移除、拖拽移动（createQueueMutations）、清空（clearQueue）、
 //   存为本地歌单（播放页队列页的同一个实现 saveCurrentQueueAsLocalPlaylist）。
-//   就地编辑（下一首、移到末尾、移除、拖拽移动）之后交给 refreshPrefetchAfterQueueEdit：正在播放那首前后的预取窗口变了
-//   就与洗牌一样重新预取（automix 与下一首提示读 store 的最新队列，但预取只在切歌 / 洗牌时跑）。
+//   就地编辑之后的重新预取在 createQueueMutations.updateQueueOrder 里（播放页队列页、命令面板、浮岛同一条路），这里不再管。
 // host 身份在应用的整个寿命里不变（动作总读最新的依赖）；可用性变了就发一次通知，面板按 getSnapshot 重画。
 
 /** 主题生成与队列洗牌的命令 id（命令面板 settingsCommands / playbackCommands）。 */
@@ -38,8 +37,6 @@ export type WallToolsHostDeps = {
     moveQueueSong: (from: number, to: number) => void;
     clearQueue: () => void;
     saveCurrentQueueAsLocalPlaylist: (name: string) => Promise<void>;
-    /** 队列就地编辑之后调（参数是编辑前的队列）：预取窗口变了就重新预取（usePlaybackQueueController）。 */
-    refreshPrefetchAfterQueueEdit: (previousQueue: SongResult[]) => void;
 };
 
 /** 与洗牌本身（usePlaybackQueueController.shuffleQueue）同一个前提：队列至少两首、不是外部 Stage 播放。FM 由命令的可用性管。 */
@@ -57,12 +54,6 @@ export type WallToolsHostStore = {
 export const createWallToolsHostStore = (latest: { current: WallToolsHostDeps }): WallToolsHostStore => {
     let snapshot: WallToolsHostSnapshot = { themeGeneration: 'unavailable', canShuffleQueue: false };
     const listeners = new Set<() => void>();
-    /** 就地编辑队列：记下编辑前的队列（store 里此刻的那份），编辑完交给预取刷新。 */
-    const editQueue = (edit: (deps: WallToolsHostDeps) => void) => {
-        const previousQueue = usePlaybackStore.getState().playQueue;
-        edit(latest.current);
-        latest.current.refreshPrefetchAfterQueueEdit(previousQueue);
-    };
     return {
         host: {
             getSnapshot: () => snapshot,
@@ -78,10 +69,10 @@ export const createWallToolsHostStore = (latest: { current: WallToolsHostDeps })
             playQueueSong: song => {
                 void latest.current.playSong(song, latest.current.playQueue, false, { shouldNavigateToPlayer: false });
             },
-            playQueueSongNext: index => editQueue(deps => deps.moveQueueSongToNext(index)),
-            moveQueueSongToEnd: index => editQueue(deps => deps.moveQueueSongToEnd(index)),
-            removeQueueSong: index => editQueue(deps => deps.removeQueueSong(index)),
-            moveQueueSong: (from, to) => editQueue(deps => deps.moveQueueSong(from, to)),
+            playQueueSongNext: index => latest.current.moveQueueSongToNext(index),
+            moveQueueSongToEnd: index => latest.current.moveQueueSongToEnd(index),
+            removeQueueSong: index => latest.current.removeQueueSong(index),
+            moveQueueSong: (from, to) => latest.current.moveQueueSong(from, to),
             clearQueue: () => latest.current.clearQueue(),
             saveQueueAsPlaylist: name => latest.current.saveCurrentQueueAsLocalPlaylist(name),
         },
