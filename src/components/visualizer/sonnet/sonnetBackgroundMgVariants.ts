@@ -288,9 +288,9 @@ const drawArcGauge = (context: FrameContext) => {
         [hw - marginX, hh - marginY, Math.PI, Math.PI * 1.5],
         [-hw + marginX, hh - marginY, Math.PI * 1.5, Math.PI * 2],
     ] as const;
-    // An arc continues the current path, so each one first moves to its own start point; without it
-    // Pixi joins it to the previous shape's last point (a stray connector) and, while the arc has not
-    // drawn in yet, strokes the previous fill's path in its place.
+    // An arc continues the current path, so each one first moves to its own start point; without it,
+    // while the arc has not drawn in yet, its stroke re-strokes the previous fill's path: a ring
+    // around the dot before it.
     const arcFrom = (cx: number, cy: number, r: number, start: number, end: number) => target
         .moveTo(cx + Math.cos(start) * r, cy + Math.sin(start) * r)
         .arc(cx, cy, r, start, end);
