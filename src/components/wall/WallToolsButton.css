@@ -3,6 +3,8 @@
    紧凑档：面板 296px、行 38px、快捷格 40px 纯图标。 */
 
 .lattice-tools {
+    /* 面板与上方队列浮岛共用的宽度：两块玻璃左右对齐。 */
+    --wall-tools-panel-width: min(296px, calc(100vw - 32px));
     position: absolute;
     right: 24px;
     bottom: 24px;
@@ -31,7 +33,7 @@
 .lattice-tools-panel {
     display: flex;
     flex: none;
-    width: min(296px, calc(100vw - 32px));
+    width: var(--wall-tools-panel-width);
     flex-direction: column;
     gap: 2px;
     padding: 10px;
@@ -136,8 +138,9 @@
     opacity: 1;
 }
 
+/* 强调色上的旋钮 / 文字用主题底色：缺省主题的强调色就是正文色，用正文色会白底白字。 */
 .lattice-tools-toggle.is-on > span {
-    color: var(--text-primary, #f7f4ee);
+    color: var(--bg-color, #09090b);
     transform: translateX(12px);
 }
 
@@ -175,7 +178,7 @@
 }
 
 .lattice-tools-lights-toggle span.is-active {
-    color: var(--text-primary, #f7f4ee);
+    color: var(--bg-color, #09090b);
     background: var(--text-accent, currentColor);
 }
 

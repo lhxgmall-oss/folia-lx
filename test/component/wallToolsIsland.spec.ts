@@ -375,9 +375,14 @@ test.describe('wall tools queue island', () => {
         await page.waitForTimeout(300);
         await page.screenshot({ path: 'test-results/wall-tools-island-daylight.png', clip });
 
-        // 窄屏：浮岛贴满两侧 16px。
+        // 浮岛与下面的面板同宽、左右对齐（宽屏与窄屏都是）。
+        const edges = async () => {
+            const [a, b] = [(await island(page).boundingBox())!, (await panel(page).boundingBox())!];
+            return [Math.round(a.x), Math.round(a.width), Math.round(b.x), Math.round(b.width)];
+        };
+        await expect.poll(async () => { const [ix, iw, px, pw] = await edges(); return ix === px && iw === pw; }).toBe(true);
         await page.setViewportSize({ width: 390, height: 760 });
-        await expect.poll(async () => Math.round((await island(page).boundingBox())!.width)).toBe(390 - 32);
+        await expect.poll(async () => { const [ix, iw, px, pw] = await edges(); return ix === px && iw === pw && iw === 296; }).toBe(true);
         await page.screenshot({ path: 'test-results/wall-tools-island-mobile.png' });
     });
 });
