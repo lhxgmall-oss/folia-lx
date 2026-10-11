@@ -726,6 +726,15 @@
       "contributions": [
         "ideas"
       ]
+    },
+    {
+      "login": "8ctsmR",
+      "name": "nexquan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/340171085?v=4",
+      "profile": "https://github.com/8ctsmR",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "commit": false,
