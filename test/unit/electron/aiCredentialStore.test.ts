@@ -12,7 +12,7 @@ const {
         migrate: () => void;
         isConfigured: (key: string) => boolean;
         toPublicSettings: (settings: Record<string, unknown>) => Record<string, unknown>;
-        resolveTestApiKey: (provider: unknown, typedKey: unknown) => string;
+        resolveTestApiKey: (provider: unknown, typedKey: unknown, apiUrl?: unknown) => { apiKey?: string; error?: string };
         settingsView: { get: (key: string) => unknown };
     };
     isReservedAiCredentialKey: (key: string) => boolean;
@@ -86,14 +86,14 @@ describe('AI credential store', () => {
         expect(Object.keys(settings)).not.toContain('OPENAI_API_KEY');
     });
 
-    it('reports a key as saved even while its ciphertext cannot be decrypted', () => {
+    it('reports a key whose ciphertext cannot be decrypted as missing, without deleting it', () => {
         const store = createStore({ GEMINI_API_KEY_SEALED: 'Ym9ndXM=' });
         const credentials = createAiCredentialStore({
             store, safeStorage: createSafeStorage({ available: false }), platform: 'linux', warn: vi.fn(),
         });
 
-        expect(credentials.get('GEMINI_API_KEY')).toBe('');
-        expect(credentials.toPublicSettings({}).AI_API_KEYS_CONFIGURED).toEqual({ GEMINI_API_KEY: true, OPENAI_API_KEY: false });
+        expect(credentials.toPublicSettings({}).AI_API_KEYS_CONFIGURED).toEqual({ GEMINI_API_KEY: false, OPENAI_API_KEY: false });
+        expect(store.values.get('GEMINI_API_KEY_SEALED')).toBe('Ym9ndXM=');
     });
 
     it('uses the saved key for the connection test only when the field is left empty', () => {
@@ -102,10 +102,22 @@ describe('AI credential store', () => {
         credentials.set('OPENAI_API_KEY', 'sk-saved');
         credentials.set('GEMINI_API_KEY', 'gemini-saved');
 
-        expect(credentials.resolveTestApiKey('openai', '')).toBe('sk-saved');
-        expect(credentials.resolveTestApiKey('openai', undefined)).toBe('sk-saved');
-        expect(credentials.resolveTestApiKey('gemini', '  ')).toBe('gemini-saved');
-        expect(credentials.resolveTestApiKey('openai', ' sk-typed ')).toBe('sk-typed');
+        expect(credentials.resolveTestApiKey('openai', '', '')).toEqual({ apiKey: 'sk-saved' });
+        expect(credentials.resolveTestApiKey('openai', undefined, undefined)).toEqual({ apiKey: 'sk-saved' });
+        expect(credentials.resolveTestApiKey('gemini', '  ')).toEqual({ apiKey: 'gemini-saved' });
+        expect(credentials.resolveTestApiKey('openai', ' sk-typed ', 'https://other.example/v1')).toEqual({ apiKey: 'sk-typed' });
+    });
+
+    it('sends the saved OpenAI-compatible key only to the saved endpoint', () => {
+        const store = createStore({ OPENAI_API_URL: 'https://api.deepseek.com' });
+        const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
+        credentials.set('OPENAI_API_KEY', 'sk-saved');
+
+        // Same endpoint written differently still matches after normalization.
+        expect(credentials.resolveTestApiKey('openai', '', 'https://api.deepseek.com/')).toEqual({ apiKey: 'sk-saved' });
+        const elsewhere = credentials.resolveTestApiKey('openai', '', 'https://attacker.example/v1');
+        expect(elsewhere.apiKey).toBeUndefined();
+        expect(elsewhere.error).toEqual(expect.any(String));
     });
 
     it('marks the ciphertext and the status entry as names the renderer may not write', () => {

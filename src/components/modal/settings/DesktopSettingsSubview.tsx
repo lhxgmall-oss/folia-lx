@@ -620,7 +620,8 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                                 'AI Theme Generation Key',
                             )}
                             <AiConnectionTest
-                                key="gemini"
+                                // Remount when the saved key changes so a result from the old key does not linger.
+                                key={`gemini-${savedAiApiKeys.GEMINI_API_KEY}`}
                                 payload={{
                                     provider: 'gemini',
                                     apiKey: electronSettings.GEMINI_API_KEY || '',
@@ -690,7 +691,7 @@ const DesktopSettingsSubview: React.FC<DesktopSettingsSubviewProps> = ({
                                     'sk-...',
                                 )}
                                 <AiConnectionTest
-                                    key="openai"
+                                    key={`openai-${savedAiApiKeys.OPENAI_API_KEY}`}
                                     payload={{
                                         provider: 'openai',
                                         apiKey: electronSettings.OPENAI_API_KEY || '',

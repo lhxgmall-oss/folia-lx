@@ -14,6 +14,8 @@
 // the KuGou/QQ/Bodian sessions, an API key is something the user typed in by hand, so dropping it on
 // every restart would be a regression; in that case the key stays in plaintext, as before.
 
+const { normalizeOpenAIChatCompletionsUrl } = require('./aiTextClient.cjs');
+
 const AI_CREDENTIAL_KEYS = Object.freeze(['GEMINI_API_KEY', 'OPENAI_API_KEY']);
 const AI_API_KEYS_CONFIGURED_KEY = 'AI_API_KEYS_CONFIGURED';
 const SEALED_SUFFIX = '_SEALED';
@@ -103,8 +105,12 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
     return plainValue;
   };
 
-  /** Whether a key is saved, including one whose ciphertext cannot be decrypted right now. */
-  const isConfigured = (key) => Boolean(readSealed(key) || readPlain(key));
+  /**
+   * Whether a usable key is saved. A blob that cannot be decrypted right now counts as missing, so
+   * the UI asks for the key again instead of offering AI features that would fail; typing a new
+   * key overwrites the blob.
+   */
+  const isConfigured = (key) => Boolean(get(key));
 
   /** Saves a key, or clears it when `rawValue` is empty. */
   const set = (key, rawValue) => {
@@ -163,10 +169,21 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
   /**
    * Key for the "test connection" button: the one typed in the form, or the saved one for that
    * provider when the field was left empty (the renderer no longer has the saved key to send).
+   * The saved OpenAI-compatible key only goes to the saved endpoint; otherwise an edited URL (or a
+   * mod calling testAiConnection) would get the key sent to a host the user never saved it for.
+   * Resolves to `{ apiKey }` or `{ error }`.
    */
-  const resolveTestApiKey = (provider, typedKey) => {
+  const resolveTestApiKey = (provider, typedKey, apiUrl) => {
     const typed = typeof typedKey === 'string' ? typedKey.trim() : '';
-    return typed || get(credentialKeyForProvider(provider));
+    if (typed) {
+      return { apiKey: typed };
+    }
+    const saved = get(credentialKeyForProvider(provider));
+    if (saved && provider === 'openai'
+      && normalizeOpenAIChatCompletionsUrl(apiUrl) !== normalizeOpenAIChatCompletionsUrl(store.get('OPENAI_API_URL'))) {
+      return { error: 'Enter the API key to test an endpoint other than the saved one.' };
+    }
+    return { apiKey: saved };
   };
 
   return {

@@ -5487,7 +5487,10 @@ ipcMain.handle('save-settings', (event, key, value) => {
     return getPublicSettings();
   }
   if (isAiCredentialKey(key)) {
-    aiCredentials.set(key, value);
+    // Only a string is a key; '' is the explicit clear. Anything else must not wipe a saved key.
+    if (typeof value === 'string') {
+      aiCredentials.set(key, value);
+    }
     return getPublicSettings();
   }
 
@@ -6661,10 +6664,15 @@ ipcMain.handle('ai-test-connection', async (event, payload) => {
       : (store.get('USE_SYSTEM_PROXY_FOR_AI') || false);
     const customFetch = (url, options) => fetchWithOptionalSystemProxy(url, options, useSystemProxy);
     // An empty key field means "use the saved key": the renderer never receives it to send back.
-    const typedKey = payload && typeof payload === 'object' ? payload.apiKey : undefined;
-    const testPayload = typedKey === undefined || typedKey === null || typeof typedKey === 'string'
-      ? { ...payload, apiKey: aiCredentials.resolveTestApiKey(payload?.provider, typedKey) }
-      : payload;
+    let testPayload = payload;
+    if (payload && typeof payload === 'object'
+      && (payload.apiKey === undefined || payload.apiKey === null || typeof payload.apiKey === 'string')) {
+      const resolved = aiCredentials.resolveTestApiKey(payload.provider, payload.apiKey, payload.apiUrl);
+      if (resolved.error) {
+        return { ok: false, durationMs: 0, errorKind: 'config', error: resolved.error };
+      }
+      testPayload = { ...payload, apiKey: resolved.apiKey };
+    }
     return await runAiConnectionTest(testPayload, { customFetch });
   } catch (e) {
     console.error('[ai-test] failed:', e instanceof Error ? e.message : String(e));
