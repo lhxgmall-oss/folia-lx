@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { LyricParserFactory } from '../utils/lyrics/LyricParserFactory';
-import { getFromCacheWithMigration, getLocalSongs, removeFromCache, saveLocalSong, saveToCache } from '../services/db';
+import { getFromCacheWithMigration, getLocalSong, getLocalSongs, removeFromCache, saveLocalSong, saveToCache } from '../services/db';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from '../services/coverCache';
 import { ensureLocalSongCoverAsset, getAudioFromLocalSong } from '../services/localMusicService';
 import { addSongsToLocalPlaylist, buildCanonicalLocalSongIdIndex, createLocalPlaylist, getLocalPlaylists, setLocalSongFavorite } from '../services/localPlaylistService';
@@ -192,6 +192,22 @@ export function useLibraryPlaybackController({
         } catch (error) {
             console.error('Failed to load local songs:', error);
         }
+    }, []);
+
+    // 按 id 把给定的最新记录换进 localSongs，不重读整张 local_music 表；没有实际替换时保持原数组，不触发重渲染。
+    const patchLocalSongsInState = useCallback((records: LocalSong[]) => {
+        if (records.length === 0) return;
+        const recordsById = new Map(records.map(record => [record.id, record]));
+        setLocalSongs(previous => {
+            let changed = false;
+            const next = previous.map(song => {
+                const record = recordsById.get(song.id);
+                if (!record || record === song) return song;
+                changed = true;
+                return record;
+            });
+            return changed ? next : previous;
+        });
     }, []);
 
     const loadLocalPlaylists = useCallback(async () => {
@@ -393,20 +409,20 @@ export function useLibraryPlaybackController({
             try {
                 const { matchLyrics } = await import('../services/localMusicService');
                 await matchLyrics(localSong);
-                const updatedSongs = await getLocalSongs();
-                const found = updatedSongs.find(song => song.id === localSong.id);
-
-                if (found) {
-                    updatedLocalSong = found;
-                }
             } catch (error) {
                 console.warn('Auto-match failed:', error);
             }
-            await loadLocalSongs();
+            // 只把这一首的最新记录换进 localSongs。以前这里整表 loadLocalSongs，换掉了预热正在写的那批对象，
+            // 预热结果因此到不了下一次切歌；整表替换还会让依赖 localSongs 的曲库视图跟着全量重算。
+            const found = await getLocalSong(localSong.id);
+            if (found) {
+                updatedLocalSong = found;
+                patchLocalSongsInState([found]);
+            }
         }
 
         return { updatedLocalSong, matchedSongResult };
-    }, [loadLocalSongs, setStatusMsg]);
+    }, [patchLocalSongsInState, setStatusMsg]);
 
     const resolveLocalMetadataUI = useCallback(async (localData: LocalSong, matchedSong: SongResult | null) => {
         const localCoverUrl = getLocalCoverAssetUrl(localData.localCoverAssetId, 1024);
@@ -497,8 +513,10 @@ export function useLibraryPlaybackController({
         });
     }, [currentSong, persistLastPlaybackCache, playQueue, queueAddBehavior, resolveLocalMetadataUI, setPlayQueue, setStatusMsg, t]);
 
-    const prewarmLocalSongMetadata = useCallback(async (localSong: LocalSong) => {
+    // 预热一首本地歌曲的封面与在线匹配；确实写过库时返回库里的最新记录，供调用方回写到 localSongs。
+    const prewarmLocalSongMetadata = useCallback(async (localSong: LocalSong): Promise<LocalSong | null> => {
         const preparedLocalSong = await ensureLocalSongCoverAsset(localSong);
+        const coverExtracted = preparedLocalSong !== localSong;
         Object.assign(localSong, preparedLocalSong);
 
         const onlineFirst = useLyricSettingsStore.getState().localLyricsPriority === 'online';
@@ -515,7 +533,9 @@ export function useLibraryPlaybackController({
             } catch (error) {
                 console.warn('[LocalPrewarm] Failed to prewarm local song metadata:', error);
             }
+            return (await getLocalSong(localSong.id)) ?? null;
         }
+        return coverExtracted ? (await getLocalSong(localSong.id)) ?? null : null;
     }, []);
 
     const prewarmNearbyLocalSongs = useCallback((currentLocalSong: LocalSong, queue: LocalSong[] = []) => {
@@ -538,12 +558,17 @@ export function useLibraryPlaybackController({
 
         window.setTimeout(() => {
             void (async () => {
+                const prewarmedRecords: LocalSong[] = [];
                 for (const nearbySong of nearbySongs) {
-                    await prewarmLocalSongMetadata(nearbySong);
+                    const record = await prewarmLocalSongMetadata(nearbySong);
+                    if (record) prewarmedRecords.push(record);
                 }
+                // 预热结果必须回到 localSongs：切歌从这里取记录，拿不到就会在出声前重新提取封面、出声后重新联网匹配。
+                // 攒齐一次性回写，依赖 localSongs 的曲库视图只重算一次。
+                patchLocalSongsInState(prewarmedRecords);
             })();
         }, 1000);
-    }, [prewarmLocalSongMetadata]);
+    }, [patchLocalSongsInState, prewarmLocalSongMetadata]);
 
     const onPlayLocalSong = useCallback(async (localSong: LocalSong, queue: LocalSong[] = [], options: PlaybackNavigationOptions = {}) => {
         interruptStagePlaybackForMainTransition();
