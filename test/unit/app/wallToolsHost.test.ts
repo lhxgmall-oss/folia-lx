@@ -5,10 +5,10 @@ import {
     WALL_TOOLS_THEME_COMMAND,
     createWallToolsHostStore,
     type WallToolsHostDeps,
-} from '../../../src/components/app/wall-tools/useWallToolsHost';
+} from '../../../src/components/app/wall-tools/useAppWallToolsHost';
 
 // test/unit/app/wallToolsHost.test.ts
-// App 给墙面工具的宿主（useWallToolsHost 的纯部分 createWallToolsHostStore）：快照去重后才通知、动作总读最新依赖、
+// App 给墙面工具的宿主（useAppWallToolsHost 的纯部分 createWallToolsHostStore）：快照去重后才通知、动作总读最新依赖、
 // 点歌播放不跳页、队列动作接到对应的应用实现（就地编辑之后的重新预取在 createQueueMutations 里，不经宿主）。
 
 const song = (id: number): SongResult => ({

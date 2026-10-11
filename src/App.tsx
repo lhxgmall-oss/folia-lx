@@ -75,7 +75,7 @@ import { useQqLibrary } from './hooks/useQqLibrary';
 import { useBodianLibrary } from './hooks/useBodianLibrary';
 import { useLibraryAccountController } from './library/app/useLibraryAccountController';
 import { createLibraryAccountSwitchCleanupPort } from './library/app/createLibraryAccountPort';
-import { useWallToolsHost } from './components/app/wall-tools/useWallToolsHost';
+import { useAppWallToolsHost } from './components/app/wall-tools/useAppWallToolsHost';
 import { useLibraryAccountProviders } from './library/core/bindings/useLibraryAccount';
 import { resolveActiveProviderSummary } from './library/core/model/accountRules';
 import { useAppPreferences } from './hooks/useAppPreferences';
@@ -2141,7 +2141,7 @@ export default function App() {
     }, [navigateToCollection, setStatusMsg, t]);
 
     // 两面墙（bravais 与 Lattice）右下角工具面板的宿主动作：命令面板的同一套命令与队列操作，host 身份稳定。
-    const wallToolsHost = useWallToolsHost({
+    const wallToolsHost = useAppWallToolsHost({
         invokeCommandById: commandPalette.invokeCommandById,
         canInvokeCommandById: commandPalette.canInvokeCommandById,
         isGeneratingTheme,

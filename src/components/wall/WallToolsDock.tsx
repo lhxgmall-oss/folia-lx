@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { memo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { WallToolsDockContext, WallToolsSurface, type WallToolsButtonProps, type WallToolsDockRegistry } from './WallToolsButton';
 import { WallToolsHostContext, type WallToolsHost } from './wallToolsHost';
@@ -48,7 +48,9 @@ const createDockClaims = (): DockClaims => {
     };
 };
 
-function WallToolsDock({ claims }: { claims: DockClaims }) {
+// memo：WallToolsDockHost 随 App 每次渲染都拿到新的 children，dock 自己的 props 只有身份稳定的 claims（useState），
+// 不 memo 的话 App 每渲染一次，面板与队列浮岛就跟着重渲染一次；它们要的变化经 claims 的订阅与各自的 store 订阅进来。
+const WallToolsDock = memo(function WallToolsDock({ claims }: { claims: DockClaims }) {
     const props = useSyncExternalStore(claims.subscribe, claims.getSnapshot, claims.getSnapshot);
     return (
         <div className="wall-tools-dock absolute inset-0 z-10 pointer-events-none" data-wall-tools-dock="">
@@ -68,9 +70,9 @@ function WallToolsDock({ claims }: { claims: DockClaims }) {
             </AnimatePresence>
         </div>
     );
-}
+});
 
-/** 包住要共用一颗工具按钮的墙（首页层与 Lattice），dock 画在它们后面。host 应当身份稳定（App 的 useWallToolsHost）。 */
+/** 包住要共用一颗工具按钮的墙（首页层与 Lattice），dock 画在它们后面。host 应当身份稳定（App 的 useAppWallToolsHost）。 */
 export default function WallToolsDockHost({ host, children }: { host: WallToolsHost | null; children: ReactNode }) {
     const [claims] = useState(createDockClaims);
     return (

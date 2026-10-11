@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { installBaseState, mockNeteaseApi, openApp, svgDataUrl } from './helpers/appFixtures';
 
 // test/ui/bravaisToolsPanel.spec.ts
-// bravais 右下角工具面板在真实应用里的接线（设计稿 §7.5「浮层控件」）：快捷动作经墙面工具宿主（App 的 useWallToolsHost）落到命令面板的
+// bravais 右下角工具面板在真实应用里的接线（设计稿 §7.5「浮层控件」）：快捷动作经墙面工具宿主（App 的 useAppWallToolsHost）落到命令面板的
 // 同一条命令（队列洗牌 playback-shuffle、生成主题 theme-generate-current，可用性也是命令面板那一份），音量滑条读写
 // 应用的音量 store（与播放条、播放页面板同一份）。前往 Lattice 的翻牌交接在 wallHandoff.spec。
 // 队列浮岛（components/wall/WallToolsQueueIsland）：手柄拖拽经宿主的 moveQueueSong 改的是应用的播放队列；点歌播放不跳页

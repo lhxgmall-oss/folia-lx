@@ -4,7 +4,7 @@ import type { PlaybackNavigationOptions } from '../../../types/appPlayback';
 import type { WallToolsHost, WallToolsHostSnapshot } from '../../wall/wallToolsHost';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 
-// src/components/app/wall-tools/useWallToolsHost.ts
+// src/components/app/wall-tools/useAppWallToolsHost.ts
 // App 给墙面工具（components/wall 的 WallToolsButton，bravais 与 Lattice 共用）的宿主：在这里把应用的动作组装成
 // WallToolsHost，经 WallToolsDockHost 的 Provider 交给两面墙。原先 bravais 经 stage 契约的 tools 端口
 // （library/app/useLibraryStageToolsPort，已删除）拿这些动作，Lattice 拿不到；现在两面墙读同一份 host，stage 契约里不再有 tools。
@@ -85,7 +85,7 @@ export const createWallToolsHostStore = (latest: { current: WallToolsHostDeps })
 };
 
 /** App 里调一次：返回身份稳定的 host，交给 WallToolsDockHost。 */
-export const useWallToolsHost = (deps: WallToolsHostDeps): WallToolsHost => {
+export const useAppWallToolsHost = (deps: WallToolsHostDeps): WallToolsHost => {
     const latest = useRef(deps);
     latest.current = deps;
     const [store] = useState(() => createWallToolsHostStore(latest));
