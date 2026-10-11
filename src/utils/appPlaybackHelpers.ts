@@ -6,6 +6,7 @@ import { getLineRenderHints } from './lyrics/renderHints';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './appPlaybackGuards';
 
 export { hasRenderableLyrics } from './lyrics/validity';
+export { findLatestActiveLineIndex } from './lyrics/activeLineLookup';
 
 // Pure helpers for playback state, debug snapshots, and lyric timing.
 export const clampMediaVolume = (value: number) => Math.min(1, Math.max(0, value));
@@ -16,19 +17,6 @@ export const extractCloudLyricText = (response: any): string => {
     if (typeof response?.lyric === 'string') return response.lyric;
     if (typeof response?.data?.lyric === 'string') return response.data.lyric;
     return '';
-};
-
-export const findLatestActiveLineIndex = (lines: LyricData['lines'], time: number) => {
-    for (let index = lines.length - 1; index >= 0; index -= 1) {
-        const line = lines[index];
-        if (!line || time < line.startTime) {
-            continue;
-        }
-        if (time <= (line.renderHints?.renderEndTime ?? line.endTime)) {
-            return index;
-        }
-    }
-    return -1;
 };
 
 export const formatTime = (time: number) => {
