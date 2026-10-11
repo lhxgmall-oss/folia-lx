@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import Dexie, { RangeSet } from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appDatabase } from '../../../src/services/appDatabase';
 import { getLocalLibraryCatalogSnapshot } from '../../../src/services/localLibraryEntityRepository';
@@ -85,6 +86,14 @@ describe('local library catalog snapshot cache', () => {
         await flush();
 
         expect((await getLocalLibraryCatalogSnapshot()).entities).toHaveLength(0);
+    });
+
+    it('rereads after a back/forward cache restore signals every table', async () => {
+        const first = await getLocalLibraryCatalogSnapshot();
+
+        Dexie.on.storagemutated.fire({ all: new RangeSet(-Infinity, [[]]) });
+
+        expect(await getLocalLibraryCatalogSnapshot()).not.toBe(first);
     });
 
     it('reads uncommitted writes inside a transaction instead of the cache', async () => {

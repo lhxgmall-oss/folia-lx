@@ -45,6 +45,7 @@ import type { NavidromeMatchData } from '../components/modal/NaviLyricMatchModal
 import { applyQueueAddBehavior } from '../utils/queueAddBehavior';
 import { loadOnlineLyricsState, resolveOnlineLyrics, saveOnlineLyricsState, getOnlineLyricsStateCacheKey } from '../utils/onlineLyricsState';
 import { hasLocalSongCover } from '../utils/localSongCover';
+import { isSameLocalSongRecord } from '../utils/localSongRecordEquality';
 import { getLocalCoverAssetUrl } from '../services/localCoverAssetUrl';
 import { applyMatchedMetadata } from '../services/localLibraryCatalogService';
 import { setLocalSongPureMusicMark } from '../services/localSongMatchSelectionService';
@@ -194,7 +195,9 @@ export function useLibraryPlaybackController({
         }
     }, []);
 
-    // 按 id 把给定的最新记录换进 localSongs，不重读整张 local_music 表；没有实际替换时保持原数组，不触发重渲染。
+    // 按 id 把给定的最新记录换进 localSongs，不重读整张 local_music 表。
+    // 内容与状态里那条相同的记录不换（库里读回的总是新对象，只比引用会每次都换），没有实际替换时保持原数组：
+    // localSongs 的引用一变，useLocalLibraryCatalog 就要整表重读目录，曲库视图也跟着重算。
     const patchLocalSongsInState = useCallback((records: LocalSong[]) => {
         if (records.length === 0) return;
         const recordsById = new Map(records.map(record => [record.id, record]));
@@ -202,7 +205,7 @@ export function useLibraryPlaybackController({
             let changed = false;
             const next = previous.map(song => {
                 const record = recordsById.get(song.id);
-                if (!record || record === song) return song;
+                if (!record || isSameLocalSongRecord(record, song)) return song;
                 changed = true;
                 return record;
             });
@@ -513,8 +516,8 @@ export function useLibraryPlaybackController({
         });
     }, [currentSong, persistLastPlaybackCache, playQueue, queueAddBehavior, resolveLocalMetadataUI, setPlayQueue, setStatusMsg, t]);
 
-    // 预热一首本地歌曲的封面与在线匹配；确实写过库时返回库里的最新记录，供调用方回写到 localSongs。
-    const prewarmLocalSongMetadata = useCallback(async (localSong: LocalSong): Promise<LocalSong | null> => {
+    // 预热一首本地歌曲的封面与在线匹配；可能写过库（提取了封面或跑过匹配）时返回 true，供调用方回写到 localSongs。
+    const prewarmLocalSongMetadata = useCallback(async (localSong: LocalSong): Promise<boolean> => {
         const preparedLocalSong = await ensureLocalSongCoverAsset(localSong);
         const coverExtracted = preparedLocalSong !== localSong;
         Object.assign(localSong, preparedLocalSong);
@@ -533,9 +536,9 @@ export function useLibraryPlaybackController({
             } catch (error) {
                 console.warn('[LocalPrewarm] Failed to prewarm local song metadata:', error);
             }
-            return (await getLocalSong(localSong.id)) ?? null;
+            return true;
         }
-        return coverExtracted ? (await getLocalSong(localSong.id)) ?? null : null;
+        return coverExtracted;
     }, []);
 
     const prewarmNearbyLocalSongs = useCallback((currentLocalSong: LocalSong, queue: LocalSong[] = []) => {
@@ -558,14 +561,15 @@ export function useLibraryPlaybackController({
 
         window.setTimeout(() => {
             void (async () => {
-                const prewarmedRecords: LocalSong[] = [];
+                const touchedSongIds: string[] = [];
                 for (const nearbySong of nearbySongs) {
-                    const record = await prewarmLocalSongMetadata(nearbySong);
-                    if (record) prewarmedRecords.push(record);
+                    if (await prewarmLocalSongMetadata(nearbySong)) touchedSongIds.push(nearbySong.id);
                 }
-                // 预热结果必须回到 localSongs：切歌从这里取记录，拿不到就会在出声前重新提取封面、出声后重新联网匹配。
-                // 攒齐一次性回写，依赖 localSongs 的曲库视图只重算一次。
-                patchLocalSongsInState(prewarmedRecords);
+                // 预热结果必须回到 localSongs：队列与预热都从这里取记录，拿到旧快照就会重新提取封面、重新联网匹配。
+                // 等三首都做完才回写，此时才从库里读：每首做完就读的话，等后面几首联网匹配的这几秒里，
+                // 用户的改动或切到这首后的匹配写回会被这份更早的读覆盖回去。攒齐一次性回写，曲库视图只重算一次。
+                const records = await Promise.all(touchedSongIds.map(songId => getLocalSong(songId)));
+                patchLocalSongsInState(records.filter((record): record is LocalSong => Boolean(record)));
             })();
         }, 1000);
     }, [patchLocalSongsInState, prewarmLocalSongMetadata]);
