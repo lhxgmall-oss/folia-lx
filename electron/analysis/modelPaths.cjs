@@ -103,7 +103,7 @@ const downloadables = (manifest, platform = PLATFORM) => {
     });
 
     // A download is offered only when the thing it switches on can actually run here. The weights
-    // are one file for every platform, so htdemucs.onnx resolves fine on an Intel Mac - and is 109MB
+    // are one file for every platform, so htdemucs.onnx resolves fine where the runtime has no build - and is 108MB
     // that will never separate anything, because the runtime it needs has no build for that machine.
     // Offering it is the same lie as a settings page reporting an engine with no weights behind it,
     // just told in the other direction. `enables` is what ties them: both entries buy `stems`, and
