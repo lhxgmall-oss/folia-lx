@@ -5477,6 +5477,11 @@ ipcMain.handle('set-app-locale', (event, localeKey) => {
 });
 
 ipcMain.handle('save-settings', (event, key, value) => {
+  // electron-store's set() also accepts an object of key/value pairs, which would bypass the
+  // per-key guards below.
+  if (typeof key !== 'string') {
+    return getPublicSettings();
+  }
   if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || isSealedAiCredentialKey(key)) {
     return getPublicSettings();
   }

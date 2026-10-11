@@ -26,6 +26,17 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
     throw new TypeError('A compatible electron-store instance is required');
   }
   const cache = new Map();
+  // Keys whose sealed blob exists but could not be decrypted (keyring locked, or a blob from another
+  // user/machine). The renderer then sees '' and saves '' back on every settings save; that must not
+  // be taken as "clear the key", or a locked keyring at startup would cost the user their key.
+  const undecryptable = new Set();
+  const warned = new Set();
+  const warnOnce = (id, ...args) => {
+    if (!warned.has(id)) {
+      warned.add(id);
+      warn(...args);
+    }
+  };
 
   const canEncrypt = () => {
     try {
@@ -56,26 +67,28 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
     if (cache.has(key)) {
       return cache.get(key);
     }
-    let value = '';
+    const plain = store.get(key);
+    const plainValue = typeof plain === 'string' ? plain : '';
     const sealed = store.get(sealedKeyOf(key));
     if (typeof sealed === 'string' && sealed) {
       try {
         if (!canEncrypt()) {
           throw new Error('Encryption unavailable');
         }
-        value = safeStorage.decryptString(Buffer.from(sealed, 'base64'));
+        const value = safeStorage.decryptString(Buffer.from(sealed, 'base64'));
+        undecryptable.delete(key);
+        cache.set(key, value);
+        return value;
       } catch {
-        // Ciphertext from another user/machine, or a keyring that is locked right now. Leave the
-        // blob in place so a temporarily unavailable keyring does not cost the user their key.
-        warn(`[AiCredentials] ${key} could not be decrypted; re-enter it in settings`);
-        return '';
+        // Not cached, so the key comes back once the keyring unlocks. A plaintext copy (written by
+        // an older build, or by the basic_text fallback) is still a usable key in the meantime.
+        undecryptable.add(key);
+        warnOnce(`decrypt:${key}`, `[AiCredentials] ${key} could not be decrypted; re-enter it in settings`);
+        return plainValue;
       }
-    } else {
-      const plain = store.get(key);
-      value = typeof plain === 'string' ? plain : '';
     }
-    cache.set(key, value);
-    return value;
+    cache.set(key, plainValue);
+    return plainValue;
   };
 
   const set = (key, rawValue) => {
@@ -84,6 +97,11 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
       return;
     }
     const value = typeof rawValue === 'string' ? rawValue : '';
+    if (!value && undecryptable.has(key)) {
+      // The renderer never saw this key, so its '' is not a deliberate clear.
+      return;
+    }
+    undecryptable.delete(key);
     cache.set(key, value);
     if (!value) {
       remove(key);
@@ -99,7 +117,7 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
         warn(`[AiCredentials] Encrypting ${key} failed; keeping it unencrypted`, error);
       }
     } else {
-      warn(`[AiCredentials] OS credential encryption unavailable; ${key} is stored unencrypted`);
+      warnOnce(`plain:${key}`, `[AiCredentials] OS credential encryption unavailable; ${key} is stored unencrypted`);
     }
     store.set(key, value);
     remove(sealedKeyOf(key));

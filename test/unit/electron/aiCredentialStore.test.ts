@@ -118,6 +118,36 @@ describe('AI credential store', () => {
         expect(warn).toHaveBeenCalled();
     });
 
+    it('keeps an undecryptable key when the settings form saves it back as empty', () => {
+        const store = createStore();
+        const safeStorage = createSafeStorage();
+        createAiCredentialStore({ store, safeStorage, platform: 'linux' }).set('GEMINI_API_KEY', 'gemini-key');
+        const sealed = store.values.get('GEMINI_API_KEY_SEALED');
+
+        // Next launch: the keyring has not answered yet.
+        safeStorage.isEncryptionAvailable.mockReturnValue(false);
+        const credentials = createAiCredentialStore({ store, safeStorage, platform: 'linux', warn: vi.fn() });
+        expect(credentials.get('GEMINI_API_KEY')).toBe('');
+        credentials.set('GEMINI_API_KEY', '');
+        expect(store.values.get('GEMINI_API_KEY_SEALED')).toBe(sealed);
+
+        // Keyring unlocks later in the same run.
+        safeStorage.isEncryptionAvailable.mockReturnValue(true);
+        expect(credentials.get('GEMINI_API_KEY')).toBe('gemini-key');
+    });
+
+    it('falls back to a plaintext copy when the sealed blob cannot be decrypted', () => {
+        const warn = vi.fn();
+        const store = createStore({ OPENAI_API_KEY_SEALED: 'Ym9ndXM=', OPENAI_API_KEY: 'sk-plain' });
+        const credentials = createAiCredentialStore({
+            store, safeStorage: createSafeStorage({ available: false }), platform: 'linux', warn,
+        });
+
+        expect(credentials.get('OPENAI_API_KEY')).toBe('sk-plain');
+        credentials.get('OPENAI_API_KEY');
+        expect(warn).toHaveBeenCalledTimes(1);
+    });
+
     it('passes non-credential keys straight through', () => {
         const store = createStore({ OPENAI_API_URL: 'https://api.deepseek.com' });
         const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
