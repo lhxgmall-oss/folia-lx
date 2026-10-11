@@ -4,14 +4,18 @@ import { describe, expect, it, vi } from 'vitest';
 
 const {
     createAiCredentialStore,
+    isReservedAiCredentialKey,
 } = require('../../../electron/aiCredentialStore.cjs') as {
     createAiCredentialStore: (options: Record<string, unknown>) => {
         get: (key: string) => unknown;
         set: (key: string, value: unknown) => void;
         migrate: () => void;
+        isConfigured: (key: string) => boolean;
         toPublicSettings: (settings: Record<string, unknown>) => Record<string, unknown>;
+        resolveTestApiKey: (provider: unknown, typedKey: unknown) => string;
         settingsView: { get: (key: string) => unknown };
     };
+    isReservedAiCredentialKey: (key: string) => boolean;
 };
 
 function createStore(initial: Record<string, unknown> = {}) {
@@ -65,16 +69,51 @@ describe('AI credential store', () => {
         expect(store.values.get('AI_PROVIDER')).toBe('gemini');
     });
 
-    it('exposes decrypted keys under their usual names and hides the sealed blobs', () => {
-        const store = createStore();
+    it('gives the renderer only which keys are saved, never the keys or their ciphertext', () => {
+        const store = createStore({ OPENAI_API_KEY: 'sk-legacy-plain', AI_PROVIDER: 'openai' });
         const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
         credentials.set('GEMINI_API_KEY', 'gemini-key');
 
         const settings = credentials.toPublicSettings(Object.fromEntries(store.values));
 
-        expect(settings.GEMINI_API_KEY).toBe('gemini-key');
-        expect(settings.OPENAI_API_KEY).toBe('');
-        expect(Object.keys(settings).some((key) => key.endsWith('_SEALED'))).toBe(false);
+        expect(settings.AI_API_KEYS_CONFIGURED).toEqual({ GEMINI_API_KEY: true, OPENAI_API_KEY: true });
+        expect(settings.AI_PROVIDER).toBe('openai');
+        const serialized = JSON.stringify(settings);
+        expect(serialized).not.toContain('gemini-key');
+        expect(serialized).not.toContain('sk-legacy-plain');
+        expect(serialized).not.toContain(String(store.values.get('GEMINI_API_KEY_SEALED')));
+        expect(Object.keys(settings)).not.toContain('GEMINI_API_KEY');
+        expect(Object.keys(settings)).not.toContain('OPENAI_API_KEY');
+    });
+
+    it('reports a key as saved even while its ciphertext cannot be decrypted', () => {
+        const store = createStore({ GEMINI_API_KEY_SEALED: 'Ym9ndXM=' });
+        const credentials = createAiCredentialStore({
+            store, safeStorage: createSafeStorage({ available: false }), platform: 'linux', warn: vi.fn(),
+        });
+
+        expect(credentials.get('GEMINI_API_KEY')).toBe('');
+        expect(credentials.toPublicSettings({}).AI_API_KEYS_CONFIGURED).toEqual({ GEMINI_API_KEY: true, OPENAI_API_KEY: false });
+    });
+
+    it('uses the saved key for the connection test only when the field is left empty', () => {
+        const store = createStore();
+        const credentials = createAiCredentialStore({ store, safeStorage: createSafeStorage(), platform: 'win32' });
+        credentials.set('OPENAI_API_KEY', 'sk-saved');
+        credentials.set('GEMINI_API_KEY', 'gemini-saved');
+
+        expect(credentials.resolveTestApiKey('openai', '')).toBe('sk-saved');
+        expect(credentials.resolveTestApiKey('openai', undefined)).toBe('sk-saved');
+        expect(credentials.resolveTestApiKey('gemini', '  ')).toBe('gemini-saved');
+        expect(credentials.resolveTestApiKey('openai', ' sk-typed ')).toBe('sk-typed');
+    });
+
+    it('marks the ciphertext and the status entry as names the renderer may not write', () => {
+        expect(isReservedAiCredentialKey('GEMINI_API_KEY_SEALED')).toBe(true);
+        expect(isReservedAiCredentialKey('OPENAI_API_KEY_SEALED')).toBe(true);
+        expect(isReservedAiCredentialKey('AI_API_KEYS_CONFIGURED')).toBe(true);
+        expect(isReservedAiCredentialKey('OPENAI_API_KEY')).toBe(false);
+        expect(isReservedAiCredentialKey('OPENAI_API_URL')).toBe(false);
     });
 
     it('clears both the sealed and plaintext entries when a key is emptied', () => {
@@ -118,22 +157,30 @@ describe('AI credential store', () => {
         expect(warn).toHaveBeenCalled();
     });
 
-    it('keeps an undecryptable key when the settings form saves it back as empty', () => {
+    it('recovers a sealed key once a locked keyring becomes available', () => {
         const store = createStore();
         const safeStorage = createSafeStorage();
         createAiCredentialStore({ store, safeStorage, platform: 'linux' }).set('GEMINI_API_KEY', 'gemini-key');
-        const sealed = store.values.get('GEMINI_API_KEY_SEALED');
 
         // Next launch: the keyring has not answered yet.
         safeStorage.isEncryptionAvailable.mockReturnValue(false);
         const credentials = createAiCredentialStore({ store, safeStorage, platform: 'linux', warn: vi.fn() });
         expect(credentials.get('GEMINI_API_KEY')).toBe('');
-        credentials.set('GEMINI_API_KEY', '');
-        expect(store.values.get('GEMINI_API_KEY_SEALED')).toBe(sealed);
 
-        // Keyring unlocks later in the same run.
         safeStorage.isEncryptionAvailable.mockReturnValue(true);
         expect(credentials.get('GEMINI_API_KEY')).toBe('gemini-key');
+    });
+
+    it('clears an undecryptable key when asked to explicitly', () => {
+        const store = createStore({ GEMINI_API_KEY_SEALED: 'Ym9ndXM=' });
+        const credentials = createAiCredentialStore({
+            store, safeStorage: createSafeStorage({ available: false }), platform: 'linux', warn: vi.fn(),
+        });
+
+        credentials.set('GEMINI_API_KEY', '');
+
+        expect(store.values.has('GEMINI_API_KEY_SEALED')).toBe(false);
+        expect(credentials.isConfigured('GEMINI_API_KEY')).toBe(false);
     });
 
     it('falls back to a plaintext copy when the sealed blob cannot be decrypted', () => {

@@ -6,16 +6,24 @@
 // sealed with Electron safeStorage (DPAPI on Windows, Keychain on macOS, libsecret/kwallet on Linux)
 // and only the ciphertext reaches disk.
 //
+// The keys also stay inside the main process: the renderer only learns whether each one is saved
+// (AI_API_KEYS_CONFIGURED), the same way the web build only knows the provider while the server
+// holds the key. The settings form sends a key when the user types a new one, and '' to clear it.
+//
 // Linux without a real keyring selects `basic_text`, which "encrypts" with a hardcoded key. Unlike
 // the KuGou/QQ/Bodian sessions, an API key is something the user typed in by hand, so dropping it on
 // every restart would be a regression; in that case the key stays in plaintext, as before.
 
 const AI_CREDENTIAL_KEYS = Object.freeze(['GEMINI_API_KEY', 'OPENAI_API_KEY']);
+const AI_API_KEYS_CONFIGURED_KEY = 'AI_API_KEYS_CONFIGURED';
 const SEALED_SUFFIX = '_SEALED';
 
 const sealedKeyOf = (key) => `${key}${SEALED_SUFFIX}`;
 const isAiCredentialKey = (key) => AI_CREDENTIAL_KEYS.includes(key);
-const isSealedAiCredentialKey = (key) => AI_CREDENTIAL_KEYS.some((name) => sealedKeyOf(name) === key);
+// Names the renderer may never write through save-settings: the ciphertext and the derived status.
+const isReservedAiCredentialKey = (key) => key === AI_API_KEYS_CONFIGURED_KEY
+  || AI_CREDENTIAL_KEYS.some((name) => sealedKeyOf(name) === key);
+const credentialKeyForProvider = (provider) => (provider === 'openai' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY');
 
 /**
  * Wraps an electron-store instance so AI API keys are read and written through safeStorage.
@@ -26,10 +34,6 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
     throw new TypeError('A compatible electron-store instance is required');
   }
   const cache = new Map();
-  // Keys whose sealed blob exists but could not be decrypted (keyring locked, or a blob from another
-  // user/machine). The renderer then sees '' and saves '' back on every settings save; that must not
-  // be taken as "clear the key", or a locked keyring at startup would cost the user their key.
-  const undecryptable = new Set();
   const warned = new Set();
   const warnOnce = (id, ...args) => {
     if (!warned.has(id)) {
@@ -60,6 +64,16 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
     }
   };
 
+  const readPlain = (key) => {
+    const plain = store.get(key);
+    return typeof plain === 'string' ? plain : '';
+  };
+
+  const readSealed = (key) => {
+    const sealed = store.get(sealedKeyOf(key));
+    return typeof sealed === 'string' ? sealed : '';
+  };
+
   const get = (key) => {
     if (!isAiCredentialKey(key)) {
       return store.get(key);
@@ -67,22 +81,20 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
     if (cache.has(key)) {
       return cache.get(key);
     }
-    const plain = store.get(key);
-    const plainValue = typeof plain === 'string' ? plain : '';
-    const sealed = store.get(sealedKeyOf(key));
-    if (typeof sealed === 'string' && sealed) {
+    const plainValue = readPlain(key);
+    const sealed = readSealed(key);
+    if (sealed) {
       try {
         if (!canEncrypt()) {
           throw new Error('Encryption unavailable');
         }
         const value = safeStorage.decryptString(Buffer.from(sealed, 'base64'));
-        undecryptable.delete(key);
         cache.set(key, value);
         return value;
       } catch {
-        // Not cached, so the key comes back once the keyring unlocks. A plaintext copy (written by
-        // an older build, or by the basic_text fallback) is still a usable key in the meantime.
-        undecryptable.add(key);
+        // Ciphertext from another user/machine, or a keyring that is locked right now. Not cached,
+        // and the blob is left alone, so the key comes back once the keyring unlocks. A plaintext
+        // copy (older build, basic_text fallback) is still a usable key in the meantime.
         warnOnce(`decrypt:${key}`, `[AiCredentials] ${key} could not be decrypted; re-enter it in settings`);
         return plainValue;
       }
@@ -91,17 +103,16 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
     return plainValue;
   };
 
+  /** Whether a key is saved, including one whose ciphertext cannot be decrypted right now. */
+  const isConfigured = (key) => Boolean(readSealed(key) || readPlain(key));
+
+  /** Saves a key, or clears it when `rawValue` is empty. */
   const set = (key, rawValue) => {
     if (!isAiCredentialKey(key)) {
       store.set(key, rawValue);
       return;
     }
-    const value = typeof rawValue === 'string' ? rawValue : '';
-    if (!value && undecryptable.has(key)) {
-      // The renderer never saw this key, so its '' is not a deliberate clear.
-      return;
-    }
-    undecryptable.delete(key);
+    const value = typeof rawValue === 'string' ? rawValue.trim() : '';
     cache.set(key, value);
     if (!value) {
       remove(key);
@@ -129,28 +140,42 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
       return;
     }
     for (const key of AI_CREDENTIAL_KEYS) {
-      const plain = store.get(key);
-      if (typeof plain === 'string' && plain) {
+      const plain = readPlain(key);
+      if (plain) {
         set(key, plain);
       }
     }
   };
 
-  /** Settings snapshot for the renderer: sealed blobs dropped, keys decrypted in their usual names. */
+  /** Settings snapshot for the renderer: no key material, only which keys are saved. */
   const toPublicSettings = (settings) => {
     const result = { ...settings };
+    const configured = {};
     for (const key of AI_CREDENTIAL_KEYS) {
+      delete result[key];
       delete result[sealedKeyOf(key)];
-      result[key] = get(key);
+      configured[key] = isConfigured(key);
     }
+    result[AI_API_KEYS_CONFIGURED_KEY] = configured;
     return result;
+  };
+
+  /**
+   * Key for the "test connection" button: the one typed in the form, or the saved one for that
+   * provider when the field was left empty (the renderer no longer has the saved key to send).
+   */
+  const resolveTestApiKey = (provider, typedKey) => {
+    const typed = typeof typedKey === 'string' ? typedKey.trim() : '';
+    return typed || get(credentialKeyForProvider(provider));
   };
 
   return {
     get,
     set,
     migrate,
+    isConfigured,
     toPublicSettings,
+    resolveTestApiKey,
     isEncrypted: canEncrypt,
     // Read-only store view for aiTextClient, which looks keys up with `store.get(name)`.
     settingsView: { get },
@@ -158,8 +183,9 @@ function createAiCredentialStore({ store, safeStorage, platform = process.platfo
 }
 
 module.exports = {
+  AI_API_KEYS_CONFIGURED_KEY,
   AI_CREDENTIAL_KEYS,
   createAiCredentialStore,
   isAiCredentialKey,
-  isSealedAiCredentialKey,
+  isReservedAiCredentialKey,
 };

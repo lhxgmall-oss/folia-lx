@@ -54,7 +54,7 @@ const {
   runAiConnectionTest,
   runAiJsonCompletion,
 } = require('./aiTextClient.cjs');
-const { createAiCredentialStore, isAiCredentialKey, isSealedAiCredentialKey } = require('./aiCredentialStore.cjs');
+const { createAiCredentialStore, isAiCredentialKey, isReservedAiCredentialKey } = require('./aiCredentialStore.cjs');
 const {
   SEGMENTATION_GEMINI_GENERATION_CONFIG,
   SEGMENTATION_JSON_SCHEMA,
@@ -204,7 +204,8 @@ const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
   },
 });
 const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
-// AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext (#586).
+// AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext, and never
+// leave the main process: the renderer only sees AI_API_KEYS_CONFIGURED (#586).
 const aiCredentials = createAiCredentialStore({ store, safeStorage });
 
 // --- Desktop wallpaper mode (Wayland layer-shell via windowtolayer / X11 desktop window) ---
@@ -5482,7 +5483,7 @@ ipcMain.handle('save-settings', (event, key, value) => {
   if (typeof key !== 'string') {
     return getPublicSettings();
   }
-  if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || isSealedAiCredentialKey(key)) {
+  if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || isReservedAiCredentialKey(key)) {
     return getPublicSettings();
   }
   if (isAiCredentialKey(key)) {
@@ -6659,7 +6660,12 @@ ipcMain.handle('ai-test-connection', async (event, payload) => {
       ? payload.useSystemProxy
       : (store.get('USE_SYSTEM_PROXY_FOR_AI') || false);
     const customFetch = (url, options) => fetchWithOptionalSystemProxy(url, options, useSystemProxy);
-    return await runAiConnectionTest(payload, { customFetch });
+    // An empty key field means "use the saved key": the renderer never receives it to send back.
+    const typedKey = payload && typeof payload === 'object' ? payload.apiKey : undefined;
+    const testPayload = typedKey === undefined || typedKey === null || typeof typedKey === 'string'
+      ? { ...payload, apiKey: aiCredentials.resolveTestApiKey(payload?.provider, typedKey) }
+      : payload;
+    return await runAiConnectionTest(testPayload, { customFetch });
   } catch (e) {
     console.error('[ai-test] failed:', e instanceof Error ? e.message : String(e));
     return { ok: false, durationMs: 0, errorKind: 'network', error: 'Connection test failed unexpectedly.' };
