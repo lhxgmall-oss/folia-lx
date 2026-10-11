@@ -5,6 +5,10 @@
 // 仓库名不写死：写死的话 fork 会原样继承，流量就和官方混在一起了。
 // fork 在自己的 Actions / Vercel 上构建时，环境变量自然是 fork 的仓库名。
 
+// 只有本仓库自己的 GitHub Actions 构建出来的才算官方版本。这里必须写死：
+// fork 的 Actions 里 GITHUB_REPOSITORY 是 fork 自己，Vercel / Cloudflare / 本地构建根本没有 GITHUB_ACTIONS。
+export const OFFICIAL_BUILD_REPO = 'chthollyphile/folia-major';
+
 const REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const COMMIT_PATTERN = /^[0-9a-f]{7,40}$/i;
 
@@ -45,4 +49,10 @@ export function resolveBuildRepo(env, readOriginUrl) {
 export function normalizeBuildCommit(commitHash) {
   const value = String(commitHash ?? '').trim();
   return COMMIT_PATTERN.test(value) ? value.toLowerCase() : 'dev';
+}
+
+// 是否官方构建：本仓库的 GitHub Actions（Docker 镜像构建由 workflow 以 build-arg 把这两个变量传进去）。
+// 环境变量能被手动伪造，这个标记防的是「别人打包后把问题反馈到本仓库」，不是防恶意冒充。
+export function isOfficialBuild(env) {
+  return env.GITHUB_ACTIONS === 'true' && String(env.GITHUB_REPOSITORY ?? '').trim() === OFFICIAL_BUILD_REPO;
 }

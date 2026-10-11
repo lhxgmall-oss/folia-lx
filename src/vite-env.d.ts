@@ -9,6 +9,8 @@ declare global {
   const __BUILD_REPO__: string;
   /** 十六进制短 commit，拿不到时为 'dev'。 */
   const __BUILD_COMMIT__: string;
+  /** 是否本仓库 GitHub Actions 构建的官方版本（见 dev/build/buildIdentity.mjs）。 */
+  const __OFFICIAL_BUILD__: boolean;
   const __APP_VERSION__: string;
   const __APP_VERSION_LABEL__: string;
   const __APP_RELEASE_CHANNEL__: string;

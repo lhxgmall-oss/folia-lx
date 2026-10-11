@@ -150,13 +150,46 @@ describe('login diagnosis in issue triage', () => {
     });
 
     it('falls back to the rules when the LLM is unavailable or returns garbage', async () => {
-        const offline = await run({ title: '[QR login] netease login failed', body: webMissingApiReport }).result;
+        const offline = await run({ title: '[QR login] netease login failed', body: networkResetReport }).result;
         expect(offline.plan.upsert?.body).toContain('根据诊断报告自动匹配到以下已知问题');
-        expect(offline.plan.upsert?.body).toContain('VITE_NETEASE_API_BASE');
+        expect(offline.plan.upsert?.body).toContain('换一个网络');
 
-        const garbage = await run({ title: '[QR login] netease login failed', body: webMissingApiReport }, { llmReply: { causes: 'x' } }).result;
-        expect(garbage.plan.upsert?.body).toContain('网页版部署没有配置音源 API 地址');
+        const garbage = await run({ title: '[QR login] netease login failed', body: networkResetReport }, { llmReply: { causes: 'x' } }).result;
+        expect(garbage.plan.upsert?.body).toContain('到平台服务器的连接被网络环境中断');
         expect(garbage.plan.notes.join()).toContain('登录诊断输出未通过校验');
+    });
+
+    it('closes web deployments without a backend as a deployment problem, with the fix steps', async () => {
+        const { plan } = await run({ title: '[QR login] netease login failed', body: webMissingApiReport }).result;
+        expect(plan.close).toEqual({ reason: 'web-deployment', stateReason: 'not_planned' });
+        expect(plan.labelsAdd).toEqual(expect.arrayContaining(['deployment config', 'bot: auto-closed']));
+        expect(plan.comments[0]).toContain('部署配置问题');
+        expect(plan.comments[0]).toContain('VITE_NETEASE_API_BASE');
+
+        const unreachable = await run({ title: '[QR login] kugou login failed', body: webFetchFailedReport('Mozilla/5.0 (Linux; Android 16; wv) Chrome/148 Mobile Safari/537.36') }).result;
+        expect(unreachable.plan.close?.reason).toBe('web-deployment');
+        expect(unreachable.plan.comments[0]).toContain('网页版连不上部署的 API 服务');
+    });
+
+    it('closes reports from unofficial builds and labels them', async () => {
+        const unofficial = formatQrLoginDiagnosticReport({
+            generatedAt: NOW, appVersion: '0.7.18', userAgent: 'Mozilla/5.0 Folia/0.7.18 Electron/43.7.5', build: 'unofficial (someone/folia-fork@abc1234)',
+            providerId: 'qq', methodId: 'qq', failure: 'check-error', timeline: [], providerLines: [],
+        });
+        const { plan } = await run({ title: '[QR login] qq login failed', body: unofficial }).result;
+        expect(plan.close).toEqual({ reason: 'unofficial-build', stateReason: 'not_planned' });
+        expect(plan.labelsAdd).toEqual(expect.arrayContaining(['unofficial build', 'bot: auto-closed']));
+        expect(plan.comments[0]).toContain('不是 Folia 仓库 CI 构建的官方版本');
+    });
+
+    it('keeps reports from official builds open', async () => {
+        const official = formatQrLoginDiagnosticReport({
+            generatedAt: NOW, appVersion: '0.7.18', userAgent: 'Mozilla/5.0 Folia/0.7.18 Electron/43.7.5', build: 'official (chthollyphile/folia-major@abc1234)',
+            providerId: 'qq', methodId: 'qq', failure: 'check-error', timeline: [], providerLines: [],
+        });
+        const { plan } = await run({ title: '[QR login] qq login failed', body: official }).result;
+        expect(plan.close).toBeNull();
+        expect(plan.labelsAdd).not.toContain('unofficial build');
     });
 
     it('posts AI suggestions when no known cause matches', async () => {

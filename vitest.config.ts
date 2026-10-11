@@ -8,6 +8,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   // 命令面板的检索索引在单测里也要读到构建期生成的拼音字典。
   plugins: [commandPinyinPlugin()],
+  // 单测默认按官方构建跑（vite.config 构建期注入的值）；非官方分支由各自的用例显式传入构建环境。
+  define: {
+    __OFFICIAL_BUILD__: 'true',
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')

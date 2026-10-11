@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeBuildCommit, parseGitHubRepo, resolveBuildRepo } from '../../dev/build/buildIdentity.mjs';
+import { isOfficialBuild, normalizeBuildCommit, parseGitHubRepo, resolveBuildRepo } from '../../dev/build/buildIdentity.mjs';
 
 // test/unit/buildIdentity.test.ts
 
@@ -52,5 +52,19 @@ describe('normalizeBuildCommit', () => {
         expect(normalizeBuildCommit('unknown, probably dev version')).toBe('dev');
         expect(normalizeBuildCommit('')).toBe('dev');
         expect(normalizeBuildCommit(undefined)).toBe('dev');
+    });
+});
+
+describe('isOfficialBuild', () => {
+    it('only accepts GitHub Actions runs of the upstream repository', () => {
+        expect(isOfficialBuild({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'chthollyphile/folia-major' })).toBe(true);
+    });
+
+    it('marks forks, Vercel and local builds as unofficial', () => {
+        expect(isOfficialBuild({ GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'someone/folia-major' })).toBe(false);
+        expect(isOfficialBuild({ GITHUB_REPOSITORY: 'chthollyphile/folia-major' })).toBe(false);
+        expect(isOfficialBuild({ VERCEL: '1', VERCEL_GIT_REPO_OWNER: 'chthollyphile', VERCEL_GIT_REPO_SLUG: 'folia-major' })).toBe(false);
+        expect(isOfficialBuild({ FOLIA_BUILD_REPO: 'chthollyphile/folia-major' })).toBe(false);
+        expect(isOfficialBuild({})).toBe(false);
     });
 });

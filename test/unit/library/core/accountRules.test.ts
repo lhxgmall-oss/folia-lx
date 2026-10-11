@@ -16,6 +16,7 @@ import {
     resolveLoginBackendState,
     resolveLoginCopy,
     resolveLoginDiagnosticsPrompt,
+    resolveLoginReportRoute,
     resolveLoginSessionCopy,
     retryAfterMsOf,
     resolveLoginStatusMessage,
@@ -253,6 +254,7 @@ describe('login copy', () => {
             title: { key: 'home.qrTipsTitle' },
             items: [{ key: 'home.qrTipRestart' }, { key: 'home.qrTipSwitchNetwork' }],
             escalation: { key: 'home.qrDiagnosticsToggle' },
+            escalationElsewhere: { key: 'home.qrDiagnosticsToggleElsewhere' },
         });
     });
 
@@ -412,5 +414,30 @@ describe('cancel on the phone and backend cooldown', () => {
         expect(retryAfterMsOf(Object.assign(new Error('x'), { retryAfterMs: '25000' }))).toBeNull();
         expect(retryAfterMsOf(new Error('x'))).toBeNull();
         expect(retryAfterMsOf(null)).toBeNull();
+    });
+});
+
+describe('where a login diagnostics report goes', () => {
+    const doneWith = (kind: string) => ({
+        status: 'done' as const,
+        result: {} as never,
+        verdict: { kind, detail: null, proxy: null } as never,
+    });
+    const official = { official: true, web: false };
+
+    it('sends official desktop failures to GitHub', () => {
+        expect(resolveLoginReportRoute(official, { failure: 'check-error', selfCheck: null })).toBe('github');
+        expect(resolveLoginReportRoute(official, { failure: 'start-error', selfCheck: null })).toBe('github');
+    });
+
+    it('treats a web build that cannot start or reach its API as a deployment problem', () => {
+        expect(resolveLoginReportRoute({ official: false, web: true }, { failure: 'start-error', selfCheck: null })).toBe('web-deployment');
+        expect(resolveLoginReportRoute({ official: true, web: true }, { failure: 'check-error', selfCheck: doneWith('remote-unreachable') })).toBe('web-deployment');
+        expect(resolveLoginReportRoute({ official: true, web: true }, { failure: 'check-error', selfCheck: doneWith('network-ok') })).toBe('github');
+    });
+
+    it('never sends unofficial builds to GitHub', () => {
+        expect(resolveLoginReportRoute({ official: false, web: false }, { failure: 'check-error', selfCheck: null })).toBe('unofficial-build');
+        expect(resolveLoginReportRoute({ official: false, web: true }, { failure: 'check-error', selfCheck: doneWith('network-ok') })).toBe('unofficial-build');
     });
 });

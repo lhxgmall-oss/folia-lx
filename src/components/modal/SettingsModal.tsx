@@ -33,6 +33,7 @@ import { openPonderNavigation } from '../../services/ponder/pagePonderTarget';
 import ReleaseNotesDialog from './ReleaseNotesDialog';
 import { JoinCommunityButton } from '../shared/JoinCommunityButton';
 import { copyTextToClipboard } from '../../utils/clipboard';
+import { isOfficialBuild, UNOFFICIAL_BUILD_TAG } from '../../utils/buildProvenance';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
 import { type SettingsModalState, type SettingsSubviewId, type VisualizerSettingsSection } from '../../stores/useSettingsModalStore';
@@ -74,9 +75,12 @@ import { useIsBravaisLibraryActive } from '../../library/app/bravaisLibraryActiv
 
 const DEFAULT_OPENAI_TEMPERATURE = '0.7';
 const AUR_PACKAGE_URL = 'https://aur.archlinux.org/packages/folia-major-bin';
-const VERSION_INFO = __DOCKER_STACK_VERSION__
+const OFFICIAL_BUILD = isOfficialBuild();
+const VERSION_INFO = (__DOCKER_STACK_VERSION__
     ? `${__APP_VERSION_LABEL__} v${__APP_VERSION__} · Stack ${__DOCKER_STACK_VERSION__} · ${__COMMIT_HASH__}`
-    : `${__APP_VERSION_LABEL__} v${__APP_VERSION__} - ${__GIT_BRANCH__} - ${__COMMIT_HASH__}`;
+    : `${__APP_VERSION_LABEL__} v${__APP_VERSION__} - ${__GIT_BRANCH__} - ${__COMMIT_HASH__}`)
+    // 不是本仓库 CI 构建的版本强制带上非官方标记（固定英文，复制进 issue 后 triage 能认出来）
+    + (OFFICIAL_BUILD ? '' : ` · ${UNOFFICIAL_BUILD_TAG}`);
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -1518,6 +1522,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 ? t('status.copied')
                                                 : VERSION_INFO}
                                         </button>
+                                        {!OFFICIAL_BUILD && (
+                                            <p
+                                                className="max-w-sm text-[11px] leading-snug font-sans text-amber-500/90"
+                                                data-unofficial-build-notice
+                                            >
+                                                {t('options.unofficialBuildNotice')}
+                                            </p>
+                                        )}
 
                                         {/* 第二行：版本状态与安装操作 */}
                                         {updateStatus?.availableVersion && (
