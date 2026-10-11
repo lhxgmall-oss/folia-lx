@@ -717,6 +717,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "MarsSwimmer",
+      "name": "MarsSwimmer",
+      "avatar_url": "https://avatars.githubusercontent.com/u/146618222?v=4",
+      "profile": "https://github.com/MarsSwimmer",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "commit": false,
