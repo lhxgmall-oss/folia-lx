@@ -708,6 +708,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "vispce",
+      "name": "puppy",
+      "avatar_url": "https://avatars.githubusercontent.com/u/232888492?v=4",
+      "profile": "http://catvb.com",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "commit": false,
