@@ -1,6 +1,6 @@
 /* src/components/wall/WallToolsQueueIsland.css — 墙面工具面板上方的队列浮岛（WallToolsQueueIsland），Lattice 与 bravais 共用。
    与面板同一种玻璃（圆角 20px），宽度与面板相同（--wall-tools-panel-width），两块玻璃左右对齐。
-   高度由组件按行数给（头部 36px + 最多 8 行 × 40px，至少 112px）；窗口矮时 .lattice-tools-stack 的 max-height
+   高度由组件按行数给（上下边框 2px + 头部 36px + 最多 8 行 × 40px，至少 112px）；窗口矮时 .lattice-tools-stack 的 max-height
    只压缩浮岛（flex-shrink），面板不变。日光档在 .lattice-tools.is-daylight 下覆盖。
    次要文字用 opacity 而不是 color-mix(currentColor)：实测 Chromium 里继承色变了（切日光）之后 color-mix 不跟着重算，
    要等下一次布局才对。 */
@@ -114,12 +114,13 @@
 
 .lattice-tools-island-header-action svg { width: 15px; height: 15px; flex: none; }
 
-/* 清空待确认：强调色底，带「再点一次清空」。 */
+/* 清空待确认：强调色底，带「再点一次清空」。前景读 --text-on-accent（底色与正文色里对强调色对比更高的那个；
+   缺省暗色主题强调色就是正文色，用正文色会白底白字），没有这个变量时退回底色。 */
 .lattice-tools-island-header-action.is-confirming,
 .lattice-tools.is-daylight .lattice-tools-island-header-action.is-confirming {
     max-width: 70%;
     background: var(--text-accent, currentColor);
-    color: var(--text-primary, #f7f4ee);
+    color: var(--text-on-accent, var(--bg-color, #09090b));
     opacity: 1;
 }
 

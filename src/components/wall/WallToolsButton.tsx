@@ -157,7 +157,7 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
             className={`lattice-tools group ${isDaylight ? 'is-daylight' : ''}`}
         >
             {/* 面板与队列浮岛叠在按钮上方的一列里（column-reverse：面板在下、浮岛在上）：定位在 stack 上，面板自己不再 absolute。 */}
-            <div className="lattice-tools-stack">
+            <div className={showQueueIsland ? 'lattice-tools-stack has-queue-island' : 'lattice-tools-stack'}>
                 <AnimatePresence initial={false}>
                     {isOpen && (
                         <motion.div
@@ -234,6 +234,7 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
                 onSlide={handleOpenCommandPalette}
                 isDaylight={isDaylight}
                 accentColor="var(--text-accent)"
+                accentForeground="var(--text-on-accent, #ffffff)"
             />
         </motion.div>
     );

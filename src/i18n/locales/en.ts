@@ -52,6 +52,7 @@ export default {
   "wallTools": {
     "shuffle": "Shuffle the queue",
     "shuffleUnavailable": "Needs two or more songs in the queue (not in Personal FM)",
+    "shuffleUnavailableInStage": "An external Stage is playing: the queue can't be shuffled",
     "theme": "Generate a theme for this song",
     "themeBusy": "Generating a theme…",
     "themeUnavailable": "Needs a playing song with lyrics (or pure music)",

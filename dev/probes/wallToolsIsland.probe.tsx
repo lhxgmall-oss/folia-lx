@@ -7,15 +7,25 @@ import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
 import { useLatticeSettingsStore } from '../../src/stores/useLatticeSettingsStore';
 import { getPlaybackSongKey } from '../../src/utils/appPlaybackGuards';
 import { moveQueueItem, moveQueueItemToNext } from '../../src/utils/queueReorder';
+import { resolveTextOnAccent } from '../../src/components/app/presentation/buildAppStyle';
 import type { IslandProbeApi, IslandProbeCall } from './wallToolsIsland/islandProbeApi';
 
 // dev/probes/wallToolsIsland.probe.tsx
 // 墙面工具面板的队列浮岛（components/wall/WallToolsQueueIsland）：就地挂一份 WallToolsSurface（没有 dock），外面包一个
 // 假宿主——队列动作直接改 usePlaybackStore（与真 App 的 createQueueMutations 一样的语义），每一次调用记进
 // window.__wallToolsIslandProbe.calls()。缺省 200 首在线歌、第 0 首在播；seed({ local: true }) 换成全是本地歌的队列
-// （能存为本地歌单）。用例经 window.__wallToolsIslandProbe 切私人 FM、外部舞台、日光与让下一次保存失败。
+// （能存为本地歌单）。用例经 window.__wallToolsIslandProbe 切私人 FM、外部舞台、日光与让下一次保存失败；
+// setAccentMatchesText 把强调色换成正文色（缺省暗色主题就是这样），--text-on-accent 与真 App 一样由 buildAppStyle 的
+// resolveTextOnAccent 从底色与正文色里挑。
 
-const SNAPSHOT: WallToolsHostSnapshot = { themeGeneration: 'ready', canShuffleQueue: true };
+// 可用性：外部舞台播放时不能洗牌（与真 App 的 selectQueueShufflable 一致），其余时候都能。
+let snapshot: WallToolsHostSnapshot = { themeGeneration: 'ready', canShuffleQueue: true };
+const snapshotListeners = new Set<() => void>();
+const setProbeStage = (on: boolean) => {
+    usePlaybackStore.getState().setActivePlaybackContext(on ? 'stage' : 'main');
+    snapshot = { ...snapshot, canShuffleQueue: !on };
+    for (const listener of snapshotListeners) listener();
+};
 
 const buildQueue = (count: number, local: boolean): SongResult[] => Array.from({ length: count }, (_, index) => {
     const id = `${local ? 'local' : 'island'}-${index}`;
@@ -50,8 +60,11 @@ const editQueue = (edit: (queue: SongResult[]) => SongResult[]) => {
 
 /** 假宿主：身份稳定（模块级），队列动作改播放 store，其余只记账。 */
 const PROBE_HOST: WallToolsHost = {
-    getSnapshot: () => SNAPSHOT,
-    subscribe: () => () => {},
+    getSnapshot: () => snapshot,
+    subscribe: listener => {
+        snapshotListeners.add(listener);
+        return () => snapshotListeners.delete(listener);
+    },
     shuffleQueue: () => record({ kind: 'shuffleQueue' }),
     generateTheme: () => record({ kind: 'generateTheme' }),
     previewVolume: () => record({ kind: 'previewVolume' }),
@@ -98,10 +111,28 @@ const PROBE_HOST: WallToolsHost = {
 const seed: IslandProbeApi['seed'] = ({ count = 200, currentIndex = 0, local = false } = {}) => {
     const queue = buildQueue(count, local);
     usePlaybackStore.setState({ playQueue: queue, currentSong: queue[currentIndex] ?? null, isFmMode: false, activePlaybackContext: 'main' });
+    setProbeStage(false);
+};
+
+/** 探针的两套主题色（暗 / 日光）；accentMatchesText 时强调色换成正文色。 */
+const probeThemeVars = (isDaylight: boolean, accentMatchesText: boolean) => {
+    const background = isDaylight ? '#efe9df' : '#121016';
+    const text = isDaylight ? '#1c1917' : '#f7f4ee';
+    const accent = accentMatchesText ? text : isDaylight ? '#b45309' : '#f59e0b';
+    return {
+        backgroundColor: background,
+        color: text,
+        ['--bg-color' as string]: background,
+        ['--text-primary' as string]: text,
+        ['--text-accent' as string]: accent,
+        ['--text-on-accent' as string]: resolveTextOnAccent(accent, background, text),
+    };
 };
 
 function WallToolsIslandProbe() {
     const [isDaylight, setIsDaylight] = useState(false);
+    const [accentMatchesText, setAccentMatchesText] = useState(false);
+    const [helpLines, setHelpLines] = useState(1);
 
     useEffect(() => {
         calls = [];
@@ -120,8 +151,10 @@ function WallToolsIslandProbe() {
             seed,
             setCurrent: index => usePlaybackStore.getState().setCurrentSong(usePlaybackStore.getState().playQueue[index] ?? null),
             setFmMode: on => usePlaybackStore.getState().setIsFmMode(on),
-            setStage: on => usePlaybackStore.getState().setActivePlaybackContext(on ? 'stage' : 'main'),
+            setStage: setProbeStage,
             setDaylight: setIsDaylight,
+            setAccentMatchesText,
+            setHelpLines,
             failNextSave: () => {
                 failNextSave = true;
             },
@@ -136,12 +169,7 @@ function WallToolsIslandProbe() {
         <div
             className="relative h-screen w-screen overflow-hidden"
             data-probe-daylight={isDaylight}
-            style={{
-                backgroundColor: isDaylight ? '#efe9df' : '#121016',
-                ['--text-primary' as string]: isDaylight ? '#1c1917' : '#f7f4ee',
-                ['--text-accent' as string]: isDaylight ? '#b45309' : '#f59e0b',
-                color: isDaylight ? '#1c1917' : '#f7f4ee',
-            }}
+            style={probeThemeVars(isDaylight, accentMatchesText)}
         >
             {/* 面板外面的一块空地：点它应当收起面板与浮岛。 */}
             <button type="button" data-probe-outside="" className="absolute left-6 top-6 rounded-lg px-3 py-2 text-xs opacity-60">
@@ -153,7 +181,7 @@ function WallToolsIslandProbe() {
                     label="Wall tools"
                     isDaylight={isDaylight}
                     entries={[]}
-                    help={<li><span>Probe</span></li>}
+                    help={Array.from({ length: helpLines }, (_, index) => <li key={index}><span>Probe help line {index + 1}</span><kbd>Ctrl K</kbd></li>)}
                 />
             </WallToolsHostContext.Provider>
         </div>

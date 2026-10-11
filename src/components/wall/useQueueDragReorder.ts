@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import {
     QUEUE_DRAG_THRESHOLD_PX,
     QUEUE_ISLAND_ROW_HEIGHT,
-    autoScrollVelocity,
+    autoScrollEdgeAt,
+    resolveAutoScroll,
     resolveDropIndex,
+    type QueueAutoScrollEdge,
 } from './queueDragGeometry';
 
 // src/components/wall/useQueueDragReorder.ts
@@ -13,7 +15,9 @@ import {
 //   移动超过 4px 才开始拖；
 // - pointermove 只记下最新的 clientY，计算合并进 rAF：每帧算一次落点，落点变了才 setState（React 只在跨行时渲染）；
 // - 幽灵行（浮岛画的那一份）的位置直接写 ref.style.transform，不走 React state；
-// - 指针离列表上下边缘 32px 以内时 rAF 自动滚动（最快约 14px / 帧），滚动本身也会重新算落点；
+// - 指针离列表上下边缘 32px 以内时 rAF 自动滚动（最快约 14px / 帧），滚动本身也会重新算落点；从某一侧的边缘区里
+//   开始拖时那一侧先不滚，离开那一区之后才启用（resolveAutoScroll）；
+// - 移动时发现主键已经松开（丢了 pointerup，例如松手发生在窗口外又没捕获到）就当作取消，不让会话一直挂着；
 // - 松手时按 song key 复核队列：被拖的那首还在 from 才交给 onDrop，中途队列变了（切歌移除、别处编辑）就放弃。
 // Esc 由浮岛的分层处理调 cancel()。
 
@@ -29,6 +33,8 @@ type DragSession = {
     clientY: number;
     /** 按下点离那一行顶边的距离：幽灵行跟着指针走时保持这个抓取点。 */
     grabOffset: number;
+    /** 起点所在的边缘区（那一侧的自动滚动先不启用，离开那一区后清空）。 */
+    suppressedEdge: QueueAutoScrollEdge | null;
     active: boolean;
     frame: number | null;
     target: HTMLElement;
@@ -78,7 +84,13 @@ export const useQueueDragReorder = ({
         const element = latest.current.getScrollElement();
         if (!element) return;
         const rect = element.getBoundingClientRect();
-        const velocity = autoScrollVelocity({ pointerY: session.clientY, top: rect.top, bottom: rect.bottom });
+        const { velocity, suppressedEdge } = resolveAutoScroll({
+            pointerY: session.clientY,
+            top: rect.top,
+            bottom: rect.bottom,
+            suppressedEdge: session.suppressedEdge,
+        });
+        session.suppressedEdge = suppressedEdge;
         let scrolled = false;
         if (velocity !== 0) {
             const before = element.scrollTop;
@@ -144,6 +156,11 @@ export const useQueueDragReorder = ({
         const handleMove = (moveEvent: PointerEvent) => {
             const session = sessionRef.current;
             if (!session || moveEvent.pointerId !== session.pointerId) return;
+            // 主键已经不在按着：pointerup 丢了，撤掉这次拖拽（不提交）。
+            if ((moveEvent.buttons & 1) === 0) {
+                finish(false);
+                return;
+            }
             session.clientY = moveEvent.clientY;
             if (!session.active) {
                 const distance = Math.hypot(moveEvent.clientX - session.startX, moveEvent.clientY - session.startY);
@@ -161,6 +178,7 @@ export const useQueueDragReorder = ({
         };
         // 拖拽中用滚轮滚列表：落点跟着变。
         const scrollElement = latest.current.getScrollElement();
+        const scrollRect = scrollElement?.getBoundingClientRect();
         const handleScroll = () => schedule();
 
         target.addEventListener('pointermove', handleMove);
@@ -178,6 +196,9 @@ export const useQueueDragReorder = ({
             startY: event.clientY,
             clientY: event.clientY,
             grabOffset: event.clientY - row.getBoundingClientRect().top,
+            suppressedEdge: scrollRect
+                ? autoScrollEdgeAt({ pointerY: event.clientY, top: scrollRect.top, bottom: scrollRect.bottom })
+                : null,
             active: false,
             frame: null,
             target,

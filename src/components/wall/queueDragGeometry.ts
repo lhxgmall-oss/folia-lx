@@ -1,6 +1,7 @@
 // src/components/wall/queueDragGeometry.ts
 // 墙面工具队列浮岛（WallToolsQueueIsland）拖拽排序的纯几何：指针位置 → 落点下标、落点两侧的行该让开多少、
-// 指针贴近上下边缘时的自动滚动速度。不 import React，useQueueDragReorder 每一帧调它们，单测直接测。
+// 指针贴近上下边缘时的自动滚动速度（以及「从边缘区里开始拖时，离开那一区之后才启用那一侧」的抑制）。
+// 不 import React，useQueueDragReorder 每一帧调它们，单测直接测。
 // 行高是固定的（虚拟列表的每一行一样高），所以「落点」就是被拖那一行的中线落在第几个槽里：
 // 其余行按 queueRowShift 让开之后，被拖的那首正好占住这个槽，它也就是 moveQueueSong 的 to（移动完成后的下标）。
 
@@ -44,6 +45,31 @@ export const queueRowShift = (index: number, from: number, to: number, rowHeight
     return 0;
 };
 
+/** 列表上下边缘感应区的宽度：缺省 edge，列表放不下 edge 两倍高时按一半高收窄，免得上下两区重叠。 */
+const autoScrollZone = (top: number, bottom: number, edge: number) => Math.min(edge, Math.max(0, (bottom - top) / 2));
+
+/** 自动滚动的一侧：上边缘区或下边缘区。 */
+export type QueueAutoScrollEdge = 'top' | 'bottom';
+
+/** 指针此刻落在哪一侧的边缘感应区里（越出列表也算那一侧），都不在时 null。 */
+export const autoScrollEdgeAt = ({
+    pointerY,
+    top,
+    bottom,
+    edge = QUEUE_AUTOSCROLL_EDGE_PX,
+}: {
+    pointerY: number;
+    top: number;
+    bottom: number;
+    edge?: number;
+}): QueueAutoScrollEdge | null => {
+    const zone = autoScrollZone(top, bottom, edge);
+    if (zone <= 0) return null;
+    if (pointerY < top + zone) return 'top';
+    if (pointerY > bottom - zone) return 'bottom';
+    return null;
+};
+
 /**
  * 自动滚动速度（px / 帧，负数往上）：指针进入上 / 下边缘 edge 以内时按深入程度线性加速，贴边或越出时最快。
  * 列表放不下 edge 两倍高时边缘区按一半高收窄，免得上下两区重叠。
@@ -61,7 +87,7 @@ export const autoScrollVelocity = ({
     edge?: number;
     maxSpeed?: number;
 }): number => {
-    const zone = Math.min(edge, Math.max(0, (bottom - top) / 2));
+    const zone = autoScrollZone(top, bottom, edge);
     if (zone <= 0) return 0;
     if (pointerY < top + zone) {
         const depth = clamp((top + zone - pointerY) / zone, 0, 1);
@@ -72,4 +98,30 @@ export const autoScrollVelocity = ({
         return maxSpeed * depth;
     }
     return 0;
+};
+
+/**
+ * 带「起点抑制」的自动滚动：拖拽是在某一侧的边缘感应区里开始的（按住最上 / 最下一行的手柄），那一侧先不滚——
+ * 否则刚越过拖拽阈值列表就自己滚走；指针离开那一区之后抑制解除，再回到那一侧边缘才照常滚。另一侧不受影响。
+ * suppressedEdge 是此刻被抑制的一侧（开始时取 autoScrollEdgeAt(起点)），返回这一帧的速度与更新后的抑制侧。
+ */
+export const resolveAutoScroll = ({
+    pointerY,
+    top,
+    bottom,
+    suppressedEdge,
+    edge = QUEUE_AUTOSCROLL_EDGE_PX,
+    maxSpeed = QUEUE_AUTOSCROLL_MAX_SPEED,
+}: {
+    pointerY: number;
+    top: number;
+    bottom: number;
+    suppressedEdge: QueueAutoScrollEdge | null;
+    edge?: number;
+    maxSpeed?: number;
+}): { velocity: number; suppressedEdge: QueueAutoScrollEdge | null } => {
+    if (suppressedEdge !== null && autoScrollEdgeAt({ pointerY, top, bottom, edge }) === suppressedEdge) {
+        return { velocity: 0, suppressedEdge };
+    }
+    return { velocity: autoScrollVelocity({ pointerY, top, bottom, edge, maxSpeed }), suppressedEdge: null };
 };

@@ -39,6 +39,10 @@ export type IslandProbeApi = {
     /** 外部舞台播放（activePlaybackContext = 'stage'）。 */
     setStage: (on: boolean) => void;
     setDaylight: (on: boolean) => void;
+    /** 强调色换成正文色（缺省暗色主题的样子）：画在强调色上的前景要靠 --text-on-accent 才看得见。 */
+    setAccentMatchesText: (on: boolean) => void;
+    /** 帮助列表的行数（缺省 1）：量帮助展开 + 浮岛打开时的高度预算。 */
+    setHelpLines: (count: number) => void;
     /** 让下一次存为歌单失败。 */
     failNextSave: () => void;
     /** 浮岛的开合偏好（useLatticeSettingsStore）。 */

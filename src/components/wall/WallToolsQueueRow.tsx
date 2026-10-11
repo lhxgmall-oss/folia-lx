@@ -11,6 +11,8 @@ import type { QueueDrag } from './useQueueDragReorder';
 // src/components/wall/WallToolsQueueRow.tsx
 // 队列浮岛（WallToolsQueueIsland）的一行（40px）：拖动手柄、主按钮（标题 + 歌手，点了播放、不跳页；当前歌曲有标记，
 // 不可用的歌带标签）、悬停 / 聚焦时出现的三个动作（下一首播放、移到末尾、移除）。外部舞台播放时只读：没有手柄和动作。
+// 正在播放的那一行（显示的那首或内部 currentSong）只有「移到末尾」：不能移除（与 Electron 舞台的 remove 一致），
+// 「下一首播放」对它是空操作。
 // 放在浮岛外面（理由同 panelTab/QueueTab 的 QueueRow）：切歌、拖拽只改 rowProps 里的数据，行不重挂，悬停中的动作按钮不闪。
 // 拖拽中每一行按 rowProps 的 drag（from / to）自己算让开的位移（queueRowShift），自动滚动中途才挂载的行也对得上；
 // 被拖的那一行留在原位但不显示（由浮岛画的幽灵行代替）。
@@ -29,7 +31,10 @@ export type QueueIslandRowActions = {
 
 export type QueueIslandRowProps = {
     playQueue: SongResult[];
+    /** 显示歌曲（selectDisplaySong）的 key：画「当前」标记。 */
     currentSongKey: string | null;
+    /** 内部 currentSong 的 key（automix 交叉淡入时是淡入的那首，和显示的那首不同）：它也不能移除。 */
+    playingSongKey: string | null;
     /** 外部舞台播放：只能点歌播放，不能编辑队列。 */
     readOnly: boolean;
     drag: QueueDrag | null;
@@ -49,6 +54,7 @@ export function WallToolsQueueRow({
     ariaAttributes,
     playQueue,
     currentSongKey,
+    playingSongKey,
     readOnly,
     drag,
     actions,
@@ -67,10 +73,11 @@ export function WallToolsQueueRow({
         drag ? 'is-dragging' : '',
         drag?.from === index ? 'is-drag-source' : '',
     ].filter(Boolean).join(' ');
+    const isPlaying = isCurrent || songKey === playingSongKey;
     const rowActions = readOnly ? [] : [
-        { id: 'play-next', label: labels.playNext, icon: ListPlus, run: actions.playNext },
+        ...(isPlaying ? [] : [{ id: 'play-next', label: labels.playNext, icon: ListPlus, run: actions.playNext }]),
         { id: 'move-to-end', label: labels.moveToEnd, icon: ListEnd, run: actions.moveToEnd },
-        { id: 'remove', label: labels.remove, icon: Trash2, run: actions.remove },
+        ...(isPlaying ? [] : [{ id: 'remove', label: labels.remove, icon: Trash2, run: actions.remove }]),
     ];
 
     return (

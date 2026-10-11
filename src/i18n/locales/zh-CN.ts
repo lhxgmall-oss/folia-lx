@@ -52,6 +52,7 @@ export default {
   "wallTools": {
     "shuffle": "打乱播放队列",
     "shuffleUnavailable": "队列里至少要有两首（私人 FM 中不可用）",
+    "shuffleUnavailableInStage": "外部舞台正在播放：不能打乱队列",
     "theme": "为当前歌曲生成主题",
     "themeBusy": "正在生成主题…",
     "themeUnavailable": "需要一首正在播放、带歌词（或纯音乐）的歌",

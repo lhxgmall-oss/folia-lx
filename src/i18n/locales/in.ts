@@ -52,6 +52,7 @@ export default {
   "wallTools": {
     "shuffle": "Acak antrean",
     "shuffleUnavailable": "Perlu dua lagu atau lebih di antrean (tidak di FM Pribadi)",
+    "shuffleUnavailableInStage": "Stage eksternal sedang memutar: antrean tidak bisa diacak",
     "theme": "Buat tema untuk lagu ini",
     "themeBusy": "Membuat tema…",
     "themeUnavailable": "Perlu lagu yang diputar dengan lirik (atau musik instrumental)",

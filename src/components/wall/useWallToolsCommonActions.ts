@@ -44,6 +44,8 @@ export const useWallToolsCommonActions = ({ queueIslandId }: { queueIslandId: st
     const host = useWallToolsHost();
     const snapshot = useSyncExternalStore(host?.subscribe ?? noopSubscribe, host?.getSnapshot ?? readNoHostSnapshot);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
+    // 外部 Stage 播放时洗牌不可用（selectQueueShufflable 与 shuffleQueue 本身都拒绝），原因要说清楚，而不是「至少两首」。
+    const isStagePlayback = usePlaybackStore(state => state.activePlaybackContext === 'stage');
     const hasCurrentSong = usePlaybackStore(state => state.currentSong !== null);
     const volume = useAudioSettingsStore(state => state.volume);
     const isMuted = useAudioSettingsStore(state => state.isMuted);
@@ -56,7 +58,9 @@ export const useWallToolsCommonActions = ({ queueIslandId }: { queueIslandId: st
         label: t('wallTools.shuffle'),
         kbd: ': + R',
         disabled: !snapshot.canShuffleQueue,
-        status: snapshot.canShuffleQueue ? undefined : t('wallTools.shuffleUnavailable'),
+        status: snapshot.canShuffleQueue
+            ? undefined
+            : t(isStagePlayback ? 'wallTools.shuffleUnavailableInStage' : 'wallTools.shuffleUnavailable'),
         // 不收起：洗完还能再洗一次，提示条报「播放队列已打乱」。
         keepOpen: true,
         onSelect: host.shuffleQueue,

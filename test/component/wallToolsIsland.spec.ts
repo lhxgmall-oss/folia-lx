@@ -8,6 +8,9 @@ import '../../dev/probes/wallToolsIsland/islandProbeApi';
 // 的假宿主，200 首）：快捷排「队列」格开合与偏好记忆、打开时滚到当前歌曲、点歌播放（面板不收）、悬停动作、手柄拖拽（含越过
 // 虚拟窗口的长距离自动滚动、Esc 撤拖拽）、键盘（Enter / ↑↓ / Alt+↑↓ / Delete）、清空两步确认、存为本地歌单的内联输入、
 // 私人 FM 下隐藏（偏好保留）、外部舞台只读、Esc 分层、点浮岛不收面板，以及暗色 / 日光两张截图（写进 test-results，不是基线）。
+// 另外：正在播放的那一行不给移除、Delete 在浮岛里一律被消费、双击清空不绕过确认、保存失败后焦点回到输入框、
+// 强调色等于正文色时清空确认胶囊的前景仍与底不同色、2–8 首时列表不出滚动条、矮窗口里打开时按真实高度居中、
+// 帮助展开 + 浮岛打开时整体留在视口里且不压到标题栏区。
 
 /** 在页面里拿探针接口跑一段（函数源码连同接口一起送进页面；只用于不闭包外部变量的短箭头函数）。 */
 const probe = <T>(page: Page, run: (api: NonNullable<Window['__wallToolsIslandProbe']>) => T) => (
@@ -26,6 +29,18 @@ const island = (page: Page) => page.getByRole('region', { name: 'Play queue', ex
 const row = (page: Page, index: number) => island(page).locator(`[data-queue-index="${index}"]`);
 const song = (page: Page, index: number) => row(page, index).locator('.lattice-tools-island-song');
 const live = (page: Page) => island(page).locator('[data-queue-island-live]');
+
+/** 在 window 上（冒泡最后一站，bravais 的按键监听就挂在这里）记下最近一次 Delete 有没有被消费。 */
+const watchDelete = (page: Page) => page.evaluate(() => {
+    const target = window as unknown as { __lastDeletePrevented?: boolean | null };
+    target.__lastDeletePrevented = null;
+    window.addEventListener('keydown', event => {
+        if (event.key === 'Delete') target.__lastDeletePrevented = event.defaultPrevented;
+    });
+});
+const lastDeletePrevented = (page: Page) => page.evaluate(
+    () => (window as unknown as { __lastDeletePrevented?: boolean | null }).__lastDeletePrevented ?? null,
+);
 
 /** 在 fixtures 的种子脚本之后再写几项存储（store 在模块 import 时读）。 */
 const seedStorage = (page: Page, entries: [string, string][]) => page.addInitScript(pairs => {
@@ -72,8 +87,8 @@ test.describe('wall tools queue island', () => {
         const islandBox = (await island(page).boundingBox())!;
         const panelBox = (await panel(page).boundingBox())!;
         expect(islandBox.y + islandBox.height).toBeLessThanOrEqual(panelBox.y + 1);
-        // 头部 36 + 8 行 × 40（等出场的缩放放完再量）。
-        await expect.poll(async () => Math.round((await island(page).boundingBox())!.height)).toBe(36 + 8 * 40);
+        // 上下边框 2 + 头部 36 + 8 行 × 40（等出场的缩放放完再量）。
+        await expect.poll(async () => Math.round((await island(page).boundingBox())!.height)).toBe(2 + 36 + 8 * 40);
 
         // 收起面板：浮岛一起走；再打开：浮岛照旧展开。
         await tools(page).click();
@@ -115,6 +130,44 @@ test.describe('wall tools queue island', () => {
         await expect(row(page, 5)).toHaveClass(/\bis-current\b/);
         await expect(panel(page)).toBeVisible();
         await expect(island(page)).toBeVisible();
+    });
+
+    test('2 to 8 songs fit without a scrollbar or a clipped last row', async ({ mount, page }) => {
+        await mountProbe(mount, page);
+        await openPanel(page);
+        for (const count of [2, 5, 8]) {
+            await page.evaluate(n => window.__wallToolsIslandProbe!.seed({ count: n }), count);
+            await expect(island(page).locator('.lattice-tools-island-heading')).toHaveText(`Play queue · ${count} songs`);
+            const list = island(page).locator('.lattice-tools-island-scroll');
+            await expect.poll(() => list.evaluate(node => node.scrollHeight - node.clientHeight)).toBe(0);
+            const [lastRow, listBox] = [(await row(page, count - 1).boundingBox())!, (await list.boundingBox())!];
+            expect(lastRow.y + lastRow.height).toBeLessThanOrEqual(listBox.y + listBox.height + 0.5);
+        }
+    });
+
+    test('the playing row offers neither remove nor play next', async ({ mount, page }) => {
+        await mountProbe(mount, page);
+        await watchDelete(page);
+        await openPanel(page);
+        await row(page, 0).hover();
+        await expect(row(page, 0).locator('[data-queue-row-action]')).toHaveCount(1);
+        await expect(row(page, 0).getByRole('button', { name: 'Move to end', exact: true })).toBeVisible();
+        await song(page, 0).focus();
+        await page.keyboard.press('Delete');
+        expect(await calls(page, 'removeQueueSong')).toEqual([]);
+        expect(await lastDeletePrevented(page)).toBe(true);
+        expect(await queueIds(page)).toHaveLength(200);
+    });
+
+    test('Delete on a hover action button is consumed by the island, not passed to the wall', async ({ mount, page }) => {
+        await mountProbe(mount, page);
+        await watchDelete(page);
+        await openPanel(page);
+        await row(page, 4).hover();
+        await row(page, 4).getByRole('button', { name: 'Move to end', exact: true }).focus();
+        await page.keyboard.press('Delete');
+        expect(await lastDeletePrevented(page)).toBe(true);
+        expect(await calls(page, 'removeQueueSong')).toEqual([]);
     });
 
     test('hovering a row shows play next, move to end and remove', async ({ mount, page }) => {
@@ -235,10 +288,15 @@ test.describe('wall tools queue island', () => {
         await page.keyboard.press('Enter');
         expect(await calls(page, 'playQueueSong')).toEqual([{ kind: 'playQueueSong', id: 'island-4' }]);
 
+        // island-4 现在正在播放：Delete 不删它。
         await page.keyboard.press('Delete');
-        expect(await calls(page, 'removeQueueSong')).toEqual([{ kind: 'removeQueueSong', index: 4 }]);
-        expect((await queueIds(page))[4]).toBe('island-5');
-        await expect(song(page, 4)).toBeFocused();
+        expect(await calls(page, 'removeQueueSong')).toEqual([]);
+        await page.keyboard.press('ArrowDown');
+        await expect(song(page, 5)).toBeFocused();
+        await page.keyboard.press('Delete');
+        expect(await calls(page, 'removeQueueSong')).toEqual([{ kind: 'removeQueueSong', index: 5 }]);
+        expect((await queueIds(page))[5]).toBe('island-6');
+        await expect(song(page, 5)).toBeFocused();
         await expect(panel(page)).toBeVisible();
     });
 
@@ -254,7 +312,18 @@ test.describe('wall tools queue island', () => {
         // 3 秒不点就复原。
         await expect(clear).toHaveAccessibleName('Clear the queue', { timeout: 5_000 });
 
+        // 双击：第二击不算确认（进入确认态 400ms 内的点击与 detail > 1 的点击都不算）。
+        await clear.dblclick();
+        await expect(clear).toHaveAccessibleName('Click again to clear the queue');
+        expect(await calls(page, 'clearQueue')).toEqual([]);
+        // 连点两下（间隔不到 400ms）也不行。
         await clear.click();
+        expect(await calls(page, 'clearQueue')).toEqual([]);
+        await page.keyboard.press('Escape');
+        await expect(clear).toHaveAccessibleName('Clear the queue');
+
+        await clear.click();
+        await page.waitForTimeout(450);
         await clear.click();
         expect(await calls(page, 'clearQueue')).toHaveLength(1);
         await expect(island(page).getByText('Queue is empty')).toBeVisible();
@@ -282,13 +351,16 @@ test.describe('wall tools queue island', () => {
         await expect(input).toHaveCount(0);
         await expect(save).toBeFocused();
 
-        // 失败：输入框留着，可以再试。
+        // 失败：输入框留着，焦点回到它（保存中禁用会丢焦点），可以接着改名再试。
         await probe(page, api => api.failNextSave());
         await save.click();
         await page.keyboard.type('Again');
         await page.keyboard.press('Enter');
         await expect.poll(async () => (await calls(page, 'saveQueueAsPlaylist')).length).toBe(2);
         await expect(island(page).getByRole('textbox', { name: 'Enter playlist name' })).toHaveValue('Again');
+        await expect(island(page).getByRole('textbox', { name: 'Enter playlist name' })).toBeFocused();
+        await page.keyboard.type('!');
+        await expect(island(page).getByRole('textbox', { name: 'Enter playlist name' })).toHaveValue('Again!');
     });
 
     test('Personal FM hides the island and disables the cell, keeping the preference', async ({ mount, page }) => {
@@ -306,6 +378,7 @@ test.describe('wall tools queue island', () => {
 
     test('an external Stage leaves the island read-only: songs play, nothing edits', async ({ mount, page }) => {
         await mountProbe(mount, page);
+        await watchDelete(page);
         await probe(page, api => api.setStage(true));
         await openPanel(page);
         await expect(island(page)).toHaveAttribute('data-queue-readonly', 'true');
@@ -320,6 +393,64 @@ test.describe('wall tools queue island', () => {
         await page.keyboard.press('Delete');
         expect(await calls(page, 'moveQueueSong')).toEqual([]);
         expect(await calls(page, 'removeQueueSong')).toEqual([]);
+        // 只读时 Delete 也被浮岛消费，不漏到墙的批量移除。
+        expect(await lastDeletePrevented(page)).toBe(true);
+        // 洗牌格写的是舞台的原因，不是「至少两首」。
+        await expect(panel(page).locator('[data-wall-tools-quick="shuffle-queue"]')).toHaveAttribute(
+            'aria-description',
+            "An external Stage is playing: the queue can't be shuffled",
+        );
+    });
+
+    test('the clear confirmation stays legible when the accent is the text colour', async ({ mount, page }) => {
+        await mountProbe(mount, page);
+        await probe(page, api => api.setAccentMatchesText(true));
+        await openPanel(page);
+        const clear = island(page).locator('[data-queue-island-action="clear"]');
+        await clear.click();
+        await expect(clear).toHaveAccessibleName('Click again to clear the queue');
+        const colors = () => clear.evaluate(node => {
+            const style = getComputedStyle(node);
+            return { color: style.color, background: style.backgroundColor };
+        });
+        await expect.poll(async () => { const { color, background } = await colors(); return color !== background; }).toBe(true);
+        // 灯光开关的激活字与旋钮也一样。
+        const active = panel(page).locator('.lattice-tools-lights-toggle span.is-active');
+        await expect.poll(() => active.evaluate(node => {
+            const style = getComputedStyle(node);
+            return style.color !== style.backgroundColor;
+        })).toBe(true);
+    });
+
+    test('in a short window the island centres the playing song on its real height', async ({ mount, page }) => {
+        await page.setViewportSize({ width: 1280, height: 620 });
+        await mountProbe(mount, page);
+        await probe(page, api => api.seed({ currentIndex: 120 }));
+        await openPanel(page);
+        const list = island(page).locator('.lattice-tools-island-scroll');
+        // 浮岛被压缩：列表比按 8 行算的理想高度矮。
+        const listHeight = await list.evaluate(node => node.clientHeight);
+        expect(listHeight).toBeLessThan(8 * 40);
+        await expect.poll(async () => Math.abs(((await rowOffset(page, 120)) ?? -999) + 20 - listHeight / 2)).toBeLessThan(24);
+    });
+
+    test('help plus the island stay inside the viewport and below the title bar strip', async ({ mount, page }) => {
+        for (const height of [1100, 760, 620]) {
+            await page.setViewportSize({ width: 1280, height });
+            await mountProbe(mount, page);
+            await probe(page, api => api.setHelpLines(14));
+            await openPanel(page);
+            await panel(page).getByRole('menuitem', { name: 'Operation guide' }).click();
+            await expect(panel(page).locator('.lattice-tools-help')).toBeVisible();
+            await page.waitForTimeout(400);
+            const islandBox = (await island(page).boundingBox())!;
+            const panelBox = (await panel(page).boundingBox())!;
+            // 顶上让出 Electron 标题栏（32px）+ 间距。
+            expect(islandBox.y).toBeGreaterThanOrEqual(48 - 0.5);
+            expect(islandBox.height).toBeGreaterThanOrEqual(112 - 0.5);
+            expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(height);
+            expect(islandBox.y + islandBox.height).toBeLessThanOrEqual(panelBox.y);
+        }
     });
 
     test('Escape peels one layer at a time; clicks inside the island keep the panel', async ({ mount, page }) => {

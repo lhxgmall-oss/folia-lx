@@ -3,9 +3,10 @@ import { motion } from 'framer-motion';
 import { List, useListRef } from 'react-window';
 import { GripVertical } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { usePlaybackStore } from '../../stores/usePlaybackStore';
+import { selectDisplaySong, usePlaybackStore } from '../../stores/usePlaybackStore';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
+import { isTextEntryTarget } from '../../utils/keyboardTargets';
 import { canSaveQueueAsLocalPlaylist } from '../../utils/queueReorder';
 import { QUEUE_ISLAND_ROW_HEIGHT } from './queueDragGeometry';
 import { useQueueDragReorder } from './useQueueDragReorder';
@@ -18,30 +19,43 @@ import './WallToolsQueueIsland.css';
 // 墙面工具面板（WallToolsButton，bravais 与 Lattice 共用）上方的队列浮岛：由快捷排的「队列」格开合（偏好记在
 // useLatticeSettingsStore.wallToolsQueueIslandOpen），和面板一起出现、一起收起，私人 FM 下不显示。
 // 队列数据直接读 usePlaybackStore（playQueue、currentSong、activePlaybackContext），动作全部经宿主（wallToolsHost）。
+// 「当前歌」标记与打开时的居中用显示歌曲（selectDisplaySong：automix 交叉淡入时仍是正在淡出、听得见的那首），与播放页、
+// Lattice 一致；显示的那首与内部 currentSong（淡入的那首）都不能从浮岛移除（与 Electron 舞台的 remove 拒绝移除当前曲目
+// 一致，也免得移除后预取窗口落空），这两行不给「移除」与「下一首播放」（后者对当前那首本来就是空操作）。
 // - 头部（WallToolsQueueIslandHeader）：「播放队列 · N 首」、存为本地歌单（内联输入框）、清空（两步确认）。
 // - 列表：react-window 虚拟列表，行组件 WallToolsQueueRow；点行播放不跳页；悬停 / 聚焦行出现下一首播放、移到末尾、移除；
 //   手柄拖拽排序（useQueueDragReorder）；键盘 Enter 播放、Alt+↑↓ 挪一位并播报、Delete 移除、↑↓ 在行之间移焦，
-//   用掉的按键都 preventDefault（bravais 的 window 按键监听认 defaultPrevented）。
-// - 滚动：打开后等一帧把当前歌曲滚到正中；切歌时 smart 平滑滚动，拖拽中跳过。
+//   用掉的按键都 preventDefault（bravais 的 window 按键监听认 defaultPrevented）。Delete 在浮岛里（只读时、当前行上、
+//   焦点在悬停动作按钮或头部按钮上）一律被浮岛消费，不会漏到 bravais 的批量移除；文字输入框里的 Delete 照常删字。
+// - 滚动：打开后先在 layout 阶段同步量出列表的真实高度，量到之后再把当前歌曲滚到正中；切歌时 smart 平滑滚动，拖拽中跳过。
 // - Esc 分层：拖拽中只撤拖拽；内联输入 / 清空待确认时只撤这一步；否则交给面板（WallToolsSurface 一起收起面板与浮岛）。
 // - 外部舞台播放（activePlaybackContext === 'stage'）时只读：只能点歌播放。
 
-/** 头部高度（px）；浮岛高度 = 头部 + 最多 8 行，至少 112px（窗口矮时由 CSS 只压缩浮岛）。 */
+/** 头部高度（px）；浮岛高度 = 上下边框 + 头部 + 最多 8 行，至少 112px（窗口矮时由 CSS 只压缩浮岛）。 */
 const ISLAND_HEADER_HEIGHT = 36;
 const ISLAND_MAX_VISIBLE_ROWS = 8;
 const ISLAND_MIN_HEIGHT = 112;
+/** 浮岛上下各 1px 边框（border-box：高度里要把它们算上，否则 2–8 首时列表少 2px，出滚动条、末行被裁）。 */
+const ISLAND_BORDER_HEIGHT = 2;
 
 export const queueIslandHeight = (rowCount: number) => Math.max(
     ISLAND_MIN_HEIGHT,
-    ISLAND_HEADER_HEIGHT + Math.min(rowCount, ISLAND_MAX_VISIBLE_ROWS) * QUEUE_ISLAND_ROW_HEIGHT,
+    ISLAND_BORDER_HEIGHT + ISLAND_HEADER_HEIGHT + Math.min(rowCount, ISLAND_MAX_VISIBLE_ROWS) * QUEUE_ISLAND_ROW_HEIGHT,
 );
+
+/** 按行数算出的列表理想高度（还没量到真实高度时先用它）。 */
+const idealListHeight = (rowCount: number) => queueIslandHeight(rowCount) - ISLAND_BORDER_HEIGHT - ISLAND_HEADER_HEIGHT;
 
 export function WallToolsQueueIsland({ id, host }: { id: string; host: WallToolsHost }) {
     const { t } = useTranslation();
     const playQueue = usePlaybackStore(state => state.playQueue);
     const currentSong = usePlaybackStore(state => state.currentSong);
+    const displaySong = usePlaybackStore(selectDisplaySong);
+    // 外部舞台播放（activePlaybackContext === 'stage'）时只读。它包含了「正在播放」舞台（isNowPlayingStageActive 是
+    // stage 且来源为 now-playing）——那时应用的 clearQueue / shuffleQueue 都是空操作，浮岛也就不给清空与编辑。
     const readOnly = usePlaybackStore(state => state.activePlaybackContext === 'stage');
-    const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+    const currentSongKey = displaySong ? getPlaybackSongKey(displaySong) : null;
+    const playingSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
     const currentIndex = useMemo(
         () => (currentSongKey ? playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey) : -1),
         [currentSongKey, playQueue],
@@ -59,8 +73,16 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
     const [announcement, setAnnouncement] = useState({ text: '', nonce: 0 });
 
     // 行动作与按键处理读这里（身份稳定的 actions 对象，行不因为它重渲染）。
-    const latest = useRef({ playQueue, host, readOnly, currentIndex, t });
-    latest.current = { playQueue, host, readOnly, currentIndex, t };
+    const latest = useRef({ playQueue, host, readOnly, currentIndex, currentSongKey, playingSongKey, t });
+    latest.current = { playQueue, host, readOnly, currentIndex, currentSongKey, playingSongKey, t };
+
+    /** 第 index 行是不是正在播放（显示的那首或内部 currentSong）：这两行不能移除、不能「下一首播放」。 */
+    const isPlayingRow = useCallback((index: number) => {
+        const song = latest.current.playQueue[index];
+        if (!song) return false;
+        const key = getPlaybackSongKey(song);
+        return key === latest.current.currentSongKey || key === latest.current.playingSongKey;
+    }, []);
 
     /** 播报一句（每次换一个子节点，同一句连说两次读屏也会再读）。 */
     const announce = useCallback((text: string) => {
@@ -82,7 +104,9 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
     }, [listRef]);
 
     const moveSong = useCallback((from: number, to: number) => {
-        const { host: currentHost, t: translate } = latest.current;
+        const { host: currentHost, t: translate, readOnly: locked } = latest.current;
+        // 拖拽 / Alt+↑↓ 提交的这一刻再查一次：拖到一半外部舞台接管了播放，就不再改队列。
+        if (locked) return;
         currentHost.moveQueueSong(from, to);
         announce(translate('wallTools.queueMoved', { position: to + 1 }));
     }, [announce]);
@@ -123,12 +147,14 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
             focusRow(target);
             return;
         }
-        if (key === 'Delete' && !altKey && !shiftKey && !locked) {
+        if (key === 'Delete') {
+            // 不管能不能删都消费掉（只读、当前行也一样），免得落到 bravais 的批量移除。
             event.preventDefault();
+            if (altKey || shiftKey || locked || isPlayingRow(index)) return;
             currentHost.removeQueueSong(index);
             focusRow(Math.min(index, queue.length - 2));
         }
-    }, [focusRow, moveSong]);
+    }, [focusRow, isPlayingRow, moveSong]);
 
     const actions = useMemo<QueueIslandRowActions>(() => ({
         play: index => {
@@ -136,19 +162,19 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
             if (song) latest.current.host.playQueueSong(song);
         },
         playNext: index => {
-            if (!latest.current.readOnly) latest.current.host.playQueueSongNext(index);
+            if (!latest.current.readOnly && !isPlayingRow(index)) latest.current.host.playQueueSongNext(index);
         },
         moveToEnd: index => {
             if (!latest.current.readOnly) latest.current.host.moveQueueSongToEnd(index);
         },
         remove: index => {
-            if (!latest.current.readOnly) latest.current.host.removeQueueSong(index);
+            if (!latest.current.readOnly && !isPlayingRow(index)) latest.current.host.removeQueueSong(index);
         },
         keyDown: handleRowKeyDown,
         beginDrag: (index, event) => {
             if (!latest.current.readOnly) beginDrag(index, event);
         },
-    }), [beginDrag, handleRowKeyDown]);
+    }), [beginDrag, handleRowKeyDown, isPlayingRow]);
 
     const labels = useMemo<QueueIslandRowProps['labels']>(() => ({
         unavailable: t('status.songUnavailableTag'),
@@ -159,13 +185,18 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
     }), [t]);
 
     const rowProps = useMemo<QueueIslandRowProps>(
-        () => ({ playQueue, currentSongKey, readOnly, drag, actions, labels }),
-        [actions, currentSongKey, drag, labels, playQueue, readOnly],
+        () => ({ playQueue, currentSongKey, playingSongKey, readOnly, drag, actions, labels }),
+        [actions, currentSongKey, drag, labels, playQueue, playingSongKey, readOnly],
     );
 
     useLayoutEffect(() => {
         const frame = frameRef.current;
-        if (!frame || typeof ResizeObserver === 'undefined') return undefined;
+        if (!frame) return undefined;
+        // 先同步量一次（layout 阶段，绘制前）：打开时的居中滚动用真实高度，而不是测量前按行数算的理想高度
+        // （窗口矮、浮岛被压缩时两者不同，居中会偏）。之后的变化交给 ResizeObserver。
+        const initialHeight = Math.round(frame.clientHeight);
+        setMeasuredListHeight(previous => (previous === initialHeight ? previous : initialHeight));
+        if (typeof ResizeObserver === 'undefined') return undefined;
         const observer = new ResizeObserver(entries => {
             const height = Math.round(entries[entries.length - 1].contentRect.height);
             setMeasuredListHeight(previous => (previous === height ? previous : height));
@@ -174,14 +205,18 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
         return () => observer.disconnect();
     }, []);
 
-    // 打开后等一帧再把当前歌曲滚到正中。
+    // 打开后、量到列表真实高度之后，等一帧（react-window 拿到自己的元素）再把当前歌曲滚到正中；只做一次。
+    const hasMeasured = measuredListHeight !== null;
+    const centeredRef = useRef(false);
     useEffect(() => {
+        if (!hasMeasured || centeredRef.current) return undefined;
         const frame = requestAnimationFrame(() => {
+            centeredRef.current = true;
             const index = latest.current.currentIndex;
             if (index >= 0) listRef.current?.scrollToRow({ index, align: 'center', behavior: 'instant' });
         });
         return () => cancelAnimationFrame(frame);
-    }, [listRef]);
+    }, [hasMeasured, listRef]);
 
     // 切歌：smart 平滑滚动（已经在视口里就不动）；拖拽中跳过。
     const scrolledKeyRef = useRef(currentSongKey);
@@ -217,6 +252,10 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
             data-queue-island=""
             data-queue-readonly={readOnly || undefined}
             style={{ height: queueIslandHeight(count) }}
+            onKeyDown={event => {
+                // Delete 在浮岛里一律消费（行上的按键处理之外：悬停动作按钮、头部按钮、只读时），文字输入框里照常删字。
+                if (event.key === 'Delete' && !isTextEntryTarget(event.target)) event.preventDefault();
+            }}
             initial={{ opacity: 0, scale: 0.96, originX: 1, originY: 1 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
@@ -243,7 +282,7 @@ export function WallToolsQueueIsland({ id, host }: { id: string; host: WallTools
                         rowProps={rowProps}
                         overscanCount={4}
                         className="lattice-tools-island-scroll custom-scrollbar"
-                        style={{ height: measuredListHeight ?? queueIslandHeight(count) - ISLAND_HEADER_HEIGHT }}
+                        style={{ height: measuredListHeight ?? idealListHeight(count) }}
                     />
                 )}
                 {ghostSong && (

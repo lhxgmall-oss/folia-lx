@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Lock, Save, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setStatusMessage } from '../../stores/useStatusMessageStore';
@@ -7,13 +7,16 @@ import type { WallToolsHost } from './wallToolsHost';
 // src/components/wall/WallToolsQueueIslandHeader.tsx
 // 队列浮岛（WallToolsQueueIsland）的头部：「播放队列 · N 首」、存为本地歌单、清空。
 // - 存为本地歌单用头部内联输入框（不用 TextInputDialog：它没有 portal、z-[200]，会卡在 dock 的层级里，还会和点外部关闭、
-//   Esc 冲突）：Enter 保存并弹提示，失败也提示；Esc 取消。
+//   Esc 冲突）：Enter 保存并弹提示，失败也提示、焦点回到输入框（保存中输入框禁用会丢焦点）；Esc 取消。
 // - 清空两步确认：第一次点后 3 秒内按钮变成「再点一次清空」并经浮岛的 aria-live 播报，再点才清空；Esc 撤回。
+//   进入确认态后 400ms 内的点击、以及双击里的第二击（event.detail > 1）都不算「再点一次」：双击不能绕过确认。
 // Esc 在 document 捕获阶段处理（先于面板在 document 上的冒泡监听收起面板）；拖拽中让给浮岛撤拖拽。
 // 外部舞台播放（只读）时不给保存与清空，只挂一把锁说明原因。
 
 /** 清空的两步确认窗口（ms）。 */
 const CLEAR_CONFIRM_MS = 3000;
+/** 进入确认态之后这么久（ms）以内的点击不算确认（双击、手抖连点）。 */
+const CLEAR_CONFIRM_GUARD_MS = 400;
 
 type WallToolsQueueIslandHeaderProps = {
     host: WallToolsHost;
@@ -30,11 +33,14 @@ type WallToolsQueueIslandHeaderProps = {
 export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, announce, isDragging }: WallToolsQueueIslandHeaderProps) {
     const { t } = useTranslation();
     const saveButtonRef = useRef<HTMLButtonElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const [naming, setNaming] = useState(false);
     const [draftName, setDraftName] = useState('');
     const [saving, setSaving] = useState(false);
     const [clearPending, setClearPending] = useState(false);
     const clearTimerRef = useRef<number | null>(null);
+    /** 进入清空确认态的时刻（performance.now()）。 */
+    const clearPendingSinceRef = useRef(0);
 
     const stopClearPending = useCallback(() => {
         if (clearTimerRef.current !== null) window.clearTimeout(clearTimerRef.current);
@@ -45,12 +51,15 @@ export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, ann
         if (clearTimerRef.current !== null) window.clearTimeout(clearTimerRef.current);
     }, []);
 
-    const handleClear = () => {
+    const handleClear = (event: ReactMouseEvent<HTMLButtonElement>) => {
         if (clearPending) {
+            // 双击的第二击、或刚进入确认态就跟上来的点击：不算确认。
+            if (event.detail > 1 || performance.now() - clearPendingSinceRef.current < CLEAR_CONFIRM_GUARD_MS) return;
             stopClearPending();
             host.clearQueue();
             return;
         }
+        clearPendingSinceRef.current = performance.now();
         setClearPending(true);
         announce(t('wallTools.queueClearConfirm'));
         clearTimerRef.current = window.setTimeout(() => {
@@ -82,6 +91,14 @@ export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, ann
         }
     };
 
+    // 保存失败（saving 回到 false 而输入框还在）：焦点还给输入框，接着改名或 Esc。成功时 stopNaming 已经收起了输入框。
+    const wasSavingRef = useRef(false);
+    useEffect(() => {
+        const wasSaving = wasSavingRef.current;
+        wasSavingRef.current = saving;
+        if (wasSaving && !saving && naming) inputRef.current?.focus({ preventScroll: true });
+    }, [naming, saving]);
+
     // Esc：内联输入或清空待确认时只撤这一步（拖拽中让给浮岛）。
     useEffect(() => {
         if (!naming && !clearPending) return undefined;
@@ -106,6 +123,7 @@ export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, ann
         <header className="lattice-tools-island-header">
             {naming ? (
                 <input
+                    ref={inputRef}
                     className="lattice-tools-island-input"
                     type="text"
                     value={draftName}
