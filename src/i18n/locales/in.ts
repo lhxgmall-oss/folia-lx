@@ -2896,6 +2896,33 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_18": {
+      "intro": "0.7.18 menambahkan antrean putar yang bisa langsung diatur dari alat dinding di Bravais dan Lattice, dan kedua dinding kini memakai panel alat yang sama. Beberapa visualizer lirik lebih hemat sumber daya, perpindahan antar lagu lokal lebih mulus, login QR QQ Music menjelaskan langkahnya saat batas perangkat tercapai, dan aplikasi desktop kini menyimpan kunci AI secara terenkripsi.",
+      "queueIsland": {
+        "title": "Atur Antrean dari Dinding",
+        "description": "Buka Alat dinding di pojok kanan bawah Bravais atau Lattice lalu pilih Antrean putar untuk menampilkan antrean di atas panel. Klik lagu untuk memutarnya tanpa pindah halaman, seret pegangan untuk mengurutkan, arahkan kursor untuk putar berikutnya, pindah ke akhir, atau hapus, simpan antrean sebagai playlist lokal, atau kosongkan dengan konfirmasi dua langkah. Keyboard: ↑↓ untuk berpindah, Alt+↑↓ untuk menggeser, Delete untuk menghapus. Tidak tersedia di FM Pribadi; saat Stage eksternal sedang memutar, Anda hanya bisa memilih lagu."
+      },
+      "wallTools": {
+        "title": "Satu Panel Alat untuk Kedua Dinding",
+        "description": "Alat dinding di Bravais dan Lattice kini memakai tata letak yang sama: satu baris enam tombol cepat (temukan lagu yang diputar, acak antrean, buat tema, antrean putar, buka Lattice atau Beranda, buka pemutar), lalu volume, tampilan dinding, warna poster, dan pencahayaan. Panelnya lebih ringkas, dan baris perintah antrean lama di Lattice digantikan oleh antrean."
+      },
+      "visualizerPerf": {
+        "title": "Visualizer Lirik Lebih Ringan",
+        "description": "Sonnet, Tempera, Lumiere, Mindscape, Claddagh, Monet, Pendolo, dan latar Latent kini jauh lebih sedikit mengulang perhitungan di tiap frame. Mesin jam Pendolo digambar dengan WebGL2, dan mengubah pengaturan Sonnet tidak lagi membangun ulang kanvasnya. Konteks grafis dilepas saat berganti mode, sehingga bolak-balik berganti mode tidak lagi menyingkirkan visualizer lain."
+      },
+      "localPlayback": {
+        "title": "Ganti Lagu Lokal Lebih Mulus",
+        "description": "Berpindah ke lagu lokal berikutnya tidak lagi tersendat: sampul dan hasil pencocokan online yang sudah disiapkan langsung dipakai, tanpa diekstrak dan dicocokkan ulang saat lagu berganti, dan pergantian lagu lebih cepat di pustaka besar."
+      },
+      "qqDeviceLimit": {
+        "title": "Login QQ Menjelaskan Batas Perangkat",
+        "description": "Saat login QR QQ Music gagal karena akun sudah mencapai batas perangkat, panel login kini menyebutkannya dan memandu Anda menghapus perangkat lama (Pengaturan → Manajemen Perangkat di aplikasi QQ Music, lalu pindai lagi), tidak lagi mengarah ke masalah jaringan. Di versi web, hal ini untuk sementara hanya terdeteksi pada login QR WeChat."
+      },
+      "aiKeySecure": {
+        "title": "Kunci AI Terenkripsi di Desktop",
+        "description": "Aplikasi desktop kini menyimpan kunci Gemini / OpenAI secara terenkripsi dengan penyimpanan aman sistem, dan kunci teks biasa dari versi lama dipindahkan saat aplikasi dimulai. Kunci yang tersimpan tidak ditampilkan lagi: kosongkan kolom untuk mempertahankannya, ketik kunci baru untuk menggantinya, atau gunakan tombol Hapus tersendiri. Uji koneksi dengan kolom kosong memakai kunci yang tersimpan."
+      }
+    },
     "v0_7_17": {
       "intro": "Selamat datang di 0.7.17, Spica Update—sebuah rilis besar. Pustaka mendapat antarmuka baru bernama Bravais: dinding poster yang bisa digeser. Setelah pembaruan, Folia menanyakan sekali apakah Anda memakai Bravais atau grid klasik; tampilan yang dibuka Putar mendapat opsi \"Tetap di sini\", dan lagu lokal kini bisa ditandai sebagai instrumental.",
       "bravais": {
