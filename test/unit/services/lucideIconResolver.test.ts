@@ -84,7 +84,7 @@ describe('lucideIconResolver', () => {
         expect(iconId(resolveLucideIcon('Feather'))).toBe('Feather');
     });
 
-    it('resolves every icon export of lucide-react, aliases and Icon/Lucide forms included', async () => {
+    it('knows every icon export of lucide-react, aliases and Icon/Lucide forms included', async () => {
         const exportNames = Object.keys(LucideIcons).filter(name => (
             /^[A-Z]/.test(name)
             && name !== 'Icon'
@@ -92,8 +92,29 @@ describe('lucideIconResolver', () => {
         ));
         expect(exportNames.length).toBeGreaterThan(5000);
 
-        await loadLucideIcons(exportNames);
-        const mismatched = exportNames.filter(name => (
+        const unknown: string[] = [];
+        for (const name of exportNames) {
+            if (!(await hasLucideIcon(name))) unknown.push(name);
+        }
+        expect(unknown).toEqual([]);
+    });
+
+    it('maps export names to the right icon, sampled across the whole set', async () => {
+        const exportNames = Object.keys(LucideIcons).filter(name => (
+            /^[A-Z]/.test(name)
+            && name !== 'Icon'
+            && isLucideIcon(LucideIcons[name as keyof typeof LucideIcons])
+        ));
+        // Every module import goes through Vitest's transform, so check a spread of ~250 instead of
+        // all ~1900 modules, plus the shapes the name mapping has to get right.
+        const sample = [
+            ...exportNames.filter((_, index) => index % 25 === 0),
+            'AlarmCheck', 'AlarmCheckIcon', 'LucideAlarmCheck', 'ArrowDown01', 'Grid2x2', 'Grid2X2',
+            'AArrowDown', 'Heading1', 'Clock10', 'X', 'XIcon', 'LucideX',
+        ].filter(name => name in LucideIcons);
+
+        await loadLucideIcons(sample);
+        const mismatched = sample.filter(name => (
             iconId(resolveLucideIcon(name)) !== iconId(LucideIcons[name as keyof typeof LucideIcons])
         ));
         expect(mismatched).toEqual([]);
