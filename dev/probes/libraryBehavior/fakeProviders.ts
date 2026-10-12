@@ -64,6 +64,8 @@ type CollectionData = {
     error?: 'not-public';
     isOwned?: boolean;
     description?: string;
+    /** 详情里额外的字段（?covers=1 时歌手专辑的封面、年份、流派、时长）。 */
+    detail?: Partial<ProviderCollection> & { albumYear?: number; albumGenre?: string; albumDuration?: number };
 };
 
 const collections = new Map<string, CollectionData>();
@@ -170,6 +172,46 @@ const probePosterCover = (seed: string): string => {
         `${Array.from({ length: 8 }, (_, row) => `<rect x="0" y="${row * 64}" width="512" height="28" fill="${row % 2 ? figure : accent}"/>`).join('')}`,
     ][shape];
     return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="${ground}"/>${art}</svg>`)}`;
+};
+
+/**
+ * ?covers=1 时歌手专辑也有曲目与详情（手动点检从歌手页点进专辑看海报）：每三张里有一张是中文名，详情带封面、年份、
+ * 流派、总时长与一句简介，十首歌都用专辑封面。用例不带这个参数，歌手专辑仍然是空的。
+ */
+const PROBE_CJK_ALBUM_NAMES = ['晚风信', '把今天折进口袋', '海边的第七个夏天', '无人知晓的城市'];
+const PROBE_GENRES = ['独立民谣', 'Dream Pop', '电子', 'Post-Rock'];
+const probeArtistAlbumName = (index: number): string => (
+    PROBE_COVERS && index % 3 === 0 ? PROBE_CJK_ALBUM_NAMES[(index / 3) % PROBE_CJK_ALBUM_NAMES.length] : artistAlbumName(index)
+);
+
+const ensureProbeArtistAlbum = (providerId: string, id: string) => {
+    const target = targetKey(providerId, 'album', id);
+    if (!PROBE_COVERS || collections.has(target)) return;
+    const rule = Object.values(ONLINE_ARTISTS).find(candidate => candidate.providerId === providerId && id.startsWith(`${candidate.albumPrefix}-`));
+    const index = Number(id.slice((rule?.albumPrefix.length ?? 0) + 1));
+    if (!rule || !Number.isInteger(index)) return;
+    const album = { id, name: probeArtistAlbumName(index) };
+    const coverUrl = probePosterCover(id);
+    const songs = range(10).map(track => {
+        const song = makeOnlineSong(providerId, `${id}-t`, track, album);
+        return { ...song, coverUrl, album: { ...song.album!, coverUrl } };
+    });
+    collections.set(target, {
+        providerId,
+        type: 'album',
+        id,
+        name: album.name,
+        songs,
+        description: index % 2 === 0 ? '我把今天的心事折进口袋，留给晚风。' : undefined,
+        detail: {
+            coverUrl,
+            artists: [{ id: rule.artistId, name: rule.name }],
+            albumYear: 2014 + (index % 11),
+            albumGenre: PROBE_GENRES[index % PROBE_GENRES.length],
+            albumDuration: songs.reduce((total, song) => total + (song.durationMs ?? 0), 0),
+            publishedAt: Date.UTC(2014 + (index % 11), index % 12, 1),
+        },
+    });
 };
 
 /** 恢复全部在线 fixture、订阅状态与故障注入的初始值。 */
@@ -299,6 +341,7 @@ const describe = (data: CollectionData | undefined, fallback?: ProviderCollectio
         updatedAt: PROBE_TRACKS_UPDATED_AT,
         ...(data.isOwned ? { isOwned: true } : {}),
         ...(data.description ? { description: data.description } : {}),
+        ...(data.detail ?? {}),
     };
 };
 
@@ -423,7 +466,7 @@ const createArtistCatalog = (providerId: string) => ({
                 ? range(rule.albumCount).map(index => ({
                     providerId,
                     id: artistAlbumId(rule.albumPrefix, index),
-                    name: artistAlbumName(index),
+                    name: probeArtistAlbumName(index),
                     type: 'album',
                     trackCount: 10,
                     artists: [{ id: rule.artistId, name: rule.name }],
@@ -484,12 +527,14 @@ const createCollectionProvider = (providerId: string): OnlineMusicProvider => ({
         },
         getAlbumTracks: (id, limit = 1000, offset = 0) => {
             const target = targetKey(providerId, 'album', id);
+            ensureProbeArtistAlbum(providerId, String(id));
             return run(providerId, 'albumTracks', target, { offset, limit }, () => (
                 pageOf(collections.get(target)?.songs ?? [], limit, offset)
             ));
         },
         getAlbumDetail: (id, collection) => {
             const target = targetKey(providerId, 'album', id);
+            ensureProbeArtistAlbum(providerId, String(id));
             return run(providerId, 'albumDetail', target, {}, () => describe(collections.get(target), collection));
         },
         getSubscriptionStatus: (type, id) => {
