@@ -68,10 +68,10 @@ export type BravaisDisplayControls = {
     reducedTransitions: boolean;
     /** 这一层此刻的开口宽度（等级、面板、表单、过滤框都算进去了）。 */
     openWidthFor: (layer: BravaisLayer) => number;
-    /** 这一层的缝是不是钉在左边的歌手海报（planOpening 换成 pinned 的相机）。 */
-    pinnedFor: (layer: BravaisLayer) => boolean;
+    /** 这一层的缝是不是歌手海报（planOpening 换成把缝带到最左边的相机）。 */
+    posterFor: (layer: BravaisLayer) => boolean;
     setAnchor: (x: number | null) => void;
-    planOpening: (center: WallViewCenter, width: number, preferAnchor: boolean, pinned?: boolean) => { anchorX: number | null; center: WallViewCenter };
+    planOpening: (center: WallViewCenter, width: number, preferAnchor: boolean, poster?: boolean) => { anchorX: number | null; center: WallViewCenter };
     isAnchorOnScreen: () => boolean;
     moveTo: (center: WallViewCenter, forceRecull?: boolean) => void;
     tweenTo: (center: WallViewCenter) => void;
@@ -278,7 +278,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             const memory = readBravaisLayout(layer.sessionKey);
             let center = memory?.center ?? frameRef.current.center;
             frameRef.current.anchorX = memory?.anchorX ?? nearestSeamBoundaryX(center.x, BRAVAIS_METRICS);
-            if (width > 0) center = controlsNow.planOpening(center, width, true, controlsNow.pinnedFor(layer)).center;
+            if (width > 0) center = controlsNow.planOpening(center, width, true, controlsNow.posterFor(layer)).center;
             controlsNow.setAnchor(frameRef.current.anchorX);
             controlsNow.moveTo(center, true);
             releasePanelOnLayerChange('first', layer.key);
@@ -403,7 +403,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         // 缝保持张开：可见就沿用它的块边界，新开口放不下时相机最小让位（完全收起时不为看不见的缝平移相机）。
         if (width > 0) {
             const preferAnchor = leaving || controlsNow.isAnchorOnScreen();
-            const plan = controlsNow.planOpening(center, width, preferAnchor, controlsNow.pinnedFor(layer));
+            const plan = controlsNow.planOpening(center, width, preferAnchor, controlsNow.posterFor(layer));
             frameRef.current.anchorX = plan.anchorX;
             center = plan.center;
         }

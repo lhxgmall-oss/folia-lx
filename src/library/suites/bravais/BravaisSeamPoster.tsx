@@ -133,59 +133,62 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
                 })}
             </div>
 
-            <div className="bravais-poster-top">
-                <div className="bravais-seam-crumbs">
-                    {layer.onDone && (
-                        <button type="button" className="bravais-seam-back" data-bravais-seam-action="back" onClick={layer.onDone}
-                            aria-label={t('libraryBravais.seamBack')} title={t('libraryBravais.seamBack')}>
-                            <ChevronLeft aria-hidden />
+            {/* 文字与按钮：倾斜时整块缩进安全区（四个角不转出屏幕）；上面的色块、颗粒与细线不缩，转出去也无妨。 */}
+            <div className="bravais-poster-ui">
+                <div className="bravais-poster-top">
+                    <div className="bravais-seam-crumbs">
+                        {layer.onDone && (
+                            <button type="button" className="bravais-seam-back" data-bravais-seam-action="back" onClick={layer.onDone}
+                                aria-label={t('libraryBravais.seamBack')} title={t('libraryBravais.seamBack')}>
+                                <ChevronLeft aria-hidden />
+                            </button>
+                        )}
+                        <BravaisSeamCrumbs layer={layer} />
+                    </div>
+                    {seam.filter && (
+                        <button type="button" className="bravais-poster-filter" data-bravais-seam-action="filter" onClick={openBravaisFilter}
+                            title={seam.filter.placeholder}>
+                            <ListFilter aria-hidden />{seam.filter.placeholder}
                         </button>
                     )}
-                    <BravaisSeamCrumbs layer={layer} />
                 </div>
-                {seam.filter && (
-                    <button type="button" className="bravais-poster-filter" data-bravais-seam-action="filter" onClick={openBravaisFilter}
-                        title={seam.filter.placeholder}>
-                        <ListFilter aria-hidden />{seam.filter.placeholder}
-                    </button>
-                )}
-            </div>
 
-            <div className="bravais-poster-title">
-                {/* 小词与大字错落排在一起（凝彩一行里一个放大的 hero 词、其余压小）。 */}
-                <span className="bravais-poster-kicker" aria-hidden>{t('libraryBravais.kind.artist')}</span>
-                <h2 className="bravais-poster-name" data-bravais-poster-name data-bravais-seam-title data-text={name}>{name}</h2>
-            </div>
+                <div className="bravais-poster-title">
+                    {/* 小词与大字错落排在一起（凝彩一行里一个放大的 hero 词、其余压小）。 */}
+                    <span className="bravais-poster-kicker" aria-hidden>{t('libraryBravais.kind.artist')}</span>
+                    <h2 className="bravais-poster-name" data-bravais-poster-name data-bravais-seam-title data-text={name}>{name}</h2>
+                </div>
 
-            <div className="bravais-poster-bottom">
-                {/* 统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}
-                {seam.meta && !(artist?.stats && artist.stats === seam.meta) && (
-                    <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-poster-meta">{seam.meta}</BravaisSeamFlipText>
-                )}
-                {artist && (artist.description || artist.stats) && (
-                    <BravaisSeamAbout data-bravais-seam-artist text={artist.description} textAttribute="data-bravais-artist-bio"
-                        note={artist.stats} noteAttribute="data-bravais-artist-stats" />
-                )}
-                {seam.collection && <BravaisSeamCollectionMeta collection={seam.collection} />}
-                {seam.status && <BravaisSeamFlipText as="div" flipKey={seam.status} className="bravais-seam-status" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
-                {seam.collection?.status && <BravaisSeamStatusLine status={seam.collection.status} />}
-                {topSongs.length > 0 && (
-                    <ol className="bravais-poster-songs" aria-label={t('libraryBravaisArtist.posterTopSongs')}>
-                        {topSongs.map((item, index) => <PosterSong key={item.key} item={item} index={index} onPlay={layer.onPlayItem} />)}
-                    </ol>
-                )}
-                <div className="bravais-poster-actions">
-                    {seam.onPlayScope && (
-                        <button type="button" className="bravais-poster-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                            <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
-                        </button>
+                <div className="bravais-poster-bottom">
+                    {/* 统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}
+                    {seam.meta && !(artist?.stats && artist.stats === seam.meta) && (
+                        <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-poster-meta">{seam.meta}</BravaisSeamFlipText>
                     )}
-                    {seam.onEnqueueScope && (
-                        <button type="button" className="bravais-poster-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
-                            <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
-                        </button>
+                    {artist && (artist.description || artist.stats) && (
+                        <BravaisSeamAbout data-bravais-seam-artist text={artist.description} textAttribute="data-bravais-artist-bio"
+                            note={artist.stats} noteAttribute="data-bravais-artist-stats" />
                     )}
-                    <BravaisSeamCollectionMenu collection={seam.collection} onOpenList={actions.openList} fold={fold} />
+                    {seam.collection && <BravaisSeamCollectionMeta collection={seam.collection} />}
+                    {seam.status && <BravaisSeamFlipText as="div" flipKey={seam.status} className="bravais-seam-status" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
+                    {seam.collection?.status && <BravaisSeamStatusLine status={seam.collection.status} />}
+                    {topSongs.length > 0 && (
+                        <ol className="bravais-poster-songs" aria-label={t('libraryBravaisArtist.posterTopSongs')}>
+                            {topSongs.map((item, index) => <PosterSong key={item.key} item={item} index={index} onPlay={layer.onPlayItem} />)}
+                        </ol>
+                    )}
+                    <div className="bravais-poster-actions">
+                        {seam.onPlayScope && (
+                            <button type="button" className="bravais-poster-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
+                                <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
+                            </button>
+                        )}
+                        {seam.onEnqueueScope && (
+                            <button type="button" className="bravais-poster-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
+                                <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
+                            </button>
+                        )}
+                        <BravaisSeamCollectionMenu collection={seam.collection} onOpenList={actions.openList} fold={fold} />
+                    </div>
                 </div>
             </div>
         </section>

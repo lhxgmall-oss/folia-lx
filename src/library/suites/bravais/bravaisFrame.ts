@@ -1,6 +1,6 @@
-import { getSeamGeometry, getSeamSplitOffsets, nearestSeamBoundaryX } from '../../../components/wall/seamPlan';
+import { SEAM_EDGE_MARGIN, getSeamGeometry, getSeamSplitOffsets, nearestSeamBoundaryX } from '../../../components/wall/seamPlan';
 import { cameraFromViewCenter, getViewLineX, type WallView, type WallViewCenter } from '../../../components/wall/wallView';
-import { BRAVAIS_METRICS, BRAVAIS_SEAM_POSTER_WALL_GAP_PX } from './bravaisConstants';
+import { BRAVAIS_METRICS } from './bravaisConstants';
 
 // src/library/suites/bravais/bravaisFrame.ts
 // 每一帧要写到 DOM 上的几何（纯计算）：墙的左右两半各自的 transform、缝的屏幕位置与宽度、缝内容的透明度、
@@ -18,9 +18,12 @@ export type BravaisFrameInput = {
     contentWidth: number;
     /** 折叠等级（hidden）：标签换成悬浮按钮，常驻。 */
     hidden: boolean;
-    /** 歌手海报：缝钉在视口左边、宽 openWidth，墙不分两半（整面在它右边，相机负责让出位置）。 */
-    pinned?: boolean;
-    /** 墙面此刻的倾斜角（度；海报静止时转过去，见 BRAVAIS_POSTER_TILT_DEG）。 */
+    /**
+     * 歌手海报：仍是墙上裂开的开口（与信息条同一层），只是贴着视口边也不收窄（边距为 0），相机把它带到最左边
+     * （planPosterOpening）。
+     */
+    poster?: boolean;
+    /** 整层（两半墙与缝）此刻的倾斜角（度；海报在场时转过去，见 BRAVAIS_POSTER_TILT_DEG）。 */
     tiltDeg?: number;
 };
 
@@ -33,7 +36,7 @@ export type BravaisFrame = {
     contentOpacity: number;
     /** 边缘标签：自动出屏收起（collapsed）或手动折叠（hidden）时出现。 */
     tab: { visible: boolean; side: 'left' | 'right' };
-    /** 两个世界层共同的倾斜（屏幕坐标里绕 pivot 转）；deg 为 0 时不转。 */
+    /** 两个世界层与缝共同的倾斜（屏幕坐标里绕 pivot 转）；deg 为 0 时不转。 */
     tilt: { deg: number; pivotX: number; pivotY: number };
 };
 
@@ -42,7 +45,7 @@ const contentOpacityFor = (width: number, contentWidth: number) => (
     Math.max(0, Math.min(1, (width / Math.max(contentWidth, 1) - 0.35) / 0.65))
 );
 
-export const computeBravaisFrame = ({ center, view, anchorX, openWidth, contentWidth, hidden, pinned = false, tiltDeg = 0 }: BravaisFrameInput): BravaisFrame => {
+export const computeBravaisFrame = ({ center, view, anchorX, openWidth, contentWidth, hidden, poster = false, tiltDeg = 0 }: BravaisFrameInput): BravaisFrame => {
     const camera = cameraFromViewCenter(center, view);
     if (anchorX === null) {
         return {
@@ -55,21 +58,7 @@ export const computeBravaisFrame = ({ center, view, anchorX, openWidth, contentW
             tilt: { deg: 0, pivotX: 0, pivotY: 0 },
         };
     }
-    // 歌手海报：缝不是开口，钉在左边；墙整面按相机画（锚点由相机放在海报右缘之外，见 planPinnedOpening）。
-    // 倾斜绕海报右缘、视口半高转，所以海报边上的墙离它最近的那一段不动。
-    if (pinned) {
-        const width = Math.max(0, Math.min(openWidth, view.width));
-        return {
-            left: { x: camera.x, y: camera.y },
-            right: { x: camera.x, y: camera.y },
-            scale: view.scale,
-            seam: { x: width / 2, width, visible: width >= 1 },
-            contentOpacity: contentOpacityFor(width, contentWidth),
-            tab: { visible: hidden, side: 'left' },
-            tilt: { deg: tiltDeg, pivotX: width, pivotY: view.height / 2 },
-        };
-    }
-    const geometry = getSeamGeometry({ anchorX, cameraX: center.x, openWidth, view });
+    const geometry = getSeamGeometry({ anchorX, cameraX: center.x, openWidth, view, edge: seamEdgeFor(poster) });
     const offsets = getSeamSplitOffsets(geometry.width, view.scale, BRAVAIS_METRICS);
     const layoutWidth = Math.max(contentWidth, 1);
     return {
@@ -80,23 +69,83 @@ export const computeBravaisFrame = ({ center, view, anchorX, openWidth, contentW
         // 原型：(开口 / 排版宽度 − .35) / .65，开到三成五以下就看不见。
         contentOpacity: contentOpacityFor(geometry.width, layoutWidth),
         tab: { visible: hidden || geometry.collapsed, side: geometry.side },
+        // 倾斜绕缝的右缘、视口半高转：两半墙与缝一起转，是同一张纸。
         tilt: { deg: tiltDeg, pivotX: geometry.screenX + geometry.width / 2, pivotY: view.height / 2 },
     };
 };
 
+/** 缝贴着视口边时从多远开始收窄：海报贴边不收（它就该占满左边），其余沿用墙的边距。 */
+export const seamEdgeFor = (poster: boolean) => (poster ? 0 : SEAM_EDGE_MARGIN);
+
 /**
- * 歌手海报的相机：锚点（块边界）放在海报右缘再往右 BRAVAIS_SEAM_POSTER_WALL_GAP_PX 的屏幕位置，墙的第一列从那里开始。
- * preferX 给出时沿用那条块边界（同一层里换开口），否则取此刻落在那个位置附近的块边界。
+ * 歌手海报的相机：裂开的那条块边界（锚点）放到屏幕上 width / 2 的位置，缝的左缘正好贴着视口左边，左半面墙整个
+ * 推出画面，右半面从缝的右缘（加半个 GAP）开始。preferX 给出时沿用那条块边界（从点中的磁贴旁裂开，相机把它带过去），
+ * 否则取此刻落在那个位置附近的块边界。
  */
-export const planPinnedOpening = ({ center, view, width, preferX }: {
+export const planPosterOpening = ({ center, view, width, preferX }: {
     center: WallViewCenter;
     view: WallView;
     width: number;
     preferX?: number;
 }): { anchorX: number; center: WallViewCenter } => {
-    const offset = (width + BRAVAIS_SEAM_POSTER_WALL_GAP_PX - getViewLineX(view)) / view.scale;
+    const offset = (width / 2 - getViewLineX(view)) / view.scale;
     const anchorX = preferX ?? nearestSeamBoundaryX(center.x + offset, BRAVAIS_METRICS);
     return { anchorX, center: { x: anchorX - offset, y: center.y } };
+};
+
+const SAFE_MARGIN_PX = 14;
+
+/**
+ * 海报跟着整层倾斜时，它的四个角会转出屏幕（左上的面包屑、左下的按钮被切掉）。海报内容按这个比例缩小、贴着缝的
+ * 右缘、上下挪 offsetY，让四个角都落在屏幕里（留 SAFE_MARGIN_PX）。算的是海报落定的样子（缝的左缘贴着视口左边、
+ * 绕右缘半高转），与此刻的平移无关，所以拖动时不会忽大忽小；倾斜补间时随角度一起变。不倾斜时是 1 / 0。
+ */
+export const posterSafeArea = ({ width, height, deg }: { width: number; height: number; deg: number }) => {
+    if (Math.abs(deg) < 0.01 || width <= 0 || height <= 0) return { scale: 1, offsetY: 0 };
+    const radians = deg * Math.PI / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    const half = height / 2;
+    // 缩放 scale、上缘在 t 时，四个角相对转轴（缝右缘、半高）的位置：rx ∈ {−scale·width, 0}，ry ∈ {t − half, t + scale·height − half}。
+    // 屏幕上 x = width + rx·cos − ry·sin，y = half + rx·sin + ry·cos，都是 t 的一次式：每个角给 t 一个上下界。
+    const rangeFor = (scale: number) => {
+        let low = -Infinity;
+        let high = Infinity;
+        const bound = (coefficient: number, constant: number, min: number, max: number) => {
+            // min ≤ constant + coefficient·t ≤ max
+            if (Math.abs(coefficient) < 1e-9) {
+                if (constant < min || constant > max) low = Infinity;
+                return;
+            }
+            const a = (min - constant) / coefficient;
+            const b = (max - constant) / coefficient;
+            low = Math.max(low, Math.min(a, b));
+            high = Math.min(high, Math.max(a, b));
+        };
+        for (const rx of [-scale * width, 0]) {
+            for (const extra of [0, scale * height]) {
+                // ry = t + extra − half
+                const base = extra - half;
+                bound(-sin, width + rx * cos - base * sin, SAFE_MARGIN_PX, Infinity);
+                bound(cos, half + rx * sin + base * cos, SAFE_MARGIN_PX, height - SAFE_MARGIN_PX);
+            }
+        }
+        return { low, high };
+    };
+    let lo = 0.5;
+    let hi = 1;
+    if (rangeFor(1).low <= rangeFor(1).high) lo = 1;
+    else {
+        for (let step = 0; step < 24; step += 1) {
+            const mid = (lo + hi) / 2;
+            const range = rangeFor(mid);
+            if (range.low <= range.high) lo = mid; else hi = mid;
+        }
+    }
+    const range = rangeFor(lo);
+    const centred = (1 - lo) * height / 2;
+    const offsetY = Number.isFinite(range.low) ? Math.min(Math.max(centred, range.low), range.high) : centred;
+    return { scale: lo, offsetY };
 };
 
 /** 世界层的 transform 前面加上绕屏幕点的倾斜（世界层的 transform-origin 是 0 0，与屏幕原点重合）。 */

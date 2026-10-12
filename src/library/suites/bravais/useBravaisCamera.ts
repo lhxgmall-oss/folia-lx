@@ -26,15 +26,6 @@ const MAX_RESERVED_VIEWPORTS = 3;
 const area = (bounds: Bounds) => (bounds.right - bounds.left) * (bounds.bottom - bounds.top);
 
 /** 当前可见的世界范围（缝张开时两半各让出半个开口，左右再放宽一个开口宽）。 */
-/** 平移相机（屏幕 px 的平移）绕原点转 deg 度，与 CSS rotate 同向；scale 不变。 */
-export const rotateCamera = (camera: LatticeCamera, deg: number): LatticeCamera => {
-    if (Math.abs(deg) < 0.001) return camera;
-    const radians = deg * Math.PI / 180;
-    const cos = Math.cos(radians);
-    const sin = Math.sin(radians);
-    return { x: camera.x * cos - camera.y * sin, y: camera.x * sin + camera.y * cos, scale: camera.scale };
-};
-
 export const getVisibleWorldBounds = (state: BravaisFrameState): Bounds | null => (
     state.view ? getViewWorldBounds(state.center, state.view, { seamWidth: state.openWidth }) : null
 );
@@ -70,13 +61,10 @@ export const useBravaisCamera = ({
     const cameraRef = useRef<LatticeCamera>({ x: 0, y: 0, scale: 1 });
     const viewportRef = useRef({ width: 1, height: 1 });
 
-    // 歌手海报的倾斜（bravaisFrame 的 withTilt）：屏幕上的位移 = 平移相机的位移转过倾斜角。拖动与滚轮给的是屏幕位移，
-    // 所以平移相机在 useWallPointerPan 那一侧按倾斜角转过去，交回来时再转回来（绕原点的线性换算，两边一致），
-    // 手指往哪拖墙就往哪走。不倾斜时两边相同。
     const syncPointerCamera = useCallback(() => {
-        const { view, center, tiltDeg } = frameRef.current;
+        const { view, center } = frameRef.current;
         if (!view) return;
-        cameraRef.current = rotateCamera(cameraFromViewCenter(center, view), tiltDeg);
+        cameraRef.current = cameraFromViewCenter(center, view);
         viewportRef.current = { width: view.width, height: view.height };
     }, [frameRef]);
 
@@ -190,12 +178,12 @@ export const useBravaisCamera = ({
     const applyCamera = useCallback((next: LatticeCamera, updateBounds?: boolean) => {
         const view = frameRef.current.view;
         if (!view) return;
-        moveTo(constrain(viewCenterFromCamera(rotateCamera(next, -frameRef.current.tiltDeg), view)), Boolean(updateBounds));
+        moveTo(constrain(viewCenterFromCamera(next, view)), Boolean(updateBounds));
     }, [constrain, frameRef, moveTo]);
     const getWorldBounds = useCallback((camera: LatticeCamera) => {
         const view = frameRef.current.view;
         if (!view) return { left: 0, right: 0, top: 0, bottom: 0 };
-        return getViewWorldBounds(viewCenterFromCamera(rotateCamera(camera, -frameRef.current.tiltDeg), view), view, { seamWidth: frameRef.current.openWidth });
+        return getViewWorldBounds(viewCenterFromCamera(camera, view), view, { seamWidth: frameRef.current.openWidth });
     }, [frameRef]);
     const pointer = useWallPointerPan({
         applyCamera,

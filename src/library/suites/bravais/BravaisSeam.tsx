@@ -29,8 +29,6 @@ type BravaisSeamProps = {
     seamRef: RefObject<HTMLDivElement | null>;
     contentRef: RefObject<HTMLDivElement | null>;
     tabRef: RefObject<HTMLButtonElement | null>;
-    /** 歌手海报右缘外的那道墨色渐隐（位置与透明度由 stage 每帧写，见 useBravaisFrame）。 */
-    posterFadeRef: RefObject<HTMLDivElement | null>;
     variant: BravaisSeamContentVariant;
     /** 缝要翻向的内容（stage 算的目标）；与 variant 不同时内容正在翻转。 */
     targetVariant: BravaisSeamContentVariant;
@@ -59,7 +57,6 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     seamRef,
     contentRef,
     tabRef,
-    posterFadeRef,
     variant,
     targetVariant,
     leaving,
@@ -105,8 +102,6 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
                     </motion.div>
                 </div>
             </div>
-            {/* 歌手海报与倾斜的墙之间的墨色渐隐：缝自己 overflow: hidden，渐隐落在缝外，单独一层、不接指针。 */}
-            <div ref={posterFadeRef} className="bravais-poster-fade" aria-hidden="true" style={{ opacity: 0 }} />
             <button
                 ref={tabRef}
                 type="button"

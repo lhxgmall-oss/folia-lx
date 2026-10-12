@@ -113,8 +113,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const seamRef = useRef<HTMLDivElement>(null);
     const seamContentRef = useRef<HTMLDivElement>(null);
     const tabRef = useRef<HTMLButtonElement>(null);
-    const posterFadeRef = useRef<HTMLDivElement>(null);
-    const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamContent: seamContentRef, tab: tabRef, posterFade: posterFadeRef }), []);
+    const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamContent: seamContentRef, tab: tabRef }), []);
     const { stateRef: frameRef, renderFrame } = useBravaisFrame(frameRefs);
     const { wallLook, seamLook } = useBravaisWallLook(reportPlayerOcclusion, reportPlayerBackdrop);
     const view = useBravaisViewport(rootRef);
@@ -179,7 +178,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const openWidthFor = useCallback((target: BravaisLayer) => (
         resolveStageSeamTarget(seamInputFor(target), selectBravaisAccountVariant(useBravaisAccountStore.getState())).width
     ), [seamInputFor]);
-    const pinnedFor = useCallback((target: BravaisLayer) => (
+    const posterFor = useCallback((target: BravaisLayer) => (
         resolveStageSeamTarget(seamInputFor(target), selectBravaisAccountVariant(useBravaisAccountStore.getState())).variant === 'poster'
     ), [seamInputFor]);
 
@@ -197,13 +196,12 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         checkCull: camera.checkCull,
     });
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
-    // 歌手海报在场时墙面倾斜，倾斜着照样拖动、滚动（useBravaisPosterTilt）。
+    // 歌手海报在场时整层（两半墙与缝）一起倾斜，倾斜着照样拖动、滚动（useBravaisPosterTilt）。
     useBravaisPosterTilt({
         frameRef,
         renderFrame,
         checkCull: camera.checkCull,
-        syncPointerCamera: camera.syncPointerCamera,
-        pinned: seamTarget.variant === 'poster' && seamTarget.width > 0,
+        poster: seamTarget.variant === 'poster' && seamTarget.width > 0,
         reducedMotion,
     });
 
@@ -238,7 +236,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         navigation,
         reducedTransitions,
         openWidthFor,
-        pinnedFor,
+        posterFor,
         setCameraRange: camera.setRange,
         setAnchor: seam.setAnchor,
         planOpening: seam.planOpening,
@@ -516,7 +514,6 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                 seamRef={seamRef}
                 contentRef={seamContentRef}
                 tabRef={tabRef}
-                posterFadeRef={posterFadeRef}
                 variant={seam.rendered.variant}
                 targetVariant={seamTarget.variant}
                 leaving={seam.leaving}

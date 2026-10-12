@@ -414,31 +414,53 @@
     outline-offset: 4px;
 }
 
-/* 海报钉在左边：缝的材质（预设、透明缝的半透明纸条）、叠色与熄灯都不作用到它。 */
-/* 缝的内容层在播放条安全区之上结束：安全区那一段露出的是缝自己的底，和海报的底色接上。 */
+/* 海报这条缝：材质（预设、透明缝的半透明纸条）、叠色与熄灯都不作用到它。
+ * 海报是墙上裂开的一列，跟两半墙一起倾斜：缝上下各多出 --bravais-poster-bleed，转过去之后视口的四个角也盖得住；
+ * 内容层仍是视口那么高（缝的 transform-origin 跟着挪，仍对准屏幕原点，见 useBravaisFrame）。
+ * 海报的底（中心偏亮、四周压暗，右缘往墙那边再压暗一道）画在整条缝上，不画在海报里：倾斜时海报内容缩进安全区，
+ * 缩出来的那一圈和多出来的上下两截是同一片底，看不出边。缝的内容层在播放条安全区之上结束，安全区那一段也是这片底。 */
 .bravais-seam[data-bravais-seam="poster"] {
-    background: var(--bravais-poster-edge, #3a3a3d);
+    --bravais-poster-bleed: 40vh;
+    --bravais-poster-fade-color: color-mix(in srgb, var(--bravais-poster-edge, #3a3a3d) 70%, #000);
+    top: calc(-1 * var(--bravais-poster-bleed));
+    bottom: calc(-1 * var(--bravais-poster-bleed));
+    transform-origin: 0 var(--bravais-poster-bleed);
+    background:
+        linear-gradient(
+            90deg,
+            transparent 78%,
+            color-mix(in srgb, var(--bravais-poster-fade-color) 45%, transparent) 90%,
+            var(--bravais-poster-fade-color) 100%
+        ),
+        radial-gradient(
+            120% 90vh at 42% calc(var(--bravais-poster-bleed) + 42vh),
+            var(--bravais-poster-ground, #5f5f62) 0%,
+            var(--bravais-poster-ground-deep, #4c4c4f) 58%,
+            var(--bravais-poster-edge, #3a3a3d) 100%
+        );
     box-shadow: none;
 }
 
-/* 海报右缘外的渐隐（设计稿里海报与倾斜的墙之间那一道）：盖在墙上、缝下面，不接指针。
- * 位置（translateX = 海报宽度）与透明度由 stage 每帧写。 */
-.bravais-poster-fade {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 4;
-    width: 240px;
-    pointer-events: none;
-    --bravais-poster-fade-color: var(--bravais-poster-edge, #3a3a3d);
-    background: linear-gradient(
-        90deg,
-        var(--bravais-poster-fade-color) 0%,
-        color-mix(in srgb, var(--bravais-poster-fade-color) 88%, transparent) 22%,
-        color-mix(in srgb, var(--bravais-poster-fade-color) 45%, transparent) 58%,
-        transparent 100%
-    );
+.bravais-seam[data-bravais-seam="poster"] > .bravais-seam-content {
+    top: var(--bravais-poster-bleed);
+    bottom: var(--bravais-poster-bleed);
+}
+
+/* 倾斜时海报的四个角会转出屏幕：文字与按钮（bravais-poster-ui）贴着缝的右缘缩进安全区（比例与上下位置由 stage 每帧写，
+ * posterSafeArea）；色块、颗粒、细线这些底子不缩。 */
+.bravais-seam[data-bravais-seam="poster"] .bravais-poster {
+    background: none;
+}
+
+.bravais-poster-ui {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    transform: translateY(var(--bravais-poster-safe-y, 0px)) scale(var(--bravais-poster-safe-scale, 1));
+    transform-origin: 100% 0;
 }
 
 /* 歌手海报旁的墙（根节点 has-poster-wall）：磁贴像一张张贴上去的海报。
