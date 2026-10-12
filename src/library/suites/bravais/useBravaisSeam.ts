@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Mutable
 import { blockSeamPlan, getSeamGeometry } from '../../../components/wall/seamPlan';
 import type { WallViewCenter } from '../../../components/wall/wallView';
 import { BRAVAIS_METRICS, BRAVAIS_SEAM_TWEEN_S } from './bravaisConstants';
+import { planPinnedOpening } from './bravaisFrame';
 import type { BravaisLayer } from './bravaisLayer';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { resolveSeamContentIdentity, resolveVariantWidth, type BravaisSeamContentVariant } from './bravaisSeamTarget';
@@ -72,10 +73,16 @@ export const useBravaisSeam = ({
         return geometry.screenX > 0 && geometry.screenX < view.width;
     }, [frameRef]);
 
-    /** 要张开 `width` 的缝：选块边界、算相机的最小让位（相对 `center`，返回让位后的视图中心）。 */
-    const planOpening = useCallback((center: WallViewCenter, width: number, preferAnchor: boolean) => {
+    /**
+     * 要张开 `width` 的缝：选块边界、算相机的最小让位（相对 `center`，返回让位后的视图中心）。
+     * pinned（歌手海报）：缝钉在左边，相机把锚点放到海报右缘之外（bravaisFrame 的 planPinnedOpening）。
+     */
+    const planOpening = useCallback((center: WallViewCenter, width: number, preferAnchor: boolean, pinned = false) => {
         const { view, anchorX: current } = frameRef.current;
         if (!view) return { anchorX: current, center };
+        if (pinned) {
+            return planPinnedOpening({ center, view, width, preferX: preferAnchor && current !== null ? current : undefined });
+        }
         const plan = blockSeamPlan({
             cameraX: center.x,
             openWidth: width,
@@ -118,6 +125,12 @@ export const useBravaisSeam = ({
     const hasLayer = Boolean(layer);
     // 「折叠」看的是生效的内容（过滤框、面板、表单开着时折叠等级暂不生效）。
     const isFolded = hasLayer && targetVariant === 'none';
+    // 歌手海报钉在左边：在开口补间与换层编排（useBravaisDisplay 的 layout effect，排在这之后）之前写进帧状态。
+    const isPinned = hasLayer && targetVariant === 'poster';
+    useLayoutEffect(() => {
+        frameRef.current.pinned = isPinned;
+        renderFrame();
+    }, [frameRef, isPinned, renderFrame]);
     useEffect(() => {
         frameRef.current.hidden = isFolded;
         tweenWidth(targetWidth);
@@ -132,10 +145,10 @@ export const useBravaisSeam = ({
         previousOpeningRef.current = { layerKey, width: targetWidth };
         if (previous.layerKey !== layerKey || previous.width === targetWidth) return;
         if (!layer || targetWidth <= 0) return;
-        const plan = planOpening(frameRef.current.center, targetWidth, isAnchorOnScreen());
+        const plan = planOpening(frameRef.current.center, targetWidth, isAnchorOnScreen(), isPinned);
         if (plan.anchorX !== frameRef.current.anchorX) setAnchor(plan.anchorX);
         tweenCamera(plan.center);
-    }, [frameRef, isAnchorOnScreen, layer, layerKey, planOpening, setAnchor, targetWidth, tweenCamera]);
+    }, [frameRef, isAnchorOnScreen, isPinned, layer, layerKey, planOpening, setAnchor, targetWidth, tweenCamera]);
 
     // 缝里的内容：换层（首页换页签也是换层，2026-10-09 起整条翻）或换形态时翻转（转到 90° 换内容与排版宽度），同一层的
     // 数据更新就地刷新（渲染时取最新的层）。
@@ -226,16 +239,17 @@ export const useBravaisSeam = ({
     /** 自动出屏收起后，在当前视口里裂开一道新缝（不拉回原锚点，设计稿 §5）。 */
     const reopenHere = useCallback(() => {
         if (!layer || targetWidth <= 0) return;
-        const plan = planOpening(frameRef.current.center, targetWidth, false);
+        const plan = planOpening(frameRef.current.center, targetWidth, false, isPinned);
         setAnchor(plan.anchorX);
         tweenWidth(targetWidth, 0);
         tweenCamera(plan.center);
-    }, [frameRef, layer, planOpening, setAnchor, targetWidth, tweenCamera, tweenWidth]);
+    }, [frameRef, isPinned, layer, planOpening, setAnchor, targetWidth, tweenCamera, tweenWidth]);
 
     /** 此刻缝本该张开却被挤到屏外收起了（边缘标签在场）。 */
     const isCollapsed = useCallback(() => {
-        const { anchorX: x, view, center, openWidth } = frameRef.current;
-        if (x === null || !view || targetWidth <= 0) return false;
+        const { anchorX: x, view, center, openWidth, pinned } = frameRef.current;
+        // 钉在左边的海报不会被挤出屏外。
+        if (x === null || !view || targetWidth <= 0 || pinned) return false;
         return getSeamGeometry({ anchorX: x, cameraX: center.x, openWidth: Math.max(openWidth, targetWidth), view }).collapsed;
     }, [frameRef, targetWidth]);
 

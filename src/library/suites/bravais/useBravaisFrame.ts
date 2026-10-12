@@ -1,6 +1,6 @@
 import { useCallback, useRef, type RefObject } from 'react';
 import { formatWorldTransform, type WallView, type WallViewCenter } from '../../../components/wall/wallView';
-import { computeBravaisFrame } from './bravaisFrame';
+import { computeBravaisFrame, withTilt } from './bravaisFrame';
 
 // src/library/suites/bravais/useBravaisFrame.ts
 // stage 每帧要写的那几样（相机、缝的锚点与动画中的开口、缝内容的排版宽度、是否折叠）放在一个可变的 ref 里，
@@ -16,6 +16,10 @@ export type BravaisFrameState = {
     targetOpenWidth: number;
     contentWidth: number;
     hidden: boolean;
+    /** 歌手海报：缝钉在左边、墙不分两半（bravaisFrame 的 pinned）。 */
+    pinned: boolean;
+    /** 墙面此刻的倾斜角（度；补间中逐帧变）。 */
+    tiltDeg: number;
 };
 
 export type BravaisFrameRefs = {
@@ -35,6 +39,8 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
         targetOpenWidth: 0,
         contentWidth: 0,
         hidden: false,
+        pinned: false,
+        tiltDeg: 0,
     });
 
     const renderFrame = useCallback(() => {
@@ -47,10 +53,12 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
             openWidth: state.openWidth,
             contentWidth: state.contentWidth,
             hidden: state.hidden,
+            pinned: state.pinned,
+            tiltDeg: state.tiltDeg,
         });
         const { left, right, seam, seamContent, tab } = refs;
-        if (left.current) left.current.style.transform = formatWorldTransform(frame.left.x, frame.left.y, frame.scale);
-        if (right.current) right.current.style.transform = formatWorldTransform(frame.right.x, frame.right.y, frame.scale);
+        if (left.current) left.current.style.transform = withTilt(formatWorldTransform(frame.left.x, frame.left.y, frame.scale), frame.tilt);
+        if (right.current) right.current.style.transform = withTilt(formatWorldTransform(frame.right.x, frame.right.y, frame.scale), frame.tilt);
         const seamElement = seam.current;
         if (seamElement) {
             seamElement.style.transform = `translate3d(${frame.seam.x - frame.seam.width / 2}px, 0, 0)`;

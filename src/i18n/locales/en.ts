@@ -3492,7 +3492,9 @@ export default {
     "albumsSyncing": "Loading albums {{loaded}} / {{total}}",
     "albumsSyncingOpen": "Loading albums… {{loaded}}",
     "albumsInterrupted": "Albums stopped at {{loaded}}",
-    "panelTitle": "Top songs and albums"
+    "panelTitle": "Top songs and albums",
+    "posterLabel": "Artist poster",
+    "posterTopSongs": "Top songs"
   },
   "artistGrid": {
     "localArtist": "Local Artist: {{artistName}}",

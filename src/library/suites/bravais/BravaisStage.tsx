@@ -27,6 +27,7 @@ import { useBravaisKeyboard } from './useBravaisKeyboard';
 import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisReflowDriver } from './useBravaisReflowDriver';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
+import { useBravaisPosterTilt } from './useBravaisPosterTilt';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
 import { closeCommandFilter } from '../../../stores/useAppViewStore';
@@ -161,6 +162,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
             filterOpen: current.filterOpen,
             searchOpen: current.searchOpen,
+            // 歌手海报只画在无限拼贴上：过滤生效（有限拼贴）时 rank 围着锚点两边排，海报会挡住一半。
+            poster: target.surface === 'artist' && target.mode !== 'finite',
         };
     }, [frameRef]);
     const resolvedSeamTarget = layer
@@ -173,6 +176,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const seamTarget = handoff.seamClosed ? { width: 0, variant: resolvedSeamTarget.variant } : resolvedSeamTarget;
     const openWidthFor = useCallback((target: BravaisLayer) => (
         resolveStageSeamTarget(seamInputFor(target), selectBravaisAccountVariant(useBravaisAccountStore.getState())).width
+    ), [seamInputFor]);
+    const pinnedFor = useCallback((target: BravaisLayer) => (
+        resolveStageSeamTarget(seamInputFor(target), selectBravaisAccountVariant(useBravaisAccountStore.getState())).variant === 'poster'
     ), [seamInputFor]);
 
     const camera = useBravaisCamera({ frameRef, renderFrame, fieldRef, reducedMotion });
@@ -189,6 +195,17 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         checkCull: camera.checkCull,
     });
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
+    // 歌手海报静止时墙面倾斜，一操作墙就回正（useBravaisPosterTilt）。
+    useBravaisPosterTilt({
+        frameRef,
+        renderFrame,
+        checkCull: camera.checkCull,
+        rootRef,
+        seamRef,
+        pinned: seamTarget.variant === 'poster' && seamTarget.width > 0,
+        layerKey: layer?.key ?? null,
+        reducedMotion,
+    });
 
     // 量到视口（或尺寸变了）：写进帧状态，相机保持视图中心不动，重新裁剪；跨过窄屏阈值时缝回到新宽度的默认等级。
     useLayoutEffect(() => {
@@ -221,6 +238,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         navigation,
         reducedTransitions,
         openWidthFor,
+        pinnedFor,
         setCameraRange: camera.setRange,
         setAnchor: seam.setAnchor,
         planOpening: seam.planOpening,

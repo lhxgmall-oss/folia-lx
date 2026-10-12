@@ -13,6 +13,19 @@ export const BRAVAIS_SEAM_FULL_WIDTH = 300;
 export const BRAVAIS_SEAM_HOME_WIDTH = 120;
 /** 书脊。 */
 export const BRAVAIS_SEAM_SPINE_WIDTH = 64;
+/**
+ * 歌手页的海报（完整等级下的歌手页缝）：钉在视口左边，宽度随视口取 46%，夹在这个范围里。
+ * 海报不是墙上的开口，墙整面在它右边（bravaisFrame 的 pinned）。
+ */
+export const BRAVAIS_SEAM_POSTER_MIN_WIDTH = 520;
+export const BRAVAIS_SEAM_POSTER_MAX_WIDTH = 680;
+export const BRAVAIS_SEAM_POSTER_VIEWPORT_RATIO = 0.46;
+/** 海报右缘与墙上第一列之间留的屏幕距离。 */
+export const BRAVAIS_SEAM_POSTER_WALL_GAP_PX = 24;
+/** 海报静止时墙面倾斜的角度（度，负 = 逆时针），绕海报右缘、视口半高转。 */
+export const BRAVAIS_POSTER_TILT_DEG = -10;
+/** 倾斜与回正的补间时长（秒）。 */
+export const BRAVAIS_POSTER_TILT_TWEEN_S = 0.6;
 /** 视口窄于它时默认收成书脊（设计稿 §5 的 NARROW_VW）。 */
 export const BRAVAIS_NARROW_VIEWPORT_PX = 900;
 

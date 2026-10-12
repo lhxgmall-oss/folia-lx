@@ -18,6 +18,7 @@ import BravaisSeamArtist from './BravaisSeamArtist';
 import BravaisSeamAbout from './BravaisSeamAbout';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import BravaisSeamAccount from './BravaisSeamAccount';
+import BravaisSeamPoster from './BravaisSeamPoster';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
@@ -34,6 +35,7 @@ import { BravaisSeamFlipText } from './BravaisSeamFlip';
 // 换层 / 换形态由外层整条翻（useBravaisSeam）；同一层里元数据（计数、匹配数）与状态文字变了，新的一行翻进来（BravaisSeamFlipText）。
 // 当前页过滤（设计稿 §7.6）：完整信息条的面包屑行下面是缝自己的过滤输入位（BravaisSeamFilterField）；书脊放不下输入框，
 // 过滤中只留一个过滤图标（点它或在墙上打字，缝临时展开成完整信息条）。
+// 歌手页的完整等级画成海报（BravaisSeamPoster，钉在视口左边）；过滤、面板、表单时回到上面这几套。
 
 export type BravaisSeamActions = {
     setLevel: (level: BravaisSeamLevel) => void;
@@ -166,6 +168,7 @@ const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer,
         case 'home-spine': return <BravaisSeamHome layer={layer} compact setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
         case 'search': return <BravaisSeamSearch layer={layer} />;
         case 'full': return <FullSeam layer={layer} depth={depth} actions={actions} />;
+        case 'poster': return <BravaisSeamPoster layer={layer} actions={actions} />;
         case 'spine': return <SpineSeam layer={layer} actions={actions} />;
         case 'panel':
             if (!actions.panel) return null;
