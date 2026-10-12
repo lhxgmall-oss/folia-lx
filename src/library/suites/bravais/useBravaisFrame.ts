@@ -28,6 +28,8 @@ export type BravaisFrameRefs = {
     seam: RefObject<HTMLDivElement | null>;
     seamContent: RefObject<HTMLDivElement | null>;
     tab: RefObject<HTMLButtonElement | null>;
+    /** 歌手海报右缘外的墨色渐隐：只在钉住时出现，跟着海报的宽度与内容透明度。 */
+    posterFade?: RefObject<HTMLDivElement | null>;
 };
 
 export const useBravaisFrame = (refs: BravaisFrameRefs) => {
@@ -67,6 +69,11 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
             if (seamElement.style.visibility !== visibility) seamElement.style.visibility = visibility;
         }
         if (seamContent.current) seamContent.current.style.opacity = String(frame.contentOpacity);
+        const fade = refs.posterFade?.current;
+        if (fade) {
+            fade.style.transform = `translate3d(${frame.seam.width}px, 0, 0)`;
+            fade.style.opacity = state.pinned && frame.seam.visible ? String(frame.contentOpacity) : '0';
+        }
         const tabElement = tab.current;
         if (tabElement) {
             const display = frame.tab.visible ? '' : 'none';

@@ -349,3 +349,16 @@
     background: #efe9dc;
     box-shadow: none;
 }
+
+/* 海报右缘外的墨色渐隐（设计稿里海报与倾斜的墙之间那一道）：盖在墙上、缝下面，不接指针。
+ * 位置（translateX = 海报宽度）与透明度由 stage 每帧写。 */
+.bravais-poster-fade {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 4;
+    width: 240px;
+    pointer-events: none;
+    background: linear-gradient(90deg, #141210 0%, rgba(20, 18, 16, 0.88) 22%, rgba(20, 18, 16, 0.45) 58%, rgba(20, 18, 16, 0) 100%);
+}
