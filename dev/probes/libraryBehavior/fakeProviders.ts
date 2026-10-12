@@ -140,10 +140,36 @@ export const makeOnlineSong = (
             id: resolvedAlbum.id,
             name: resolvedAlbum.name,
             catalogRef: { providerId, kind: 'album', id: resolvedAlbum.id },
+            ...(PROBE_COVERS ? { coverUrl: probePosterCover(`${prefix}-${index}`) } : {}),
         },
         durationMs: 180000 + index * 1000,
+        ...(PROBE_COVERS ? { coverUrl: probePosterCover(`${prefix}-${index}`) } : {}),
         sourceRef: { kind: 'online', providerId, mediaId: id },
     };
+};
+
+/**
+ * 手动点检用的封面（?covers=1 时才有）：按 id 生成一张方形的几何海报 SVG（data URI，不发请求）。用例不带这个参数，
+ * 请求账与画面断言都不受影响。
+ */
+const PROBE_COVERS = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('covers');
+const PROBE_COVER_PALETTES = [
+    ['#22305f', '#e4462b', '#efe9dc'], ['#2f5d50', '#efe9dc', '#141210'], ['#5a1e3c', '#f2b632', '#efe9dc'],
+    ['#efe9dc', '#141210', '#e4462b'], ['#f2b632', '#141210', '#22305f'], ['#3b3530', '#7fd1ae', '#efe9dc'],
+    ['#7fd1ae', '#141210', '#efe9dc'], ['#e4462b', '#141210', '#efe9dc'],
+];
+const probePosterCover = (seed: string): string => {
+    let hash = 2166136261;
+    for (let index = 0; index < seed.length; index += 1) hash = Math.imul(hash ^ seed.charCodeAt(index), 16777619) >>> 0;
+    const [ground, figure, accent] = PROBE_COVER_PALETTES[hash % PROBE_COVER_PALETTES.length];
+    const shape = (hash >>> 4) % 4;
+    const art = [
+        `<circle cx="300" cy="210" r="130" fill="${figure}"/><path d="M0 400 L150 300 L280 380 L400 280 L512 360 V512 H0Z" fill="${accent}"/>`,
+        `<rect x="96" y="96" width="320" height="320" fill="none" stroke="${figure}" stroke-width="40"/><rect x="200" y="200" width="112" height="112" fill="${accent}"/>`,
+        `<path d="M0 512 L256 120 L512 512Z" fill="${figure}"/><circle cx="380" cy="130" r="54" fill="${accent}"/>`,
+        `${Array.from({ length: 8 }, (_, row) => `<rect x="0" y="${row * 64}" width="512" height="28" fill="${row % 2 ? figure : accent}"/>`).join('')}`,
+    ][shape];
+    return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="${ground}"/>${art}</svg>`)}`;
 };
 
 /** 恢复全部在线 fixture、订阅状态与故障注入的初始值。 */
@@ -401,6 +427,7 @@ const createArtistCatalog = (providerId: string) => ({
                     type: 'album',
                     trackCount: 10,
                     artists: [{ id: rule.artistId, name: rule.name }],
+                    ...(PROBE_COVERS ? { coverUrl: probePosterCover(artistAlbumId(rule.albumPrefix, index)) } : {}),
                 }))
                 : [];
             return pageOf(albums, limit, offset);

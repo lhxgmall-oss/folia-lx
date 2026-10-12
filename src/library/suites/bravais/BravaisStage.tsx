@@ -440,6 +440,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         seeThrough && BRAVAIS_SEAM_ACRYLIC_BLUR ? 'has-seam-blur' : '',
         display?.layer.seam.home?.manage ? 'is-managing-hidden' : '',
         display?.layer.home?.batch ? 'is-batch' : '',
+        // 歌手海报在场：墙上的磁贴改成海报的样子（间隔拉开、封面保持正方形，bravaisPoster.css）。
+        seamTarget.variant === 'poster' ? 'has-poster-wall' : '',
     ].filter(Boolean).join(' ');
 
     return (

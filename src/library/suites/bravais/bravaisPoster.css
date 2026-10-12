@@ -1,30 +1,30 @@
 /* src/library/suites/bravais/bravaisPoster.css
- * 歌手页海报（BravaisSeamPoster）。海报有自己的底色、纸色与墨色：反色标题（mix-blend-mode: difference）只有在
- * 已知的不透明底上才可读，所以它不跟缝的材质预设、透明缝、叠色与熄灯走（见文件末尾的覆盖）。
- * 尺寸都按海报自己（container: size）算：名字的字号 = min(260px, 24% 高, 可用宽度 / 字数)。
- * 斜切的纸色色块与名字的位置用同一组百分比（--bravais-poster-cut-*），名字总是跨在斜边上。 */
+ * 歌手页海报（BravaisSeamPoster），商籁（Sonnet）的视觉语言：炭灰单色、发光白字、发丝线画框与参考线、虚线选中框、
+ * 描边巨字、竖排等宽 HUD 标签。海报有自己的底色，不跟缝的材质预设、透明缝、叠色与熄灯走（见文件后面的覆盖）。
+ * 尺寸按海报自己（container: size）算：名字的字号 = min(220px, 22% 高, 可用宽度 / 字数)。 */
 
 .bravais-poster {
-    --bravais-poster-ink: #141210;
-    --bravais-poster-paper: #efe9dc;
-    --bravais-poster-accent: var(--text-accent, #e4462b);
-    --bravais-poster-tone: var(--bravais-poster-accent);
-    /* 斜边：左端与右端的高度（占海报高度的比例）。 */
-    --bravais-poster-cut-left: 56%;
-    --bravais-poster-cut-right: 38%;
-    --bravais-poster-pad: 44px;
-    --bravais-poster-name-size: min(260px, 24cqh, calc((100cqw - 2 * var(--bravais-poster-pad)) / var(--bravais-poster-name-columns, 2)));
-    /* 缝里复用的控件（面包屑、⋯ 更多）在深色底上用浅色。 */
-    --text-primary: var(--bravais-poster-paper);
-    --text-secondary: rgba(239, 233, 220, 0.72);
+    --bravais-poster-ground: #2a2a2e;
+    --bravais-poster-ink: #f4f4f6;
+    --bravais-poster-line: rgba(255, 255, 255, 0.32);
+    --bravais-poster-line-soft: rgba(255, 255, 255, 0.14);
+    --bravais-poster-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, monospace;
+    --bravais-poster-pad: 48px;
+    --bravais-poster-name-size: min(220px, 22cqh, calc((100cqw - 2 * var(--bravais-poster-pad) - 40px) / var(--bravais-poster-name-columns, 2)));
+    /* 缝里复用的控件（面包屑、关于、状态行、⋯ 更多）在深色底上用浅色。 */
+    --text-primary: var(--bravais-poster-ink);
+    --text-secondary: rgba(244, 244, 246, 0.66);
+    --bravais-seam-ink-soft: rgba(244, 244, 246, 0.55);
+    --bravais-blurb-lines: 2;
     position: relative;
+    display: flex;
+    flex-direction: column;
     height: 100%;
     overflow: hidden;
     isolation: isolate;
     container-type: size;
-    background: var(--bravais-poster-ink);
-    color: var(--bravais-poster-paper);
-    font-family: inherit;
+    background: var(--bravais-poster-ground);
+    color: var(--bravais-poster-ink);
 }
 
 .bravais-poster-ground {
@@ -33,11 +33,10 @@
     pointer-events: none;
 }
 
-/* 定妆照：去色、提一点对比，再用亮端色相染成双色调，盖一层网点，左边压暗给面包屑与标签。 */
+/* 定妆照：去色、压暗、轻微失焦，盖一层细网点，像商籁的烟雾背景。 */
 .bravais-poster-portrait {
     position: absolute;
     inset: 0;
-    isolation: isolate;
 }
 
 .bravais-poster-portrait img {
@@ -46,77 +45,108 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: 60% 18%;
-    filter: grayscale(1) contrast(1.12) brightness(0.92);
-}
-
-.bravais-poster-portrait::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    background: var(--bravais-poster-tone);
-    mix-blend-mode: color;
-    opacity: 0.78;
-}
-
-.bravais-poster-portrait::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    background-image:
-        radial-gradient(rgba(20, 18, 16, 0.55) 34%, transparent 38%),
-        linear-gradient(90deg, rgba(20, 18, 16, 0.72) 0%, rgba(20, 18, 16, 0.18) 58%, rgba(20, 18, 16, 0.5) 100%);
-    background-size: 7px 7px, auto;
-}
-
-.bravais-poster-block,
-.bravais-poster-block-print,
-.bravais-poster-hatch {
-    position: absolute;
-    inset: 0;
-}
-
-.bravais-poster-block {
-    background: var(--bravais-poster-paper);
-    clip-path: polygon(0 var(--bravais-poster-cut-left), 100% var(--bravais-poster-cut-right), 100% 100%, 0 100%);
-}
-
-/* 照片延伸到纸色色块下面只剩淡淡的网点印痕。 */
-.bravais-poster-block-print {
-    clip-path: polygon(0 var(--bravais-poster-cut-left), 100% var(--bravais-poster-cut-right), 100% 100%, 0 100%);
-    background-image: radial-gradient(var(--bravais-poster-ink) 34%, transparent 38%);
-    background-size: 7px 7px;
-    opacity: 0.12;
-    -webkit-mask-image: linear-gradient(180deg, #000, transparent 70%);
-    mask-image: linear-gradient(180deg, #000, transparent 70%);
-}
-
-.bravais-poster-hatch {
-    background-image: repeating-linear-gradient(-17deg, var(--bravais-poster-ink) 0 2px, transparent 2px 9px);
-    clip-path: polygon(
-        0 var(--bravais-poster-cut-left),
-        100% var(--bravais-poster-cut-right),
-        100% calc(var(--bravais-poster-cut-right) + 4%),
-        0 calc(var(--bravais-poster-cut-left) + 4%)
-    );
+    object-position: 60% 20%;
+    filter: grayscale(1) contrast(0.92) brightness(0.62) blur(1px);
     opacity: 0.9;
 }
 
-.bravais-poster-watermark {
+.bravais-poster-smoke {
     position: absolute;
-    left: -0.04em;
-    top: 9%;
-    font-size: min(200px, 22cqh);
-    font-weight: 800;
+    inset: 0;
+    background:
+        radial-gradient(rgba(255, 255, 255, 0.07) 0.8px, transparent 1.3px) 0 0 / 5px 5px,
+        radial-gradient(120% 70% at 72% 28%, rgba(255, 255, 255, 0.1), transparent 60%),
+        linear-gradient(90deg, rgba(36, 36, 40, 0.86) 0%, rgba(36, 36, 40, 0.35) 55%, rgba(36, 36, 40, 0.7) 100%),
+        linear-gradient(180deg, transparent 45%, rgba(30, 30, 34, 0.9) 100%);
+}
+
+/* 背景里描边的巨字（商籁背景里那种淡淡的大字轮廓）。 */
+.bravais-poster-giant {
+    position: absolute;
+    left: -0.06em;
+    top: 18%;
+    font-size: min(320px, 34cqh);
+    font-weight: 700;
     line-height: 1;
-    letter-spacing: -0.04em;
     white-space: nowrap;
     color: transparent;
-    -webkit-text-stroke: 2px rgba(239, 233, 220, 0.13);
-    text-transform: uppercase;
+    -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.1);
 }
+
+/* 参考线：两竖两横的发丝线，交点上的小菱形。 */
+.bravais-poster-guides i,
+.bravais-poster-guides b,
+.bravais-poster-frame i,
+.bravais-poster-frame b {
+    position: absolute;
+    display: block;
+}
+
+.bravais-poster-guides i { background: var(--bravais-poster-line-soft); }
+.bravais-poster-guides .is-v1 { left: 30%; top: 0; bottom: 0; width: 1px; }
+.bravais-poster-guides .is-v2 { left: 78%; top: 8%; bottom: 30%; width: 1px; }
+.bravais-poster-guides .is-h1 { left: 0; right: 0; top: 34%; height: 1px; }
+.bravais-poster-guides .is-h2 { left: 10%; right: 0; top: 62%; height: 1px; }
+.bravais-poster-guides b,
+.bravais-poster-frame b {
+    width: 7px;
+    height: 7px;
+    margin: -3px 0 0 -3px;
+    background: rgba(255, 255, 255, 0.55);
+    transform: rotate(45deg);
+}
+.bravais-poster-guides .is-d1 { left: 30%; top: 34%; }
+.bravais-poster-guides .is-d2 { left: 78%; top: 62%; }
+.bravais-poster-guides .is-d3 { left: 10%; top: 62%; }
+
+/* 画框：左上一短横 + 一条竖线，右上一个十字，右下竖线 + 短横 + 一条横线收在小菱形上，左下一个小菱形。 */
+.bravais-poster-frame i { background: var(--bravais-poster-line); }
+.bravais-poster-frame .is-tl-bar { left: 28px; top: 74px; width: 28px; height: 3px; background: rgba(255, 255, 255, 0.8); }
+.bravais-poster-frame .is-tl-line { left: 28px; top: 88px; width: 1px; height: 110px; }
+.bravais-poster-frame .is-tr-cross { right: 26px; top: 84px; width: 13px; height: 13px; background: none; }
+.bravais-poster-frame .is-tr-cross::before,
+.bravais-poster-frame .is-tr-cross::after { content: ""; position: absolute; background: var(--bravais-poster-line); }
+.bravais-poster-frame .is-tr-cross::before { left: 6px; top: 0; width: 1px; height: 13px; }
+.bravais-poster-frame .is-tr-cross::after { left: 0; top: 6px; width: 13px; height: 1px; }
+.bravais-poster-frame .is-br-line { right: 30px; bottom: 54px; width: 1px; height: 150px; }
+.bravais-poster-frame .is-br-bar { right: 28px; bottom: 30px; width: 3px; height: 16px; background: rgba(255, 255, 255, 0.8); }
+.bravais-poster-frame .is-br-rule { right: 44px; bottom: 36px; width: 140px; height: 1px; }
+.bravais-poster-frame .is-br-diamond { right: 40px; bottom: 33px; left: auto; top: auto; margin: 0; }
+.bravais-poster-frame .is-bl-diamond { left: 26px; bottom: 34px; top: auto; margin: 0; width: 6px; height: 6px; }
+
+/* 竖排的等宽 HUD 标签（贴左边缘，从下往上读）。 */
+.bravais-poster-hud {
+    position: absolute;
+    left: 6px;
+    bottom: 70px;
+    max-height: 60%;
+    overflow: hidden;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-family: var(--bravais-poster-mono);
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.34);
+}
+
+/* 轨道上的小点：一个圈套一个实心点，一条细弧拖在后面。 */
+.bravais-poster-orbit {
+    position: absolute;
+    right: 18%;
+    top: 22%;
+    width: 120px;
+    height: 120px;
+    border: 1px solid transparent;
+    border-top-color: rgba(255, 255, 255, 0.28);
+    border-right-color: rgba(255, 255, 255, 0.18);
+    border-radius: 50%;
+    transform: rotate(-20deg);
+}
+.bravais-poster-orbit i,
+.bravais-poster-orbit b { position: absolute; border-radius: 50%; }
+.bravais-poster-orbit i { right: -2px; top: 40px; width: 26px; height: 26px; border: 1.5px solid rgba(255, 255, 255, 0.6); }
+.bravais-poster-orbit b { right: 7px; top: 49px; width: 8px; height: 8px; background: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.8); }
 
 .bravais-poster-top {
     position: relative;
@@ -138,92 +168,89 @@
     align-items: center;
     gap: 8px;
     min-height: 36px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--bravais-poster-paper);
-    font: inherit;
-    font-size: 13px;
-    opacity: 0.85;
+    padding: 0 12px;
+    border: 1px solid var(--bravais-poster-line);
+    border-radius: 0;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--bravais-poster-ink);
+    font-size: 12px;
+    letter-spacing: 0.06em;
     cursor: pointer;
 }
 
 .bravais-poster .bravais-poster-filter:hover,
 .bravais-poster .bravais-poster-filter:focus-visible {
-    opacity: 1;
-    background: rgba(239, 233, 220, 0.1);
+    border-color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .bravais-poster .bravais-poster-filter svg {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
 }
 
-.bravais-poster-tag {
-    position: absolute;
+.bravais-poster-title {
+    position: relative;
     z-index: 2;
-    left: var(--bravais-poster-pad);
-    /* 贴在名字的左上方。 */
-    top: calc(var(--bravais-poster-cut-left) - var(--bravais-poster-name-size) * 0.86 - 40px);
-    padding: 6px 12px;
-    background: var(--bravais-poster-accent);
-    color: var(--bravais-poster-ink);
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.16em;
-    transform: rotate(-2deg);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    margin-top: auto;
+    padding: 0 var(--bravais-poster-pad);
 }
 
-/* 名字的底边落在斜边左端附近：跨过斜边的那一半翻色。 */
-.bravais-poster-name,
-.bravais-poster-echo {
+.bravais-poster-kicker {
+    font-family: var(--bravais-poster-mono);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* 选中框：虚线边，四角朝外的小箭头。 */
+.bravais-poster-select {
+    position: relative;
+    max-width: 100%;
+    padding: 6px 20px 10px;
+    border: 1px dashed rgba(255, 255, 255, 0.42);
+}
+
+.bravais-poster-select > i {
     position: absolute;
-    left: calc(var(--bravais-poster-pad) - 0.04em);
-    right: var(--bravais-poster-pad);
-    top: calc(var(--bravais-poster-cut-left) - var(--bravais-poster-name-size) * 0.86);
-    margin: 0;
-    font-size: var(--bravais-poster-name-size);
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: -0.02em;
-    white-space: nowrap;
-    overflow: visible;
-    pointer-events: none;
+    width: 9px;
+    height: 9px;
+    border: solid rgba(255, 255, 255, 0.6);
+    border-width: 0;
 }
-
-.bravais-poster-echo {
-    z-index: 1;
-    color: var(--bravais-poster-paper);
-    opacity: 0.08;
-    transform: translate(-0.05em, -0.03em);
-}
+.bravais-poster-select > .is-tl { left: -12px; top: -12px; border-top-width: 1.5px; border-left-width: 1.5px; }
+.bravais-poster-select > .is-tr { right: -12px; top: -12px; border-top-width: 1.5px; border-right-width: 1.5px; }
+.bravais-poster-select > .is-bl { left: -12px; bottom: -12px; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+.bravais-poster-select > .is-br { right: -12px; bottom: -12px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
 
 .bravais-poster-name {
-    z-index: 3;
+    margin: 0;
+    font-size: var(--bravais-poster-name-size);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
     color: #fff;
-    mix-blend-mode: difference;
+    /* 商籁的发光字：柔光 + 一点红青色差。 */
+    text-shadow:
+        -1.5px 0 0 rgba(255, 70, 110, 0.55),
+        1.5px 0 0 rgba(70, 220, 255, 0.55),
+        0 0 18px rgba(255, 255, 255, 0.55),
+        0 0 48px rgba(255, 255, 255, 0.25);
 }
 
 .bravais-poster-bottom {
-    position: absolute;
+    position: relative;
     z-index: 2;
-    left: var(--bravais-poster-pad);
-    right: var(--bravais-poster-pad);
-    bottom: 0;
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding-bottom: 28px;
-    color: var(--bravais-poster-ink);
-}
-
-/* 底部是纸色：缝里复用的控件（关于、状态行、补页进度）在这里用墨色。 */
-.bravais-poster-bottom {
-    --text-primary: var(--bravais-poster-ink);
-    --text-secondary: rgba(20, 18, 16, 0.7);
-    --bravais-seam-ink-soft: rgba(20, 18, 16, 0.62);
-    --bravais-blurb-lines: 2;
+    margin-top: 28px;
+    padding: 0 var(--bravais-poster-pad) 36px;
 }
 
 .bravais-poster-bottom .bravais-seam-about {
@@ -231,71 +258,71 @@
 }
 
 .bravais-poster-meta {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    font-variant-numeric: tabular-nums;
+    font-family: var(--bravais-poster-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .bravais-poster .bravais-poster-songs {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0;
     margin: 0;
-    padding: 0;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--bravais-poster-line-soft);
     list-style: none;
 }
 
 .bravais-poster .bravais-poster-song {
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 14px;
     max-width: 100%;
     min-height: 40px;
     padding: 2px 8px 2px 0;
     border: 0;
     background: transparent;
-    color: var(--bravais-poster-ink);
-    font: inherit;
-    font-weight: 900;
+    color: rgba(255, 255, 255, 0.82);
     text-align: left;
     cursor: pointer;
 }
 
 .bravais-poster .bravais-poster-song:disabled {
     cursor: default;
-    opacity: 0.45;
+    opacity: 0.4;
 }
 
 .bravais-poster .bravais-poster-song-index {
     flex: none;
-    font-size: 12px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
+    font-family: var(--bravais-poster-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.45);
 }
 
 .bravais-poster .bravais-poster-song-title {
     min-width: 0;
     overflow: hidden;
-    font-size: 19px;
-    line-height: 1.25;
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.3;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 
 .bravais-poster .bravais-poster-song-title .is-hero {
-    font-size: 1.55em;
-}
-
-.bravais-poster .bravais-poster-songs li:first-child .is-hero {
-    color: var(--bravais-poster-accent);
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
 }
 
 .bravais-poster .bravais-poster-song:not(:disabled):hover .bravais-poster-song-title,
 .bravais-poster .bravais-poster-song:focus-visible .bravais-poster-song-title {
-    text-decoration: underline;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 5px;
+    color: #fff;
+    text-decoration: underline dashed rgba(255, 255, 255, 0.5);
+    text-underline-offset: 6px;
 }
 
 .bravais-poster-actions {
@@ -303,54 +330,57 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
-    margin-top: 6px;
-    /* ⋯ 更多 是复用的缝控件，在纸色上用墨色。 */
-    --text-primary: var(--bravais-poster-ink);
-    --text-secondary: rgba(20, 18, 16, 0.7);
+    margin-top: 4px;
 }
 
 .bravais-poster .bravais-poster-button {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    min-height: 48px;
-    padding: 0 20px;
-    border: 2px solid var(--bravais-poster-ink);
+    min-height: 44px;
+    padding: 0 18px;
+    border: 1px solid var(--bravais-poster-line);
     border-radius: 0;
-    background: var(--bravais-poster-paper);
+    background: rgba(255, 255, 255, 0.04);
     color: var(--bravais-poster-ink);
-    font: inherit;
-    font-size: 15px;
-    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.04em;
     cursor: pointer;
 }
 
 .bravais-poster .bravais-poster-button.is-primary {
-    background: var(--bravais-poster-accent);
-    font-weight: 900;
-    box-shadow: 6px 6px 0 var(--bravais-poster-ink);
+    border-color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.92);
+    color: #1d1d21;
+    font-weight: 600;
+    box-shadow: 0 0 22px rgba(255, 255, 255, 0.22);
+}
+
+.bravais-poster .bravais-poster-button:not(.is-primary):hover {
+    border-color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .bravais-poster .bravais-poster-button svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
 }
 
 .bravais-poster .bravais-poster-button:focus-visible,
 .bravais-poster .bravais-poster-song:focus-visible,
 .bravais-poster .bravais-poster-filter:focus-visible {
-    outline: 2px solid var(--bravais-poster-accent);
-    outline-offset: 3px;
+    outline: 1px dashed rgba(255, 255, 255, 0.8);
+    outline-offset: 4px;
 }
 
 /* 海报钉在左边：缝的材质（预设、透明缝的半透明纸条）、叠色与熄灯都不作用到它。 */
-/* 缝的内容层在播放条安全区之上结束：安全区那一段露出的是缝自己的底，和海报下半的纸色接上。 */
+/* 缝的内容层在播放条安全区之上结束：安全区那一段露出的是缝自己的底，和海报的底色接上。 */
 .bravais-seam[data-bravais-seam="poster"] {
-    background: #efe9dc;
+    background: #2a2a2e;
     box-shadow: none;
 }
 
-/* 海报右缘外的墨色渐隐（设计稿里海报与倾斜的墙之间那一道）：盖在墙上、缝下面，不接指针。
+/* 海报右缘外的渐隐（设计稿里海报与倾斜的墙之间那一道）：盖在墙上、缝下面，不接指针。
  * 位置（translateX = 海报宽度）与透明度由 stage 每帧写。 */
 .bravais-poster-fade {
     position: absolute;
@@ -360,5 +390,40 @@
     z-index: 4;
     width: 240px;
     pointer-events: none;
-    background: linear-gradient(90deg, #141210 0%, rgba(20, 18, 16, 0.88) 22%, rgba(20, 18, 16, 0.45) 58%, rgba(20, 18, 16, 0) 100%);
+    background: linear-gradient(90deg, #2a2a2e 0%, rgba(42, 42, 46, 0.88) 22%, rgba(42, 42, 46, 0.45) 58%, rgba(42, 42, 46, 0) 100%);
+}
+
+/* 歌手海报旁的墙（根节点 has-poster-wall）：磁贴像一张张贴上去的海报。
+ * - 每张往里收 --bravais-poster-wall-inset，相邻两张之间的缝从 8 拉到 8 + 2×inset（世界单位）；
+ * - 封面保持正方形：宽的磁贴封面靠左、边长等于高，余下的一段是墨色标签、标题在里面；高的磁贴封面在上、标题在下；
+ * - 聚焦卡（is-expanded）不变。墙的排布（block 模板、rank、聚焦卡让位）一概不动，只换画法。 */
+.bravais-root.has-poster-wall {
+    --bravais-poster-wall-inset: 10px;
+}
+
+.bravais-root.has-poster-wall .bravais-tile-face:not(.is-expanded) {
+    inset: var(--bravais-poster-wall-inset);
+}
+
+.bravais-root.has-poster-wall .bravais-tile[data-bravais-shape="wide"] > .bravais-tile-face:not(.is-expanded):not(.is-wall):not(.is-window) {
+    background-color: #1a1815;
+    background-size: auto 100%;
+    background-position: left center;
+    background-repeat: no-repeat;
+}
+
+.bravais-root.has-poster-wall .bravais-tile[data-bravais-shape="wide"] > .bravais-tile-face:not(.is-expanded) .lattice-poster-copy {
+    left: calc(var(--bravais-tile-h) - 2 * var(--bravais-poster-wall-inset) + 18px);
+}
+
+/* 标签那一段比整张窄：标题按标签的宽度收字号（WallTitle 按整张的宽度算的字号在这里会挤成一字一行）。 */
+.bravais-root.has-poster-wall .bravais-tile[data-bravais-shape="wide"] > .bravais-tile-face:not(.is-expanded) .lattice-poster-copy strong {
+    font-size: clamp(14px, calc((var(--bravais-tile-w) - var(--bravais-tile-h)) * 0.13), 34px);
+}
+
+.bravais-root.has-poster-wall .bravais-tile[data-bravais-shape="tall"] > .bravais-tile-face:not(.is-expanded):not(.is-wall):not(.is-window) {
+    background-color: #1a1815;
+    background-size: 100% auto;
+    background-position: center top;
+    background-repeat: no-repeat;
 }

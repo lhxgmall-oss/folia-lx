@@ -9,18 +9,17 @@ import BravaisSeamAbout from './BravaisSeamAbout';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import { openBravaisFilter } from './useBravaisSeamFilter';
-import { useBravaisArtistTone } from './bravaisArtistTone';
 import './bravaisPoster.css';
 
 // src/library/suites/bravais/BravaisSeamPoster.tsx
 // 歌手页的海报（完整等级下的歌手页缝，钉在视口左边，见 bravaisSeamTarget 的 'poster' 与 bravaisFrame 的 pinned）：
-// 凝彩（Tempera）的版式语汇搬到缝里——定妆照垫底（去色、按头像取色染成双色调、盖一层网点），一块斜切的纸色色块，
-// 歌手名超大、放在反色层上（跨过色块的那一半自动翻色），描边水印，热门歌曲前三首（每首的标题里最长的那个词放大）。
+// 用商籁（Sonnet）的视觉语言——炭灰单色底，定妆照去色压暗、盖一层网点，像商籁的烟雾背景；发丝线画框（角标、竖线、
+// 十字、小菱形）与参考线，竖排的等宽 HUD 标签，背景里描边的巨字；歌手名是发光的白字（带一点红青色差），套在虚线的
+// 选中框里（四角朝外的箭头）；热门歌曲前三首（每首的标题里最长的那个词放大发光）。
 // 缝里原有的功能都还在：返回与面包屑、过滤专辑（点了缝临时展开成完整信息条，与书脊上的过滤图标同一条路）、
 // 播放热门 / 加入队列、「⋯ 更多」（列表面板、折叠、本地歌手的编辑），以及「关于艺术家」（简介两行截断、统计附注）、
 // 专辑补页进度、加载失败与重试这些状态行（与完整信息条同一套组件）。
-// 底色、纸色、墨色是海报自己的（不跟缝的材质预设、透明缝、叠色与熄灯走）：反色层只有在已知的不透明底上才可读。
-// 混合层（反色标题、染色人像、网点）都是静态的，没有逐帧变化。
+// 底色是海报自己的（不跟缝的材质预设、透明缝、叠色与熄灯走）；画框与参考线都是静态的，没有逐帧动画。
 
 const TOP_SONG_COUNT = 3;
 
@@ -69,35 +68,41 @@ const PosterSong: React.FC<{ item: BravaisItem; index: number; onPlay?: (key: st
     );
 };
 
+/** 竖排 HUD 标签里的名字：大写、空白换成连字符（商籁画框上的「[ THEME ] MIDNIGHT-DEFAULT」那一种）。 */
+const hudName = (name: string) => name.trim().toUpperCase().replace(/\s+/g, '-');
+
 const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> = ({ layer, actions }) => {
     const { t } = useTranslation();
     const { seam } = layer;
     const artist = seam.artist;
     const name = seam.title;
     const coverUrl = artist?.coverUrl;
-    // 双色调的亮端取自头像（与墙上的歌手磁贴同一份取色与缓存）；取不到就用主题强调色。
-    const tone = useBravaisArtistTone(coverUrl, Boolean(coverUrl));
     const topSongs = useMemo(
         () => layer.items.filter(item => item.kind === 'track').slice(0, TOP_SONG_COUNT),
         [layer.items],
     );
     const fold = useMemo(() => ({ label: t('libraryBravais.seamFoldStrip'), run: () => actions.setLevel('hidden') }), [actions, t]);
-    const style = {
-        '--bravais-poster-name-columns': nameColumns(name),
-        ...(typeof tone === 'string' ? { '--bravais-poster-tone': tone } : null),
-    } as React.CSSProperties;
+    const style = { '--bravais-poster-name-columns': nameColumns(name) } as React.CSSProperties;
     return (
         <section className="bravais-poster" style={style} aria-label={t('libraryBravaisArtist.posterLabel')} data-bravais-poster>
             <div className="bravais-poster-ground" aria-hidden>
-                {coverUrl && tone !== false && (
+                {coverUrl && (
                     <div className="bravais-poster-portrait" data-bravais-poster-portrait>
                         <img src={getSizedCoverUrl(coverUrl, 1024)} alt="" draggable={false} decoding="async" />
                     </div>
                 )}
-                <div className="bravais-poster-block" />
-                <div className="bravais-poster-block-print" />
-                <div className="bravais-poster-hatch" />
-                <div className="bravais-poster-watermark">{name}</div>
+                <div className="bravais-poster-smoke" />
+                <div className="bravais-poster-giant">{name}</div>
+                <div className="bravais-poster-guides">
+                    <i className="is-v1" /><i className="is-v2" /><i className="is-h1" /><i className="is-h2" />
+                    <b className="is-d1" /><b className="is-d2" /><b className="is-d3" />
+                </div>
+                <div className="bravais-poster-frame">
+                    <i className="is-tl-bar" /><i className="is-tl-line" /><i className="is-tr-cross" />
+                    <i className="is-br-line" /><i className="is-br-bar" /><i className="is-br-rule" /><b className="is-br-diamond" /><b className="is-bl-diamond" />
+                </div>
+                <div className="bravais-poster-hud">[ ARTIST ] {hudName(name)}</div>
+                <div className="bravais-poster-orbit"><i /><b /></div>
             </div>
 
             <div className="bravais-poster-top">
@@ -118,10 +123,14 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
                 )}
             </div>
 
-            <div className="bravais-poster-tag">{t('libraryBravais.kind.artist')}</div>
-            {/* 名字的残影在反色层之下（不翻色），名字本身在反色层上。 */}
-            <div className="bravais-poster-echo" aria-hidden>{name}</div>
-            <h2 className="bravais-poster-name" data-bravais-poster-name data-bravais-seam-title>{name}</h2>
+            <div className="bravais-poster-title">
+                <div className="bravais-poster-kicker">{t('libraryBravais.kind.artist')}<span aria-hidden> · ARTIST</span></div>
+                {/* 商籁的选中框：虚线框、四角朝外的箭头，名字发光（带一点红青色差）。 */}
+                <div className="bravais-poster-select">
+                    <i className="is-tl" aria-hidden /><i className="is-tr" aria-hidden /><i className="is-bl" aria-hidden /><i className="is-br" aria-hidden />
+                    <h2 className="bravais-poster-name" data-bravais-poster-name data-bravais-seam-title>{name}</h2>
+                </div>
+            </div>
 
             <div className="bravais-poster-bottom">
                 {/* 统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}

@@ -280,13 +280,18 @@ function BravaisTile({
         height: rect.height,
         '--bravais-pop-x': ((rect.width + BRAVAIS_METRICS.gap * 2) / Math.max(rect.width, 1)).toFixed(4),
         '--bravais-pop-y': ((rect.height + BRAVAIS_METRICS.gap * 2) / Math.max(rect.height, 1)).toFixed(4),
+        // 歌手海报旁的墙（has-poster-wall）按外框尺寸把封面排成正方形、标题放进余下的那一段。
+        '--bravais-tile-w': `${rect.width}px`,
+        '--bravais-tile-h': `${rect.height}px`,
     } as React.CSSProperties;
+    const shape = rect.width > rect.height * 1.15 ? 'wide' : rect.height > rect.width * 1.15 ? 'tall' : 'square';
 
     return (
         <div
             className={`bravais-tile${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}`}
             style={style}
             data-bravais-slot={slotKey}
+            data-bravais-shape={shape}
             data-bravais-kind={isWindow ? 'window' : display?.kind ?? 'wall'}
             data-bravais-see-through={face.seeThrough || undefined}
             data-library-entry={isTrack ? display?.key : undefined}
