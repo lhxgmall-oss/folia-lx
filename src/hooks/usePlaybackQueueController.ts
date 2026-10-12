@@ -7,6 +7,7 @@ import { getSongResourceCacheKey } from '../services/onlineMusic/resourceKeys';
 import { omni } from '../services/onlineMusic/omni';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../services/onlineMusic/resourceCache';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs, refreshPrefetchAfterQueueEdit } from '../services/prefetchService';
+import { getLocalSong } from '../services/db';
 import { retireBlobUrl } from '../services/playbackBlobUrls';
 import type { ThemeCacheSongKey } from '../services/themeCache';
 import { loadOnlineLyricsState } from '../utils/onlineLyricsState';
@@ -583,7 +584,12 @@ export function usePlaybackQueueController({
         }
 
         if (isLocal) {
-            const localData = localSongs.find(ls => ls.id === song.localRef.songId) ?? null;
+            // 从库里按 id 取这一首的最新记录，而不是只信 localSongs 状态：邻近预热、匹配写回都先落库，
+            // 状态里的对象可能还是旧快照，拿旧快照会在出声前重新提取封面、出声后重新联网匹配。读不到时退回状态里的记录。
+            const localData = (await getLocalSong(song.localRef.songId))
+                ?? localSongs.find(ls => ls.id === song.localRef.songId)
+                ?? null;
+            if (!isLatestPlaybackRequest()) return;
 
             if (!localData) {
                 restoreFmModeIfNotLanded();
