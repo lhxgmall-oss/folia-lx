@@ -99,20 +99,24 @@ describe('frameRateLimiter', () => {
         }
     });
 
-    it('lets an earlier callback cancel a renderer queued in the same frame', () => {
-        let nativeCallback: FrameRequestCallback | undefined;
-        const limiter = createFrameRateLimitedRaf(callback => { nativeCallback = callback; return 1; }, () => undefined);
+    it('lets an earlier callback cancel a self-scheduling callback in the same frame', () => {
+        const nativeCallbacks: FrameRequestCallback[] = [];
+        const limiter = createFrameRateLimitedRaf(callback => {
+            nativeCallbacks.push(callback);
+            return nativeCallbacks.length;
+        }, () => undefined);
         const processed: string[] = [];
         limiter.requestAnimationFrame(() => {
-            processed.push('unmount');
+            processed.push('cancel');
             limiter.cancelAnimationFrame(rendererHandle);
         });
         const rendererHandle = limiter.requestAnimationFrame(() => {
             processed.push('renderer');
             limiter.requestAnimationFrame(() => processed.push('orphan'));
         });
-        nativeCallback?.(1000);
-        expect(processed).toEqual(['unmount']);
+        nativeCallbacks[0](1000);
+        expect(processed).toEqual(['cancel']);
+        expect(nativeCallbacks).toHaveLength(1);
     });
 
     it('cancels the native frame when the last queued callback is removed', () => {

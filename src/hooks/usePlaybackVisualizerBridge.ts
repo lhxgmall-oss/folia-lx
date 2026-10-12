@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
-import { createActiveLineLookup } from '../utils/lyrics/activeLineLookup';
+import { findLatestActiveLineIndex } from '../utils/appPlaybackHelpers';
 import { PlayerState } from '../types';
 import type { AudioBands, LyricData } from '../types';
 import { setCurrentLineIndex, setPlayerState } from '../stores/usePlaybackStore';
@@ -9,8 +9,6 @@ import { selectDisplayLyrics, usePlaybackStore } from '../stores/usePlaybackStor
 import { audioBands, audioPower, currentTime, lyricCurrentTime } from '../stores/motionSignals';
 
 // src/hooks/usePlaybackVisualizerBridge.ts
-
-const EMPTY_SPECTRUM = new Uint8Array(0);
 
 type UsePlaybackVisualizerBridgeParams = {
 
@@ -75,9 +73,6 @@ export function usePlaybackVisualizerBridge({
     const lyrics = usePlaybackStore(selectDisplayLyrics);
 
     const currentLineIndexRef = useRef(-1);
-    const findActiveLine = useMemo(() => createActiveLineLookup(lyrics?.lines ?? []), [lyrics?.lines]);
-    const spectrumBuffersRef = useRef<[Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>] | null>(null);
-    const spectrumBufferIndexRef = useRef(0);
 
     const updateLoop = useCallback(() => {
         // Normally the active deck; the outgoing one for as long as a blend holds the picture on
@@ -91,13 +86,7 @@ export function usePlaybackVisualizerBridge({
 
         if (hasAudibleSignal && analyserRef.current) {
             const bufferLength = analyserRef.current.frequencyBinCount;
-            if (spectrumBuffersRef.current?.[0].length !== bufferLength) {
-                spectrumBuffersRef.current = [new Uint8Array(bufferLength), new Uint8Array(bufferLength)];
-                spectrumBufferIndexRef.current = 0;
-            }
-            // Alternate buffers so MotionValue still publishes a change; never mutate its current frame.
-            const dataArray = spectrumBuffersRef.current[spectrumBufferIndexRef.current];
-            spectrumBufferIndexRef.current = 1 - spectrumBufferIndexRef.current;
+            const dataArray = new Uint8Array(bufferLength);
             analyserRef.current.getByteFrequencyData(dataArray);
             audioBands.spectrum?.set(dataArray);
 
@@ -138,7 +127,7 @@ export function usePlaybackVisualizerBridge({
             audioBands.mid.set(breath);
             audioBands.vocal.set(breath);
             audioBands.treble.set(breath);
-            audioBands.spectrum?.set(EMPTY_SPECTRUM);
+            audioBands.spectrum?.set(new Uint8Array(0));
         }
 
         if (isActuallyPlaying && audioElement) {
@@ -149,7 +138,7 @@ export function usePlaybackVisualizerBridge({
             lyricCurrentTime.set(effectiveLyricTime);
 
             if (lyrics) {
-                const foundIndex = findActiveLine(effectiveLyricTime);
+                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
                 if (foundIndex !== currentLineIndexRef.current) {
                     currentLineIndexRef.current = foundIndex;
                     setCurrentLineIndex(foundIndex);
@@ -165,7 +154,7 @@ export function usePlaybackVisualizerBridge({
             lyricCurrentTime.set(effectiveLyricTime);
 
             if (lyrics) {
-                const foundIndex = findActiveLine(effectiveLyricTime);
+                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
                 if (foundIndex !== currentLineIndexRef.current) {
                     currentLineIndexRef.current = foundIndex;
                     setCurrentLineIndex(foundIndex);
@@ -180,7 +169,7 @@ export function usePlaybackVisualizerBridge({
                     syncNowPlayingClock(0, duration, false);
                     currentTime.set(0);
                     if (lyrics) {
-                        const restartedLineIndex = findActiveLine(0);
+                        const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, 0);
                         if (restartedLineIndex !== currentLineIndexRef.current) {
                             currentLineIndexRef.current = restartedLineIndex;
                             setCurrentLineIndex(restartedLineIndex);
@@ -200,7 +189,7 @@ export function usePlaybackVisualizerBridge({
             lyricCurrentTime.set(effectiveLyricTime);
 
             if (lyrics) {
-                const foundIndex = findActiveLine(effectiveLyricTime);
+                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
                 if (foundIndex !== currentLineIndexRef.current) {
                     currentLineIndexRef.current = foundIndex;
                     setCurrentLineIndex(foundIndex);
@@ -216,7 +205,7 @@ export function usePlaybackVisualizerBridge({
 
             currentTime.set(nextTime);
 
-            const foundIndex = findActiveLine(nextTime);
+            const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
             if (foundIndex !== currentLineIndexRef.current) {
                 currentLineIndexRef.current = foundIndex;
                 setCurrentLineIndex(foundIndex);
@@ -226,7 +215,7 @@ export function usePlaybackVisualizerBridge({
                 if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
                     syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
                     currentTime.set(clock.startTimeSec);
-                    const restartedLineIndex = findActiveLine(clock.startTimeSec);
+                    const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec);
                     if (restartedLineIndex !== currentLineIndexRef.current) {
                         currentLineIndexRef.current = restartedLineIndex;
                         setCurrentLineIndex(restartedLineIndex);
@@ -255,7 +244,6 @@ export function usePlaybackVisualizerBridge({
         isNowPlayingStageActive,
         isPlayerCapStageActive,
         lyrics,
-        findActiveLine,
         playerState,
         setCurrentLineIndex,
         setPlayerState,

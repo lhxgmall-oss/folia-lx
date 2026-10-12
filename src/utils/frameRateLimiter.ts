@@ -92,7 +92,7 @@ export const createFrameRateLimitedRaf = (
         const frameHandles = Array.from(callbacks.keys());
 
         for (const handle of frameHandles) {
-            // Another callback in this frame may have unmounted and cancelled this renderer.
+            // Match native RAF: an earlier callback may cancel a later one in the same frame.
             const callback = callbacks.get(handle);
             if (!callback) continue;
             callbacks.delete(handle);
