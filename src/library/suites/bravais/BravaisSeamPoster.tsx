@@ -9,17 +9,19 @@ import BravaisSeamAbout from './BravaisSeamAbout';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import { openBravaisFilter } from './useBravaisSeamFilter';
+import { posterShapeClipPath, resolvePosterComposition } from './bravaisPosterComposition';
 import './bravaisPoster.css';
 
 // src/library/suites/bravais/BravaisSeamPoster.tsx
 // 歌手页的海报（完整等级下的歌手页缝，钉在视口左边，见 bravaisSeamTarget 的 'poster' 与 bravaisFrame 的 pinned）：
-// 用商籁（Sonnet）的视觉语言——炭灰单色底，定妆照去色压暗、盖一层网点，像商籁的烟雾背景；发丝线画框（角标、竖线、
-// 十字、小菱形）与参考线，竖排的等宽 HUD 标签，背景里描边的巨字；歌手名是发光的白字（带一点红青色差），套在虚线的
-// 选中框里（四角朝外的箭头）；热门歌曲前三首（每首的标题里最长的那个词放大发光）。
+// 用凝彩（Tempera）的视觉语言，构图按歌手定死、每个歌手一幅（bravaisPosterComposition）——灰色的胶片颗粒纸底、四周压暗；定妆照去色、套在一块大的斜切色块里（白色发丝描边 + 错开的
+// 虚影，块里盖网点），像凝彩里装着画面的几何形；斜穿整幅的贯穿线、四角的取景角标、斜线填充的小方块、「· · ·」，散落的
+// 灰色碎字（取自热门歌名里放大的那个词）；歌手名是超粗的黑体、白到灰的渐变，后面拖着错开的立体残影，旁边一个小词
+// （「歌手」）与它错落排在一起；热门歌曲前三首（每首的标题里最长的那个词放大、带同样的残影）。
 // 缝里原有的功能都还在：返回与面包屑、过滤专辑（点了缝临时展开成完整信息条，与书脊上的过滤图标同一条路）、
 // 播放热门 / 加入队列、「⋯ 更多」（列表面板、折叠、本地歌手的编辑），以及「关于艺术家」（简介两行截断、统计附注）、
 // 专辑补页进度、加载失败与重试这些状态行（与完整信息条同一套组件）。
-// 底色是海报自己的（不跟缝的材质预设、透明缝、叠色与熄灯走）；画框与参考线都是静态的，没有逐帧动画。
+// 底色是海报自己的（不跟缝的材质预设、透明缝、叠色与熄灯走）；画面全是静态的，没有逐帧动画。
 
 const TOP_SONG_COUNT = 3;
 
@@ -68,8 +70,11 @@ const PosterSong: React.FC<{ item: BravaisItem; index: number; onPlay?: (key: st
     );
 };
 
-/** 竖排 HUD 标签里的名字：大写、空白换成连字符（商籁画框上的「[ THEME ] MIDNIGHT-DEFAULT」那一种）。 */
-const hudName = (name: string) => name.trim().toUpperCase().replace(/\s+/g, '-');
+/** 碎字：热门歌名里放大的那个词（没有就取整个歌名的前两个字），最多三个，散在海报上。 */
+const scrapWords = (items: readonly BravaisItem[]) => items.map(item => {
+    const hero = splitHeroWord(item.title).find(part => part.hero)?.text;
+    return hero ?? [...item.title.trim()].slice(0, 2).join('');
+}).filter(Boolean).slice(0, 3);
 
 const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> = ({ layer, actions }) => {
     const { t } = useTranslation();
@@ -81,28 +86,51 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
         () => layer.items.filter(item => item.kind === 'track').slice(0, TOP_SONG_COUNT),
         [layer.items],
     );
+    const scraps = useMemo(() => scrapWords(topSongs), [topSongs]);
+    // 构图按层的 key（含歌手 id）定死：同一个歌手每次都是同一幅（bravaisPosterComposition）。
+    const composition = useMemo(() => resolvePosterComposition(layer.key), [layer.key]);
+    const clipPath = posterShapeClipPath(composition.shape);
     const fold = useMemo(() => ({ label: t('libraryBravais.seamFoldStrip'), run: () => actions.setLevel('hidden') }), [actions, t]);
     const style = { '--bravais-poster-name-columns': nameColumns(name) } as React.CSSProperties;
     return (
         <section className="bravais-poster" style={style} aria-label={t('libraryBravaisArtist.posterLabel')} data-bravais-poster>
             <div className="bravais-poster-ground" aria-hidden>
-                {coverUrl && (
-                    <div className="bravais-poster-portrait" data-bravais-poster-portrait>
-                        <img src={getSizedCoverUrl(coverUrl, 1024)} alt="" draggable={false} decoding="async" />
-                    </div>
+                {/* 装着定妆照的斜切色块：先画错开的虚影，再画块本身（照片 + 网点 + 白色描边）。 */}
+                <div className="bravais-poster-shape-ghost" style={{ clipPath, transform: `translate(${composition.ghost.x}px, ${composition.ghost.y}px)` }} />
+                <div className="bravais-poster-shape" style={{ clipPath }}>
+                    {coverUrl && (
+                        <div className="bravais-poster-portrait" data-bravais-poster-portrait>
+                            <img src={getSizedCoverUrl(coverUrl, 1024)} alt="" draggable={false} decoding="async" />
+                        </div>
+                    )}
+                </div>
+                {composition.shape.kind === 'polygon' ? (
+                    <svg className="bravais-poster-shape-edge" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polygon points={composition.shape.points.map(([x, y]) => `${x},${y}`).join(' ')} />
+                    </svg>
+                ) : (
+                    <div className="bravais-poster-shape-ring" style={{ left: `${composition.shape.cx}%`, top: `${composition.shape.cy}%` }} />
                 )}
-                <div className="bravais-poster-smoke" />
-                <div className="bravais-poster-giant">{name}</div>
-                <div className="bravais-poster-guides">
-                    <i className="is-v1" /><i className="is-v2" /><i className="is-h1" /><i className="is-h2" />
-                    <b className="is-d1" /><b className="is-d2" /><b className="is-d3" />
-                </div>
-                <div className="bravais-poster-frame">
-                    <i className="is-tl-bar" /><i className="is-tl-line" /><i className="is-tr-cross" />
-                    <i className="is-br-line" /><i className="is-br-bar" /><i className="is-br-rule" /><b className="is-br-diamond" /><b className="is-bl-diamond" />
-                </div>
-                <div className="bravais-poster-hud">[ ARTIST ] {hudName(name)}</div>
-                <div className="bravais-poster-orbit"><i /><b /></div>
+                <div className="bravais-poster-grain" />
+                {composition.through.map((line, index) => (
+                    <i key={index} className={`bravais-poster-through is-${index}`} style={{ top: `${line.y}%`, transform: `rotate(${line.deg}deg)` }} />
+                ))}
+                <div className="bravais-poster-corners"><i className="is-tl" /><i className="is-tr" /><i className="is-bl" /><i className="is-br" /></div>
+                <div className="bravais-poster-finder"><i className="is-l" /><i className="is-r" /></div>
+                <div className="bravais-poster-hatch" data-side={composition.hatch.side} style={{ top: `${composition.hatch.y}%` }}><i /><i /></div>
+                <div className="bravais-poster-dots" style={{ left: `${composition.dots.x}%`, top: `${composition.dots.y}%` }}>· · ·</div>
+                {scraps.map((word, index) => {
+                    const scrap = composition.scraps[index];
+                    return (
+                        <span key={index} className="bravais-poster-scrap" style={{
+                            left: `${scrap.x}%`,
+                            top: `${scrap.y}%`,
+                            fontSize: `min(${Math.round(scrap.size * 8.75)}px, ${scrap.size.toFixed(2)}cqh)`,
+                            transform: `rotate(${scrap.deg.toFixed(1)}deg)`,
+                            opacity: scrap.opacity,
+                        }}>{word}</span>
+                    );
+                })}
             </div>
 
             <div className="bravais-poster-top">
@@ -124,12 +152,9 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
             </div>
 
             <div className="bravais-poster-title">
-                <div className="bravais-poster-kicker">{t('libraryBravais.kind.artist')}<span aria-hidden> · ARTIST</span></div>
-                {/* 商籁的选中框：虚线框、四角朝外的箭头，名字发光（带一点红青色差）。 */}
-                <div className="bravais-poster-select">
-                    <i className="is-tl" aria-hidden /><i className="is-tr" aria-hidden /><i className="is-bl" aria-hidden /><i className="is-br" aria-hidden />
-                    <h2 className="bravais-poster-name" data-bravais-poster-name data-bravais-seam-title>{name}</h2>
-                </div>
+                {/* 小词与大字错落排在一起（凝彩一行里一个放大的 hero 词、其余压小）。 */}
+                <span className="bravais-poster-kicker" aria-hidden>{t('libraryBravais.kind.artist')}</span>
+                <h2 className="bravais-poster-name" data-bravais-poster-name data-bravais-seam-title data-text={name}>{name}</h2>
             </div>
 
             <div className="bravais-poster-bottom">

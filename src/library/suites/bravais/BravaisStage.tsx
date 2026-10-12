@@ -28,6 +28,7 @@ import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisReflowDriver } from './useBravaisReflowDriver';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
 import { useBravaisPosterTilt } from './useBravaisPosterTilt';
+import { posterPaletteVars, resolvePosterPaletteSources, useBravaisPosterPalette } from './bravaisPosterPalette';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
 import { closeCommandFilter } from '../../../stores/useAppViewStore';
@@ -422,6 +423,11 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
 
     // 信息条的预设（§5「缝的材质」）：主题纸色以外的预设把材质写成根节点上的自定义属性；透明的缝不写（预设不生效）。
     const seamStyleVars = useMemo(() => (seamLook.seamStyle ? libraryWallSeamStyleVars(seamLook.seamStyle) : null), [seamLook.seamStyle]);
+    // 歌手海报与旁边那面墙共用一套颜色：从这位歌手最火的三张专辑封面取（bravaisPosterPalette）。
+    const posterActive = seamTarget.variant === 'poster';
+    const posterSources = useMemo(() => (posterActive && layer ? resolvePosterPaletteSources(layer.items) : []), [layer, posterActive]);
+    const posterPalette = useBravaisPosterPalette(posterSources, posterActive && posterSources.length > 0);
+    const posterVars = useMemo(() => (posterActive ? posterPaletteVars(posterPalette) : {}), [posterActive, posterPalette]);
 
     const rootClassName = [
         'lattice-root',
@@ -455,6 +461,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
                 '--bravais-focus-reveal-duration': `${WALL_REFLOW_CONTROLS_REVEAL.durationMs}ms`,
                 '--bravais-focus-reveal-rise': `${WALL_REFLOW_CONTROLS_REVEAL.risePx}px`,
                 ...seamStyleVars,
+                ...posterVars,
             } as CSSProperties}
             data-library-stage="bravais"
             data-bravais-layer={display?.layer.key}
