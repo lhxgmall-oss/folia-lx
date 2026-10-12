@@ -16,6 +16,7 @@ import {
     type BravaisSeamTargetInput,
 } from '@/library/suites/bravais/bravaisSeamTarget';
 import { splitHeroWord } from '@/library/suites/bravais/BravaisSeamPoster';
+import { rotateCamera } from '@/library/suites/bravais/useBravaisCamera';
 
 // test/unit/library/bravais/bravaisPoster.test.ts
 // 歌手页海报：什么时候缝画成海报（只在歌手页、无限拼贴、用户选的完整等级上；过滤框、面板、表单、书脊、折叠都回到原来那套），
@@ -105,5 +106,18 @@ describe('splitHeroWord', () => {
 
     it('enlarges nothing when the title is a single word', () => {
         expect(hero('Yesterday')).toEqual([]);
+    });
+});
+
+describe('rotateCamera', () => {
+    it('turns the pan camera with the tilt and back again', () => {
+        const camera = { x: 120, y: -40, scale: 0.76 };
+        const turned = rotateCamera(camera, -10);
+        expect(turned.scale).toBe(0.76);
+        expect(Math.hypot(turned.x, turned.y)).toBeCloseTo(Math.hypot(camera.x, camera.y));
+        const back = rotateCamera(turned, 10);
+        expect(back.x).toBeCloseTo(camera.x);
+        expect(back.y).toBeCloseTo(camera.y);
+        expect(rotateCamera(camera, 0)).toBe(camera);
     });
 });

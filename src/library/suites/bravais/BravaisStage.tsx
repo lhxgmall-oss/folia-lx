@@ -195,15 +195,13 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         checkCull: camera.checkCull,
     });
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
-    // 歌手海报静止时墙面倾斜，一操作墙就回正（useBravaisPosterTilt）。
+    // 歌手海报在场时墙面倾斜，倾斜着照样拖动、滚动（useBravaisPosterTilt）。
     useBravaisPosterTilt({
         frameRef,
         renderFrame,
         checkCull: camera.checkCull,
-        rootRef,
-        seamRef,
+        syncPointerCamera: camera.syncPointerCamera,
         pinned: seamTarget.variant === 'poster' && seamTarget.width > 0,
-        layerKey: layer?.key ?? null,
         reducedMotion,
     });
 
