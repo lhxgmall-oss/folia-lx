@@ -32,10 +32,13 @@ export type BravaisPosterPalette = {
     ground: string;
     groundDeep: string;
     edge: string;
-    /** 装定妆照的几何形里垫底的颜色。 */
+    /** 装定妆照的几何形里垫底的颜色、它的虚影。 */
     shape: string;
+    ghost: string;
     /** 立体残影从浅到深的四层。 */
     extrude: readonly [string, string, string, string];
+    /** 碎字。 */
+    scrap: string;
     /** 墙上封面那层色调。 */
     wallTint: string;
 };
@@ -61,7 +64,9 @@ export const resolveBravaisPosterPalette = (colors: readonly string[]): BravaisP
         groundDeep: mixColors(tone1, tone2, 0.4),
         edge: mixColors(paper, tone1, 0.5),
         shape: mixColors(paper, tone1, 0.3),
+        ghost: tone1,
         extrude: [tone3, mixColors(tone2, tone3, 0.5), tone2, tone1],
+        scrap: tone3,
         wallTint: tone3,
     };
 };
@@ -189,9 +194,11 @@ export const posterPaletteVars = (palette: BravaisPosterPalette | null): Record<
     '--bravais-poster-ground-deep': palette.groundDeep,
     '--bravais-poster-edge': palette.edge,
     '--bravais-poster-shape-fill': palette.shape,
+    '--bravais-poster-ghost': palette.ghost,
     '--bravais-poster-extrude-1': palette.extrude[0],
     '--bravais-poster-extrude-2': palette.extrude[1],
     '--bravais-poster-extrude-3': palette.extrude[2],
     '--bravais-poster-extrude-4': palette.extrude[3],
+    '--bravais-poster-scrap': palette.scrap,
     '--bravais-poster-wall-tint': palette.wallTint,
 } : {});

@@ -14,7 +14,8 @@ import {
     resolveVariantWidth,
     type BravaisSeamTargetInput,
 } from '@/library/suites/bravais/bravaisSeamTarget';
-import { splitHeroWord } from '@/library/suites/bravais/BravaisSeamPoster';
+import { scrapWords, splitHeroWord } from '@/library/suites/bravais/BravaisSeamPoster';
+import type { BravaisItem } from '@/library/suites/bravais/bravaisLayer';
 
 // test/unit/library/bravais/bravaisPoster.test.ts
 // 歌手页海报：什么时候缝画成海报（只在歌手页、无限拼贴、用户选的完整等级上；过滤框、面板、表单、书脊、折叠都回到原来那套），
@@ -141,5 +142,18 @@ describe('splitHeroWord', () => {
 
     it('enlarges nothing when the title is a single word', () => {
         expect(hero('Yesterday')).toEqual([]);
+    });
+});
+
+describe('scrapWords', () => {
+    const items = (...titles: string[]) => titles.map(title => ({ title }) as BravaisItem);
+
+    it('takes the enlarged word of the first two top songs', () => {
+        expect(scrapWords(items('Love in the afternoon', 'Blue Monday', 'Yesterday'))).toEqual(['afternoon', 'Monday']);
+    });
+
+    it('never repeats a word: a clash falls back to the next longest word of that title', () => {
+        expect(scrapWords(items('Track 20 Amber', 'Track 21 Birch', 'Track 22 Cedar'))).toEqual(['Track', 'Birch']);
+        expect(scrapWords(items('Rain', 'rain', 'RAIN'))).toEqual(['Ra']);
     });
 });

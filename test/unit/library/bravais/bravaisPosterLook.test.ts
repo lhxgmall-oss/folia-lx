@@ -29,15 +29,28 @@ describe('poster composition', () => {
 
     it('keeps the shape in the upper part, clear of the name and the buttons, and never a triangle', () => {
         for (let index = 0; index < 64; index += 1) {
-            const { shape } = resolvePosterComposition(`seed-${index}`);
+            const { shape, scraps, through } = resolvePosterComposition(`seed-${index}`);
             if (shape.kind === 'polygon') shape.points.forEach(([x, y]) => {
                 expect(y).toBeLessThanOrEqual(76);
                 expect(x).toBeGreaterThanOrEqual(0);
                 expect(x).toBeLessThanOrEqual(100);
             });
             else expect(shape.cy).toBeLessThanOrEqual(40);
+            expect(scraps).toHaveLength(2);
             // 没有三角形（倒三角太像梗图模板）：多边形至少四个角。
             if (shape.kind === 'polygon') expect(shape.points.length).toBeGreaterThanOrEqual(4);
+            expect(through).toHaveLength(2);
+        }
+    });
+
+    it('keeps the scrap words in the upper half, apart vertically', () => {
+        for (let index = 0; index < 64; index += 1) {
+            const { scraps } = resolvePosterComposition(`seed-${index}`);
+            for (let a = 0; a < scraps.length; a += 1) for (let b = a + 1; b < scraps.length; b += 1) {
+                expect(Math.abs(scraps[a].y - scraps[b].y)).toBeGreaterThanOrEqual(10);
+            }
+            // 都在上半，不压在热门歌与按钮底下。
+            scraps.forEach(scrap => expect(scrap.y).toBeLessThan(50));
         }
     });
 
