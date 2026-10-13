@@ -52,6 +52,17 @@ const SHAPES: readonly BravaisPosterShape[] = [
 const SCRAP_SPOTS: readonly { x: number; y: number }[] = [
     { x: -2, y: 30 }, { x: 70, y: 78 }, { x: 56, y: 72 }, { x: 4, y: 20 }, { x: 64, y: 86 }, { x: 30, y: 24 },
 ];
+/** 两个碎字上下至少错开这么多（海报高度的百分比；最大的碎字约 8 × 1.15 高）。 */
+const SCRAP_MIN_GAP = 10;
+
+const scrapsApart = (a: { y: number }, b: { y: number }) => Math.abs(a.y - b.y) >= SCRAP_MIN_GAP;
+
+/** 已放的字两两错开，并且剩下的点里还能再放 need 个（也两两错开）。 */
+const scrapRoom = (pool: readonly { y: number }[], chosen: readonly { y: number }[], need: number): boolean => {
+    if (!chosen.every((spot, index) => chosen.slice(index + 1).every(other => scrapsApart(spot, other)))) return false;
+    if (need === 0) return true;
+    return pool.some(spot => !chosen.includes(spot) && scrapRoom(pool, [...chosen, spot], need - 1));
+};
 
 export const resolvePosterComposition = (seed: string): BravaisPosterComposition => {
     const random = createRandom(hashPosterSeed(seed));
@@ -64,8 +75,17 @@ export const resolvePosterComposition = (seed: string): BravaisPosterComposition
         : { kind: 'circle', cx: flip(base.cx), cy: base.cy };
     const ghostSign = random() < 0.5 ? -1 : 1;
     const spots = [...SCRAP_SPOTS];
+    const chosen: { x: number; y: number }[] = [];
     const scraps = [0, 1, 2].map(rank => {
-        const spot = spots.splice(Math.floor(random() * spots.length), 1)[0];
+        // 碎字不叠在一起：和已放的每个字上下错开一个字高以上（宽度随词变，只有上下错开才稳）；上下两组还空着的那组优先。
+        // 每个字仍只取一次随机数（构图里后面的元素跟着同一串随机数，不能因此全变）。
+        // 只挑之后还放得下剩下几个字的位置（两组中间那个点会把两边都占住）。
+        const apart = spots.filter(spot => scrapRoom(spots, [...chosen, spot], 2 - rank));
+        const fresh = apart.filter(spot => chosen.every(other => (other.y < 50) !== (spot.y < 50)));
+        const candidates = fresh.length > 0 ? fresh : apart.length > 0 ? apart : spots;
+        const spot = candidates[Math.floor(random() * candidates.length)];
+        spots.splice(spots.indexOf(spot), 1);
+        chosen.push(spot);
         return {
             x: spot.x,
             y: spot.y,

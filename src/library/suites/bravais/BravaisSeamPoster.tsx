@@ -70,11 +70,27 @@ const PosterSong: React.FC<{ item: BravaisItem; index: number; onPlay?: (key: st
     );
 };
 
-/** 碎字：热门歌名里放大的那个词（没有就取整个歌名的前两个字），最多三个，散在海报上。 */
-const scrapWords = (items: readonly BravaisItem[]) => items.map(item => {
-    const hero = splitHeroWord(item.title).find(part => part.hero)?.text;
-    return hero ?? [...item.title.trim()].slice(0, 2).join('');
-}).filter(Boolean).slice(0, 3);
+/**
+ * 碎字：热门歌名里放大的那个词（没有就取整个歌名的前两个字），最多三个，散在海报上。
+ * 三个词不重复（不分大小写）：撞了就换这首歌名里次长的词，都撞了再取前两个字，还撞就不放这一个。
+ */
+export const scrapWords = (items: readonly BravaisItem[]) => {
+    const used = new Set<string>();
+    const words: string[] = [];
+    for (const item of items) {
+        const title = item.title.trim();
+        wordSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'word' });
+        const titleWords = Array.from(wordSegmenter.segment(title)).filter(part => part.isWordLike).map(part => part.segment);
+        // 排序是稳定的：最长的词里排第一的那个就是放大的那个（splitHeroWord）；整个标题只有一个词时不放大，直接取前两个字。
+        const byLength = titleWords.length < 2 ? [] : [...titleWords].sort((a, b) => [...b].length - [...a].length);
+        const word = [...byLength, [...title].slice(0, 2).join('')].find(candidate => candidate && !used.has(candidate.toLocaleLowerCase()));
+        if (!word) continue;
+        used.add(word.toLocaleLowerCase());
+        words.push(word);
+        if (words.length === 3) break;
+    }
+    return words;
+};
 
 const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> = ({ layer, actions }) => {
     const { t } = useTranslation();

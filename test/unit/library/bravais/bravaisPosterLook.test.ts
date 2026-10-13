@@ -41,6 +41,16 @@ describe('poster composition', () => {
         }
     });
 
+    it('spreads the scrap words apart vertically, one in each half first', () => {
+        for (let index = 0; index < 64; index += 1) {
+            const { scraps } = resolvePosterComposition(`seed-${index}`);
+            for (let a = 0; a < scraps.length; a += 1) for (let b = a + 1; b < scraps.length; b += 1) {
+                expect(Math.abs(scraps[a].y - scraps[b].y)).toBeGreaterThanOrEqual(10);
+            }
+            expect(scraps[0].y < 50).not.toBe(scraps[1].y < 50);
+        }
+    });
+
     it('hashes strings to stable 32-bit seeds', () => {
         expect(hashPosterSeed('artist:a')).toBe(hashPosterSeed('artist:a'));
         expect(hashPosterSeed('artist:a')).not.toBe(hashPosterSeed('artist:b'));
