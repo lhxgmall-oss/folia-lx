@@ -78,14 +78,14 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
     const year = album?.kicker;
     // 封面飞行（bravaisCoverFlight）：从墙上被点的那张专辑飞来时，自己的封面先藏着、落地再露出；卸载（返回）时飞回那一格。
     const coverRef = useRef<HTMLElement>(null);
-    const flownFromRef = useRef<string | null>(null);
+    const flownFromRef = useRef<{ slotKey: string; cardKey: string } | null>(null);
     const [coverFlight, setCoverFlight] = useState<'pending' | 'landed' | undefined>(undefined);
     const albumCoverUrl = album?.coverUrl;
     useLayoutEffect(() => {
         const cover = coverRef.current;
         const from = takeCoverFlightSource(albumCoverUrl);
         if (cover && from) {
-            flownFromRef.current = from.slotKey;
+            flownFromRef.current = { slotKey: from.slotKey, cardKey: from.cardKey };
             setCoverFlight('pending');
             flyCoverToPoster(from, cover, () => {
                 // 同步露出（不等 React 重渲染），飞行的图下一帧才撤；落地后也不再放「落下」的入场。
@@ -95,10 +95,10 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
         }
         // 开发模式下 effect 会重跑一次（DOM 不动）：飞行不停，回程在 flyCoverBack 里等到封面真的不在了才出发。
         return () => {
-            const slotKey = flownFromRef.current;
+            const origin = flownFromRef.current;
             const from = coverQuadRef.current;
             const shadow = coverShadowRef.current;
-            if (cover && slotKey && from && shadow && albumCoverUrl) flyCoverBack({ cover, from, shadow, slotKey, coverUrl: albumCoverUrl });
+            if (cover && origin && from && shadow && albumCoverUrl) flyCoverBack({ cover, from, shadow, ...origin, coverUrl: albumCoverUrl });
         };
     // 只在挂载 / 卸载时（换专辑按 layer.key 重新挂载）。
     // eslint-disable-next-line react-hooks/exhaustive-deps

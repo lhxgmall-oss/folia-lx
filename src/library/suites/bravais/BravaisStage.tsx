@@ -86,6 +86,18 @@ const expandBounds = (bounds: { left: number; right: number; top: number; bottom
     bottom: bounds.bottom + by,
 });
 
+/**
+ * 海报的取色来源（bravaisPosterPalette）：歌手页从这位歌手最火的三张专辑封面取；专辑页从这张专辑的封面取（专辑里有
+ * 带自己封面的歌时，再补上它们）。
+ */
+const posterPaletteSourcesFor = (target: BravaisLayer | null): readonly string[] => {
+    if (!target) return NO_SOURCES;
+    const sources = resolvePosterPaletteSources(target.items);
+    const albumCover = target.seam.album?.coverUrl;
+    return albumCover ? [albumCover, ...sources.filter(url => url !== albumCover)].slice(0, 3) : sources;
+};
+const NO_SOURCES: readonly string[] = [];
+
 const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     isInteractive,
     isDaylight,
@@ -425,17 +437,21 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     // 封面取（专辑里有带自己封面的歌时，再补上它们）。
     const posterActive = seamTarget.variant === 'poster';
     const albumPoster = posterActive && Boolean(layer?.seam.album);
-    const albumCover = layer?.seam.album?.coverUrl;
-    const posterSources = useMemo(() => {
-        if (!posterActive || !layer) return [];
-        const sources = resolvePosterPaletteSources(layer.items);
-        return albumCover ? [albumCover, ...sources.filter(url => url !== albumCover)].slice(0, 3) : sources;
-    }, [albumCover, layer, posterActive]);
-    const posterPalette = useBravaisPosterPalette(posterSources, posterActive && posterSources.length > 0);
+    const posterSources = useMemo(() => posterPaletteSourcesFor(posterActive ? layer : null), [layer, posterActive]);
+    const posterPalette = useBravaisPosterPalette(posterSources, posterActive);
+    // 缝里此刻画着的海报可能还是上一层的（换层时缝的内容晚一拍才换，约 0.2s）：它的颜色也留着，不然那一拍里它读不到
+    // 自己的颜色、回退成默认色，看着像闪了一下。歌手与专辑两套变量名不同，可以同时在。
+    const renderedPosterLayer = seam.rendered.variant === 'poster' ? seam.rendered.layer : null;
+    const lingeringPoster = renderedPosterLayer && renderedPosterLayer.key !== layer?.key ? renderedPosterLayer : null;
+    const lingeringSources = useMemo(() => posterPaletteSourcesFor(lingeringPoster), [lingeringPoster]);
+    const lingeringPalette = useBravaisPosterPalette(lingeringSources, Boolean(lingeringPoster));
     const posterVars = useMemo(() => {
-        if (!posterActive) return {};
-        return albumPoster ? albumPaletteVars(posterPalette?.album ?? null) : posterPaletteVars(posterPalette?.artist ?? null);
-    }, [albumPoster, posterActive, posterPalette]);
+        const varsFor = (target: BravaisLayer | null, palette: typeof posterPalette) => {
+            if (!target) return {};
+            return target.seam.album ? albumPaletteVars(palette?.album ?? null) : posterPaletteVars(palette?.artist ?? null);
+        };
+        return { ...varsFor(lingeringPoster, lingeringPalette), ...varsFor(posterActive ? layer : null, posterPalette) };
+    }, [layer, lingeringPalette, lingeringPoster, posterActive, posterPalette]);
 
     const rootClassName = [
         'lattice-root',

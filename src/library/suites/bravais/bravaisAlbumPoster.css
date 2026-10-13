@@ -28,8 +28,9 @@
     color: var(--album-paper);
 }
 
-/* 缝的底（倾斜时露出来的上下两截）：上面是纸、下面是色块，与海报自己的纸和色块接上。 */
-.bravais-root.has-album-wall .bravais-seam[data-bravais-seam="poster"] {
+/* 缝的底（倾斜时露出来的上下两截）：上面是纸、下面是色块，与海报自己的纸和色块接上。按缝里此刻画着的是不是专辑海报
+ * 认（:has），不按根节点的 has-album-wall——换层时缝的内容晚一拍才换，那一拍里底色要跟着内容走。 */
+.bravais-seam[data-bravais-seam="poster"]:has(> .bravais-seam-content .bravais-album-poster) {
     background: linear-gradient(
         180deg,
         var(--bravais-album-paper, var(--bravais-album-paper-fallback)) calc(var(--bravais-poster-bleed) + 44vh),

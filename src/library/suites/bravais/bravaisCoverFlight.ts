@@ -77,16 +77,18 @@ const NO_SHADOW: BravaisHardShadow = { offset: 0, color: 'transparent' };
  * 一段到底，没有「飞到 → 再融合」的第二段：硬阴影从 shadow.from 一路变到 shadow.to，飞行中间叠一层抬起的软阴影；
  * - landing = 'swap'（去程）：终点长得和飞行的图一模一样（同一张图、同一道阴影），等终点的图解码好（最多再等 400ms），
  *   onDone 同步把终点露出来，下一帧撤掉飞行的图，中间没有淡入淡出；
- * - landing = 'fade'（回程）：终点是带标题的磁贴，和飞行的图不一样，最后四分之一的路上边飞边淡掉。
+ * - landing = 'fade'（回程）：终点是带标题的磁贴，和飞行的图不一样。飞到后等那一格换好内容，onDone 让它直接停在
+ *   原位（结束它还没放完的落回），飞行的图再在它上面淡掉——封面就是这一格的入场，之后不会再落一次。
  */
 const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
     url: string;
     from: BravaisQuad;
     target: () => BravaisQuad | null;
     duration: number;
-    shadow: { from: BravaisHardShadow; to: BravaisHardShadow };
+    /** 终点那头可以是函数（每帧量：海报刚挂载时还没缩放到位，开始时量的不准）。 */
+    shadow: { from: BravaisHardShadow; to: BravaisHardShadow | (() => BravaisHardShadow) };
     landing: 'swap' | 'fade';
-    /** swap：终点的图解码好了没有。 */
+    /** swap：终点的图解码好了没有；fade：终点（墙上那一格）换好内容了没有。 */
     ready?: () => boolean;
     onDone?: () => void;
 }) => {
@@ -111,13 +113,20 @@ const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
         finished = true;
         cancelAnimationFrame(frame);
         onDone?.();
+        if (landing === 'fade') {
+            // 终点已经停好（onDone 里结束了它的入场），飞行的图在它上面淡掉。
+            const fade = image.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-out', fill: 'forwards' });
+            fade.onfinish = remove;
+            return;
+        }
         // 终点已经露出来（同一帧），下一帧再撤，不会空一帧。
         requestAnimationFrame(remove);
     };
     const draw = (quad: BravaisQuad, t: number) => {
         const lift = Math.sin(Math.PI * t);
-        const hard = shadow.from.offset + (shadow.to.offset - shadow.from.offset) * t;
-        const color = t < 0.5 ? shadow.from.color : shadow.to.color;
+        const to = typeof shadow.to === 'function' ? shadow.to() : shadow.to;
+        const hard = shadow.from.offset + (to.offset - shadow.from.offset) * t;
+        const color = t < 0.5 ? shadow.from.color : to.color;
         const alpha = Math.round((t < 0.5 ? 1 - t * 2 : t * 2 - 1) * 100);
         // 宽高直接写（不按比例拉伸）：起点与终点比例不同时封面按 cover 裁切，不变形。
         image.style.width = `${quad.width}px`;
@@ -125,7 +134,6 @@ const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
         image.style.transform = `translate(${quad.center.x}px, ${quad.center.y}px) rotate(${quad.angle}rad) scale(${1 + lift * 0.05}) translate(-50%, -50%)`;
         image.style.boxShadow = `${hard}px ${hard}px 0 color-mix(in srgb, ${color} ${alpha}%, transparent), `
             + `${lift * 10}px ${lift * 16}px ${lift * 30}px rgba(0,0,0,${(lift * 0.4).toFixed(3)})`;
-        if (landing === 'fade') image.style.opacity = String(t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25));
     };
     const step = (now: number) => {
         const elapsed = now - startedAt;
@@ -133,8 +141,8 @@ const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
         const to = target() ?? last;
         last = to;
         draw(lerpQuad(from, to, easeInOut(t)), easeInOut(t));
-        const waitingForImage = landing === 'swap' && ready && !ready() && elapsed < duration + 400;
-        if (t >= 1 && !waitingForImage) finish();
+        const waiting = ready && !ready() && elapsed < duration + 600;
+        if (t >= 1 && !waiting) finish();
         else frame = requestAnimationFrame(step);
     };
     const flight: Flight = { stop: finish };
@@ -152,6 +160,14 @@ export const readCoverShadow = (cover: HTMLElement): BravaisHardShadow => {
     const quad = measureQuad(cover);
     const scale = quad && cover.offsetWidth ? quad.width / cover.offsetWidth : 1;
     return { offset: offset * scale, color: before.backgroundColor || 'transparent' };
+};
+
+/** 键盘焦点在那一格上时它放大一圈（bravais.css 的 --bravais-pop-x / -y）：飞回去落到放大后的大小。 */
+const withFocusPop = (tile: HTMLElement, quad: BravaisQuad | null): BravaisQuad | null => {
+    if (!quad || !tile.hasAttribute('data-bravais-focused')) return quad;
+    const popX = Number(tile.style.getPropertyValue('--bravais-pop-x')) || 1;
+    const popY = Number(tile.style.getPropertyValue('--bravais-pop-y')) || 1;
+    return { ...quad, width: quad.width * popX, height: quad.height * popY };
 };
 
 // ---- 去程：点专辑磁贴 → 专辑海报 ----
@@ -181,7 +197,7 @@ export const flyCoverToPoster = (from: Source, cover: HTMLElement, onLand: () =>
     from: from.quad,
     target: () => measureQuad(cover),
     duration: FLIGHT_MS,
-    shadow: { from: NO_SHADOW, to: readCoverShadow(cover) },
+    shadow: { from: NO_SHADOW, to: () => readCoverShadow(cover) },
     landing: 'swap',
     ready: () => {
         const image = cover.querySelector('img');
@@ -196,8 +212,9 @@ export const flyCoverToPoster = (from: Source, cover: HTMLElement, onLand: () =>
  * 海报卸载时调。起点用海报事先量好的封面样子（from）——卸载那一刻换层已经开始，海报的布局不可靠。下一帧封面真的不在了
  * （不是开发模式下 effect 重跑）才出发，等墙上那一格出现（换层后 slot 重新渲染），飞回去。
  */
-export const flyCoverBack = ({ cover, from, shadow, slotKey, coverUrl }: {
+export const flyCoverBack = ({ cover, from, shadow, slotKey, cardKey, coverUrl }: {
     cover: Element;
+    cardKey: string;
     from: BravaisQuad;
     shadow: BravaisHardShadow;
     slotKey: string;
@@ -209,14 +226,18 @@ export const flyCoverBack = ({ cover, from, shadow, slotKey, coverUrl }: {
     const wait = () => {
         if (cover.isConnected) return;
         const tile = find();
-        if (tile) {
+        if (tile instanceof HTMLElement) {
+            const face = () => tile.querySelector<HTMLElement>('.bravais-tile-face');
             fly({
                 url: coverUrl,
                 from,
-                target: () => (tile.isConnected ? measureQuad(tile) : null),
+                target: () => (tile.isConnected ? withFocusPop(tile, measureQuad(tile)) : null),
                 duration: BACK_FLIGHT_MS,
                 shadow: { from: shadow, to: NO_SHADOW },
                 landing: 'fade',
+                // 那一格的内容换成这张专辑了（整墙波次在抬起时换内容）。
+                ready: () => tile.dataset.libraryCard === cardKey,
+                onDone: () => face()?.getAnimations().forEach(animation => animation.finish()),
             });
             return;
         }
