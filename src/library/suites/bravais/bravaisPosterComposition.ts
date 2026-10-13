@@ -29,7 +29,7 @@ export const hashPosterSeed = (seed: string) => {
 };
 
 /** mulberry32：同一个种子永远同一串数。 */
-const createRandom = (seed: number) => {
+export const createRandom = (seed: number) => {
     let state = seed >>> 0;
     return () => {
         state = (state + 0x6d2b79f5) >>> 0;
@@ -93,3 +93,35 @@ export const posterShapeClipPath = (shape: BravaisPosterShape) => (
         ? `polygon(${shape.points.map(([x, y]) => `${x}% ${y}%`).join(', ')})`
         : `circle(min(34cqw, 27cqh) at ${shape.cx}% ${shape.cy}%)`
 );
+
+/**
+ * 专辑海报的构图（参考稿 album.png 竖过来）：同样按种子定死，同一张专辑每次一样。随机的只有：封面倾斜的角度与方向、
+ * 胶带贴在哪、纸与色块之间那道斜线的两端高度（哪边高）、强调色下划线的长短、标题里放大那个词的错位与旋转、描边水印字
+ * 在哪一边。文字与按钮的位置不随机。坐标是海报宽高的百分比。
+ */
+export type BravaisAlbumComposition = {
+    coverDeg: number;
+    tape: { x: number; deg: number };
+    /** 纸的下缘：左端与右端的高度（%）。 */
+    divider: { left: number; right: number };
+    underline: number;
+    hero: { x: number; y: number; deg: number };
+    ghostSide: 'left' | 'right';
+};
+
+export const resolveAlbumComposition = (seed: string): BravaisAlbumComposition => {
+    const random = createRandom(hashPosterSeed(`album:${seed}`));
+    const between = (min: number, max: number) => min + (max - min) * random();
+    const sign = () => (random() < 0.5 ? -1 : 1);
+    const high = between(44, 50);
+    const low = between(56, 62);
+    const leftHigh = random() < 0.5;
+    return {
+        coverDeg: between(2.5, 6) * sign(),
+        tape: { x: between(28, 58), deg: between(-5, 5) },
+        divider: leftHigh ? { left: high, right: low } : { left: low, right: high },
+        underline: between(38, 62),
+        hero: { x: between(0.04, 0.12), y: between(0.12, 0.22), deg: between(2, 7) * sign() },
+        ghostSide: random() < 0.5 ? 'left' : 'right',
+    };
+};

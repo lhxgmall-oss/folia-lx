@@ -54,7 +54,7 @@ export type BravaisSeamTargetInput = {
     filterOpen?: boolean;
     /** B9：首页的全局搜索框开着。 */
     searchOpen?: boolean;
-    /** 这一层可以画歌手海报（歌手页、无限拼贴；过滤生效的有限拼贴不行）。 */
+    /** 这一层可以画海报（歌手页、专辑页，无限拼贴；过滤生效的有限拼贴不行）。由 stage 判定，这里不看 surface。 */
     poster?: boolean;
 };
 
@@ -76,7 +76,7 @@ export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: numbe
     }
     const level = resolveEffectiveSeamLevel(input);
     // 歌手海报只在用户选的完整等级上：过滤框的临时展开、面板、表单都回到普通的缝（它们排在前面或改写了等级）。
-    if (input.surface === 'artist' && input.poster && input.level === 'full' && !input.filterOpen) {
+    if (input.poster && input.level === 'full' && !input.filterOpen) {
         return { width: resolvePosterWidth(input.viewportWidth), variant: 'poster' };
     }
     return { width: resolveSeamOpenWidth(input.surface, level), variant: resolveSeamVariant(input.surface, level) };

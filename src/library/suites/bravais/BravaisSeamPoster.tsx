@@ -13,7 +13,7 @@ import { posterShapeClipPath, resolvePosterComposition } from './bravaisPosterCo
 import './bravaisPoster.css';
 
 // src/library/suites/bravais/BravaisSeamPoster.tsx
-// 歌手页的海报（完整等级下的歌手页缝，钉在视口左边，见 bravaisSeamTarget 的 'poster' 与 bravaisFrame 的 pinned）：
+// 歌手页的海报（完整等级下的歌手页缝，仍是墙上裂开的一列、相机把它带到视口最左边，见 bravaisSeamTarget 的 'poster' 与 bravaisFrame 的 poster）：
 // 用凝彩（Tempera）的视觉语言，构图按歌手定死、每个歌手一幅（bravaisPosterComposition）——灰色的胶片颗粒纸底、四周压暗；定妆照去色、套在一块大的斜切色块里（白色发丝描边 + 错开的
 // 虚影，块里盖网点），像凝彩里装着画面的几何形；斜穿整幅的贯穿线、四角的取景角标、斜线填充的小方块、「· · ·」，散落的
 // 灰色碎字（取自热门歌名里放大的那个词）；歌手名是超粗的黑体、白到灰的渐变，后面拖着错开的立体残影，旁边一个小词

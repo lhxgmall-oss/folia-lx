@@ -28,7 +28,7 @@ import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisReflowDriver } from './useBravaisReflowDriver';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
 import { useBravaisPosterTilt } from './useBravaisPosterTilt';
-import { posterPaletteVars, resolvePosterPaletteSources, useBravaisPosterPalette } from './bravaisPosterPalette';
+import { albumPaletteVars, posterPaletteVars, resolvePosterPaletteSources, useBravaisPosterPalette } from './bravaisPosterPalette';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
 import { closeCommandFilter } from '../../../stores/useAppViewStore';
@@ -163,8 +163,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
             filterOpen: current.filterOpen,
             searchOpen: current.searchOpen,
-            // 歌手海报只画在无限拼贴上：过滤生效（有限拼贴）时 rank 围着锚点两边排，海报会挡住一半。
-            poster: target.surface === 'artist' && target.mode !== 'finite',
+            // 海报（歌手页、专辑页）只画在无限拼贴上：过滤生效（有限拼贴）时 rank 围着锚点两边排，海报会挡住一半。
+            poster: (target.surface === 'artist' || Boolean(target.seam.album)) && target.mode !== 'finite',
         };
     }, [frameRef]);
     const resolvedSeamTarget = layer
@@ -421,11 +421,21 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
 
     // 信息条的预设（§5「缝的材质」）：主题纸色以外的预设把材质写成根节点上的自定义属性；透明的缝不写（预设不生效）。
     const seamStyleVars = useMemo(() => (seamLook.seamStyle ? libraryWallSeamStyleVars(seamLook.seamStyle) : null), [seamLook.seamStyle]);
-    // 歌手海报与旁边那面墙共用一套颜色：从这位歌手最火的三张专辑封面取（bravaisPosterPalette）。
+    // 海报与旁边那面墙共用一套颜色（bravaisPosterPalette）：歌手页从这位歌手最火的三张专辑封面取；专辑页从这张专辑的
+    // 封面取（专辑里有带自己封面的歌时，再补上它们）。
     const posterActive = seamTarget.variant === 'poster';
-    const posterSources = useMemo(() => (posterActive && layer ? resolvePosterPaletteSources(layer.items) : []), [layer, posterActive]);
+    const albumPoster = posterActive && Boolean(layer?.seam.album);
+    const albumCover = layer?.seam.album?.coverUrl;
+    const posterSources = useMemo(() => {
+        if (!posterActive || !layer) return [];
+        const sources = resolvePosterPaletteSources(layer.items);
+        return albumCover ? [albumCover, ...sources.filter(url => url !== albumCover)].slice(0, 3) : sources;
+    }, [albumCover, layer, posterActive]);
     const posterPalette = useBravaisPosterPalette(posterSources, posterActive && posterSources.length > 0);
-    const posterVars = useMemo(() => (posterActive ? posterPaletteVars(posterPalette) : {}), [posterActive, posterPalette]);
+    const posterVars = useMemo(() => {
+        if (!posterActive) return {};
+        return albumPoster ? albumPaletteVars(posterPalette?.album ?? null) : posterPaletteVars(posterPalette?.artist ?? null);
+    }, [albumPoster, posterActive, posterPalette]);
 
     const rootClassName = [
         'lattice-root',
@@ -445,7 +455,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         display?.layer.seam.home?.manage ? 'is-managing-hidden' : '',
         display?.layer.home?.batch ? 'is-batch' : '',
         // 歌手海报在场：墙上的磁贴改成海报的样子（间隔拉开、封面保持正方形，bravaisPoster.css）。
-        seamTarget.variant === 'poster' ? 'has-poster-wall' : '',
+        posterActive && !albumPoster ? 'has-poster-wall' : '',
+        // 专辑海报在场：墙上的曲目画成这张封面的拼贴或碎片（bravaisAlbumPoster.css）。
+        albumPoster ? 'has-album-wall' : '',
     ].filter(Boolean).join(' ');
 
     return (

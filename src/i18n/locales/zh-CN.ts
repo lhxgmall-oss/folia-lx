@@ -3495,6 +3495,9 @@ export default {
     "posterLabel": "歌手海报",
     "posterTopSongs": "热门歌曲"
   },
+  "libraryBravaisAlbum": {
+    "posterLabel": "专辑海报"
+  },
   "artistGrid": {
     "localArtist": "本地歌手: {{artistName}}",
     "popularSongs": "时下流行 / POPULAR",

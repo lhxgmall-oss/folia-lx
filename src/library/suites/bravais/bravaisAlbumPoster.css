@@ -1,0 +1,276 @@
+/* src/library/suites/bravais/bravaisAlbumPoster.css
+ * 专辑海报（BravaisSeamAlbumPoster），凝彩的视觉语言、参考稿 album.png 竖过来：上半浅色点阵纸（封面斜贴、胶带、墨色硬
+ * 阴影、竖排碎字），一道斜线网纹，下半深色块（小标签、奶油色立体大字、强调色下划线、元信息、按钮、描边水印字）。
+ * 颜色是 stage 根节点上的 --bravais-album-*（从封面取，bravaisPosterPalette）；没取到时是这里的米色与藏青。
+ * 构图（斜线两端的高度、封面角度、胶带、下划线、放大那个词的错位）是 BravaisSeamAlbumPoster 写的变量。
+ * 与歌手海报共用 bravaisPoster.css 的骨架（安全区缩放、顶栏、按钮），这里只换颜色与画面。 */
+
+.bravais-root {
+    --bravais-album-paper-fallback: #efe9dc;
+    --bravais-album-ink-fallback: #141210;
+    --bravais-album-block-fallback: #22305f;
+    --bravais-album-accent-fallback: #e4462b;
+}
+
+.bravais-album-poster {
+    --album-paper: var(--bravais-album-paper, var(--bravais-album-paper-fallback));
+    --album-ink: var(--bravais-album-ink, var(--bravais-album-ink-fallback));
+    --album-block: var(--bravais-album-block, var(--bravais-album-block-fallback));
+    --album-accent: var(--bravais-album-accent, var(--bravais-album-accent-fallback));
+    --album-title: var(--bravais-album-title, #ecdcae);
+    --bravais-poster-ink: var(--album-paper);
+    --bravais-poster-pad: 40px;
+    --text-primary: var(--album-paper);
+    --text-secondary: color-mix(in srgb, var(--album-paper) 74%, transparent);
+    --bravais-seam-ink-soft: color-mix(in srgb, var(--album-paper) 62%, transparent);
+    --bravais-blurb-lines: 1;
+    --album-title-size: min(150px, 15cqh, calc((100cqw - 2 * var(--bravais-poster-pad)) / (var(--bravais-album-title-columns, 3) + 1.4)));
+    color: var(--album-paper);
+}
+
+/* 缝的底（倾斜时露出来的上下两截）：上面是纸、下面是色块，与海报自己的纸和色块接上。 */
+.bravais-root.has-album-wall .bravais-seam[data-bravais-seam="poster"] {
+    background: linear-gradient(
+        180deg,
+        var(--bravais-album-paper, var(--bravais-album-paper-fallback)) calc(var(--bravais-poster-bleed) + 44vh),
+        var(--bravais-album-block, var(--bravais-album-block-fallback)) calc(var(--bravais-poster-bleed) + 44vh)
+    );
+}
+
+/* ---- 底子（不缩） ---- */
+.bravais-album-poster .bravais-poster-ground {
+    background: var(--album-block);
+}
+
+.bravais-album-paper {
+    position: absolute;
+    inset: 0;
+    background-color: var(--album-paper);
+    background-image: radial-gradient(color-mix(in srgb, var(--album-ink) 20%, transparent) 1px, transparent 1.3px);
+    background-size: 9px 9px;
+    clip-path: polygon(0 0, 100% 0, 100% var(--bravais-album-divider-right), 0 var(--bravais-album-divider-left));
+}
+
+.bravais-album-hatch {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(-58deg, var(--album-ink) 0 2px, transparent 2px 9px);
+    clip-path: polygon(
+        0 var(--bravais-album-divider-left),
+        100% var(--bravais-album-divider-right),
+        100% calc(var(--bravais-album-divider-right) + 3.2%),
+        0 calc(var(--bravais-album-divider-left) + 3.2%)
+    );
+}
+
+.bravais-album-dots {
+    position: absolute;
+    right: -8%;
+    bottom: 6%;
+    width: 64%;
+    height: 34%;
+    background-image: radial-gradient(color-mix(in srgb, var(--album-paper) 18%, transparent) 1.4px, transparent 1.8px);
+    background-size: 10px 10px;
+    mask-image: radial-gradient(closest-side, #000 40%, transparent);
+}
+
+.bravais-album-ghost {
+    position: absolute;
+    bottom: -0.12em;
+    font-size: min(420px, 52cqh);
+    font-weight: 900;
+    line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 1.5px color-mix(in srgb, var(--album-paper) 16%, transparent);
+    white-space: nowrap;
+}
+
+.bravais-album-ghost[data-side="right"] { right: -0.18em; }
+.bravais-album-ghost[data-side="left"] { left: -0.12em; }
+
+/* ---- 文字、封面与按钮（倾斜时缩进安全区） ---- */
+.bravais-album-poster .bravais-poster-top {
+    --text-primary: var(--album-ink);
+    --text-secondary: color-mix(in srgb, var(--album-ink) 70%, transparent);
+    --bravais-seam-ink-soft: color-mix(in srgb, var(--album-ink) 72%, transparent);
+    color: var(--album-ink);
+}
+
+.bravais-album-poster .bravais-poster-top .bravais-seam-back {
+    background: color-mix(in srgb, var(--album-ink) 8%, transparent);
+    color: var(--album-ink);
+}
+
+.bravais-album-poster .bravais-poster-filter {
+    border-color: var(--album-ink);
+    background: transparent;
+    color: var(--album-ink);
+}
+
+.bravais-album-poster .bravais-poster-filter:hover,
+.bravais-album-poster .bravais-poster-filter:focus-visible {
+    background: color-mix(in srgb, var(--album-ink) 10%, transparent);
+}
+
+.bravais-album-stage {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    padding: 18px var(--bravais-poster-pad) 0 calc(var(--bravais-poster-pad) + 18px);
+}
+
+.bravais-album-cover {
+    position: relative;
+    flex: none;
+    width: min(56cqw, 33cqh);
+    aspect-ratio: 1;
+    margin: 0;
+    transform: rotate(var(--bravais-album-cover-deg, -4deg));
+}
+
+.bravais-album-cover::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translate(12px, 12px);
+    background: var(--album-ink);
+}
+
+.bravais-album-cover img,
+.bravais-album-cover-empty {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: var(--album-block);
+}
+
+.bravais-album-tape {
+    position: absolute;
+    top: -12px;
+    left: var(--bravais-album-tape-x, 40%);
+    width: 30%;
+    height: 24px;
+    background: rgba(214, 212, 204, 0.8);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+    transform: translateX(-50%) rotate(var(--bravais-album-tape-deg, 3deg));
+}
+
+.bravais-album-scrap {
+    position: absolute;
+    top: 24px;
+    right: calc(var(--bravais-poster-pad) - 10px);
+    max-height: 70%;
+    overflow: hidden;
+    writing-mode: vertical-rl;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.3em;
+    color: var(--album-ink);
+    opacity: 0.85;
+}
+
+.bravais-album-title-block {
+    position: relative;
+    margin-top: 28px;
+    padding: 0 var(--bravais-poster-pad);
+}
+
+.bravais-album-kicker {
+    display: inline-block;
+    padding: 6px 12px;
+    background: var(--album-ink);
+    color: var(--album-paper);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    transform: rotate(-2deg);
+}
+
+.bravais-album-title {
+    margin: 6px 0 0;
+    font-size: var(--album-title-size);
+    font-weight: 900;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    color: var(--album-title);
+    overflow-wrap: anywhere;
+    text-shadow:
+        0.025em 0.025em 0 var(--bravais-album-extrude-1, #b9a679),
+        0.05em 0.05em 0 var(--bravais-album-extrude-2, #8a7c5b),
+        0.075em 0.075em 0 var(--bravais-album-extrude-3, #4a4560),
+        0.1em 0.1em 0 var(--bravais-album-extrude-4, #18224a);
+}
+
+.bravais-album-title .is-hero {
+    display: inline-block;
+    font-size: 0.72em;
+    transform: translate(var(--bravais-album-hero-x, 0.08em), var(--bravais-album-hero-y, 0.16em)) rotate(var(--bravais-album-hero-deg, 4deg));
+}
+
+.bravais-album-underline {
+    width: var(--bravais-album-underline, 50%);
+    height: 9px;
+    margin-top: 14px;
+    background: var(--album-accent);
+    transform: rotate(-1deg);
+}
+
+.bravais-album-bottom {
+    margin-top: 20px;
+    gap: 12px;
+}
+
+.bravais-album-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.bravais-album-facts > * + *::before {
+    content: "·";
+    margin-right: 14px;
+    opacity: 0.5;
+}
+
+.bravais-album-artist {
+    font-size: 19px;
+    font-weight: 900;
+    border-bottom: 2px solid currentColor;
+}
+
+.bravais-album-poster .bravais-poster-meta {
+    color: inherit;
+    font-size: inherit;
+}
+
+.bravais-album-poster .bravais-poster-button {
+    border: 2px solid var(--album-ink);
+    background: var(--album-paper);
+    color: var(--album-ink);
+    box-shadow: 5px 5px 0 var(--album-ink);
+}
+
+.bravais-album-poster .bravais-poster-button:not(.is-primary):hover {
+    background: color-mix(in srgb, var(--album-paper) 86%, var(--album-ink));
+}
+
+.bravais-album-poster .bravais-poster-button.is-primary {
+    border-color: var(--album-ink);
+    background: var(--album-accent);
+    color: var(--album-paper);
+    box-shadow: 5px 5px 0 var(--album-ink);
+}
+
+.bravais-album-poster .bravais-poster-actions .bravais-seam-star,
+.bravais-album-poster .bravais-poster-actions .bravais-seam-menu-trigger {
+    color: var(--album-paper);
+}

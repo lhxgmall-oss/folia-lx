@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Theme } from '../../../types';
-import { mixColors } from '../../../components/visualizer/colorMix';
+import { mixColors, parseColorChannels } from '../../../components/visualizer/colorMix';
 import { resolveTemperaPalette } from '../../../components/visualizer/tempera/temperaPalette';
 import { extractRepresentativeColors } from '../../../utils/colorExtractor';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
@@ -71,6 +71,82 @@ export const resolveBravaisPosterPalette = (colors: readonly string[]): BravaisP
     };
 };
 
+/**
+ * 专辑海报的一套颜色（参考稿 album.png）：上半是浅色点阵纸、下半是一块深色、标题是奶油色的立体大字、下划线与
+ * 主按钮是强调色。同样走凝彩的渐变调色板，只是主题换成浅纸深墨：四档阶梯里最深、最饱和的两档分别当色块与强调色。
+ * 右边那面墙的双色调（封面碎片 / 拼贴）也从这里取：暗部 = 色块，亮部 = 强调色。
+ */
+export type BravaisAlbumPalette = {
+    paper: string;
+    ink: string;
+    block: string;
+    blockDeep: string;
+    title: string;
+    extrude: readonly [string, string, string, string];
+    accent: string;
+};
+
+const ALBUM_PAPER = '#efe9dc';
+const ALBUM_INK = '#141210';
+
+const channelsOf = (color: string) => parseColorChannels(color) ?? { r: 128, g: 128, b: 128 };
+const luminanceOf = (color: string) => {
+    const { r, g, b } = channelsOf(color);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const saturationOf = (color: string) => {
+    const { r, g, b } = channelsOf(color);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    return max === 0 ? 0 : (max - min) / max;
+};
+
+export const resolveBravaisAlbumPalette = (colors: readonly string[]): BravaisAlbumPalette | null => {
+    if (colors.length < 2) return null;
+    const palette = resolveTemperaPalette(
+        { ...posterTheme(colors), backgroundColor: ALBUM_PAPER, primaryColor: ALBUM_INK },
+        { colorMode: 'gradient' },
+        [...colors],
+    );
+    const tones = [palette.tone1, palette.tone2, palette.tone3, palette.tone4];
+    // 色块：最深的那档（再往墨色压一点，奶油色的字压在上面才读得清）。强调色：剩下几档（连同封面原色）里又饱和、
+    // 又和色块差得开的那个——只看饱和度会挑到和色块同一个蓝，下划线就看不见了。
+    const darkest = [...tones].sort((a, b) => luminanceOf(a) - luminanceOf(b))[0];
+    const block = mixColors(darkest, ALBUM_INK, 0.25);
+    const distanceToBlock = (color: string) => {
+        const a = channelsOf(color);
+        const b = channelsOf(block);
+        return Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b) / 441;
+    };
+    const accent = [...tones.filter(tone => tone !== darkest), ...colors]
+        .map(color => ({ color, score: saturationOf(color) * distanceToBlock(color) }))
+        .sort((a, b) => b.score - a.score)[0]?.color ?? palette.accent;
+    const title = mixColors(ALBUM_PAPER, accent, 0.12);
+    return {
+        paper: mixColors(ALBUM_PAPER, tones[0], 0.06),
+        ink: ALBUM_INK,
+        block,
+        blockDeep: mixColors(block, ALBUM_INK, 0.45),
+        title,
+        extrude: [mixColors(title, block, 0.25), mixColors(title, block, 0.45), mixColors(title, block, 0.65), mixColors(block, ALBUM_INK, 0.3)],
+        accent,
+    };
+};
+
+/** 专辑调色板 → stage 根节点上的 CSS 变量（专辑海报、缝的底、墙上碎片与拼贴的双色调都读它们）。 */
+export const albumPaletteVars = (palette: BravaisAlbumPalette | null): Record<string, string> => (palette ? {
+    '--bravais-album-paper': palette.paper,
+    '--bravais-album-ink': palette.ink,
+    '--bravais-album-block': palette.block,
+    '--bravais-album-block-deep': palette.blockDeep,
+    '--bravais-album-title': palette.title,
+    '--bravais-album-extrude-1': palette.extrude[0],
+    '--bravais-album-extrude-2': palette.extrude[1],
+    '--bravais-album-extrude-3': palette.extrude[2],
+    '--bravais-album-extrude-4': palette.extrude[3],
+    '--bravais-album-accent': palette.accent,
+} : {});
+
 /** 几张封面各取两个代表色，交错排（第一张的主色、第二张的主色、第三张的主色、第一张的次色……）。 */
 export const interleavePosterColors = (perCover: readonly (readonly string[])[]) => {
     const out: string[] = [];
@@ -78,12 +154,14 @@ export const interleavePosterColors = (perCover: readonly (readonly string[])[])
     return out;
 };
 
-/** 封面组合 → 调色板（含取不到的 null），模块里缓存，同一位歌手只取一次。 */
-const cache = new Map<string, BravaisPosterPalette | null>();
+/** 封面组合 → 调色板（含取不到的 null），模块里缓存，同一位歌手 / 同一张专辑只取一次。 */
+export type BravaisPosterPalettes = { artist: BravaisPosterPalette | null; album: BravaisAlbumPalette | null };
+const cache = new Map<string, BravaisPosterPalettes | null>();
+const ALBUM_SAMPLE_COLORS = 5;
 
-export const useBravaisPosterPalette = (urls: readonly string[], enabled: boolean): BravaisPosterPalette | null => {
+export const useBravaisPosterPalette = (urls: readonly string[], enabled: boolean): BravaisPosterPalettes | null => {
     const key = enabled ? urls.join('\n') : '';
-    const [palette, setPalette] = useState<BravaisPosterPalette | null>(() => (key ? cache.get(key) ?? null : null));
+    const [palette, setPalette] = useState<BravaisPosterPalettes | null>(() => (key ? cache.get(key) ?? null : null));
     useEffect(() => {
         if (!key) {
             setPalette(null);
@@ -94,9 +172,13 @@ export const useBravaisPosterPalette = (urls: readonly string[], enabled: boolea
             return undefined;
         }
         let cancelled = false;
-        Promise.all(urls.map(url => extractRepresentativeColors(getSizedCoverUrl(url, SAMPLE_COVER_PX), 2).catch(() => [])))
-            .then(perCover => {
-                const next = resolveBravaisPosterPalette(interleavePosterColors(perCover));
+        const sample = (url: string, count: number) => extractRepresentativeColors(getSizedCoverUrl(url, SAMPLE_COVER_PX), count).catch(() => [] as string[]);
+        // 专辑那套主要看第一张（专辑封面）：多取几个色，强调色才挑得到封面上那一小块亮色。
+        Promise.all([Promise.all(urls.map(url => sample(url, 2))), urls[0] ? sample(urls[0], ALBUM_SAMPLE_COLORS) : []])
+            .then(([perCover, lead]) => {
+                const colors = interleavePosterColors(perCover);
+                const artist = resolveBravaisPosterPalette(colors);
+                const next = artist ? { artist, album: resolveBravaisAlbumPalette([...colors, ...lead.filter(color => !colors.includes(color))]) } : null;
                 cache.set(key, next);
                 if (!cancelled) setPalette(next);
             });

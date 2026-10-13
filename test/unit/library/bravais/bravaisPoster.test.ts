@@ -42,9 +42,10 @@ describe('poster seam target', () => {
         expect(resolveSeamTarget(artistInput({ level: 'hidden' })).variant).toBe('none');
     });
 
-    it('only applies to artist layers that allow it (the finite wall does not)', () => {
+    it('only applies to layers the stage allows (artist and album pages, not the finite wall)', () => {
         expect(resolveSeamTarget(artistInput({ poster: false })).variant).toBe('full');
-        expect(resolveSeamTarget(artistInput({ surface: 'collection' })).variant).toBe('full');
+        expect(resolveSeamTarget(artistInput({ surface: 'collection', poster: false })).variant).toBe('full');
+        expect(resolveSeamTarget(artistInput({ surface: 'collection' })).variant).toBe('poster');
     });
 
     it('takes 46% of the viewport, clamped', () => {

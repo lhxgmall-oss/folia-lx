@@ -3381,6 +3381,9 @@ export default {
     "posterLabel": "Poster artis",
     "posterTopSongs": "Lagu populer"
   },
+  "libraryBravaisAlbum": {
+    "posterLabel": "Poster album"
+  },
   "artistGrid": {
     "localArtist": "Artis Lokal: {{artistName}}",
     "popularSongs": "Populer / POPULER",
