@@ -465,7 +465,7 @@
 
 /* 歌手海报旁的墙（根节点 has-poster-wall）：磁贴像一张张贴上去的海报。
  * - 每张往里收 --bravais-poster-wall-inset，相邻两张之间的缝从 8 拉到 8 + 2×inset（世界单位）；
- * - 封面保持正方形：宽的磁贴封面靠左、边长等于高，余下的一段是墨色标签、标题在里面；高的磁贴封面在上、标题在下；
+ * - 封面与其他页面一样铺满裁切（.lattice-poster 的 cover）：宽、高的磁贴不再留一段墨色标签；
  * - 聚焦卡（is-expanded）不变。墙的排布（block 模板、rank、聚焦卡让位）一概不动，只换画法。 */
 .bravais-root.has-poster-wall {
     --bravais-poster-wall-inset: 10px;
@@ -473,29 +473,6 @@
 
 .bravais-root.has-poster-wall .bravais-tile-face:not(.is-expanded) {
     inset: var(--bravais-poster-wall-inset);
-}
-
-.bravais-root.has-poster-wall .bravais-tile[data-bravais-shape="wide"] > .bravais-tile-face:not(.is-expanded):not(.is-wall):not(.is-window) {
-    background-color: #1a1815;
-    background-size: auto 100%;
-    background-position: left center;
-    background-repeat: no-repeat;
-}
-
-.bravais-root.has-poster-wall .bravais-tile[data-bravais-shape="wide"] > .bravais-tile-face:not(.is-expanded) .lattice-poster-copy {
-    left: calc(var(--bravais-tile-h) - 2 * var(--bravais-poster-wall-inset) + 18px);
-}
-
-/* 标签那一段比整张窄：标题按标签的宽度收字号（WallTitle 按整张的宽度算的字号在这里会挤成一字一行）。 */
-.bravais-root.has-poster-wall .bravais-tile[data-bravais-shape="wide"] > .bravais-tile-face:not(.is-expanded) .lattice-poster-copy strong {
-    font-size: clamp(14px, calc((var(--bravais-tile-w) - var(--bravais-tile-h)) * 0.13), 34px);
-}
-
-.bravais-root.has-poster-wall .bravais-tile[data-bravais-shape="tall"] > .bravais-tile-face:not(.is-expanded):not(.is-wall):not(.is-window) {
-    background-color: #1a1815;
-    background-size: 100% auto;
-    background-position: center top;
-    background-repeat: no-repeat;
 }
 
 /* 墙上的封面与海报部分统一（凝彩把画面里的图都过一遍调色板）：饱和度降到六成，再盖一层调色板的颜色（color 混合，

@@ -173,7 +173,8 @@ const withFocusPop = (tile: HTMLElement, quad: BravaisQuad | null): BravaisQuad 
 /** background-size 的第一层 → 封面在面板里画多大（封面按正方形算）。 */
 const drawnCoverSize = (size: string, width: number, height: number): [number, number] => {
     const [a = 'auto', b = 'auto'] = size.split(',')[0].trim().split(/\s+/);
-    if (a === 'cover') return [Math.max(width, height), Math.max(width, height)];
+    // 铺满：画面就是整块面板（飞行层自己也按 cover 铺，同一块框里两边裁得一样）。
+    if (a === 'cover') return [width, height];
     if (a === 'contain') return [Math.min(width, height), Math.min(width, height)];
     const length = (token: string, of: number) => (
         token.endsWith('%') ? (of * parseFloat(token)) / 100 : token.endsWith('px') ? parseFloat(token) : null
@@ -196,8 +197,8 @@ const coverOffset = (token: string | undefined, free: number) => {
 };
 
 /**
- * 磁贴上封面实际画出来的那一块：宽格子、高格子的封面只占一个正方形（其余是书页），飞行要从这一块起飞、落回这一块，
- * 不然整格当封面，长宽比一路在变。按面板的 background-size / -position 算（布局尺寸，不含变换），焦点放大另外乘上。
+ * 磁贴上封面实际画出来的那一块：铺满裁切时就是整块面板；封面只占其中一块时（不铺满的 background-size），飞行要从
+ * 这一块起飞、落回这一块，不然整格当封面，长宽比一路在变。按面板的 background-size / -position 算（布局尺寸，不含变换），焦点放大另外乘上。
  */
 const tileCoverQuad = (tile: HTMLElement): BravaisQuad | null => {
     const quad = measureQuad(tile);

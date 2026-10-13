@@ -160,9 +160,22 @@ const PROBE_COVER_PALETTES = [
     ['#efe9dc', '#141210', '#e4462b'], ['#f2b632', '#141210', '#22305f'], ['#3b3530', '#7fd1ae', '#efe9dc'],
     ['#7fd1ae', '#141210', '#efe9dc'], ['#e4462b', '#141210', '#efe9dc'],
 ];
+/**
+ * 拿真图点检（?realCovers=<目录地址>&realCoverCount=N）：封面换成那个目录里的 a01.jpg … aNN.jpg（按 id 挑一张）。
+ * 图放在本机、自己起一个带 CORS 头的静态服务（专辑墙读封面像素要 CORS），不进仓库。
+ */
+const PROBE_REAL_COVERS = (() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const base = params.get('realCovers');
+    const count = Number(params.get('realCoverCount'));
+    return base && count > 0 ? { base: base.endsWith('/') ? base : `${base}/`, count } : null;
+})();
+
 const probePosterCover = (seed: string): string => {
     let hash = 2166136261;
     for (let index = 0; index < seed.length; index += 1) hash = Math.imul(hash ^ seed.charCodeAt(index), 16777619) >>> 0;
+    if (PROBE_REAL_COVERS) return `${PROBE_REAL_COVERS.base}a${String((hash % PROBE_REAL_COVERS.count) + 1).padStart(2, '0')}.jpg`;
     const [ground, figure, accent] = PROBE_COVER_PALETTES[hash % PROBE_COVER_PALETTES.length];
     const shape = (hash >>> 4) % 4;
     const art = [
