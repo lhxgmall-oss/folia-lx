@@ -170,7 +170,7 @@ const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer,
         case 'search': return <BravaisSeamSearch layer={layer} />;
         case 'full': return <FullSeam layer={layer} depth={depth} actions={actions} />;
         case 'poster': return layer.seam.album
-            ? <BravaisSeamAlbumPoster layer={layer} actions={actions} />
+            ? <BravaisSeamAlbumPoster key={layer.key} layer={layer} actions={actions} />
             : <BravaisSeamPoster layer={layer} actions={actions} />;
         case 'spine': return <SpineSeam layer={layer} actions={actions} />;
         case 'panel':

@@ -22,6 +22,8 @@ import './bravaisAlbumPoster.css';
 // 构图按专辑定死（bravaisPosterComposition 的 resolveAlbumComposition），颜色从封面取（bravaisPosterPalette 的专辑那套，
 // 变量写在 stage 根节点上）。缝里原有的功能都在：返回与面包屑、过滤当前页、补页进度、状态行与重试、结果提示。
 // 纸、色块、网纹、水印这些底子不缩；倾斜时文字、封面与按钮（bravais-poster-ui）缩进安全区。
+// 入场（挂载时放一次，换专辑按 layer.key 重新挂载）：纸从整张收到斜边、露出色块，封面落下贴上，标题每个词从不同方向
+// 拼上来、立体残影晚半拍，下划线拉出，信息与按钮依次浮上来，胶带最后贴上；降低动态效果时只淡入（bravaisAlbumPoster.css）。
 
 const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 const TITLE_LINES = 3;
@@ -106,7 +108,9 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                     {album?.kicker && <span className="bravais-album-kicker">{album.kicker}</span>}
                     <h2 className="bravais-album-title" data-bravais-seam-title data-bravais-album-title>
                         {words.map((word, index) => (
-                            <span key={index} className={word.hero ? 'is-hero' : undefined} data-text={word.text}>{word.text}</span>
+                            <span key={index} className={`bravais-album-word${word.hero ? ' is-hero' : ''}`} data-text={word.text}
+                                data-space={word.text.trim() ? undefined : ''}
+                                style={{ '--bravais-album-word-index': index } as React.CSSProperties}>{word.text}</span>
                         ))}
                     </h2>
                     <div className="bravais-album-underline" aria-hidden />
