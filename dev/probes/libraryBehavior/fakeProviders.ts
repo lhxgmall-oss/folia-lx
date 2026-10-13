@@ -192,9 +192,13 @@ const ensureProbeArtistAlbum = (providerId: string, id: string) => {
     if (!rule || !Number.isInteger(index)) return;
     const album = { id, name: probeArtistAlbumName(index) };
     const coverUrl = probePosterCover(id);
+    // 单数号的专辑像「收了几首单曲」：下标 1、4、7 的带自己的封面，下标 5、9 的没有封面（专辑墙切成碎片）；双数号的
+    // 专辑全是同一张封面（专辑墙拼成整张封面）。
+    const mixed = index % 2 === 1;
     const songs = range(10).map(track => {
         const song = makeOnlineSong(providerId, `${id}-t`, track, album);
-        return { ...song, coverUrl, album: { ...song.album!, coverUrl } };
+        const own = mixed && track % 3 === 1 ? probePosterCover(`${id}-single-${track}`) : mixed && track % 4 === 1 ? undefined : coverUrl;
+        return { ...song, coverUrl: own, album: { ...song.album!, coverUrl: own } };
     });
     collections.set(target, {
         providerId,
