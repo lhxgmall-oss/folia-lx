@@ -1,6 +1,7 @@
 import React, { memo, useLayoutEffect, useRef, useState, type MouseEvent, type MutableRefObject } from 'react';
 import { WallTitle } from '../../../components/wall/WallTitle';
 import { useWallPosterArtwork } from '../../../components/wall/useWallPosterArtwork';
+import { parseWallSlotKey } from '../../../components/wall/wallSlots';
 import { countRender } from '../../../dev/renderCount';
 import {
     BRAVAIS_METRICS,
@@ -289,7 +290,7 @@ function BravaisTile({
     );
     const artPlacement = !art || !display
         ? null
-        : art.mode === 'mosaic' ? mosaicPlacement(rect) : artSpots ? shardPlacement(artSpots, display.key, rect) : null;
+        : art.mode === 'mosaic' ? mosaicPlacement(rect, parseWallSlotKey(slotKey) ?? { column: 0, row: 0 }) : artSpots ? shardPlacement(artSpots, display.key, rect) : null;
 
     const handleClick = (event: MouseEvent<HTMLElement>) => {
         if (event.target instanceof Element && event.target.closest('button')) return;

@@ -60,8 +60,14 @@ describe('cover spots', () => {
 });
 
 describe('placements', () => {
-    it('wraps the mosaic by the tile position in the world', () => {
-        expect(mosaicPlacement({ x: 100, y: -40 })).toEqual({ size: BRAVAIS_ALBUM_MOSAIC_PX, x: -100, y: -(BRAVAIS_ALBUM_MOSAIC_PX - 40) });
+    it('cuts the mosaic per block: one cover covering each block, centred', () => {
+        // 块 12 × 8 格、格距 136：磁贴范围 1624 × 1080，封面边长 1624，上下各裁 272。
+        expect(BRAVAIS_ALBUM_MOSAIC_PX).toBe(1624);
+        expect(mosaicPlacement({ x: 0, y: 0 }, { column: 0, row: 0 })).toEqual({ size: 1624, x: 0, y: -272 });
+        // 同一块里的另一格：偏移只差它在块里的位置。
+        expect(mosaicPlacement({ x: 272, y: 408 }, { column: 0, row: 0 })).toEqual({ size: 1624, x: -272, y: -680 });
+        // 别的块（含负的块坐标）：从那个块的左上角重新铺一张。
+        expect(mosaicPlacement({ x: 1632 + 136, y: -1088 }, { column: 1, row: -1 })).toEqual({ size: 1624, x: -136, y: -272 });
     });
 
     it('zooms a shard into the cover without showing past its edge', () => {
