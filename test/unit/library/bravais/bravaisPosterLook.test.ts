@@ -4,6 +4,7 @@ import {
     hashPosterSeed,
     posterShapeClipPath,
     resolvePosterComposition,
+    risePosterPoints,
 } from '@/library/suites/bravais/bravaisPosterComposition';
 import {
     interleavePosterColors,
@@ -52,6 +53,13 @@ describe('poster composition', () => {
             // 都在上半，不压在热门歌与按钮底下。
             scraps.forEach(scrap => expect(scrap.y).toBeLessThan(50));
         }
+    });
+
+    it('extends shapes that touch the top edge up along their own sides', () => {
+        // 侧边是竖的：直接往上；斜的：沿斜边继续走（[18,0]→[46,74] 这条线在 y = -74 处 x = -10）。
+        expect(risePosterPoints([[18, 0], [100, 0], [100, 58], [46, 74]], 74)).toEqual([[-10, -74], [100, -74], [100, 58], [46, 74]]);
+        // 不贴上缘的点不动。
+        expect(risePosterPoints([[10, 5], [90, 5], [50, 60]])).toEqual([[10, 5], [90, 5], [50, 60]]);
     });
 
     it('hashes strings to stable 32-bit seeds', () => {

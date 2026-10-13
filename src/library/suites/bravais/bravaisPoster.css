@@ -46,8 +46,9 @@
     inset: 0;
     overflow: hidden;
     opacity: 0.16;
-    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 34%, transparent 70%);
-    mask-image: linear-gradient(180deg, #000 0%, #000 34%, transparent 70%);
+    /* 上缘也渐入：照片在海报上缘就到头了，出血那一截里没有它。 */
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 34%, transparent 70%);
+    mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 34%, transparent 70%);
 }
 
 .bravais-poster-backdrop img {
@@ -69,14 +70,16 @@
     opacity: 0.55;
 }
 
-/* 装着定妆照的几何形（形状、朝向与虚影错开的方向按构图给，见 bravaisPosterComposition），虚影颜色更深。 */
+/* 装着定妆照的几何形（形状、朝向与虚影错开的方向按构图给，见 bravaisPosterComposition），虚影颜色更深。
+ * 框往上多出一整个海报高度（BRAVAIS_POSTER_SHAPE_RISE）：贴着上缘的形状顺着侧边延伸进缝上方的出血，倾斜时看不出海报的上边。 */
 .bravais-poster-shape,
 .bravais-poster-shape-ghost,
 .bravais-poster-shape-edge {
     position: absolute;
-    inset: 0;
+    top: -100cqh;
+    left: 0;
     width: 100%;
-    height: 100%;
+    height: 200cqh;
 }
 
 .bravais-poster-shape-ghost {
@@ -98,9 +101,15 @@
     background: var(--bravais-poster-shape-fill, #1d1d1f);
 }
 
+/* 照片仍按海报本身的框取景；它的上缘在延伸出来的色块里渐隐成块的底色，没有一道横线。 */
 .bravais-poster-portrait {
     position: absolute;
-    inset: 0;
+    top: 100cqh;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 10%);
+    mask-image: linear-gradient(180deg, transparent 0, #000 10%);
 }
 
 .bravais-poster-portrait img {
@@ -146,10 +155,10 @@
     vector-effect: non-scaling-stroke;
 }
 
-/* 胶片颗粒（一张静态的噪点图，不随帧变）。 */
+/* 胶片颗粒（一张静态的噪点图，不随帧变）。上下各多铺一个海报高度：缝上下的出血也有颗粒，与海报接得上。 */
 .bravais-poster-grain {
     position: absolute;
-    inset: 0;
+    inset: -100cqh 0;
     opacity: 0.22;
     mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -481,6 +490,9 @@
  * posterSafeArea）；色块、颗粒、细线这些底子不缩。 */
 .bravais-seam[data-bravais-seam="poster"] .bravais-poster {
     background: none;
+    /* 上下不裁：底子（颗粒、色块、专辑的纸）延伸进出血，由缝自己裁；左右仍裁在海报里。 */
+    overflow-x: clip;
+    overflow-y: visible;
 }
 
 .bravais-poster-ui {

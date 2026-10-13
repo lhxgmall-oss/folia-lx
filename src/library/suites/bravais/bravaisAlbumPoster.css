@@ -43,13 +43,22 @@
     background: var(--album-block);
 }
 
+/* 点阵纸往上多铺一个海报高度：倾斜时缝上方的出血也是这张纸（带点阵），看不出海报的上边。 */
 .bravais-album-paper {
     position: absolute;
-    inset: 0;
+    top: -100cqh;
+    right: 0;
+    bottom: 0;
+    left: 0;
     background-color: var(--album-paper);
     background-image: radial-gradient(color-mix(in srgb, var(--album-ink) 20%, transparent) 1px, transparent 1.3px);
     background-size: 9px 9px;
-    clip-path: polygon(0 0, 100% 0, 100% var(--bravais-album-divider-right), 0 var(--bravais-album-divider-left));
+    clip-path: polygon(
+        0 0,
+        100% 0,
+        100% calc(100cqh + var(--bravais-album-divider-right)),
+        0 calc(100cqh + var(--bravais-album-divider-left))
+    );
 }
 
 .bravais-album-hatch {
@@ -59,8 +68,8 @@
     clip-path: polygon(
         0 var(--bravais-album-divider-left),
         100% var(--bravais-album-divider-right),
-        100% calc(var(--bravais-album-divider-right) + 3.2%),
-        0 calc(var(--bravais-album-divider-left) + 3.2%)
+        100% calc(var(--bravais-album-divider-right) + 3.2cqh),
+        0 calc(var(--bravais-album-divider-left) + 3.2cqh)
     );
 }
 

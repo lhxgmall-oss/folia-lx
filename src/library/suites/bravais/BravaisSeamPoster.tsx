@@ -9,7 +9,7 @@ import BravaisSeamAbout from './BravaisSeamAbout';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import { openBravaisFilter } from './useBravaisSeamFilter';
-import { BRAVAIS_POSTER_SCRAP_COUNT, posterShapeClipPath, resolvePosterComposition } from './bravaisPosterComposition';
+import { BRAVAIS_POSTER_SCRAP_COUNT, BRAVAIS_POSTER_SHAPE_RISE, posterShapeClipPath, resolvePosterComposition, risePosterPoints } from './bravaisPosterComposition';
 import './bravaisPoster.css';
 
 // src/library/suites/bravais/BravaisSeamPoster.tsx
@@ -156,8 +156,8 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
                     )}
                 </div>
                 {composition.shape.kind === 'polygon' ? (
-                    <svg className="bravais-poster-shape-edge" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        <polygon points={composition.shape.points.map(([x, y]) => `${x},${y}`).join(' ')} />
+                    <svg className="bravais-poster-shape-edge" viewBox={`0 ${-BRAVAIS_POSTER_SHAPE_RISE} 100 ${100 + BRAVAIS_POSTER_SHAPE_RISE}`} preserveAspectRatio="none">
+                        <polygon points={risePosterPoints(composition.shape.points).map(([x, y]) => `${x},${y}`).join(' ')} />
                     </svg>
                 ) : (
                     <div className="bravais-poster-shape-ring" style={{ left: `${composition.shape.cx}%`, top: `${composition.shape.cy}%` }} />

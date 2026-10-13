@@ -65,8 +65,9 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
     const coverUrl = album?.coverUrl ? getSizedCoverUrl(album.coverUrl, COVER_PX) : undefined;
     const style = {
         '--bravais-album-title-columns': titleColumns(title),
-        '--bravais-album-divider-left': `${composition.divider.left}%`,
-        '--bravais-album-divider-right': `${composition.divider.right}%`,
+        // 海报高度的百分比写成 cqh：纸往上延伸进出血后框变高了，百分比会跟着变，cqh 不会。
+        '--bravais-album-divider-left': `${composition.divider.left}cqh`,
+        '--bravais-album-divider-right': `${composition.divider.right}cqh`,
         '--bravais-album-cover-deg': `${composition.coverDeg}deg`,
         '--bravais-album-tape-x': `${composition.tape.x}%`,
         '--bravais-album-tape-deg': `${composition.tape.deg}deg`,

@@ -98,12 +98,35 @@ export const resolvePosterComposition = (seed: string): BravaisPosterComposition
     };
 };
 
-/** 多边形 → CSS clip-path；圆窗按海报较短的一边定半径（宽高都用容器单位，保持正圆）。 */
-export const posterShapeClipPath = (shape: BravaisPosterShape) => (
-    shape.kind === 'polygon'
-        ? `polygon(${shape.points.map(([x, y]) => `${x}% ${y}%`).join(', ')})`
-        : `circle(min(34cqw, 27cqh) at ${shape.cx}% ${shape.cy}%)`
-);
+/**
+ * 底子往海报上方延伸的高度（海报高度的百分比，即 cqh）：海报跟着墙倾斜时，缝上下各多出一截出血（--bravais-poster-bleed），
+ * 转过来会露进视口；贴着海报上缘的几何形顺着两条侧边一直延伸上去，出血那一截里也是同一块，看不出海报的上边。
+ * 一整个海报高度足够盖住出血（缝本身会裁掉多出来的）。
+ */
+export const BRAVAIS_POSTER_SHAPE_RISE = 100;
+
+type PosterPoints = readonly (readonly [number, number])[];
+
+/** 多边形贴着上缘（y = 0）的顶点沿它的侧边延长到 y = -rise；侧边是与它相邻、不在上缘的那条边。 */
+export const risePosterPoints = (points: PosterPoints, rise = BRAVAIS_POSTER_SHAPE_RISE): PosterPoints => points.map(([x, y], index) => {
+    if (y !== 0) return [x, y] as const;
+    const previous = points[(index - 1 + points.length) % points.length];
+    const next = points[(index + 1) % points.length];
+    const side = previous[1] !== 0 ? previous : next[1] !== 0 ? next : null;
+    if (!side) return [x, -rise] as const;
+    // 沿 (x, 0) → side 这条线往上走到 y = -rise。
+    return [x + ((x - side[0]) / side[1]) * rise, -rise] as const;
+});
+
+/**
+ * 几何形 → CSS clip-path，画在往上延伸了 BRAVAIS_POSTER_SHAPE_RISE 的框里（框顶在海报上方一整个海报高度、框底是海报底）：
+ * 纵坐标用 cqh（海报高度），横坐标仍是百分比。圆窗不贴上缘，不延伸；半径按海报较短的一边定（容器单位，保持正圆）。
+ */
+export const posterShapeClipPath = (shape: BravaisPosterShape) => {
+    const top = (y: number) => `${(y + BRAVAIS_POSTER_SHAPE_RISE).toFixed(3)}cqh`;
+    if (shape.kind === 'circle') return `circle(min(34cqw, 27cqh) at ${shape.cx}% ${top(shape.cy)})`;
+    return `polygon(${risePosterPoints(shape.points).map(([x, y]) => `${x.toFixed(3)}% ${top(y)}`).join(', ')})`;
+};
 
 /**
  * 专辑海报的构图（参考稿 album.png 竖过来）：同样按种子定死，同一张专辑每次一样。随机的只有：封面倾斜的角度与方向、
