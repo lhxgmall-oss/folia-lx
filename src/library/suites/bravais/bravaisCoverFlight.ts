@@ -170,6 +170,67 @@ const withFocusPop = (tile: HTMLElement, quad: BravaisQuad | null): BravaisQuad 
     return { ...quad, width: quad.width * popX, height: quad.height * popY };
 };
 
+/** background-size 的第一层 → 封面在面板里画多大（封面按正方形算）。 */
+const drawnCoverSize = (size: string, width: number, height: number): [number, number] => {
+    const [a = 'auto', b = 'auto'] = size.split(',')[0].trim().split(/\s+/);
+    if (a === 'cover') return [Math.max(width, height), Math.max(width, height)];
+    if (a === 'contain') return [Math.min(width, height), Math.min(width, height)];
+    const length = (token: string, of: number) => (
+        token.endsWith('%') ? (of * parseFloat(token)) / 100 : token.endsWith('px') ? parseFloat(token) : null
+    );
+    const w = length(a, width);
+    const h = length(b, height);
+    if (w !== null && h !== null) return [w, h];
+    if (w !== null) return [w, w];
+    if (h !== null) return [h, h];
+    return [width, height];
+};
+
+/** background-position 的一个分量 → 离面板边多远（剩余空间 free）。 */
+const coverOffset = (token: string | undefined, free: number) => {
+    if (!token || token === 'center') return free / 2;
+    if (token === 'left' || token === 'top') return 0;
+    if (token === 'right' || token === 'bottom') return free;
+    if (token.endsWith('%')) return (free * parseFloat(token)) / 100;
+    return parseFloat(token) || 0;
+};
+
+/**
+ * 磁贴上封面实际画出来的那一块：宽格子、高格子的封面只占一个正方形（其余是书页），飞行要从这一块起飞、落回这一块，
+ * 不然整格当封面，长宽比一路在变。按面板的 background-size / -position 算（布局尺寸，不含变换），焦点放大另外乘上。
+ */
+const tileCoverQuad = (tile: HTMLElement): BravaisQuad | null => {
+    const quad = measureQuad(tile);
+    const face = tile.querySelector<HTMLElement>('.bravais-tile-face');
+    if (!quad || !face || !tile.offsetWidth || !tile.offsetHeight || !face.offsetWidth || !face.offsetHeight) {
+        return withFocusPop(tile, quad);
+    }
+    const style = getComputedStyle(face);
+    const faceW = face.offsetWidth;
+    const faceH = face.offsetHeight;
+    const [w, h] = style.backgroundImage === 'none' ? [faceW, faceH] : drawnCoverSize(style.backgroundSize, faceW, faceH);
+    const [px, py] = style.backgroundPosition.split(',')[0].trim().split(/\s+/);
+    const focused = tile.hasAttribute('data-bravais-focused');
+    const popX = focused ? Number(tile.style.getPropertyValue('--bravais-pop-x')) || 1 : 1;
+    const popY = focused ? Number(tile.style.getPropertyValue('--bravais-pop-y')) || 1 : 1;
+    // 面板绕自己的中心放大：封面中心离面板中心的距离一起放大。
+    const faceCx = face.offsetLeft + faceW / 2;
+    const faceCy = face.offsetTop + faceH / 2;
+    const cx = faceCx + (coverOffset(px, faceW - w) + w / 2 - faceW / 2) * popX;
+    const cy = faceCy + (coverOffset(py, faceH - h) + h / 2 - faceH / 2) * popY;
+    const scale = quad.width / tile.offsetWidth;
+    const dx = (cx - tile.offsetWidth / 2) * scale;
+    const dy = (cy - tile.offsetHeight / 2) * scale;
+    const cos = Math.cos(quad.angle);
+    const sin = Math.sin(quad.angle);
+    return {
+        center: { x: quad.center.x + dx * cos - dy * sin, y: quad.center.y + dx * sin + dy * cos },
+        width: w * popX * scale,
+        height: h * popY * scale,
+        angle: quad.angle,
+    };
+};
+
 // ---- 去程：点专辑磁贴 → 专辑海报 ----
 
 type Source = { cardKey: string; slotKey: string; coverUrl: string; quad: BravaisQuad; at: number };
@@ -178,7 +239,7 @@ let source: Source | null = null;
 /** 点了一张专辑磁贴：记下它此刻的样子（真正打开专辑时海报来取）。 */
 export const noteCoverFlightSource = (tile: Element, cardKey: string, slotKey: string, coverUrl: string | undefined) => {
     if (!coverUrl) return;
-    const quad = measureQuad(tile);
+    const quad = tile instanceof HTMLElement ? tileCoverQuad(tile) : measureQuad(tile);
     source = quad ? { cardKey, slotKey, coverUrl, quad, at: performance.now() } : null;
 };
 
@@ -231,7 +292,7 @@ export const flyCoverBack = ({ cover, from, shadow, slotKey, cardKey, coverUrl }
             fly({
                 url: coverUrl,
                 from,
-                target: () => (tile.isConnected ? withFocusPop(tile, measureQuad(tile)) : null),
+                target: () => (tile.isConnected ? tileCoverQuad(tile) : null),
                 duration: BACK_FLIGHT_MS,
                 shadow: { from: shadow, to: NO_SHADOW },
                 landing: 'fade',

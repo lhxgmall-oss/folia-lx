@@ -12,6 +12,8 @@ import { createWallWheelClassifier, stepWallWheel, wallWheelDelta, WALL_PAN_INER
 
 const DRAG_THRESHOLD_PX = 7;
 const CULL_EDGE_MARGIN_PX = 180;
+// 两下 wheel 之间隔得比这短就算同一次手势（触控板 / 惯性约 16ms 一下；停手再滚是新手势，按光标下面的东西重新算）。
+const WHEEL_LATCH_MS = 160;
 
 type WallPointerPanOptions = {
     applyCamera: (camera: LatticeCamera, updateBounds?: boolean) => void;
@@ -175,9 +177,13 @@ export const useWallPointerPan = ({
             }
             wheel.frame = requestAnimationFrame(tick);
         };
+        // 一次滚动手势锁定在墙上：触控板双指平移时光标不动、墙在动，叠在墙上的东西（bravais 的海报缝）会滑到光标下面，
+        // 之后的 wheel 落到它身上、不再经过墙——上一下 wheel 不久之前还在推墙，就接着算墙的（同浏览器原生滚动的锁定）。
+        let lastWallWheelAt = -Infinity;
         const onWheel = (event: WheelEvent) => {
             if (event.ctrlKey || event.metaKey) return;
             event.preventDefault();
+            lastWallWheelAt = event.timeStamp;
             if (pointerRef.current || inHandoff()) return;
             const source = classify(event);
             const { dx, dy } = wallWheelDelta(event, viewportRef.current.height);
@@ -219,11 +225,18 @@ export const useWallPointerPan = ({
         };
         window.addEventListener('pointerup', endOutside);
         window.addEventListener('pointercancel', endOutside);
+        const onLatchedWheel = (event: WheelEvent) => {
+            if (event.target instanceof Node && container.contains(event.target)) return;
+            if (event.timeStamp - lastWallWheelAt > WHEEL_LATCH_MS) return;
+            onWheel(event);
+        };
         container.addEventListener('wheel', onWheel, { passive: false });
+        window.addEventListener('wheel', onLatchedWheel, { passive: false, capture: true });
         container.addEventListener('keydown', onKeyDown, true);
         window.addEventListener('blur', cancel);
         return () => {
             container.removeEventListener('wheel', onWheel);
+            window.removeEventListener('wheel', onLatchedWheel, { capture: true });
             container.removeEventListener('keydown', onKeyDown, true);
             window.removeEventListener('blur', cancel);
             window.removeEventListener('pointerup', endOutside);
