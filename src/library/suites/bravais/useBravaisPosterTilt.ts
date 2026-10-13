@@ -16,7 +16,8 @@ import type { BravaisFrameState } from './useBravaisFrame';
 // 节奏：张开时裂缝先走一小段再开始转，转得比开口与相机慢一点、两头都平，三者差不多一起落定（不是一下子甩过去）；
 // 回正短一些，跟着缝合上走。
 // 倾斜着拖动、滚动沿着纸自己的方向走（滚轮往下，整张纸顺着倾斜的竖向走），海报这一列不会被拖到一边。
-// 裁剪仍按不倾斜的可见范围：视口角上转进来的那一块落在 BRAVAIS_OVERSCAN 的多渲染范围里。
+// 裁剪按反转回去的视口算（useBravaisCamera 的 getVisibleWorldBounds / bravaisFrame 的 getTiltReach）：支点跟着缝走，
+// 缝拖远了视口会整块偏开，光靠 BRAVAIS_OVERSCAN 的多渲染范围兜不住。
 // 降低动态效果（lattice）时不倾斜。
 
 export const useBravaisPosterTilt = ({

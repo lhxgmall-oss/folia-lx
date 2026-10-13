@@ -148,6 +148,31 @@ export const posterSafeArea = ({ width, height, deg }: { width: number; height: 
     return { scale: lo, offsetY };
 };
 
+/**
+ * 倾斜时视口在「没倾斜的屏幕坐标」里的外接框，相对 [0, 宽] × [0, 高] 各边挪了多少（px，往外为正、往里为负）：视口四个角
+ * 按倾斜反转回去（u = R⁻¹(s − pivot) + pivot）。支点跟着缝在屏幕上走——缝被拖到视口外很远时，反转回去的视口整块平移开
+ * （偏移随支点离视口的距离增长），一边往外、对边往里；裁剪要跟着挪，不然渲染的那片墙全在屏幕外。
+ */
+export const getTiltReach = (view: { width: number; height: number }, tilt: BravaisFrame['tilt']) => {
+    if (Math.abs(tilt.deg) < 0.001) return { left: 0, right: 0, top: 0, bottom: 0 };
+    const radians = (-tilt.deg * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    const corners = [[0, 0], [view.width, 0], [0, view.height], [view.width, view.height]].map(([x, y]) => {
+        const dx = x - tilt.pivotX;
+        const dy = y - tilt.pivotY;
+        return { x: tilt.pivotX + dx * cos - dy * sin, y: tilt.pivotY + dx * sin + dy * cos };
+    });
+    const xs = corners.map(corner => corner.x);
+    const ys = corners.map(corner => corner.y);
+    return {
+        left: -Math.min(...xs),
+        right: Math.max(...xs) - view.width,
+        top: -Math.min(...ys),
+        bottom: Math.max(...ys) - view.height,
+    };
+};
+
 /** 世界层的 transform 前面加上绕屏幕点的倾斜（世界层的 transform-origin 是 0 0，与屏幕原点重合）。 */
 export const withTilt = (transform: string, tilt: BravaisFrame['tilt']) => (
     Math.abs(tilt.deg) < 0.001

@@ -7,7 +7,7 @@ import {
     BRAVAIS_SEAM_POSTER_MAX_WIDTH,
     BRAVAIS_SEAM_POSTER_MIN_WIDTH,
 } from '@/library/suites/bravais/bravaisConstants';
-import { computeBravaisFrame, planPosterOpening, posterSafeArea, withTilt } from '@/library/suites/bravais/bravaisFrame';
+import { computeBravaisFrame, getTiltReach, planPosterOpening, posterSafeArea, withTilt } from '@/library/suites/bravais/bravaisFrame';
 import {
     resolvePosterWidth,
     resolveSeamTarget,
@@ -155,5 +155,30 @@ describe('scrapWords', () => {
     it('never repeats a word: a clash falls back to the next longest word of that title', () => {
         expect(scrapWords(items('Track 20 Amber', 'Track 21 Birch', 'Track 22 Cedar'))).toEqual(['Track', 'Birch']);
         expect(scrapWords(items('Rain', 'rain', 'RAIN'))).toEqual(['Ra']);
+    });
+});
+
+describe('getTiltReach', () => {
+    const view = { width: 1440, height: 900 };
+
+    it('does not move the bounds without a tilt', () => {
+        expect(getTiltReach(view, { deg: 0, pivotX: 400, pivotY: 450 })).toEqual({ left: 0, right: 0, top: 0, bottom: 0 });
+    });
+
+    it('widens a little around a pivot on screen', () => {
+        const reach = getTiltReach(view, { deg: -10, pivotX: 600, pivotY: 450 });
+        for (const side of [reach.left, reach.right, reach.top, reach.bottom]) {
+            expect(side).toBeGreaterThan(0);
+            expect(side).toBeLessThan(300);
+        }
+    });
+
+    it('shifts the whole box when the pivot is dragged far off screen, instead of only growing', () => {
+        // 支点在视口左边 4000px：反转回去的视口整块往下挪约 4000 × sin10° ≈ 700px（下边往外、上边往里）。
+        const reach = getTiltReach(view, { deg: -10, pivotX: -4000, pivotY: 450 });
+        expect(reach.bottom).toBeGreaterThan(600);
+        expect(reach.top).toBeLessThan(-400);
+        // 高度只多了转出来的那点，没有随距离变大。
+        expect(view.height + reach.top + reach.bottom).toBeLessThan(view.height + 300);
     });
 });
