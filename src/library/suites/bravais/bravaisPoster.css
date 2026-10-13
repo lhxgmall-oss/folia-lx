@@ -39,6 +39,36 @@
     pointer-events: none;
 }
 
+/* 色块外的定妆照垫底：与块里那张严格对齐（同样 cover、同样的取景点、不模糊不放大），去色、压暗、很淡，再盖调色板的
+ * 颜色；往下渐隐，名字、热门歌与按钮那一片底下几乎没有。 */
+.bravais-poster-backdrop {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    opacity: 0.16;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 34%, transparent 70%);
+    mask-image: linear-gradient(180deg, #000 0%, #000 34%, transparent 70%);
+}
+
+.bravais-poster-backdrop img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 70% 22%;
+    filter: grayscale(1) brightness(0.8);
+}
+
+.bravais-poster-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--bravais-poster-wall-tint, transparent);
+    mix-blend-mode: color;
+    opacity: 0.55;
+}
+
 /* 装着定妆照的几何形（形状、朝向与虚影错开的方向按构图给，见 bravaisPosterComposition），虚影颜色更深。 */
 .bravais-poster-shape,
 .bravais-poster-shape-ghost,

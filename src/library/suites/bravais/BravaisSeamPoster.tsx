@@ -14,7 +14,8 @@ import './bravaisPoster.css';
 
 // src/library/suites/bravais/BravaisSeamPoster.tsx
 // 歌手页的海报（完整等级下的歌手页缝，仍是墙上裂开的一列、相机把它带到视口最左边，见 bravaisSeamTarget 的 'poster' 与 bravaisFrame 的 poster）：
-// 用凝彩（Tempera）的视觉语言，构图按歌手定死、每个歌手一幅（bravaisPosterComposition）——灰色的胶片颗粒纸底、四周压暗；定妆照去色、套在一块大的斜切色块里（白色发丝描边 + 错开的
+// 用凝彩（Tempera）的视觉语言，构图按歌手定死、每个歌手一幅（bravaisPosterComposition）——灰色的胶片颗粒纸底、四周压暗；
+// 定妆照去色、套在一块大的斜切色块里，块外被裁掉的部分淡淡地垫在整幅底下（往下渐隐，不压名字与按钮）（白色发丝描边 + 错开的
 // 虚影，块里盖网点），像凝彩里装着画面的几何形；斜穿整幅的贯穿线、四角的取景角标、斜线填充的小方块、「· · ·」，散落在
 // 上半的两个灰色碎字（取自热门歌名里放大的那个词）；歌手名是超粗的黑体、白到灰的渐变，后面拖着错开的立体残影，旁边一个
 // 小词（「歌手」）与它错落排在一起，名字放不下时渲染后按比例缩小；热门歌曲前三首（每首的标题里最长的那个词放大、带同样的残影）。
@@ -138,6 +139,13 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
     return (
         <section className="bravais-poster" style={style} aria-label={t('libraryBravaisArtist.posterLabel')} data-bravais-poster>
             <div className="bravais-poster-ground" aria-hidden>
+                {/* 色块外被裁掉的那部分定妆照：同一张照片、同样对齐，淡淡地垫在整幅底下、往下渐隐（色块里那张是实的）。
+                    与块里同一个地址，不多下载一张。 */}
+                {coverUrl && (
+                    <div className="bravais-poster-backdrop" data-bravais-poster-backdrop>
+                        <img src={getSizedCoverUrl(coverUrl, 1024)} alt="" draggable={false} decoding="async" />
+                    </div>
+                )}
                 {/* 装着定妆照的斜切色块：先画错开的虚影，再画块本身（照片 + 网点 + 白色描边）。 */}
                 <div className="bravais-poster-shape-ghost" style={{ clipPath, transform: `translate(${composition.ghost.x}px, ${composition.ghost.y}px)` }} />
                 <div className="bravais-poster-shape" style={{ clipPath }}>
