@@ -27,27 +27,17 @@ describe('poster composition', () => {
         expect(shapes.size).toBeGreaterThan(3);
     });
 
-    it('keeps the shape in the upper part, clear of the name and the buttons', () => {
+    it('keeps the shape in the upper part, clear of the name and the buttons, and never a triangle', () => {
         for (let index = 0; index < 64; index += 1) {
-            const { shape, scraps, through } = resolvePosterComposition(`seed-${index}`);
+            const { shape } = resolvePosterComposition(`seed-${index}`);
             if (shape.kind === 'polygon') shape.points.forEach(([x, y]) => {
                 expect(y).toBeLessThanOrEqual(76);
                 expect(x).toBeGreaterThanOrEqual(0);
                 expect(x).toBeLessThanOrEqual(100);
             });
             else expect(shape.cy).toBeLessThanOrEqual(40);
-            expect(scraps).toHaveLength(3);
-            expect(through).toHaveLength(2);
-        }
-    });
-
-    it('spreads the scrap words apart vertically, one in each half first', () => {
-        for (let index = 0; index < 64; index += 1) {
-            const { scraps } = resolvePosterComposition(`seed-${index}`);
-            for (let a = 0; a < scraps.length; a += 1) for (let b = a + 1; b < scraps.length; b += 1) {
-                expect(Math.abs(scraps[a].y - scraps[b].y)).toBeGreaterThanOrEqual(10);
-            }
-            expect(scraps[0].y < 50).not.toBe(scraps[1].y < 50);
+            // 没有三角形（倒三角太像梗图模板）：多边形至少四个角。
+            if (shape.kind === 'polygon') expect(shape.points.length).toBeGreaterThanOrEqual(4);
         }
     });
 

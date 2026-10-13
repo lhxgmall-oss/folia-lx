@@ -1,24 +1,16 @@
 // src/library/suites/bravais/bravaisPosterComposition.ts
 // 歌手海报的构图（纯计算）：和凝彩一样按种子定死——同一个歌手每次打开都是同一幅，换一个歌手换一幅。种子是层的 key
-// （含歌手 id），渲染层零随机。随机的只有构图：装定妆照的几何形（斜切块、倒三角、竖条、圆窗）与它朝哪边，虚影错开的
-// 方向，两条贯穿线的高度与角度，碎字的位置、字号与角度，斜线小方块与「· · ·」的位置。文字、按钮的位置都不随机。
+// （含歌手 id），渲染层零随机。随机的只有装定妆照的几何形（三种斜切块、圆窗）与它朝哪边；文字、按钮的位置都不随机。
+// 凝彩的效果只挑了几样（纸底与颗粒、色块里的定妆照与网点、名字与热门歌的立体字）：虚影、描边、贯穿线、角标、斜线
+// 小方块、「· · ·」、散落的碎字都拿掉了，叠在倾斜的墙旁边太乱。
 // 几何形只占海报上部（不低于 76% 高），下面留给名字、热门歌曲与按钮。坐标都是海报宽高的百分比。
 
 export type BravaisPosterShape =
     | { kind: 'polygon'; points: readonly (readonly [number, number])[] }
     | { kind: 'circle'; cx: number; cy: number };
 
-export type BravaisPosterScrap = { x: number; y: number; size: number; deg: number; opacity: number };
-
 export type BravaisPosterComposition = {
     shape: BravaisPosterShape;
-    /** 虚影错开的方向（px）。 */
-    ghost: { x: number; y: number };
-    through: readonly { y: number; deg: number }[];
-    scraps: readonly BravaisPosterScrap[];
-    /** 斜线小方块在哪一边（与几何形相反的那边）、多高。 */
-    hatch: { side: 'left' | 'right'; y: number };
-    dots: { x: number; y: number };
 };
 
 /** FNV-1a，字符串 → 32 位种子。 */
@@ -43,68 +35,22 @@ export const createRandom = (seed: number) => {
 /** 几何形都画在右边，mirror 时左右翻过来。 */
 const SHAPES: readonly BravaisPosterShape[] = [
     { kind: 'polygon', points: [[18, 0], [100, 0], [100, 58], [46, 74]] },
-    { kind: 'polygon', points: [[6, 0], [100, 0], [62, 70]] },
+    // 原来这里是倒三角（[6,0] [100,0] [62,70]），尖朝下的大三角太像梗图模板：换成横跨整幅、下缘斜切的一块。
+    { kind: 'polygon', points: [[0, 0], [100, 0], [100, 50], [0, 66]] },
     { kind: 'polygon', points: [[44, 0], [100, 0], [100, 66], [58, 76]] },
     { kind: 'circle', cx: 64, cy: 30 },
 ];
 
-/** 碎字的候选位置：避开名字所在的中下部，挑三个。 */
-const SCRAP_SPOTS: readonly { x: number; y: number }[] = [
-    { x: -2, y: 30 }, { x: 70, y: 78 }, { x: 56, y: 72 }, { x: 4, y: 20 }, { x: 64, y: 86 }, { x: 30, y: 24 },
-];
-/** 两个碎字上下至少错开这么多（海报高度的百分比；最大的碎字约 8 × 1.15 高）。 */
-const SCRAP_MIN_GAP = 10;
-
-const scrapsApart = (a: { y: number }, b: { y: number }) => Math.abs(a.y - b.y) >= SCRAP_MIN_GAP;
-
-/** 已放的字两两错开，并且剩下的点里还能再放 need 个（也两两错开）。 */
-const scrapRoom = (pool: readonly { y: number }[], chosen: readonly { y: number }[], need: number): boolean => {
-    if (!chosen.every((spot, index) => chosen.slice(index + 1).every(other => scrapsApart(spot, other)))) return false;
-    if (need === 0) return true;
-    return pool.some(spot => !chosen.includes(spot) && scrapRoom(pool, [...chosen, spot], need - 1));
-};
-
 export const resolvePosterComposition = (seed: string): BravaisPosterComposition => {
+    // 取随机数的顺序与原来一样（先形状、再朝向），每个歌手抽到的形状不变。
     const random = createRandom(hashPosterSeed(seed));
-    const between = (min: number, max: number) => min + (max - min) * random();
     const base = SHAPES[Math.floor(random() * SHAPES.length)];
     const mirror = random() < 0.4;
     const flip = (x: number) => (mirror ? 100 - x : x);
     const shape: BravaisPosterShape = base.kind === 'polygon'
         ? { kind: 'polygon', points: base.points.map(([x, y]) => [flip(x), y] as const) }
         : { kind: 'circle', cx: flip(base.cx), cy: base.cy };
-    const ghostSign = random() < 0.5 ? -1 : 1;
-    const spots = [...SCRAP_SPOTS];
-    const chosen: { x: number; y: number }[] = [];
-    const scraps = [0, 1, 2].map(rank => {
-        // 碎字不叠在一起：和已放的每个字上下错开一个字高以上（宽度随词变，只有上下错开才稳）；上下两组还空着的那组优先。
-        // 每个字仍只取一次随机数（构图里后面的元素跟着同一串随机数，不能因此全变）。
-        // 只挑之后还放得下剩下几个字的位置（两组中间那个点会把两边都占住）。
-        const apart = spots.filter(spot => scrapRoom(spots, [...chosen, spot], 2 - rank));
-        const fresh = apart.filter(spot => chosen.every(other => (other.y < 50) !== (spot.y < 50)));
-        const candidates = fresh.length > 0 ? fresh : apart.length > 0 ? apart : spots;
-        const spot = candidates[Math.floor(random() * candidates.length)];
-        spots.splice(spots.indexOf(spot), 1);
-        chosen.push(spot);
-        return {
-            x: spot.x,
-            y: spot.y,
-            size: [8, 5, 3.6][rank] * between(0.85, 1.15),
-            deg: between(-9, 9),
-            opacity: [0.8, 0.55, 0.45][rank],
-        };
-    });
-    return {
-        shape,
-        ghost: { x: 16 * ghostSign * (mirror ? -1 : 1), y: 16 },
-        through: [
-            { y: between(8, 18), deg: between(2, 7) * (random() < 0.5 ? -1 : 1) },
-            { y: between(78, 88), deg: between(3, 8) * (random() < 0.5 ? -1 : 1) },
-        ],
-        scraps,
-        hatch: { side: mirror ? 'right' : 'left', y: between(11, 16) },
-        dots: { x: between(30, 56), y: between(7, 11) },
-    };
+    return { shape };
 };
 
 /** 多边形 → CSS clip-path；圆窗按海报较短的一边定半径（宽高都用容器单位，保持正圆）。 */
