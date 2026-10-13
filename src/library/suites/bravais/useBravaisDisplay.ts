@@ -412,8 +412,13 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         if (kind === 'enter') controlsNow.moveTo(center, true);
         const draft = { ...createBravaisDisplay(layer, startSlotKey, undefined, wallLook), finite: resolveFinite(layer, null) };
         const isHomeTabSwitch = kind === 'replace' && layer.surface === 'home' && previous.layer.surface === 'home';
-        // 整墙波次：换首页页签（出场 → 入场）与回到来源（出场；首页层在遮盖之下落回）。降低动效时换成普通翻牌（磁贴淡入淡出）。
-        const waves = (isHomeTabSwitch || kind === 'exit') && !controlsNow.reducedTransitions;
+        // 整墙波次：换首页页签（出场 → 入场）、歌手页 ↔ 专辑页与回到来源（出场；首页层在遮盖之下落回）。降低动效时换成
+        // 普通翻牌（磁贴淡入淡出）。
+        // 歌手页 ↔ 专辑页：同样整墙波次（歌手墙按对角线抬起淡出、曲目墙再按对角线落进来），封面另外从墙上飞到海报上
+        // （bravaisCoverFlight）。
+        const isArtistAlbumHop = (kind === 'push' && previous.layer.surface === 'artist' && Boolean(layer.seam.album))
+            || (kind === 'back' && layer.surface === 'artist' && Boolean(previous.layer.seam.album));
+        const waves = (isHomeTabSwitch || isArtistAlbumHop || kind === 'exit') && !controlsNow.reducedTransitions;
         const entrance = kind === 'enter' ? planEntrance() : null;
         const flips = entrance ? null : waves ? planWaveFor(previous, draft) : planFlipFor(previous, draft, origin);
         waveUntilRef.current = waves && flips ? performance.now() + flips.durationMs : 0;

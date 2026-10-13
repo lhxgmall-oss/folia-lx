@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ListFilter, ListPlus, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
@@ -11,6 +11,7 @@ import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import { openBravaisFilter } from './useBravaisSeamFilter';
 import { resolveAlbumComposition } from './bravaisPosterComposition';
 import { splitHeroWord } from './BravaisSeamPoster';
+import { flyCoverBack, flyCoverToPoster, measureQuad, takeCoverFlightSource, type BravaisQuad } from './bravaisCoverFlight';
 import './bravaisPoster.css';
 import './bravaisAlbumPoster.css';
 
@@ -24,6 +25,7 @@ import './bravaisAlbumPoster.css';
 // 纸、色块、网纹、水印这些底子不缩；倾斜时文字、封面与按钮（bravais-poster-ui）缩进安全区。
 // 入场（挂载时放一次，换专辑按 layer.key 重新挂载）：纸从整张收到斜边、露出色块，封面落下贴上，标题每个词从不同方向
 // 拼上来、立体残影晚半拍，下划线拉出，信息与按钮依次浮上来，胶带最后贴上；降低动态效果时只淡入（bravaisAlbumPoster.css）。
+// 从墙上点专辑打开时，封面不是落下来，而是从被点的那张磁贴飞过来（bravaisCoverFlight）；返回时飞回去。
 
 const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 const TITLE_LINES = 3;
@@ -38,6 +40,8 @@ const titleColumns = (title: string) => {
 };
 
 const COVER_PX = 512;
+/** 入场（封面飞来或落下、倾斜）放完的时刻，之后海报封面不再动。 */
+const COVER_SETTLE_MS = 1300;
 
 const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> = ({ layer, actions }) => {
     const { t } = useTranslation();
@@ -64,6 +68,41 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
         '--bravais-album-hero-deg': `${composition.hero.deg}deg`,
     } as React.CSSProperties;
     const year = album?.kicker;
+    // 封面飞行（bravaisCoverFlight）：从墙上被点的那张专辑飞来时，自己的封面先藏着、落地再露出；卸载（返回）时飞回那一格。
+    const coverRef = useRef<HTMLElement>(null);
+    const flownFromRef = useRef<string | null>(null);
+    const [awaitingCover, setAwaitingCover] = useState(false);
+    const albumCoverUrl = album?.coverUrl;
+    useLayoutEffect(() => {
+        const cover = coverRef.current;
+        const from = takeCoverFlightSource(albumCoverUrl);
+        if (cover && from) {
+            flownFromRef.current = from.slotKey;
+            setAwaitingCover(true);
+            flyCoverToPoster(from, cover, () => setAwaitingCover(false));
+        }
+        // 开发模式下 effect 会重跑一次（DOM 不动）：飞行不停，回程在 flyCoverBack 里等到封面真的不在了才出发。
+        return () => {
+            const slotKey = flownFromRef.current;
+            const from = coverQuadRef.current;
+            if (cover && slotKey && from && albumCoverUrl) flyCoverBack({ cover, from, slotKey, coverUrl: albumCoverUrl });
+        };
+    // 只在挂载 / 卸载时（换专辑按 layer.key 重新挂载）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    // 回程的起点：入场放完后量一次封面（海报这一列在专辑页上不动），窗口尺寸变了再量。
+    const coverQuadRef = useRef<BravaisQuad | null>(null);
+    useEffect(() => {
+        const measure = () => {
+            if (coverRef.current) coverQuadRef.current = measureQuad(coverRef.current) ?? coverQuadRef.current;
+        };
+        const timer = window.setTimeout(measure, COVER_SETTLE_MS);
+        window.addEventListener('resize', measure);
+        return () => {
+            window.clearTimeout(timer);
+            window.removeEventListener('resize', measure);
+        };
+    }, []);
     return (
         <section className="bravais-poster bravais-album-poster" style={style} aria-label={t('libraryBravaisAlbum.posterLabel')}
             data-bravais-poster data-bravais-album-poster>
@@ -95,7 +134,7 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                 </div>
 
                 <div className="bravais-album-stage">
-                    <figure className="bravais-album-cover" data-bravais-album-cover>
+                    <figure ref={coverRef} className="bravais-album-cover" data-bravais-album-cover data-flight={awaitingCover ? 'pending' : undefined}>
                         {coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : <span className="bravais-album-cover-empty" />}
                         <span className="bravais-album-tape" aria-hidden />
                     </figure>

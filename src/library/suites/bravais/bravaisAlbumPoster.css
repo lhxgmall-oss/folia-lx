@@ -421,3 +421,9 @@
 :root[data-reduce-motion~='lattice'] .bravais-album-poster {
     animation: bravais-album-fade-in 180ms ease-out both !important;
 }
+
+/* 封面正从墙上飞过来：自己的先藏着（不放落下的入场），落地再露出。 */
+.bravais-album-cover[data-flight="pending"] {
+    visibility: hidden;
+    animation: none;
+}

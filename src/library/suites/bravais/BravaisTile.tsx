@@ -14,6 +14,7 @@ import { bravaisFaceKey, type BravaisTileKind } from './bravaisLook';
 import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFocusCardBody';
 import BravaisTileMarks, { BravaisTileBadge } from './BravaisTileMarks';
 import { useBravaisArtistTone } from './bravaisArtistTone';
+import { noteCoverFlightSource } from './bravaisCoverFlight';
 import { BRAVAIS_ALBUM_MOSAIC_PX, mosaicPlacement, shardPlacement, useBravaisCoverSpots } from './bravaisAlbumWall';
 import { resolveBravaisTileForm } from './bravaisTileForm';
 import './bravaisTileKinds.css';
@@ -295,6 +296,10 @@ function BravaisTile({
         if (didDragRef.current) {
             didDragRef.current = false;
             return;
+        }
+        // 点专辑：记下这张封面此刻的样子，真打开了专辑，封面从这里飞到专辑海报上（bravaisCoverFlight）。
+        if (display?.kind === 'album' && event.currentTarget.parentElement) {
+            noteCoverFlightSource(event.currentTarget.parentElement, display.key, slotKey, display.coverUrl);
         }
         handlers.activate(slotKey);
     };
