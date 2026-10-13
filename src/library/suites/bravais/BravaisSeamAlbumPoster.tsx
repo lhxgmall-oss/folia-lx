@@ -15,8 +15,10 @@ import {
     flyCoverBack,
     flyCoverToPoster,
     measureQuad,
+    parkCoverBackOrigin,
     readCoverShadow,
     takeCoverFlightSource,
+    takeParkedCoverBackOrigin,
     type BravaisHardShadow,
     type BravaisQuad,
 } from './bravaisCoverFlight';
@@ -93,10 +95,17 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                 cover.setAttribute('data-flight', 'landed');
                 setCoverFlight('landed');
             });
+        } else {
+            flownFromRef.current = takeParkedCoverBackOrigin(layer.key);
         }
         // 开发模式下 effect 会重跑一次（DOM 不动）：飞行不停，回程在 flyCoverBack 里等到封面真的不在了才出发。
         return () => {
             const origin = flownFromRef.current;
+            // 还在这张专辑上（只是缝换了样子）：不飞，记下终点等海报回来。
+            if (origin && actions.currentLayerKey?.() === layer.key) {
+                parkCoverBackOrigin(layer.key, origin);
+                return;
+            }
             const from = coverQuadRef.current;
             const shadow = coverShadowRef.current;
             if (cover && origin && from && shadow && albumCoverUrl) flyCoverBack({ cover, from, shadow, ...origin, coverUrl: albumCoverUrl });
@@ -110,8 +119,9 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
     useEffect(() => {
         const measure = () => {
             if (!coverRef.current) return;
-            coverQuadRef.current = measureQuad(coverRef.current) ?? coverQuadRef.current;
-            coverShadowRef.current = readCoverShadow(coverRef.current);
+            const quad = measureQuad(coverRef.current);
+            coverQuadRef.current = quad ?? coverQuadRef.current;
+            coverShadowRef.current = readCoverShadow(coverRef.current, quad);
         };
         const timer = window.setTimeout(measure, COVER_SETTLE_MS);
         window.addEventListener('resize', measure);

@@ -24,30 +24,37 @@ const BASE_PX = 512;
 
 const reducedMotion = () => (document.documentElement.dataset.reduceMotion ?? '').split(/\s+/).includes('lattice');
 
-/** 元素三个角在屏幕上的位置 → 中心、宽高、角度。元素要是定位元素（探针按 absolute 放）。 */
-export const measureQuad = (element: Element): BravaisQuad | null => {
-    if (!element.isConnected) return null;
-    const probe = (left: string, top: string) => {
+/**
+ * 元素三个角在屏幕上的位置 → 中心、宽高、角度。元素要是定位元素（探针按 absolute 放）。
+ * 三个探针一起挂上、一起读、一起撤：一次测量只强制排一次版（飞行每帧都在量）。read 在探针还挂着、排版刚算完时调，
+ * 顺手读的样式与尺寸不会再触发一次排版。
+ */
+const measureQuadWith = <T,>(element: Element, read: () => T): [BravaisQuad | null, T | null] => {
+    if (!element.isConnected) return [null, null];
+    const probes = [['0', '0'], ['100%', '0'], ['0', '100%']].map(([left, top]) => {
         const span = document.createElement('span');
         span.style.cssText = `position:absolute;left:${left};top:${top};width:0;height:0;margin:0;padding:0;border:0;pointer-events:none;`;
         element.appendChild(span);
+        return span;
+    });
+    const [a, b, c] = probes.map(span => {
         const rect = span.getBoundingClientRect();
-        span.remove();
         return { x: rect.left, y: rect.top };
-    };
-    const a = probe('0', '0');
-    const b = probe('100%', '0');
-    const c = probe('0', '100%');
+    });
+    const extra = read();
+    probes.forEach(span => span.remove());
     const width = Math.hypot(b.x - a.x, b.y - a.y);
     const height = Math.hypot(c.x - a.x, c.y - a.y);
-    if (width < 1 || height < 1) return null;
-    return {
+    if (width < 1 || height < 1) return [null, extra];
+    return [{
         center: { x: (b.x + c.x) / 2, y: (b.y + c.y) / 2 },
         width,
         height,
         angle: Math.atan2(b.y - a.y, b.x - a.x),
-    };
+    }, extra];
 };
+
+export const measureQuad = (element: Element): BravaisQuad | null => measureQuadWith(element, () => null)[0];
 
 /** 两个状态之间插值（角度走最近的那一边）。 */
 export const lerpQuad = (from: BravaisQuad, to: BravaisQuad, t: number): BravaisQuad => {
@@ -80,16 +87,18 @@ const NO_SHADOW: BravaisHardShadow = { offset: 0, color: 'transparent' };
  * - landing = 'fade'（回程）：终点是带标题的磁贴，和飞行的图不一样。飞到后等那一格换好内容，onDone 让它直接停在
  *   原位（结束它还没放完的落回），飞行的图再在它上面淡掉——封面就是这一格的入场，之后不会再落一次。
  */
-const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
+const fly = ({ url, from, target, duration, shadow, landing, ready, lost, onDone }: {
     url: string;
     from: BravaisQuad;
     target: () => BravaisQuad | null;
     duration: number;
-    /** 终点那头可以是函数（每帧量：海报刚挂载时还没缩放到位，开始时量的不准）。 */
-    shadow: { from: BravaisHardShadow; to: BravaisHardShadow | (() => BravaisHardShadow) };
+    /** 终点那头可以是函数（每帧量：海报刚挂载时还没缩放到位，开始时量的不准）；拿到的是这一帧量好的终点。 */
+    shadow: { from: BravaisHardShadow; to: BravaisHardShadow | ((quad: BravaisQuad) => BravaisHardShadow) };
     landing: 'swap' | 'fade';
     /** swap：终点的图解码好了没有；fade：终点（墙上那一格）换好内容了没有。 */
     ready?: () => boolean;
+    /** 终点没了、不会再回来（去程飞到一半就返回了）：飞行的图就地淡掉，不调 onDone。 */
+    lost?: () => boolean;
     onDone?: () => void;
 }) => {
     current?.stop();
@@ -112,7 +121,12 @@ const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
         if (finished) return;
         finished = true;
         cancelAnimationFrame(frame);
-        onDone?.();
+        try {
+            onDone?.();
+        } catch (error) {
+            // 落地出错也要把飞行的图撤掉（它盖在最上层，留下来就一直挡着）。
+            console.error(error);
+        }
         if (landing === 'fade') {
             // 终点已经停好（onDone 里结束了它的入场），飞行的图在它上面淡掉。
             const fade = image.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-out', fill: 'forwards' });
@@ -122,9 +136,10 @@ const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
         // 终点已经露出来（同一帧），下一帧再撤，不会空一帧。
         requestAnimationFrame(remove);
     };
+    let shadowTo = typeof shadow.to === 'function' ? shadow.from : shadow.to;
     const draw = (quad: BravaisQuad, t: number) => {
         const lift = Math.sin(Math.PI * t);
-        const to = typeof shadow.to === 'function' ? shadow.to() : shadow.to;
+        const to = shadowTo;
         const hard = shadow.from.offset + (to.offset - shadow.from.offset) * t;
         const color = t < 0.5 ? shadow.from.color : to.color;
         const alpha = Math.round((t < 0.5 ? 1 - t * 2 : t * 2 - 1) * 100);
@@ -135,11 +150,22 @@ const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
         image.style.boxShadow = `${hard}px ${hard}px 0 color-mix(in srgb, ${color} ${alpha}%, transparent), `
             + `${lift * 10}px ${lift * 16}px ${lift * 30}px rgba(0,0,0,${(lift * 0.4).toFixed(3)})`;
     };
+    const abandon = () => {
+        finished = true;
+        cancelAnimationFrame(frame);
+        const fade = image.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease-out', fill: 'forwards' });
+        fade.onfinish = remove;
+    };
     const step = (now: number) => {
+        if (lost?.()) {
+            abandon();
+            return;
+        }
         const elapsed = now - startedAt;
         const t = Math.min(1, elapsed / duration);
         const to = target() ?? last;
         last = to;
+        if (typeof shadow.to === 'function') shadowTo = shadow.to(to);
         draw(lerpQuad(from, to, easeInOut(t)), easeInOut(t));
         const waiting = ready && !ready() && elapsed < duration + 600;
         if (t >= 1 && !waiting) finish();
@@ -152,14 +178,27 @@ const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
     return flight;
 };
 
-/** 海报封面的那道硬阴影（::before 的偏移与颜色，按元素此刻在屏幕上的缩放换算）。 */
-export const readCoverShadow = (cover: HTMLElement): BravaisHardShadow => {
+/** 海报封面 ::before 那道硬阴影的偏移（元素自己的像素）与颜色，加上元素的布局宽度（换算成屏幕上的缩放用）。 */
+const readCoverShadowStyle = (cover: HTMLElement) => {
     const before = getComputedStyle(cover, '::before');
     const match = /matrix\(([^)]+)\)/.exec(before.transform);
-    const offset = match ? Number(match[1].split(',')[4]) || 0 : 0;
-    const quad = measureQuad(cover);
-    const scale = quad && cover.offsetWidth ? quad.width / cover.offsetWidth : 1;
-    return { offset: offset * scale, color: before.backgroundColor || 'transparent' };
+    return {
+        offset: match ? Number(match[1].split(',')[4]) || 0 : 0,
+        color: before.backgroundColor || 'transparent',
+        layoutWidth: cover.offsetWidth,
+    };
+};
+
+/**
+ * 海报封面的那道硬阴影（::before 的偏移与颜色，按元素此刻在屏幕上的缩放换算）。quad 是已经量好的封面（飞行每帧
+ * 刚量过）：直接用它的宽度算缩放，样式也不用再单独排一次版去读；没给就自己量，读样式顺带在量的时候。
+ */
+export const readCoverShadow = (cover: HTMLElement, quad?: BravaisQuad | null): BravaisHardShadow => {
+    const [measured, style] = quad === undefined
+        ? measureQuadWith(cover, () => readCoverShadowStyle(cover))
+        : [quad, readCoverShadowStyle(cover)];
+    const scale = measured && style?.layoutWidth ? measured.width / style.layoutWidth : 1;
+    return { offset: (style?.offset ?? 0) * scale, color: style?.color ?? 'transparent' };
 };
 
 /** 键盘焦点在那一格上时它放大一圈（bravais.css 的 --bravais-pop-x / -y）：飞回去落到放大后的大小。 */
@@ -201,27 +240,34 @@ const coverOffset = (token: string | undefined, free: number) => {
  * 这一块起飞、落回这一块，不然整格当封面，长宽比一路在变。按面板的 background-size / -position 算（布局尺寸，不含变换），焦点放大另外乘上。
  */
 const tileCoverQuad = (tile: HTMLElement): BravaisQuad | null => {
-    const quad = measureQuad(tile);
     const face = tile.querySelector<HTMLElement>('.bravais-tile-face');
-    if (!quad || !face || !tile.offsetWidth || !tile.offsetHeight || !face.offsetWidth || !face.offsetHeight) {
+    // 面板的样式与布局尺寸在探针挂着时一起读（同一次排版）。
+    const [quad, layout] = measureQuadWith(tile, () => (face ? {
+        style: getComputedStyle(face),
+        tileW: tile.offsetWidth,
+        tileH: tile.offsetHeight,
+        faceW: face.offsetWidth,
+        faceH: face.offsetHeight,
+        faceX: face.offsetLeft,
+        faceY: face.offsetTop,
+    } : null));
+    if (!quad || !layout || !layout.tileW || !layout.tileH || !layout.faceW || !layout.faceH) {
         return withFocusPop(tile, quad);
     }
-    const style = getComputedStyle(face);
-    const faceW = face.offsetWidth;
-    const faceH = face.offsetHeight;
+    const { style, tileW, tileH, faceW, faceH, faceX, faceY } = layout;
     const [w, h] = style.backgroundImage === 'none' ? [faceW, faceH] : drawnCoverSize(style.backgroundSize, faceW, faceH);
     const [px, py] = style.backgroundPosition.split(',')[0].trim().split(/\s+/);
     const focused = tile.hasAttribute('data-bravais-focused');
     const popX = focused ? Number(tile.style.getPropertyValue('--bravais-pop-x')) || 1 : 1;
     const popY = focused ? Number(tile.style.getPropertyValue('--bravais-pop-y')) || 1 : 1;
     // 面板绕自己的中心放大：封面中心离面板中心的距离一起放大。
-    const faceCx = face.offsetLeft + faceW / 2;
-    const faceCy = face.offsetTop + faceH / 2;
+    const faceCx = faceX + faceW / 2;
+    const faceCy = faceY + faceH / 2;
     const cx = faceCx + (coverOffset(px, faceW - w) + w / 2 - faceW / 2) * popX;
     const cy = faceCy + (coverOffset(py, faceH - h) + h / 2 - faceH / 2) * popY;
-    const scale = quad.width / tile.offsetWidth;
-    const dx = (cx - tile.offsetWidth / 2) * scale;
-    const dy = (cy - tile.offsetHeight / 2) * scale;
+    const scale = quad.width / tileW;
+    const dx = (cx - tileW / 2) * scale;
+    const dy = (cy - tileH / 2) * scale;
     const cos = Math.cos(quad.angle);
     const sin = Math.sin(quad.angle);
     return {
@@ -259,8 +305,9 @@ export const flyCoverToPoster = (from: Source, cover: HTMLElement, onLand: () =>
     from: from.quad,
     target: () => measureQuad(cover),
     duration: FLIGHT_MS,
-    shadow: { from: NO_SHADOW, to: () => readCoverShadow(cover) },
+    shadow: { from: NO_SHADOW, to: quad => readCoverShadow(cover, quad) },
     landing: 'swap',
+    lost: () => !cover.isConnected,
     ready: () => {
         const image = cover.querySelector('img');
         return !image || (image.complete && image.naturalWidth > 0);
@@ -269,6 +316,21 @@ export const flyCoverToPoster = (from: Source, cover: HTMLElement, onLand: () =>
 });
 
 // ---- 回程：专辑海报 → 墙上原来那一格 ----
+
+type BackOrigin = { slotKey: string; cardKey: string };
+let parkedBackOrigin: { layerKey: string; origin: BackOrigin } | null = null;
+
+/** 海报卸载了但还在这张专辑上（开过滤、收起缝、开面板）：记下回程的终点，海报回来时接着用。 */
+export const parkCoverBackOrigin = (layerKey: string, origin: BackOrigin) => {
+    parkedBackOrigin = { layerKey, origin };
+};
+
+/** 海报挂载：同一张专辑之前记下的回程终点（换了专辑就作废）。 */
+export const takeParkedCoverBackOrigin = (layerKey: string): BackOrigin | null => {
+    const parked = parkedBackOrigin;
+    parkedBackOrigin = null;
+    return parked?.layerKey === layerKey ? parked.origin : null;
+};
 
 /**
  * 海报卸载时调。起点用海报事先量好的封面样子（from）——卸载那一刻换层已经开始，海报的布局不可靠。下一帧封面真的不在了
@@ -299,7 +361,15 @@ export const flyCoverBack = ({ cover, from, shadow, slotKey, cardKey, coverUrl }
                 landing: 'fade',
                 // 那一格的内容换成这张专辑了（整墙波次在抬起时换内容）。
                 ready: () => tile.dataset.libraryCard === cardKey,
-                onDone: () => face()?.getAnimations().forEach(animation => animation.finish()),
+                onDone: () => {
+                    // 等到超时那一格也没换成这张专辑（去了别的墙）：别动它的动画，飞行的图淡掉就好。
+                    if (tile.dataset.libraryCard !== cardKey) return;
+                    face()?.getAnimations().forEach(animation => {
+                        // 无限循环的动画（加载中的呼吸）finish() 会抛错，跳过。
+                        if (animation.effect?.getComputedTiming().endTime === Infinity) return;
+                        animation.finish();
+                    });
+                },
             });
             return;
         }

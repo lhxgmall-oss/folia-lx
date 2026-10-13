@@ -45,6 +45,8 @@ export type BravaisSeamActions = {
     panel?: BravaisPanelActions;
     /** 首页窄缝的直达入口（特殊集合）：墙上找得到那张卡就以它为起点磁贴（useBravaisInteractions 的 openShortcut）。 */
     openShortcut?: (shortcut: BravaisHomeShortcut) => void;
+    /** 此刻导航到的层（缝里显示的层在换层时会晚一拍）：专辑海报卸载时据此分辨是真的离开了还是只换了缝的样子。 */
+    currentLayerKey?: () => string | null;
 };
 
 type BravaisSeamContentProps = {

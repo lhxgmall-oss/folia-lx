@@ -14,6 +14,8 @@ const DRAG_THRESHOLD_PX = 7;
 const CULL_EDGE_MARGIN_PX = 180;
 // 两下 wheel 之间隔得比这短就算同一次手势（触控板 / 惯性约 16ms 一下；停手再滚是新手势，按光标下面的东西重新算）。
 const WHEEL_LATCH_MS = 160;
+// 锁定期间光标挪开超过这么多才算换了目标（墙在光标下滑动时浏览器补发的 pointermove 坐标不变）。
+const LATCH_MOVE_PX = 4;
 
 type WallPointerPanOptions = {
     applyCamera: (camera: LatticeCamera, updateBounds?: boolean) => void;
@@ -179,11 +181,37 @@ export const useWallPointerPan = ({
         };
         // 一次滚动手势锁定在墙上：触控板双指平移时光标不动、墙在动，叠在墙上的东西（bravais 的海报缝）会滑到光标下面，
         // 之后的 wheel 落到它身上、不再经过墙——上一下 wheel 不久之前还在推墙，就接着算墙的（同浏览器原生滚动的锁定）。
-        let lastWallWheelAt = -Infinity;
+        // 锁定时才在 window 上挂监听（平时不拦整页的 wheel）；隔 WHEEL_LATCH_MS 没有 wheel 或光标真的挪开了就解开——
+        // 惯性还没停时把光标移到缝里的列表上再滚，滚的是列表，不是墙。
+        let latch: { timer: number; x: number; y: number } | null = null;
+        const releaseLatch = () => {
+            if (!latch) return;
+            window.clearTimeout(latch.timer);
+            latch = null;
+            window.removeEventListener('wheel', onLatchedWheel, { capture: true });
+            window.removeEventListener('pointermove', onLatchMove, true);
+        };
+        const holdLatch = (event: WheelEvent) => {
+            if (!latch) {
+                latch = { timer: 0, x: event.clientX, y: event.clientY };
+                window.addEventListener('wheel', onLatchedWheel, { passive: false, capture: true });
+                window.addEventListener('pointermove', onLatchMove, true);
+            }
+            window.clearTimeout(latch.timer);
+            latch.timer = window.setTimeout(releaseLatch, WHEEL_LATCH_MS);
+        };
+        const onLatchMove = (event: globalThis.PointerEvent) => {
+            if (latch && Math.hypot(event.clientX - latch.x, event.clientY - latch.y) > LATCH_MOVE_PX) releaseLatch();
+        };
+        const onLatchedWheel = (event: WheelEvent) => {
+            if (event.target instanceof Node && container.contains(event.target)) return;
+            event.stopPropagation();
+            onWheel(event);
+        };
         const onWheel = (event: WheelEvent) => {
             if (event.ctrlKey || event.metaKey) return;
             event.preventDefault();
-            lastWallWheelAt = event.timeStamp;
+            holdLatch(event);
             if (pointerRef.current || inHandoff()) return;
             const source = classify(event);
             const { dx, dy } = wallWheelDelta(event, viewportRef.current.height);
@@ -225,18 +253,12 @@ export const useWallPointerPan = ({
         };
         window.addEventListener('pointerup', endOutside);
         window.addEventListener('pointercancel', endOutside);
-        const onLatchedWheel = (event: WheelEvent) => {
-            if (event.target instanceof Node && container.contains(event.target)) return;
-            if (event.timeStamp - lastWallWheelAt > WHEEL_LATCH_MS) return;
-            onWheel(event);
-        };
         container.addEventListener('wheel', onWheel, { passive: false });
-        window.addEventListener('wheel', onLatchedWheel, { passive: false, capture: true });
         container.addEventListener('keydown', onKeyDown, true);
         window.addEventListener('blur', cancel);
         return () => {
             container.removeEventListener('wheel', onWheel);
-            window.removeEventListener('wheel', onLatchedWheel, { capture: true });
+            releaseLatch();
             container.removeEventListener('keydown', onKeyDown, true);
             window.removeEventListener('blur', cancel);
             window.removeEventListener('pointerup', endOutside);
