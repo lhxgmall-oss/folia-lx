@@ -422,8 +422,11 @@
     animation: bravais-album-fade-in 180ms ease-out both !important;
 }
 
-/* 封面正从墙上飞过来：自己的先藏着（不放落下的入场），落地再露出。 */
+/* 封面从墙上飞过来：飞的时候自己的先藏着，落地同一帧露出；两种状态都不放「落下」的入场（不然落地后又播一遍）。 */
+.bravais-album-cover[data-flight] {
+    animation: none;
+}
+
 .bravais-album-cover[data-flight="pending"] {
     visibility: hidden;
-    animation: none;
 }

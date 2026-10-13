@@ -11,7 +11,15 @@ import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import { openBravaisFilter } from './useBravaisSeamFilter';
 import { resolveAlbumComposition } from './bravaisPosterComposition';
 import { splitHeroWord } from './BravaisSeamPoster';
-import { flyCoverBack, flyCoverToPoster, measureQuad, takeCoverFlightSource, type BravaisQuad } from './bravaisCoverFlight';
+import {
+    flyCoverBack,
+    flyCoverToPoster,
+    measureQuad,
+    readCoverShadow,
+    takeCoverFlightSource,
+    type BravaisHardShadow,
+    type BravaisQuad,
+} from './bravaisCoverFlight';
 import './bravaisPoster.css';
 import './bravaisAlbumPoster.css';
 
@@ -71,30 +79,38 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
     // 封面飞行（bravaisCoverFlight）：从墙上被点的那张专辑飞来时，自己的封面先藏着、落地再露出；卸载（返回）时飞回那一格。
     const coverRef = useRef<HTMLElement>(null);
     const flownFromRef = useRef<string | null>(null);
-    const [awaitingCover, setAwaitingCover] = useState(false);
+    const [coverFlight, setCoverFlight] = useState<'pending' | 'landed' | undefined>(undefined);
     const albumCoverUrl = album?.coverUrl;
     useLayoutEffect(() => {
         const cover = coverRef.current;
         const from = takeCoverFlightSource(albumCoverUrl);
         if (cover && from) {
             flownFromRef.current = from.slotKey;
-            setAwaitingCover(true);
-            flyCoverToPoster(from, cover, () => setAwaitingCover(false));
+            setCoverFlight('pending');
+            flyCoverToPoster(from, cover, () => {
+                // 同步露出（不等 React 重渲染），飞行的图下一帧才撤；落地后也不再放「落下」的入场。
+                cover.setAttribute('data-flight', 'landed');
+                setCoverFlight('landed');
+            });
         }
         // 开发模式下 effect 会重跑一次（DOM 不动）：飞行不停，回程在 flyCoverBack 里等到封面真的不在了才出发。
         return () => {
             const slotKey = flownFromRef.current;
             const from = coverQuadRef.current;
-            if (cover && slotKey && from && albumCoverUrl) flyCoverBack({ cover, from, slotKey, coverUrl: albumCoverUrl });
+            const shadow = coverShadowRef.current;
+            if (cover && slotKey && from && shadow && albumCoverUrl) flyCoverBack({ cover, from, shadow, slotKey, coverUrl: albumCoverUrl });
         };
     // 只在挂载 / 卸载时（换专辑按 layer.key 重新挂载）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     // 回程的起点：入场放完后量一次封面（海报这一列在专辑页上不动），窗口尺寸变了再量。
     const coverQuadRef = useRef<BravaisQuad | null>(null);
+    const coverShadowRef = useRef<BravaisHardShadow | null>(null);
     useEffect(() => {
         const measure = () => {
-            if (coverRef.current) coverQuadRef.current = measureQuad(coverRef.current) ?? coverQuadRef.current;
+            if (!coverRef.current) return;
+            coverQuadRef.current = measureQuad(coverRef.current) ?? coverQuadRef.current;
+            coverShadowRef.current = readCoverShadow(coverRef.current);
         };
         const timer = window.setTimeout(measure, COVER_SETTLE_MS);
         window.addEventListener('resize', measure);
@@ -134,7 +150,7 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                 </div>
 
                 <div className="bravais-album-stage">
-                    <figure ref={coverRef} className="bravais-album-cover" data-bravais-album-cover data-flight={awaitingCover ? 'pending' : undefined}>
+                    <figure ref={coverRef} className="bravais-album-cover" data-bravais-album-cover data-flight={coverFlight}>
                         {coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : <span className="bravais-album-cover-empty" />}
                         <span className="bravais-album-tape" aria-hidden />
                     </figure>

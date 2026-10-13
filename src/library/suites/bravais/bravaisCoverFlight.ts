@@ -5,6 +5,7 @@ import { normalizeCoverUrl } from './bravaisAlbumWall';
 // 歌手页 ↔ 专辑页的封面飞行：点开专辑时，被点的那张专辑磁贴的封面飞到专辑海报上封面的位置（连同墙的倾斜，落到海报
 // 封面自己的角度）；从这张专辑返回时，海报上的封面飞回墙上原来那一格。
 // - 飞的是一张盖在最上面的 fixed 图（document.body 里），不碰墙与海报的 DOM 结构；去程时海报自己的封面先藏着，落地才露出来。
+// - 一段到底：飞行的图在路上就变成海报封面的样子（同一张图，墨色硬阴影跟着长出来），落地同一帧换成海报自己的封面。
 // - 两头都可能在动（相机补间、缝张开、倾斜），所以每帧重新量终点（measureQuad：在元素的三个角放零尺寸探针，读出屏幕上的
 //   角点，倾斜与缩放都算在内），起点是出发那一刻量好的。
 // - 去程的起点在点磁贴时记下（noteCoverFlightSource），海报挂载时取走（1.5s 内、封面相同才算）；回程按记下的 slot 找墙上
@@ -67,12 +68,26 @@ const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 
 type Flight = { stop: () => void };
 let current: Flight | null = null;
 
-/** 飞一次：from 是固定的起点，target() 每帧给出终点（null = 终点没了，就地淡出）。 */
-const fly = ({ url, from, target, duration, onDone }: {
+/** 封面下面那道硬阴影（海报封面的墨色阴影，元素自己坐标系里的偏移）。 */
+export type BravaisHardShadow = { offset: number; color: string };
+const NO_SHADOW: BravaisHardShadow = { offset: 0, color: 'transparent' };
+
+/**
+ * 飞一次：from 是固定的起点，target() 每帧给出终点（null = 终点没了，停在最后量到的地方）。
+ * 一段到底，没有「飞到 → 再融合」的第二段：硬阴影从 shadow.from 一路变到 shadow.to，飞行中间叠一层抬起的软阴影；
+ * - landing = 'swap'（去程）：终点长得和飞行的图一模一样（同一张图、同一道阴影），等终点的图解码好（最多再等 400ms），
+ *   onDone 同步把终点露出来，下一帧撤掉飞行的图，中间没有淡入淡出；
+ * - landing = 'fade'（回程）：终点是带标题的磁贴，和飞行的图不一样，最后四分之一的路上边飞边淡掉。
+ */
+const fly = ({ url, from, target, duration, shadow, landing, ready, onDone }: {
     url: string;
     from: BravaisQuad;
     target: () => BravaisQuad | null;
     duration: number;
+    shadow: { from: BravaisHardShadow; to: BravaisHardShadow };
+    landing: 'swap' | 'fade';
+    /** swap：终点的图解码好了没有。 */
+    ready?: () => boolean;
     onDone?: () => void;
 }) => {
     current?.stop();
@@ -87,28 +102,39 @@ const fly = ({ url, from, target, duration, onDone }: {
     let frame = 0;
     let last = from;
     let finished = false;
+    const remove = () => {
+        image.remove();
+        if (current === flight) current = null;
+    };
     const finish = () => {
         if (finished) return;
         finished = true;
         cancelAnimationFrame(frame);
         onDone?.();
-        const fade = image.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: 'ease-out', fill: 'forwards' });
-        fade.onfinish = () => image.remove();
-        if (current === flight) current = null;
+        // 终点已经露出来（同一帧），下一帧再撤，不会空一帧。
+        requestAnimationFrame(remove);
     };
-    const draw = (quad: BravaisQuad, lift: number) => {
+    const draw = (quad: BravaisQuad, t: number) => {
+        const lift = Math.sin(Math.PI * t);
+        const hard = shadow.from.offset + (shadow.to.offset - shadow.from.offset) * t;
+        const color = t < 0.5 ? shadow.from.color : shadow.to.color;
+        const alpha = Math.round((t < 0.5 ? 1 - t * 2 : t * 2 - 1) * 100);
         // 宽高直接写（不按比例拉伸）：起点与终点比例不同时封面按 cover 裁切，不变形。
         image.style.width = `${quad.width}px`;
         image.style.height = `${quad.height}px`;
-        image.style.transform = `translate(${quad.center.x}px, ${quad.center.y}px) rotate(${quad.angle}rad) scale(${1 + lift * 0.06}) translate(-50%, -50%)`;
-        image.style.boxShadow = `${lift * 18}px ${lift * 22}px ${lift * 36}px rgba(0,0,0,${0.18 + lift * 0.3})`;
+        image.style.transform = `translate(${quad.center.x}px, ${quad.center.y}px) rotate(${quad.angle}rad) scale(${1 + lift * 0.05}) translate(-50%, -50%)`;
+        image.style.boxShadow = `${hard}px ${hard}px 0 color-mix(in srgb, ${color} ${alpha}%, transparent), `
+            + `${lift * 10}px ${lift * 16}px ${lift * 30}px rgba(0,0,0,${(lift * 0.4).toFixed(3)})`;
+        if (landing === 'fade') image.style.opacity = String(t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25));
     };
     const step = (now: number) => {
-        const t = Math.min(1, (now - startedAt) / duration);
+        const elapsed = now - startedAt;
+        const t = Math.min(1, elapsed / duration);
         const to = target() ?? last;
         last = to;
-        draw(lerpQuad(from, to, easeInOut(t)), Math.sin(Math.PI * t));
-        if (t >= 1) finish();
+        draw(lerpQuad(from, to, easeInOut(t)), easeInOut(t));
+        const waitingForImage = landing === 'swap' && ready && !ready() && elapsed < duration + 400;
+        if (t >= 1 && !waitingForImage) finish();
         else frame = requestAnimationFrame(step);
     };
     const flight: Flight = { stop: finish };
@@ -116,6 +142,16 @@ const fly = ({ url, from, target, duration, onDone }: {
     draw(from, 0);
     frame = requestAnimationFrame(step);
     return flight;
+};
+
+/** 海报封面的那道硬阴影（::before 的偏移与颜色，按元素此刻在屏幕上的缩放换算）。 */
+export const readCoverShadow = (cover: HTMLElement): BravaisHardShadow => {
+    const before = getComputedStyle(cover, '::before');
+    const match = /matrix\(([^)]+)\)/.exec(before.transform);
+    const offset = match ? Number(match[1].split(',')[4]) || 0 : 0;
+    const quad = measureQuad(cover);
+    const scale = quad && cover.offsetWidth ? quad.width / cover.offsetWidth : 1;
+    return { offset: offset * scale, color: before.backgroundColor || 'transparent' };
 };
 
 // ---- 去程：点专辑磁贴 → 专辑海报 ----
@@ -139,12 +175,18 @@ export const takeCoverFlightSource = (coverUrl: string | undefined): Source | nu
     return normalizeCoverUrl(taken.coverUrl) === normalizeCoverUrl(coverUrl) ? taken : null;
 };
 
-/** 从起点飞到海报上的封面（每帧量它）；落地时 onLand 让海报露出自己的封面。 */
-export const flyCoverToPoster = (from: Source, cover: Element, onLand: () => void) => fly({
+/** 从起点飞到海报上的封面（每帧量它）；落地时 onLand 同步让海报露出自己的封面。 */
+export const flyCoverToPoster = (from: Source, cover: HTMLElement, onLand: () => void) => fly({
     url: from.coverUrl,
     from: from.quad,
     target: () => measureQuad(cover),
     duration: FLIGHT_MS,
+    shadow: { from: NO_SHADOW, to: readCoverShadow(cover) },
+    landing: 'swap',
+    ready: () => {
+        const image = cover.querySelector('img');
+        return !image || (image.complete && image.naturalWidth > 0);
+    },
     onDone: onLand,
 });
 
@@ -154,7 +196,13 @@ export const flyCoverToPoster = (from: Source, cover: Element, onLand: () => voi
  * 海报卸载时调。起点用海报事先量好的封面样子（from）——卸载那一刻换层已经开始，海报的布局不可靠。下一帧封面真的不在了
  * （不是开发模式下 effect 重跑）才出发，等墙上那一格出现（换层后 slot 重新渲染），飞回去。
  */
-export const flyCoverBack = ({ cover, from, slotKey, coverUrl }: { cover: Element; from: BravaisQuad; slotKey: string; coverUrl: string }) => {
+export const flyCoverBack = ({ cover, from, shadow, slotKey, coverUrl }: {
+    cover: Element;
+    from: BravaisQuad;
+    shadow: BravaisHardShadow;
+    slotKey: string;
+    coverUrl: string;
+}) => {
     if (reducedMotion()) return;
     const find = () => document.querySelector(`.bravais-tile[data-bravais-slot="${CSS.escape(slotKey)}"]`);
     const startedAt = performance.now();
@@ -162,7 +210,14 @@ export const flyCoverBack = ({ cover, from, slotKey, coverUrl }: { cover: Elemen
         if (cover.isConnected) return;
         const tile = find();
         if (tile) {
-            fly({ url: coverUrl, from, target: () => (tile.isConnected ? measureQuad(tile) : null), duration: BACK_FLIGHT_MS });
+            fly({
+                url: coverUrl,
+                from,
+                target: () => (tile.isConnected ? measureQuad(tile) : null),
+                duration: BACK_FLIGHT_MS,
+                shadow: { from: shadow, to: NO_SHADOW },
+                landing: 'fade',
+            });
             return;
         }
         if (performance.now() - startedAt < BACK_WAIT_MS) requestAnimationFrame(wait);
