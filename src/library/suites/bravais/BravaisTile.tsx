@@ -339,6 +339,7 @@ function BravaisTile({
                 ref={faceRef}
                 className={`lattice-poster bravais-tile-face${display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}${display?.dimmed ? ' is-dimmed' : ''}${display?.selected ? ' is-selected' : ''}${isStack ? ' is-stack' : ''}${isPortrait ? ' is-portrait' : ''}`}
                 style={display && !face.seeThrough ? { backgroundImage: cover } : undefined}
+                data-bravais-art={art?.mode}
                 role={display ? (isExpanded ? 'group' : 'button') : undefined}
                 aria-label={display ? `${display.title} · ${display.subtitle}${display.trackCountLabel ? ` · ${display.trackCountLabel}` : ''}` : undefined}
                 aria-expanded={isTrack ? isExpanded : undefined}
