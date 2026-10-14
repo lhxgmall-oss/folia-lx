@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { HomeViewTab } from '../../../types';
 import type { LibraryHomeSurfaceProps } from '../../core/contracts/suite';
 import type { LibraryHomeTabKey, LibraryHomeTabView } from '../../core/contracts/homeModel';
+import { isOnlineHomeTab } from '../../core/model/homeSources';
 import type { BravaisSeamTab } from './bravaisLayer';
 import type { BravaisHomeSearch, BravaisHomeTool } from './bravaisHomeModels';
 import { cycleHomeTab } from './bravaisHomeProjection';
@@ -10,6 +10,7 @@ import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStor
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { selectBravaisHasCurrentSong } from './bravaisBack';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { resolveSearchSource, useSearchNavigationStore } from '../../../stores/useSearchNavigationStore';
 
 // src/library/suites/bravais/useBravaisHomeChrome.ts
 // 首页缝里与来源无关的那一部分（设计稿 §10.5）：五个一级页签与 F6 的循环、全局搜索框（提交走 onSearchCommitted
@@ -32,12 +33,14 @@ export type BravaisHomeChrome = {
 
 type ChromeProps = Pick<
     LibraryHomeSurfaceProps,
-    'onSearchCommitted' | 'onOpenLattice' | 'onBackToPlayer' | 'onOpenStagePlayer' | 'stageEnabled' | 'stageIsActive' | 'onOpenSettings'
+    | 'onSearchCommitted' | 'onOpenLattice' | 'onBackToPlayer' | 'onOpenStagePlayer' | 'stageEnabled' | 'stageIsActive' | 'onOpenSettings'
+    | 'localSongs' | 'localLibraryCatalog'
 >;
 
 export const useBravaisHomeChrome = ({
     tab,
     tabs,
+    providerId,
     selectTab,
     scanPercent,
     scanning,
@@ -45,6 +48,8 @@ export const useBravaisHomeChrome = ({
 }: {
     tab: LibraryHomeTabKey;
     tabs: readonly LibraryHomeTabView[];
+    /** 在线页签搜索的来源：当前在线 provider。 */
+    providerId: string;
     selectTab: (key: LibraryHomeTabKey) => boolean;
     scanPercent: number;
     scanning: boolean;
@@ -52,8 +57,8 @@ export const useBravaisHomeChrome = ({
 }): BravaisHomeChrome => {
     const { t } = useTranslation();
     const searchOpen = useBravaisHomeUiStore(state => state.searchOpen);
-    const latest = useRef({ tab, tabs, selectTab, props });
-    latest.current = { tab, tabs, selectTab, props };
+    const latest = useRef({ tab, tabs, providerId, selectTab, props });
+    latest.current = { tab, tabs, providerId, selectTab, props };
 
     const onSelectTab = useCallback((key: string) => { latest.current.selectTab(key as LibraryHomeTabKey); }, []);
     const cycleTab = useCallback((delta: 1 | -1) => {
@@ -69,14 +74,32 @@ export const useBravaisHomeChrome = ({
         disabled: Boolean(candidate.disabledReason),
     })), [tab, tabs]);
 
+    // 与网格首页同一条路：先 submitSearch 发请求（搜索页随它打开并显示加载中），完成后再 onSearchCommitted 压历史。
+    // 只压历史时，历史恢复按「来源 + 词」查缓存，查不到就是空结果，要在搜索页再回车一次才真正搜索。
+    // 两步必须用同一个来源：在线页签是当前 provider（resolveSearchSource 对在线页签只会回落到网易）。
+    const submitSearch = useCallback(async (query: string) => {
+        const { tab: current, providerId: activeProviderId, props: host } = latest.current;
+        const sourceTab = isOnlineHomeTab(current) ? activeProviderId : resolveSearchSource(current);
+        const didSearch = await useSearchNavigationStore.getState().submitSearch({
+            query,
+            sourceTab,
+            deps: {
+                localSongs: host.localSongs,
+                localLibraryCatalog: host.localLibraryCatalog,
+                t: (key, fallback) => t(key, fallback ?? ''),
+            },
+        });
+        if (didSearch) host.onSearchCommitted(query, sourceTab);
+    }, [t]);
+
     const search = useMemo<BravaisHomeSearch>(() => ({
         title: t('libraryBravaisHome.search'),
         placeholder: t('libraryBravaisHome.searchPlaceholder'),
         hint: t('libraryBravaisHome.searchHint'),
         submitLabel: t('libraryBravaisHome.searchSubmit'),
         closeLabel: t('libraryBravaisHome.searchClose'),
-        onSubmit: query => latest.current.props.onSearchCommitted(query, latest.current.tab as HomeViewTab),
-    }), [t]);
+        onSubmit: query => { void submitSearch(query); },
+    }), [submitSearch, t]);
 
     const searchTool = useMemo<BravaisHomeTool>(() => ({
         id: 'search',
