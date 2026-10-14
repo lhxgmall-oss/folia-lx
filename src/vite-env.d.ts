@@ -293,11 +293,6 @@ declare global {
     error: string | null;
   }
 
-  interface ElectronWindowCaptureSource {
-    id: string;
-    name: string;
-  }
-
   interface ElectronSaveDialogResult {
     canceled: boolean;
     filePath: string | null;
@@ -973,9 +968,8 @@ declare global {
         displayName?: string,
       ) => Promise<ElectronSaveDialogResult>;
       reportDevicePixelRatio: (ratio: number) => Promise<void>;
-      getMainWindowCaptureSource: () => Promise<ElectronWindowCaptureSource | null>;
       // Returns `false` when the resize could not be prepared, otherwise the resolved DPR.
-      prepareVideoExportWindow: (size: { width: number; height: number }) => Promise<false | { success: boolean; dpr: number }>;
+      prepareVideoExportWindow: (size: { width: number; height: number; dpr?: number }) => Promise<false | { success: boolean; dpr: number }>;
       restoreVideoExportWindow: () => Promise<boolean>;
       // Chunked export file writing: open returns a session id, chunks are appended in order,
       // finish renames the partial file onto the chosen path, abort deletes it.

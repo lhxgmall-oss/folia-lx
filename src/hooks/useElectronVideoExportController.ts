@@ -8,7 +8,6 @@ import type { VideoExportPreset, VideoExportState } from '../types/videoExport';
 import { idleVideoExportState } from '../types/videoExport';
 import {
     buildDefaultVideoExportFileName,
-    createCroppedVideoStream,
     getAudioElementCaptureStream,
     getMainWindowVideoCaptureStream,
     getVideoExportRecorderOptions,
@@ -16,7 +15,12 @@ import {
     installVideoExportCursorGuard,
     stopMediaStream,
     wait,
+    waitForExportViewport,
 } from '../services/electronVideoExport';
+import {
+    createPresetSizedVideoStream,
+    isVideoExportFramePipelineSupported,
+} from '../services/videoExportFramePipeline';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
 import { useAppChromeStore } from '../stores/useAppChromeStore';
@@ -78,7 +82,7 @@ export const useElectronVideoExportController = ({
         }
 
         const electron = window.electron;
-        if (!electron?.chooseVideoExportPath || !electron.getMainWindowCaptureSource || !electron.prepareVideoExportWindow || !electron.restoreVideoExportWindow || !electron.openVideoExportFile || !electron.appendVideoExportChunk || !electron.finishVideoExportFile || !electron.abortVideoExportFile) {
+        if (!electron?.chooseVideoExportPath || !navigator.mediaDevices?.getDisplayMedia || !isVideoExportFramePipelineSupported() || !electron.prepareVideoExportWindow || !electron.restoreVideoExportWindow || !electron.openVideoExportFile || !electron.appendVideoExportChunk || !electron.finishVideoExportFile || !electron.abortVideoExportFile) {
             setExportState({
                 ...idleVideoExportState(),
                 status: 'error',
@@ -96,7 +100,7 @@ export const useElectronVideoExportController = ({
         let progressIntervalId: number | null = null;
         let endedListener: (() => void) | null = null;
         let removeCursorGuard: (() => void) | null = null;
-        let canvasCropCleanup: (() => void) | null = null;
+        let presetStreamCleanup: (() => void) | null = null;
         // Set while a partial export file is open on disk; cleared once it is finished.
         let fileSessionId: string | null = null;
         const wasPaused = audioElement.paused;
@@ -155,20 +159,29 @@ export const useElectronVideoExportController = ({
                 currentTime.set(0);
             }
 
-            const prepared = await electron.prepareVideoExportWindow({ width: preset.width, height: preset.height });
-            if (prepared === false || !prepared.success) {
-                throw new Error(t('export.windowResizeFailed'));
+            const prepareWindow = async () => {
+                const prepared = await electron.prepareVideoExportWindow({
+                    width: preset.width,
+                    height: preset.height,
+                    dpr: window.devicePixelRatio,
+                });
+                if (prepared === false || !prepared.success) {
+                    throw new Error(t('export.windowResizeFailed'));
+                }
+            };
+            await prepareWindow();
+            if (!await waitForExportViewport(preset)) {
+                // One retry covers a resize that lost a race with the window manager.
+                await prepareWindow();
+                await waitForExportViewport(preset);
             }
-            await wait(300);
             videoStream = await getMainWindowVideoCaptureStream(preset);
 
-            // Canvas post-processing: pure integer crop to exact preset resolution.
-            // The snap strategy in main.cjs ensures contentPhys >= preset + margin,
-            // so the captured frame is naturally larger than the target — we simply
-            // extract a preset-sized region with symmetric pixel-perfect cropping.
-            const cropped = createCroppedVideoStream(videoStream, preset);
-            videoStream = cropped.stream;
-            canvasCropCleanup = cropped.cleanup;
+            // Pins the output to the exact preset resolution; frames normally arrive a pixel
+            // or two larger and are center-cropped without resampling.
+            const presetSized = createPresetSizedVideoStream(videoStream, preset);
+            videoStream = presetSized.stream;
+            presetStreamCleanup = presetSized.cleanup;
 
             audioStream = getAudioElementCaptureStream(audioElement);
             combinedStream = new MediaStream([
@@ -311,7 +324,7 @@ export const useElectronVideoExportController = ({
             }
             setIsPlayerChromeHidden(false);
             removeCursorGuard?.();
-            canvasCropCleanup?.();
+            presetStreamCleanup?.();
             void electron.restoreVideoExportWindow();
             runningRef.current = false;
             cancelRequestedRef.current = false;
