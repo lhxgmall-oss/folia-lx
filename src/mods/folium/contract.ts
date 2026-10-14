@@ -562,7 +562,13 @@ export interface FoliumStageContext {
     getSettings(): FoliumParamValues;
     /** What the host draws around this content. */
     getSurface(): FoliumSurface;
-    /** Called when the line index, pause, theme, subtitle theme, cover, display, settings or surface change. */
+    /**
+     * EXPERIMENTAL (`player.layout`): frozen live-player geometry in viewport CSS pixels.
+     * Null without the manifest opt-in, outside the live player (including previews, OBS and export),
+     * or before a subscriber's first measurement. Reading never starts measurement.
+     */
+    getLayout(): FoliumPlayerLayout | null;
+    /** Called when the line index, pause, theme, subtitle theme, cover, display, settings, surface or opted-in layout change. */
     subscribe(listener: () => void): FoliumDisposer;
     /** Folium 1.2. */
     readonly audio: FoliumAudio;
@@ -1176,6 +1182,38 @@ export interface FoliumNetService {
 }
 
 // ---------------------------------------------------------------- Experimental
+
+/** EXPERIMENTAL (`player.layout`): a rectangle in viewport CSS pixels. */
+export interface FoliumLayoutRect {
+    /** Left edge. */
+    readonly left: number;
+    /** Top edge. */
+    readonly top: number;
+    /** Width. */
+    readonly width: number;
+    /** Height. */
+    readonly height: number;
+}
+
+/** EXPERIMENTAL (`player.layout`): a native control or its interactive reveal region; no internal ids. */
+export interface FoliumPlayerObstacle {
+    /** Coarse purpose; future hosts may add roles. */
+    readonly role: 'navigation' | 'window' | 'playback' | 'now-playing' | 'panel' | 'notification' | (string & {});
+    /** Hidden controls still reserve the pointer region that reveals them. */
+    readonly kind: 'control' | 'reveal-area';
+    /** Occupied rectangle. */
+    readonly rect: FoliumLayoutRect;
+}
+
+/** EXPERIMENTAL (`player.layout`): immutable snapshot; identity is stable until geometry changes. */
+export interface FoliumPlayerLayout {
+    /** Live-player bounds in viewport CSS pixels. */
+    readonly bounds: FoliumLayoutRect;
+    /** Four safe edge distances in CSS pixels, relative to bounds. */
+    readonly insets: Readonly<{ top: number; right: number; bottom: number; left: number }>;
+    /** Regions to avoid; not guaranteed complete. Count, order and roles are not compatibility promises; native ids stay private. */
+    readonly obstacles: readonly FoliumPlayerObstacle[];
+}
 
 /** EXPERIMENTAL (`omni.providers`): a song as a mod provider describes it. */
 export interface FoliumProviderSong {
