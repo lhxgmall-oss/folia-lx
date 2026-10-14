@@ -139,7 +139,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `depends` | 模组 id 或 `id@^1.2.3`（仅支持 `^` 与 `*`）。缺失、版本不符、成环或依赖未启用时，只有该依赖子图不加载 |
 | `permissions` | 见下表。未知权限直接拒绝 |
 | `embedOrigins` | `folium.ui.embed` 可以加载的 https origin（形如 `https://host[:port]`），需要 `net.embed` |
-| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets` |
+| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`remote.ui` |
 | `folia` | 宿主版本范围（空格分隔的比较式，支持 `>= > <= < = ^` 与 `*`）。**使用 `folium.internals` 时必填**；宿主版本不在范围内时加载器拒绝加载（`host-version-mismatch`） |
 
 | 权限 | 解锁 |
@@ -206,6 +206,7 @@ export default function activate(folium) {
 | `styles` | 模组 CSS，只针对公开 part | 稳定 |
 | `experimental['omni.providers']` | 在线音乐源 | 实验 |
 | `experimental['ponder.targets']` | 思索（应用内教程）目标 | 实验 |
+| `remoteUi(remote)`（`remote.ui`） | 独立遥控窗口底部追加组件 | 实验 |
 
 ### 宿主托管容器
 
@@ -588,6 +589,48 @@ folium.experimental['omni.providers'].register({
 **建议**：别追求把界面画得像。用通用骨架勾出结构——一个 `surface` 面板、几个 `control` 按钮、几条 `rail`
 滑轨——再让字幕把意思讲清楚：每一步只讲一件事，用 `pointTo` 把字幕连到它讲的那个框，用 `highlight` 和
 `reveal` 标出「现在看这里」。这正是宿主思索的做法：骨架负责「在哪」，文字负责「是什么、为什么」。
+
+### remote.ui：独立遥控窗口组件
+
+在清单声明 `"experimental": ["remote.ui"]`，并在 `client` 模块导出 `remoteUi(remote)`。
+它是实验性、独立的遥控入口，**不会调用主窗口的 default 入口**，也不改变稳定的
+`folium.env.context`（仍只有 main/export）。模块顶层应无副作用；两种窗口会分别导入模块。
+
+```js
+export default function activate(folium) { /* 主窗口 */ }
+export function remoteUi(remote) {
+  return remote.register({
+    id: 'example', width: 80,
+    mount(container, context) {
+      const button = document.createElement('button');
+      button.textContent = '我的操作';
+      button.onclick = () => void context.run(async () => {
+        await remote.rpc.call('my-action'); // 此模组的 main 用 api.rpc.handle 注册
+      });
+      container.append(button);
+    },
+  }).unregister;
+}
+```
+
+- **只附加**：宿主只在原生控件下方提供一个 32px 高、可横向滚动的区域；每个组件声明
+  `width`（16–360px）。原生播放、循环、收藏、透明控制及录制按钮的顺序、样式和尺寸不变。
+  不提供原生条目列表、重排、隐藏或替换接口。无注册时不输出额外 DOM。
+- **模组拥有 UI**：`mount(container, context)` 可以创建按钮、输入框等任意组件；返回 disposer
+  清理监听器。宿主复用 `FoliumMountHost` 和 ShadowRoot，提供 `--folium-primary`、
+  `--folium-secondary`、`--folium-bg`；颜色变化不会重建组件。组件样式、图标、圆角计数由模组决定。
+- `context.getSnapshot()` 返回只读的 `trackKey/title/artist/isPlaying/isDaylight`；
+  `context.subscribe(listener)` 监听这些字段变化并返回取消订阅函数。`context.run(handler)`
+  阻止已卸载组件执行回调，并隔离异步错误。`remote.icon(name, options)` 复用 `folium.ui.icon`。
+- `remote.rpc.call(name, ...args)` 绑定当前模组和代码指纹，复用 Node 端 `api.rpc.handle` 处理器；
+  不增加播放会话控制权，也不绕过 Node API 原有权限。IPC 只接受仍在指定 Folia 入口的当前遥控窗口主 frame，调用前再次
+  检查启用、加载、opt-in 和指纹状态。不是已获用户信任的模组之间的安全沙箱。
+- 仅加载启用且声明该实验接口的模组，从自身 `folia-mod://` 来源导入；禁用、卸载、更新后清理注册
+  和 disposer。导入尚未完成时禁用也不会迟到激活。挂载/回调错误记录在遥控 renderer 的 Folium 日志中。
+- 追加区域只在播放页出现，切换录制/透明控制页或打开预设弹层时隐藏。独立 Electron 遥控窗口专用，
+  浏览器和视频导出窗口不激活此入口。实验接口尚未冻结，Folium 稳定版本仍是 1.4。
+
+离线示例：`dev/folium/sample-remote-ui`。示例计数通过真实 Node RPC 增加，不发送账号请求。
 
 ## internals（自由度出口）
 

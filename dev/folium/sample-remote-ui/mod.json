@@ -1,0 +1,10 @@
+{
+  "id": "sample-remote-ui",
+  "name": "遥控组件插槽示例",
+  "version": "1.0.0",
+  "folium": 1,
+  "client": "client.mjs",
+  "main": "main.cjs",
+  "experimental": ["remote.ui"],
+  "permissions": []
+}

@@ -38,7 +38,8 @@ export type FoliumEntryKind =
     | 'control-button'
     | 'progress-layer'
     | 'settings-section'
-    | 'tuning';
+    | 'tuning'
+    | 'remote-component';
 
 /** The attributes that name an entry's container (see FoliumEntryKind). */
 export const foliumEntryAttributes = (modId: string, kind: FoliumEntryKind, entryId: string) => ({

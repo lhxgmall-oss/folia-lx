@@ -49,9 +49,9 @@ const isObsBrowserSource = isObsBrowserSourceSurface;
 const isNowPlayingObsSource = isObsBrowserSource && obsSourceKind === 'now-playing';
 const isPlayerCapObsSource = isObsBrowserSource && obsSourceKind === 'playercap';
 const isRemoteControl = isRemoteControlSurface;
-// Mod clients belong to the main app window only. The remote-control window
-// also has the Electron bridge, but mod state pushes only reach the main
-// window, so a client activated there would never be torn down.
+// Default mod clients belong to the main app window only. The remote-control
+// window has a separate experimental remote.ui loader; it never activates the
+// default client and subscribes to its own filtered lifecycle notifications.
 const isMainApp = isMainAppSurface;
 const renderApp = () => root.render(
     <React.StrictMode>

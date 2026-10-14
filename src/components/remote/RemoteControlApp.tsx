@@ -1,3 +1,4 @@
+import { RemoteUiSlots } from './RemoteUiSlots';
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { ChevronLeft, Heart, Lock, LockOpen, Pause, Pin, PinOff, Play, Repeat, Repeat1, RepeatOff, SkipBack, SkipForward, Video, MirrorRectangular, X, Check, Sliders, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1043,6 +1044,9 @@ const RemoteControlApp: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                <RemoteUiSlots snapshot={{ trackKey: snapshot.trackKey, title: snapshot.title, artist: snapshot.artist, isPlaying, isDaylight }}
+                    visible={activePanel === 'playback' && !presetSelectorOpen} />
 
                 {/* Root-Level Preset Selector Overlay Modal */}
                 <AnimatePresence>

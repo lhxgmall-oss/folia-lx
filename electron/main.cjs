@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
@@ -5243,6 +5244,12 @@ app.whenReady().then(async () => {
       app,
       BrowserWindow,
       getMainWindow: () => mainWindow,
+      getRemoteWindow: () => remoteControlWindow,
+      getRemoteEntryUrl: () => {
+        const url = isElectronDevRuntime() ? new URL('http://localhost:3000') : pathToFileURL(path.join(__dirname, '../dist/index.html'));
+        url.searchParams.set('remote', '1');
+        return url.href;
+      },
       getLocaleKey: getMainLocaleKey,
       isFeatureEnabled: () => readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
     });

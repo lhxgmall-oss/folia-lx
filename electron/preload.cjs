@@ -293,6 +293,13 @@ contextBridge.exposeInMainWorld('electron', {
     },
     debugGetRenderedFonts: (selector) => ipcRenderer.invoke('debug-get-rendered-fonts', selector),
     mods: {
+        listRemoteUiClients: () => ipcRenderer.invoke('folia-mods:remote-ui-list'),
+        invokeRemoteUiRpc: (modId, clientUrl, name, args) => ipcRenderer.invoke('folia-mods:remote-ui-rpc', modId, clientUrl, name, args),
+        onRemoteUiClientsChanged: (callback) => {
+            const listener = (_event, mods) => callback(mods);
+            ipcRenderer.on('folia-mods:remote-ui-changed', listener);
+            return () => ipcRenderer.removeListener('folia-mods:remote-ui-changed', listener);
+        },
         listMods: () => ipcRenderer.invoke('folia-mods:list'),
         setModEnabled: (modId, enabled) => ipcRenderer.invoke('folia-mods:set-enabled', modId, enabled),
         reloadMods: () => ipcRenderer.invoke('folia-mods:reload'),
