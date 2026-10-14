@@ -981,7 +981,7 @@ declare global {
       // finish renames the partial file onto the chosen path, abort deletes it.
       openVideoExportFile: (filePath: string) => Promise<string>;
       appendVideoExportChunk: (sessionId: string, data: ArrayBuffer) => Promise<number>;
-      finishVideoExportFile: (sessionId: string) => Promise<{ filePath: string; bytesWritten: number }>;
+      finishVideoExportFile: (sessionId: string) => Promise<{ filePath: string; bytesWritten: number; finalized: boolean }>;
       abortVideoExportFile: (sessionId: string) => Promise<boolean>;
       getStageStatus: () => Promise<StageStatus>;
       setStageEnabled: (enabled: boolean) => Promise<StageStatus>;

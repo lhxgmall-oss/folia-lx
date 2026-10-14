@@ -10,10 +10,13 @@ const {
     createVideoExportFileWriter,
 } = require('../../../electron/videoExportFileWriter.cjs') as {
     PART_FILE_SUFFIX: string;
-    createVideoExportFileWriter: () => {
+    createVideoExportFileWriter: (options?: {
+        finalizeFile?: (handle: fs.promises.FileHandle) => Promise<boolean>;
+        logger?: { warn: (...args: unknown[]) => void };
+    }) => {
         open: (filePath: string) => Promise<string>;
         append: (id: string, data: unknown) => Promise<number>;
-        finish: (id: string) => Promise<{ filePath: string; bytesWritten: number }>;
+        finish: (id: string) => Promise<{ filePath: string; bytesWritten: number; finalized: boolean }>;
         abort: (id: string) => Promise<boolean>;
         disposeSync: () => void;
     };
@@ -47,7 +50,7 @@ describe('videoExportFileWriter', () => {
         expect(fs.existsSync(target)).toBe(false);
 
         const result = await writer.finish(id);
-        expect(result).toEqual({ filePath: target, bytesWritten: 5 });
+        expect(result).toEqual({ filePath: target, bytesWritten: 5, finalized: false });
         expect([...fs.readFileSync(target)]).toEqual([1, 2, 3, 5, 6]);
         expect(fs.existsSync(`${target}${PART_FILE_SUFFIX}`)).toBe(false);
     });
@@ -105,5 +108,40 @@ describe('videoExportFileWriter', () => {
         writer.disposeSync();
         expect(fs.existsSync(`${target}${PART_FILE_SUFFIX}`)).toBe(false);
         expect(await writer.abort(id)).toBe(false);
+    });
+
+    it('runs finalizeFile on a read/write handle before renaming', async () => {
+        const writer = createVideoExportFileWriter({
+            finalizeFile: async handle => {
+                // Reads back what was streamed, then rewrites the first byte in place.
+                const head = Buffer.alloc(2);
+                await handle.read(head, 0, 2, 0);
+                expect([...head]).toEqual([1, 2]);
+                expect(fs.existsSync(target)).toBe(false);
+                await handle.write(Buffer.from([9]), 0, 1, 0);
+                return true;
+            },
+        });
+        const id = await writer.open(target);
+        await writer.append(id, bytes(1, 2, 3));
+
+        expect(await writer.finish(id)).toEqual({ filePath: target, bytesWritten: 3, finalized: true });
+        expect([...fs.readFileSync(target)]).toEqual([9, 2, 3]);
+    });
+
+    it('keeps the recording when finalizeFile fails', async () => {
+        const warnings: unknown[][] = [];
+        const writer = createVideoExportFileWriter({
+            finalizeFile: async () => {
+                throw new Error('Invalid recorded MP4: test');
+            },
+            logger: { warn: (...args) => warnings.push(args) },
+        });
+        const id = await writer.open(target);
+        await writer.append(id, bytes(4, 5));
+
+        expect(await writer.finish(id)).toEqual({ filePath: target, bytesWritten: 2, finalized: false });
+        expect([...fs.readFileSync(target)]).toEqual([4, 5]);
+        expect(warnings).toHaveLength(1);
     });
 });

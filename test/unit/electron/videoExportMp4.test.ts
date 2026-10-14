@@ -1,10 +1,14 @@
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // test/unit/electron/videoExportMp4.test.ts
 const require = createRequire(import.meta.url);
-const { finalizeVideoExport } = require('../../../electron/videoExportMp4.cjs') as {
+const { finalizeVideoExport, finalizeVideoExportFile } = require('../../../electron/videoExportMp4.cjs') as {
     finalizeVideoExport(buffer: Buffer): Buffer;
+    finalizeVideoExportFile(handle: fs.promises.FileHandle): Promise<boolean>;
 };
 const uint = (value: number) => { const data = Buffer.alloc(4); data.writeUInt32BE(value); return data; };
 const wide = (value: bigint) => { const data = Buffer.alloc(8); data.writeBigUInt64BE(value); return data; };
@@ -130,5 +134,58 @@ describe('finalizing recorded fragmented MP4', () => {
         const extended = Buffer.concat([uint(1), Buffer.from('moov'), wide(0xffffffffffffffffn)]);
         expect(() => finalizeVideoExport(Buffer.concat([box('ftyp'), extended]))).toThrow('oversized moov');
         expect(() => finalizeVideoExport(Buffer.concat([box('ftyp'), Buffer.from([0])]))).toThrow('truncated box header');
+    });
+});
+
+describe('finalizing a recorded fragmented MP4 on disk', () => {
+    // Runs the file-backed finalizer on `data` written to a temp file; returns the file afterwards.
+    const finalizeOnDisk = async (data: Buffer) => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-mp4-'));
+        const file = path.join(dir, 'recording.mp4');
+        fs.writeFileSync(file, data);
+        const handle = await fs.promises.open(file, 'r+');
+        try {
+            const result: { patched?: boolean; error?: unknown } = await finalizeVideoExportFile(handle)
+                .then(patched => ({ patched }), (error: unknown) => ({ error }));
+            await handle.close();
+            return { ...result, bytes: fs.readFileSync(file) };
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    };
+
+    it.each([0, 1])('patches the same bytes as the buffer finalizer (version %s)', async version => {
+        const data = recording(movie([track(1, 30000, version), track(2, 44100, version)], version, [trex(1, 25)]),
+            fragment(1, 0n, [30000, 30000]), fragment(2, 0n, [44100, 44100]),
+            fragment(1, null, [0, 0], { noDurations: true, defaultDuration: 30 }), fragment(2, 88200n, [43000]));
+        const expected = finalizeVideoExport(Buffer.from(data));
+        const { patched, bytes } = await finalizeOnDisk(data);
+        expect(patched).toBe(true);
+        expect(bytes).toEqual(expected);
+        expect(durations(bytes, 'mvhd')).toEqual(durations(expected, 'mvhd'));
+    });
+
+    it('leaves WebM and non-fragmented MP4 untouched', async () => {
+        for (const data of [Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0, 0, 0, 0]), recording(movie([track(1, 1000)]))]) {
+            const { patched, bytes } = await finalizeOnDisk(data);
+            expect(patched).toBe(false);
+            expect(bytes).toEqual(data);
+        }
+    });
+
+    it.each(['edit-list', 'unknown-track', 'truncated'])('rejects %s without writing to the file', async kind => {
+        const data = recording(movie([track(1, 1000, 1, kind === 'edit-list')]),
+            fragment(kind === 'unknown-track' ? 2 : 1, 0n, [10]));
+        if (kind === 'truncated') data.writeUInt32BE(0xffffffff, data.indexOf('trun') + 8);
+        const { error, bytes } = await finalizeOnDisk(Buffer.from(data));
+        expect(String(error)).toContain('Invalid recorded MP4');
+        expect(bytes).toEqual(data);
+    });
+
+    it('rejects a top-level box whose size runs past the end of the file', async () => {
+        const data = recording(movie([track(1, 1000)]), fragment(1, 0n, [10]));
+        data.writeUInt32BE(data.length, data.lastIndexOf('mdat') - 4);
+        const { error } = await finalizeOnDisk(Buffer.from(data));
+        expect(String(error)).toContain('invalid mdat size');
     });
 });

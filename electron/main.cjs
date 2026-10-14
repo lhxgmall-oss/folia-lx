@@ -30,6 +30,7 @@ const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = requ
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createVideoExportFileWriter } = require('./videoExportFileWriter.cjs');
+const { finalizeVideoExportFile } = require('./videoExportMp4.cjs');
 const { createLyricApi } = require('./lyricApi.cjs');
 const { createLocalCoverAssetStore, getLocalCoverAssetDirectory } = require('./localCoverAssets.cjs');
 const {
@@ -1794,7 +1795,9 @@ let mainWindowClickThroughUnlockHover = false;
 let mainWindowClickThroughUnlockHoverTimer = null;
 let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
-const videoExportFileWriter = createVideoExportFileWriter();
+// Chromium's fragmented MP4 leaves the movie duration at the first fragment (#549); patch it
+// from the fragment timeline once recording ends.
+const videoExportFileWriter = createVideoExportFileWriter({ finalizeFile: finalizeVideoExportFile });
 let autoUpdater = null;
 // Backed by the settings store so a handoff survives a full process relaunch (wallpaper mode)
 const windowPlaybackHandoffStore = createWindowPlaybackHandoffStore({

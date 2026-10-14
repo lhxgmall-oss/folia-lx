@@ -18,11 +18,19 @@ const toBuffer = (data) => {
 };
 
 /**
- * Owns at most one export file at a time. Each `open` returns an opaque session id that the
+ * Owns at most one export file at a time. `finalizeFile(handle)` runs on the finished partial
+ * file before it is renamed (e.g. to rewrite container metadata that is only known once
+ * recording ended); it gets a read/write handle and its failure is logged, not fatal — the
+ * recording itself is intact and still worth keeping. Each `open` returns an opaque session id that the
  * renderer passes back with every chunk; opening a new session aborts any stale one (e.g. a
  * renderer reload mid-export) so its handle and `.part` file do not leak.
  */
-function createVideoExportFileWriter({ fsp = fs.promises, fsSync = fs } = {}) {
+function createVideoExportFileWriter({
+  fsp = fs.promises,
+  fsSync = fs,
+  finalizeFile = null,
+  logger = console,
+} = {}) {
   let session = null;
 
   const requireSession = (id) => {
@@ -51,7 +59,7 @@ function createVideoExportFileWriter({ fsp = fs.promises, fsSync = fs } = {}) {
     }
 
     const partPath = `${filePath}${PART_FILE_SUFFIX}`;
-    const handle = await fsp.open(partPath, 'w');
+    const handle = await fsp.open(partPath, 'w+');
     session = {
       id: crypto.randomUUID(),
       filePath,
@@ -91,15 +99,23 @@ function createVideoExportFileWriter({ fsp = fs.promises, fsSync = fs } = {}) {
   const finish = async (id) => {
     const target = requireSession(id);
     session = null;
+    let finalized = false;
     try {
       await target.queue;
+      if (finalizeFile) {
+        try {
+          finalized = Boolean(await finalizeFile(target.handle));
+        } catch (error) {
+          logger.warn('[VideoExport] Could not finalize the recorded file; keeping it as recorded', error);
+        }
+      }
       await target.handle.close();
     } catch (error) {
       await discard(target);
       throw error;
     }
     await fsp.rename(target.partPath, target.filePath);
-    return { filePath: target.filePath, bytesWritten: target.bytesWritten };
+    return { filePath: target.filePath, bytesWritten: target.bytesWritten, finalized };
   };
 
   const abort = async (id) => {
