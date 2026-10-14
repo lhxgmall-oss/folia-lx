@@ -10,12 +10,13 @@ import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStor
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { selectBravaisHasCurrentSong } from './bravaisBack';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { useUpdateIndicator } from '../../../hooks/useUpdateIndicator';
 import { resolveSearchSource, useSearchNavigationStore } from '../../../stores/useSearchNavigationStore';
 
 // src/library/suites/bravais/useBravaisHomeChrome.ts
 // 首页缝里与来源无关的那一部分（设计稿 §10.5）：五个一级页签与 F6 的循环、全局搜索框（提交走 onSearchCommitted
 // 去 SearchWorkspace，过渡期唯一的离墙路径）、app 级入口（打开队列 = 整墙切到 Lattice、回到播放页、舞台播放器、
-// 设置）与扫描进度。各来源的墙（BravaisHomeSources）在它之上补自己的二级切换、「⋯」与刷新。
+// 设置）与扫描进度。设置格在发现新版本（且还没在设置里看过）时带提示点，与 grid 首页设置按钮旁的「发现新版本」同源。各来源的墙（BravaisHomeSources）在它之上补自己的二级切换、「⋯」与刷新。
 // 回调身份稳定（latest-ref），层描述不因它们换身份。
 
 export type BravaisHomeChrome = {
@@ -121,15 +122,22 @@ export const useBravaisHomeChrome = ({
     // 「回到播放页」与左上角返回同一个判断：有当前歌曲才显示（没有歌时去的是空的播放页）。
     const hasCurrentSong = usePlaybackStore(selectBravaisHasCurrentSong);
     const hasPlayer = Boolean(onBackToPlayer) && hasCurrentSong;
+    const updateAvailable = useUpdateIndicator();
     const appTools = useMemo<BravaisHomeTool[]>(() => {
         const tools: BravaisHomeTool[] = [];
         if (hasLattice) tools.push({ id: 'queue', label: t('home.lattice'), run: () => latest.current.props.onOpenLattice?.() });
         if (hasPlayer) tools.push({ id: 'player', label: t('libraryBravaisHome.backToPlayer'), run: () => latest.current.props.onBackToPlayer() });
         // fb11：舞台开着时它单独占工具格最上面一行（图标 + 短名「舞台」），active 与 grid 的 data-stage-active 同义。
         if (hasStage) tools.push({ id: 'stage', label: t('libraryBravaisHome.stagePlayer'), shortLabel: t('libraryBravaisHome.stageShort'), active: stageActive, run: () => latest.current.props.onOpenStagePlayer?.() });
-        if (hasSettings) tools.push({ id: 'settings', label: t('libraryBravaisHome.settings'), run: () => latest.current.props.onOpenSettings?.() });
+        // 新版本说明在设置的「帮助」页（默认页）顶部，打开设置即视为看过，提示点随之消失。
+        if (hasSettings) tools.push({
+            id: 'settings',
+            label: t('libraryBravaisHome.settings'),
+            badge: updateAvailable ? t('options.updateAvailable') : undefined,
+            run: () => latest.current.props.onOpenSettings?.('help'),
+        });
         return tools;
-    }, [hasLattice, hasPlayer, hasSettings, hasStage, stageActive, t]);
+    }, [hasLattice, hasPlayer, hasSettings, hasStage, stageActive, t, updateAvailable]);
 
     const scan = scanning ? t('libraryBravaisHome.scanProgress', { percent: scanPercent }) : null;
 
