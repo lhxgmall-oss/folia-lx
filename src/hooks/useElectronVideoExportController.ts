@@ -35,8 +35,6 @@ type UseElectronVideoExportControllerOptions = {
 
 const COUNTDOWN_SECONDS = 3;
 
-const toArrayBuffer = (blob: Blob) => blob.arrayBuffer();
-
 export const useElectronVideoExportController = ({
     isElectronWindow,
     audioRef,
@@ -80,7 +78,7 @@ export const useElectronVideoExportController = ({
         }
 
         const electron = window.electron;
-        if (!electron?.chooseVideoExportPath || !electron.getMainWindowCaptureSource || !electron.prepareVideoExportWindow || !electron.restoreVideoExportWindow || !electron.writeVideoExportFile) {
+        if (!electron?.chooseVideoExportPath || !electron.getMainWindowCaptureSource || !electron.prepareVideoExportWindow || !electron.restoreVideoExportWindow || !electron.openVideoExportFile || !electron.appendVideoExportChunk || !electron.finishVideoExportFile || !electron.abortVideoExportFile) {
             setExportState({
                 ...idleVideoExportState(),
                 status: 'error',
@@ -99,6 +97,8 @@ export const useElectronVideoExportController = ({
         let endedListener: (() => void) | null = null;
         let removeCursorGuard: (() => void) | null = null;
         let canvasCropCleanup: (() => void) | null = null;
+        // Set while a partial export file is open on disk; cleared once it is finished.
+        let fileSessionId: string | null = null;
         const wasPaused = audioElement.paused;
         const previousLoop = audioElement.loop;
         const previousTime = audioElement.currentTime;
@@ -118,6 +118,10 @@ export const useElectronVideoExportController = ({
                 setExportState(idleVideoExportState());
                 return;
             }
+
+            // Open the output before touching the window so an unwritable path fails fast.
+            fileSessionId = await electron.openVideoExportFile(saveResult.filePath);
+            const writeSessionId = fileSessionId;
 
             const exportStartTime = startMode === 'from-start' ? 0 : Math.max(0, audioElement.currentTime);
             const safeDuration = Number.isFinite(duration) && duration > 0
@@ -184,23 +188,39 @@ export const useElectronVideoExportController = ({
                 }
             }
 
-            const chunks: Blob[] = [];
             const recorder = new MediaRecorder(combinedStream, getVideoExportRecorderOptions(preset, exportFormat));
             recorderRef.current = recorder;
-            const stopped = new Promise<void>((resolve, reject) => {
-                recorder.ondataavailable = event => {
-                    if (event.data.size > 0) {
-                        chunks.push(event.data);
-                    }
-                };
-                recorder.onerror = () => reject(new Error(t('export.recorderUnknownError')));
-                recorder.onstop = () => resolve();
-            });
             const requestStop = () => {
                 if (recorder.state !== 'inactive') {
                     recorder.stop();
                 }
             };
+            // Each timeslice chunk is appended to the file as it arrives instead of being kept
+            // in memory; a 4K recording of a whole song is far too large for one buffer.
+            // The chain keeps chunks in order, and a failed write stops the recording.
+            let writeChain: Promise<void> = Promise.resolve();
+            let writeError: unknown = null;
+            const stopped = new Promise<void>((resolve, reject) => {
+                recorder.ondataavailable = event => {
+                    const chunk = event.data;
+                    if (chunk.size === 0) {
+                        return;
+                    }
+                    writeChain = writeChain
+                        .then(async () => {
+                            if (writeError !== null || cancelRequestedRef.current) {
+                                return;
+                            }
+                            await electron.appendVideoExportChunk(writeSessionId, await chunk.arrayBuffer());
+                        })
+                        .catch(error => {
+                            writeError ??= error;
+                            requestStop();
+                        });
+                };
+                recorder.onerror = () => reject(new Error(t('export.recorderUnknownError')));
+                recorder.onstop = () => resolve();
+            });
             endedListener = requestStop;
             audioElement.addEventListener('ended', requestStop, { once: true });
 
@@ -228,6 +248,8 @@ export const useElectronVideoExportController = ({
             }, 250);
 
             await stopped;
+            // The final dataavailable fires before stop, so this drains every queued chunk.
+            await writeChain;
 
             if (progressIntervalId !== null) {
                 window.clearInterval(progressIntervalId);
@@ -239,14 +261,18 @@ export const useElectronVideoExportController = ({
                 return;
             }
 
+            if (writeError !== null) {
+                throw writeError instanceof Error ? writeError : new Error(String(writeError));
+            }
+
             setExportState(prev => ({
                 ...prev,
                 status: 'finalizing',
                 progress: 1,
                 elapsed: exportDuration,
             }));
-            const blob = new Blob(chunks, { type: exportFormat.mimeType });
-            await electron.writeVideoExportFile(saveResult.filePath, await toArrayBuffer(blob));
+            fileSessionId = null;
+            await electron.finishVideoExportFile(writeSessionId);
             setExportState(prev => ({
                 ...prev,
                 status: 'done',
@@ -270,6 +296,10 @@ export const useElectronVideoExportController = ({
                 audioElement.removeEventListener('ended', endedListener);
             }
             recorderRef.current = null;
+            if (fileSessionId !== null) {
+                // Cancelled or failed: drop the partial file instead of leaving a broken video.
+                void electron.abortVideoExportFile(fileSessionId).catch(() => {});
+            }
             stopMediaStream(videoStream);
             stopMediaStream(audioStream);
             stopMediaStream(combinedStream);
