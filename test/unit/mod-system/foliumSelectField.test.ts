@@ -92,6 +92,8 @@ describe('Folium select field', () => {
     it('renders the host dropdown, named by the field label and its value, outside any <label>', () => {
         const { host, trigger } = renderFields();
         expect(host.querySelector('select')).toBeNull();
+        // A select-only combobox: arrow keys reach screen readers through aria-activedescendant.
+        expect(trigger().getAttribute('role')).toBe('combobox');
         // aria-label would replace the button text, so the value would go unannounced.
         expect(trigger().hasAttribute('aria-label')).toBe(false);
         expect(labelledName(trigger())).toBe('Codec HEVC');
@@ -136,16 +138,26 @@ describe('Folium select field', () => {
         act(() => options()[1].click());
         expect(trigger().getAttribute('aria-expanded')).toBe('false');
 
-        // The highlight opens on the current option, so Enter right away re-picks it.
+        // The highlight opens on the current option; Enter right away there only closes the menu.
         act(() => trigger().click());
         pressEnter(trigger());
         expect(trigger().getAttribute('aria-expanded')).toBe('false');
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('still writes the shown fallback over a stale stored value', () => {
+    it('still writes the shown fallback over a stale stored value when it is clicked', () => {
         const { trigger, options, onChange } = renderFields({ values: { codec: 'vp9' } });
         expect(trigger().textContent).toBe('HEVC');
+
+        // Enter on the shown fallback is Enter on the current option: it only closes, as the
+        // native select did (picking the option it showed fired no change there either).
+        act(() => trigger().focus());
+        pressEnter(trigger());
+        expect(trigger().getAttribute('aria-expanded')).toBe('true');
+        pressEnter(trigger());
+        expect(trigger().getAttribute('aria-expanded')).toBe('false');
+        expect(onChange).not.toHaveBeenCalled();
+
         act(() => trigger().click());
         act(() => options()[1].click());
         expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ key: 'codec' }), 'hevc');

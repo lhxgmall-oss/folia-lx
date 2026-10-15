@@ -19,6 +19,14 @@ const SCHEMA: FoliumParam[] = [
             { value: 'prores', label: { en: 'ProRes 4444' } },
         ],
     },
+    // 超过虚拟化阈值（24 项）的长列表，默认值落在视口以下：键盘打开要把它滚进视野。
+    {
+        key: 'preset',
+        type: 'select',
+        label: { en: 'Preset' },
+        defaultValue: 'preset-30',
+        options: Array.from({ length: 40 }, (_, index) => ({ value: `preset-${index}`, label: { en: `Preset ${index}` } })),
+    },
 ];
 
 const access = createFoliumParamAccess('probe:folium-select-field', SCHEMA);
@@ -27,8 +35,9 @@ const access = createFoliumParamAccess('probe:folium-select-field', SCHEMA);
  * 模组 select 参数换成宿主 CustomSelect（#485）后，只有真实浏览器量得准的部分：
  * compact 触发按钮与同一表单里的文本框等高、宽度一致；触发按钮的可访问名是「字段名 当前值」；
  * 鼠标按下选项时焦点移到选项上，菜单不因 focusin 提前收起；外层像命令面板那样在 mousedown 上
- * stopPropagation 时点别处仍能收起；Escape 只关菜单，外层（window 上的 keydown）收不到。
- * data-probe-outer-escapes 记外层收到的 Escape 次数。
+ * stopPropagation 时点别处仍能收起；Escape 只关菜单，外层（window 上的 keydown）收不到；
+ * 触发按钮是 combobox，aria-activedescendant 指向高亮项；Preset 是走虚拟化分支的长列表，
+ * 当前值在视口以下，用键盘打开时要滚到它。data-probe-outer-escapes 记外层收到的 Escape 次数。
  */
 const FoliumSelectFieldProbe: React.FC = () => {
     const [outerEscapes, setOuterEscapes] = useState(0);
@@ -73,7 +82,7 @@ const FoliumSelectFieldProbe: React.FC = () => {
 const definition: ProbeDefinition = {
     id: 'foliumSelectField',
     title: 'Folium 表单 · select 参数用宿主下拉',
-    description: 'compact 下拉与文本框等高；拦 mousedown 的容器里点别处能收起；Escape 只关菜单不惊动外层。',
+    description: 'compact 下拉与文本框等高；拦 mousedown 的容器里点别处能收起；Escape 只关菜单不惊动外层；长列表用键盘打开滚到当前项。',
     Component: FoliumSelectFieldProbe,
 };
 

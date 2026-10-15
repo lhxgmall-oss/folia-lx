@@ -16,12 +16,14 @@ import { resolveFoliumLabel, resolveFoliumSelectDisplayValue } from './params';
 //   shows ("Codec HEVC"), the way a native select exposes name + value; a plain
 //   aria-label would replace the button text and hide the value.
 // - Picking the option already stored is not a change. A native select fires no
-//   change event then, while CustomSelect reports every pick (click, or Enter on
-//   the highlight that opens on the current option). Passing those through would
-//   write an unchanged value: subscribers get a change that is none, and a key
-//   that was following the mod's defaultValue gets pinned to today's default.
-//   The comparison is with the stored value, not the displayed one, so picking
-//   the fallback shown for a stale stored value still writes and corrects it.
+//   change event then. CustomSelect already drops Enter on the option it shows as
+//   current (the menu opens with the highlight there), but it still reports a
+//   click on that option. Passing such a click through would write an unchanged
+//   value: subscribers get a change that is none, and a key that was following
+//   the mod's defaultValue gets pinned to today's default. The comparison is
+//   with the stored value, not the displayed one, so clicking the fallback shown
+//   for a stale stored value still writes and corrects it (Enter on that shown
+//   fallback only closes the menu, as the native select it replaced did).
 
 interface FoliumSelectFieldProps {
     param: FoliumParam;

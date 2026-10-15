@@ -752,8 +752,8 @@ folium.experimental['omni.providers'].register({
   - main 入口的播放快照 `FoliumPlaybackSnapshot` 新增 `volume`、`muted`、`loopMode`。
   - 宿主侧变化，契约不变、模组不用改：
     - 模组声明的 `type: 'select'` 参数（设置分区、visualizer / background 设置、tunings、命令参数）改用宿主自己的下拉框渲染，不再是原生
-      `<select>`：外观随主题；可以用键盘选（↑↓ / Home / End 移动，Enter 选中，Esc 只关下拉框）；存储的值不在选项里时，显示 `defaultValue`
-      （它也不在选项里就显示第一项），存储的值不变，直到用户自己选一次。
+      `<select>`：外观随主题；可以用键盘选（↑↓ / Home / End 移动，Enter 选中；停在当前项上按 Enter 和 Esc 一样只关下拉框，不算改值），
+      读屏会读出移到的选项；存储的值不在选项里时，显示 `defaultValue`（它也不在选项里就显示第一项），存储的值不变，直到用户自己选一次。
     - 新增宿主设置「无法播放时自动跳过」，在播放设置的「播放队列」卡片里，命令面板里也能切换，**默认关闭**。打开后，受限类和原因不明的失败
       也像已下架的歌一样倒计时跳到下一首，`playback.failed` 的 `willAutoSkip` 随之为 `true`；需要登录和网络问题仍然不跳。
 

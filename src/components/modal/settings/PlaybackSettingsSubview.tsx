@@ -486,6 +486,7 @@ const PlaybackSettingsSubview: React.FC<PlaybackSettingsSubviewProps> = ({
                                 }}
                                 options={audioOutputOptions}
                                 onOpen={ensureAudioOutputDevicesLoaded}
+                                ariaLabel={t('options.audioOutputDevice')}
                                 disabled={isSelectingAudioOutput}
                                 isDaylight={isDaylight}
                                 theme={theme}

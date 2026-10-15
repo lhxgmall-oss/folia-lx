@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Theme } from '../../types';
 import {
     CustomSelectMenu,
+    customSelectOptionId,
     type CustomSelectMenuPosition,
     type CustomSelectOption,
 } from './CustomSelectMenu';
@@ -21,15 +22,23 @@ import { useCustomSelectNavigation } from './useCustomSelectNavigation';
 //   · 外部点击改在捕获阶段判定（容器拦了 mousedown 冒泡也照样收起）；
 //   · 菜单开着时 Escape 只关菜单并 stopPropagation，外层（命令面板、设置弹窗）收不到这一次 Escape；
 //   · 焦点移到触发按钮和菜单以外即收起；
-//   · ↑↓ / Home / End 移动高亮、Enter 选中高亮项、Tab 收起；
+//   · ↑↓ / Home / End 移动高亮、Enter 选中高亮项、Tab 收起；高亮停在当前值上按 Enter 只收起，
+//     不调用 onChange（鼠标点当前项仍照旧调用）；
+//   · 高亮按值记，onOpen 里懒加载选项、菜单开着选项变了，高亮仍在原来那一项上；
 //   · 菜单关着时，焦点在触发按钮上按 ↑↓ / Enter 会 preventDefault + stopPropagation 并打开菜单——
-//     原先焦点停在按钮上按 ↓ 会滚动页面（例如设置页），现在改成打开下拉。
+//     原先焦点停在按钮上按 ↓ 会滚动页面（例如设置页），现在改成打开下拉；用键盘（含空格）打开时
+//     把当前项滚进视野，鼠标打开不滚。
+// - 触发按钮是 select-only combobox：role=combobox，aria-controls 指向列表，aria-activedescendant
+//   指向高亮项，焦点不离开按钮，读屏也能逐项听到 ↑↓ 移到了哪一项（原先只是底色在变，读屏什么也
+//   听不到）。Chromium 把按钮内容报成 combobox 的值；但 combobox 不从内容取名字，所以既没有
+//   ariaLabel 也没有 ariaLabelledBy 时，按钮由显示值的 span 命名，和原先按钮读内容一样。
 // - size="compact"：触发按钮与 Folium 表单的文本框（px-2.5 py-1.5 text-xs，约 30px）同高。
 // - triggerClassName / triggerStyle：由调用方接管触发按钮的底色与描边。默认用的 --overlay-medium、
 //   --border-color 在 src 里都没有定义（底色实际透明，描边退成 currentColor），Folium 表单要和
 //   旁边的输入框一致，就把表单 token 里输入框的 class / style 原样传进来。
 // - ariaLabelledBy：触发按钮改由这些 id（例如字段的可见标签）加上按钮里显示值的 span 命名，读屏读出
-//   「字段名 当前值」，与原生 select 的名字 + 值相当。只给 ariaLabel 时按钮名字只有 ariaLabel，读不到值。
+//   「字段名 当前值」，与原生 select 的名字 + 值相当。只给 ariaLabel 时按钮名字只有 ariaLabel，
+//   当前值只能靠 combobox 的值报出。
 // - placeholder 缺省走 i18n（ui.selectPlaceholder），不再写死英文 'Select...'——同样对所有用法生效。
 
 interface CustomSelectProps {
@@ -90,14 +99,17 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
-    const valueId = useId();
+    const baseId = useId();
+    const valueId = `${baseId}value`;
+    const listboxId = `${baseId}listbox`;
     const {
         isOpen,
-        active,
-        toggle,
+        activeIndex,
+        followActive,
         select,
         activateFromPointer,
         releasePointer,
+        handleTriggerClick,
         handleTriggerKeyDown,
     } = useCustomSelectNavigation({ options, value, disabled, onOpen, onChange, containerRef, menuRef, triggerRef });
 
@@ -160,6 +172,12 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     }, [isOpen, updateDropdownPosition]);
 
     const selectedOption = options.find((opt) => opt.value === value);
+    // 列表真正挂出来以后（dropdownPosition 在打开后的布局阶段才算好）才让触发按钮指向它和它的选项。
+    const isMenuShown = isOpen && dropdownPosition !== null;
+    // combobox 不从内容取名字：调用方什么名字都没给时，用显示值命名，和原先按钮读内容一样。
+    const triggerLabelledBy = ariaLabelledBy
+        ? `${ariaLabelledBy} ${valueId}`
+        : ariaLabel ? undefined : valueId;
     const accentColor = theme?.accentColor || (isDaylight ? '#44403c' : '#f4f4f5');
     // The menu is portaled to document.body, so it cannot inherit the app container's theme variables.
     const textColor = theme?.primaryColor || (isDaylight ? '#1c1917' : '#f4f4f5');
@@ -181,17 +199,20 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
             <button
                 ref={triggerRef}
                 type="button"
-                onClick={toggle}
+                role="combobox"
+                onClick={handleTriggerClick}
                 onKeyDown={handleTriggerKeyDown}
                 disabled={disabled}
                 aria-label={ariaLabelledBy ? undefined : ariaLabel}
-                aria-labelledby={ariaLabelledBy ? `${ariaLabelledBy} ${valueId}` : undefined}
+                aria-labelledby={triggerLabelledBy}
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
+                aria-controls={isMenuShown ? listboxId : undefined}
+                aria-activedescendant={isMenuShown && activeIndex >= 0 ? customSelectOptionId(listboxId, activeIndex) : undefined}
                 className={`${TRIGGER_BASE_CLASS} ${TRIGGER_SIZE_CLASS[size]}${triggerClassName ? ` ${triggerClassName}` : ''}`}
                 style={triggerInlineStyle}
             >
-                <span id={ariaLabelledBy ? valueId : undefined} className="truncate">
+                <span id={triggerLabelledBy ? valueId : undefined} className="truncate">
                     {selectedOption ? selectedOption.label : (placeholder ?? t('ui.selectPlaceholder'))}
                 </span>
                 <ChevronDown
@@ -206,6 +227,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     {isOpen && dropdownPosition && (
                         <CustomSelectMenu
                             menuRef={menuRef}
+                            listboxId={listboxId}
                             position={dropdownPosition}
                             options={options}
                             value={value}
@@ -215,8 +237,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                             accentColor={accentColor}
                             textColor={textColor}
                             borderColor={borderColor}
-                            activeIndex={active.index}
-                            followActive={active.fromKeyboard}
+                            activeIndex={activeIndex}
+                            followActive={followActive}
                             onActivate={activateFromPointer}
                             onPointerLeave={releasePointer}
                             onSelect={select}

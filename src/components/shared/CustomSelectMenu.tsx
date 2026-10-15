@@ -8,14 +8,19 @@ import { List, useListRef, type RowComponentProps } from 'react-window';
 //
 // 选项超过 VIRTUALIZE_THRESHOLD 时改走 react-window。命令面板的固定命令设置和自定义快捷键
 // 选择器各要铺约 125 条命令，是仓库里最长的两个下拉；其余三十来个下拉只有 2-8 项，走原来的
-// 分支，标记逐字不变，不承担任何风险。
+// 分支，标记除了读屏要用的选项 id 之外不变，不承担任何风险。
 //
 // 高度策略：**不引入任何新测量**。虚拟化分支消费的是 CustomSelect.updateDropdownPosition
 // 已经算好的 position.maxHeight（开合与 resize/scroll 时更新），只是把它减去内边距当成列表高度。
 //
 // 高亮项（activeIndex）由 CustomSelect 的 useCustomSelectNavigation 持有：指针移动和 ↑↓ 都改它，
-// 两个分支的底色都从它渲染（原先是 onMouseEnter/Leave 直接改 style，视觉相同）。只有键盘移动
-// （followActive）才把高亮项滚进视野，指针高亮不滚，免得列表在鼠标下面跑。
+// 两个分支的底色都从它渲染（原先是 onMouseEnter/Leave 直接改 style，视觉相同）。只有键盘移动或
+// 用键盘打开（followActive）才把高亮项滚进视野，指针高亮不滚，免得列表在鼠标下面跑。
+//
+// 读屏：焦点一直留在触发按钮（role=combobox）上，由它的 aria-activedescendant 指向高亮项，所以每个
+// 选项都有由 listboxId 和下标拼成的 id（customSelectOptionId，两个分支一样）。虚拟化分支里
+// react-window 的容器默认是 role=list，夹在 listbox 和 option 之间会断开归属，这里改成 presentation；
+// 没渲染出来的行由 aria-setsize / aria-posinset 补上「第几项，共几项」。
 
 export interface CustomSelectOption {
     value: string;
@@ -31,8 +36,13 @@ export interface CustomSelectMenuPosition {
     placement: 'top' | 'bottom' | 'viewport';
 }
 
+/** 选项的 DOM id：触发按钮的 aria-activedescendant 用它指向高亮项。 */
+export const customSelectOptionId = (listboxId: string, index: number) => `${listboxId}-option-${index}`;
+
 interface CustomSelectMenuProps {
     menuRef: React.RefObject<HTMLDivElement | null>;
+    /** 列表的 id：触发按钮的 aria-controls 指向它，选项的 id 也由它派生。 */
+    listboxId: string;
     position: CustomSelectMenuPosition;
     options: CustomSelectOption[];
     value: string;
@@ -47,7 +57,8 @@ interface CustomSelectMenuProps {
     activeIndex: number;
     /** 高亮来自键盘：要把它滚进视野。 */
     followActive: boolean;
-    onActivate: (index: number) => void;
+    /** 指针移到某个选项上，参数是它的值。 */
+    onActivate: (value: string) => void;
     onPointerLeave: () => void;
     onSelect: (value: string) => void;
 }
@@ -59,15 +70,18 @@ const OPTION_ROW_HEIGHT = 40;
 const OPTION_ROW_GAP = 2;
 /** p-1.5，上下各 6。 */
 const MENU_PADDING = 12;
+/** 菜单刚挂上时 react-window 的容器元素可能还没登记到 listRef，最多再等这么多帧。 */
+const LIST_READY_MAX_FRAMES = 5;
 
 type OptionRowProps = {
+    listboxId: string;
     options: CustomSelectOption[];
     value: string;
     activeIndex: number;
     isDaylight: boolean;
     accentColor: string;
     textColor: string;
-    onActivate: (index: number) => void;
+    onActivate: (value: string) => void;
     onSelect: (value: string) => void;
 };
 
@@ -79,21 +93,27 @@ const optionBackground = (isSelected: boolean, isActive: boolean, isDaylight: bo
 };
 
 const OptionButton: React.FC<{
+    id: string;
     option: CustomSelectOption;
     index: number;
+    /** 虚拟化分支：选项总数，与 index 一起写成 aria-setsize / aria-posinset。 */
+    setSize?: number;
     isSelected: boolean;
     isActive: boolean;
     isDaylight: boolean;
     accentColor: string;
     textColor: string;
     fixedHeight?: number;
-    onActivate: (index: number) => void;
+    onActivate: (value: string) => void;
     onSelect: (value: string) => void;
-}> = ({ option, index, isSelected, isActive, isDaylight, accentColor, textColor, fixedHeight, onActivate, onSelect }) => (
+}> = ({ id, option, index, setSize, isSelected, isActive, isDaylight, accentColor, textColor, fixedHeight, onActivate, onSelect }) => (
     <button
         type="button"
+        id={id}
         role="option"
         aria-selected={isSelected}
+        aria-setsize={setSize}
+        aria-posinset={setSize === undefined ? undefined : index + 1}
         data-option-index={index}
         data-active={isActive ? 'true' : undefined}
         onClick={() => onSelect(option.value)}
@@ -104,7 +124,7 @@ const OptionButton: React.FC<{
             ...(fixedHeight ? { height: fixedHeight, paddingTop: 0, paddingBottom: 0 } : {}),
         }}
         // mousemove 而不是 mouseenter：键盘把列表滚动后，停着不动的指针下面换了一行，不该把高亮抢走。
-        onMouseMove={isActive ? undefined : () => onActivate(index)}
+        onMouseMove={isActive ? undefined : () => onActivate(option.value)}
     >
         <span className="truncate mr-2">{option.label}</span>
         {isSelected && (
@@ -120,6 +140,7 @@ const OptionButton: React.FC<{
 const CustomSelectMenuRow = ({
     index,
     style,
+    listboxId,
     options,
     value,
     activeIndex,
@@ -137,8 +158,10 @@ const CustomSelectMenuRow = ({
     return (
         <div style={{ ...style, paddingBottom: OPTION_ROW_GAP }}>
             <OptionButton
+                id={customSelectOptionId(listboxId, index)}
                 option={option}
                 index={index}
+                setSize={options.length}
                 isSelected={option.value === value}
                 isActive={index === activeIndex}
                 isDaylight={isDaylight}
@@ -154,6 +177,7 @@ const CustomSelectMenuRow = ({
 
 export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
     menuRef,
+    listboxId,
     position,
     options,
     value,
@@ -173,6 +197,7 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
     const listRef = useListRef(null);
 
     const rowProps = useMemo(() => ({
+        listboxId,
         options,
         value,
         activeIndex,
@@ -181,17 +206,31 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
         textColor,
         onActivate,
         onSelect,
-    }), [options, value, activeIndex, isDaylight, accentColor, textColor, onActivate, onSelect]);
+    }), [listboxId, options, value, activeIndex, isDaylight, accentColor, textColor, onActivate, onSelect]);
 
-    // 键盘移动高亮后把它滚进视野（就近对齐，已经看得见就不动）。
+    // 键盘移动高亮、或用键盘打开菜单后，把高亮项滚进视野（就近对齐，已经看得见就不动）。
     useEffect(() => {
-        if (!followActive || activeIndex < 0 || activeIndex >= options.length) return;
-        if (isVirtualized) {
-            listRef.current?.scrollToRow({ index: activeIndex, align: 'auto' });
-            return;
+        if (!followActive || activeIndex < 0 || activeIndex >= options.length) return undefined;
+        if (!isVirtualized) {
+            const row = menuRef.current?.querySelector<HTMLElement>(`[data-option-index="${activeIndex}"]`);
+            row?.scrollIntoView?.({ block: 'nearest' });
+            return undefined;
         }
-        const row = menuRef.current?.querySelector<HTMLElement>(`[data-option-index="${activeIndex}"]`);
-        row?.scrollIntoView?.({ block: 'nearest' });
+        // react-window 把容器元素记在自己的 state 里，菜单刚挂上的这一轮里 listRef 可能还拿不到
+        // 元素（scrollToRow 会什么都不做）；那就等下一帧再滚，用键盘打开长列表时当前项才看得见。
+        let frame = 0;
+        let framesLeft = LIST_READY_MAX_FRAMES;
+        const scrollToActive = () => {
+            const list = listRef.current;
+            if (list?.element) {
+                list.scrollToRow({ index: activeIndex, align: 'auto' });
+            } else if (framesLeft > 0) {
+                framesLeft -= 1;
+                frame = requestAnimationFrame(scrollToActive);
+            }
+        };
+        scrollToActive();
+        return () => cancelAnimationFrame(frame);
     }, [activeIndex, followActive, isVirtualized, listRef, menuRef, options.length]);
 
     const listHeight = Math.max(
@@ -219,6 +258,7 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
             transition={{ duration: 0.15, ease: 'easeOut' }}
             className={`fixed z-[200] rounded-xl border shadow-xl overscroll-contain backdrop-blur-md custom-scrollbar${isVirtualized ? '' : ' overflow-y-auto'}`}
             data-wheel-scroll-region
+            id={listboxId}
             role="listbox"
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
@@ -238,6 +278,7 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
                 <div className="p-1.5">
                     <List
                         listRef={listRef}
+                        role="presentation"
                         rowCount={options.length}
                         rowHeight={OPTION_ROW_HEIGHT + OPTION_ROW_GAP}
                         rowComponent={CustomSelectMenuRow}
@@ -252,6 +293,7 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
                     {options.map((option, index) => (
                         <OptionButton
                             key={option.value}
+                            id={customSelectOptionId(listboxId, index)}
                             option={option}
                             index={index}
                             isSelected={option.value === value}

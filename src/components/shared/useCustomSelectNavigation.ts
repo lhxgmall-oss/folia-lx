@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
 import type { CustomSelectOption } from './CustomSelectMenu';
 
 // src/components/shared/useCustomSelectNavigation.ts
@@ -14,10 +14,22 @@ import type { CustomSelectOption } from './CustomSelectMenu';
 //   做法与 JoinCommunityButton 的菜单一致。
 // 菜单关着时，焦点在触发按钮上按 ↑↓ / Enter 打开菜单（同样 stopPropagation，命令面板的 Enter
 // 不会把它当成「执行当前命令」）；空格交给按钮原生激活。
+//
+// 高亮按值记，不按下标：调用方可以在 onOpen 里才去填选项（播放设置的音频输出设备就是打开时才枚举），
+// 菜单开着选项就变了。按下标记的高亮会停在同一位置上换进来的别的项，Enter 选中的就不是看着的那一项。
+//
+// 高亮停在当前值上按 Enter 只收起菜单，不调用 onChange：原生 select 不为没变的值发 change，改动前
+// 焦点在触发按钮上「Enter 打开、Enter 关闭」也从不调用 onChange（GridView 换每日推荐日期、播放设置
+// 换输出设备这些 onChange 都有副作用）。鼠标点当前项照旧报告——那是改动前就有的行为，
+// FoliumSelectField 也靠它把陈旧的存储值写成显示出来的回退值。
 
-/** 高亮项。fromKeyboard 为 true 时菜单要把它滚进视野；指针悬停产生的高亮不滚动，免得列表在鼠标下面跑。 */
+/**
+ * 高亮项。value 为 null 表示没有高亮；value 不在选项里时也不高亮任何一行，等选项里出现它再高亮。
+ * fromKeyboard 为 true 时菜单要把它滚进视野（键盘移动高亮，或用键盘打开菜单）；指针悬停产生的
+ * 高亮不滚动，免得列表在鼠标下面跑。
+ */
 export interface CustomSelectActiveOption {
-    index: number;
+    value: string | null;
     fromKeyboard: boolean;
 }
 
@@ -39,6 +51,11 @@ export const stepCustomSelectIndex = (current: number, delta: 1 | -1, count: num
     return Math.min(count - 1, Math.max(0, current + delta));
 };
 
+/** 某个值在当前选项里的下标；null 或不在选项里为 -1。 */
+const findOptionIndex = (options: CustomSelectOption[], value: string | null) => (
+    value === null ? -1 : options.findIndex((option) => option.value === value)
+);
+
 const hasCommandModifier = (event: { altKey: boolean; ctrlKey: boolean; metaKey: boolean }) => (
     event.altKey || event.ctrlKey || event.metaKey
 );
@@ -54,8 +71,9 @@ export const useCustomSelectNavigation = ({
     triggerRef,
 }: UseCustomSelectNavigationArgs) => {
     const [isOpen, setIsOpen] = useState(false);
-    const selectedIndex = options.findIndex((option) => option.value === value);
-    const [active, setActive] = useState<CustomSelectActiveOption>({ index: -1, fromKeyboard: false });
+    const [active, setActive] = useState<CustomSelectActiveOption>({ value: null, fromKeyboard: false });
+    // 每次渲染按最新的选项换算，选项在菜单开着时变了也落在同一项上。
+    const activeIndex = findOptionIndex(options, active.value);
 
     const close = useCallback(() => setIsOpen(false), []);
 
@@ -64,48 +82,54 @@ export const useCustomSelectNavigation = ({
         setIsOpen(false);
     }, [onChange]);
 
-    // 每次打开都从当前选中项开始高亮。
-    const open = () => {
+    // 每次打开都从当前选中项开始高亮。用键盘打开时把它滚进视野：长列表里当前项可能在视口以下，
+    // 虚拟化分支里那一行甚至还没渲染。
+    const open = (fromKeyboard: boolean) => {
         if (disabled) return;
         onOpen?.();
-        setActive({ index: selectedIndex, fromKeyboard: false });
+        setActive({ value, fromKeyboard });
         setIsOpen(true);
     };
 
     // Toggle the dropdown menu visibility
-    const toggle = () => {
+    const toggle = (fromKeyboard: boolean) => {
         if (disabled) return;
         if (isOpen) close();
-        else open();
+        else open(fromKeyboard);
+    };
+
+    // 空格（以及读屏的默认动作）激活按钮时，浏览器补发的 click 的 detail 为 0；真实的指针点击至少为 1。
+    const handleTriggerClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
+        toggle(event.detail === 0);
     };
 
     // 指针移到某一项上：高亮跟着指针走（与原先的悬停底色一致）。
-    const activateFromPointer = useCallback((index: number) => {
+    const activateFromPointer = useCallback((optionValue: string) => {
         setActive((previous) => (
-            previous.index === index && !previous.fromKeyboard ? previous : { index, fromKeyboard: false }
+            previous.value === optionValue && !previous.fromKeyboard ? previous : { value: optionValue, fromKeyboard: false }
         ));
     }, []);
 
     // 指针离开菜单：指针留下的高亮退回选中项，视觉上与原先「离开即清掉悬停底色」相同；键盘高亮保留。
     const releasePointer = useCallback(() => {
         setActive((previous) => (
-            previous.fromKeyboard || previous.index === selectedIndex
+            previous.fromKeyboard || previous.value === value
                 ? previous
-                : { index: selectedIndex, fromKeyboard: false }
+                : { value, fromKeyboard: false }
         ));
-    }, [selectedIndex]);
+    }, [value]);
 
     const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
         if (isOpen || disabled || hasCommandModifier(event) || event.nativeEvent.isComposing) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return;
         event.preventDefault();
         event.stopPropagation();
-        open();
+        open(true);
     };
 
-    // 监听只随开合装卸一次；按键时读最新的选项、高亮和回调。
-    const latest = useRef({ options, active, select, close });
-    latest.current = { options, active, select, close };
+    // 监听只随开合装卸一次；按键时读最新的选项、值、高亮和回调。
+    const latest = useRef({ options, value, active, select, close });
+    latest.current = { options, value, active, select, close };
 
     useEffect(() => {
         if (!isOpen) return undefined;
@@ -126,9 +150,10 @@ export const useCustomSelectNavigation = ({
 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.isComposing || hasCommandModifier(event)) return;
-            const { options: currentOptions, active: currentActive } = latest.current;
+            const { options: currentOptions, value: currentValue, active: currentActive } = latest.current;
             const count = currentOptions.length;
-            const moveTo = (index: number) => setActive({ index, fromKeyboard: true });
+            const currentIndex = findOptionIndex(currentOptions, currentActive.value);
+            const moveTo = (index: number) => setActive({ value: currentOptions[index]?.value ?? null, fromKeyboard: true });
 
             switch (event.key) {
                 case 'Escape':
@@ -137,7 +162,7 @@ export const useCustomSelectNavigation = ({
                     break;
                 case 'ArrowDown':
                 case 'ArrowUp':
-                    moveTo(stepCustomSelectIndex(currentActive.index, event.key === 'ArrowDown' ? 1 : -1, count));
+                    moveTo(stepCustomSelectIndex(currentIndex, event.key === 'ArrowDown' ? 1 : -1, count));
                     break;
                 case 'Home':
                     moveTo(count > 0 ? 0 : -1);
@@ -147,8 +172,9 @@ export const useCustomSelectNavigation = ({
                     break;
                 case 'Enter': {
                     if (event.repeat) break;
-                    const option = currentOptions[currentActive.index];
-                    if (option) latest.current.select(option.value);
+                    const option = currentOptions[currentIndex];
+                    // 停在当前值上只收起，不报告没变的值（见文件头）。
+                    if (option && option.value !== currentValue) latest.current.select(option.value);
                     else latest.current.close();
                     triggerRef.current?.focus({ preventScroll: true });
                     break;
@@ -176,11 +202,12 @@ export const useCustomSelectNavigation = ({
 
     return {
         isOpen,
-        active,
-        toggle,
+        activeIndex,
+        followActive: active.fromKeyboard,
         select,
         activateFromPointer,
         releasePointer,
+        handleTriggerClick,
         handleTriggerKeyDown,
     };
 };
