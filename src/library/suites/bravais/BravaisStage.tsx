@@ -43,7 +43,7 @@ import { libraryWallSeamStyleVars } from '../../../utils/libraryWallSeamStyle';
 import { setBravaisSearchOpen, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { useBravaisBeforePush } from './bravaisTransitions';
-import { selectBravaisAccountVariant, useBravaisAccountStore } from './bravaisAccountStore';
+import { selectBravaisAccountVariant, setBravaisAccountStageInteractive, useBravaisAccountStore } from './bravaisAccountStore';
 import { useWallHandoffStore } from '../../../stores/useWallHandoffStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { resolveBravaisBackStep, selectBravaisHasCurrentSong, type BravaisBackStep } from './bravaisBack';
@@ -318,6 +318,12 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
 
     const active = isInteractive && owned && Boolean(layer?.isInteractive) && handoff.role === null;
     useBravaisKeyboard(active, interactions.handleAction);
+    // 账户表单（登录 / 切换确认）画在缝里：墙不可交互时（宿主的整页页面盖住首页，整层 inert）它看不见，account surface
+    // 据此不让它接管键盘（见 bravaisAccountStore）。只看宿主给的 isInteractive，不看当前层：集合层开着时表单照样在缝里。
+    useLayoutEffect(() => {
+        setBravaisAccountStageInteractive(isInteractive);
+    }, [isInteractive]);
+    useEffect(() => () => setBravaisAccountStageInteractive(false), []);
     // B7 列表面板：打开是一次导航（写 history，面包屑多「列表」），打开时等级拉回 full；单击一行定位到离缝最近的一份并
     // 聚焦（歌曲直接展开聚焦卡），双击播放。
     const openList = useCallback(() => {

@@ -51,7 +51,6 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         setTab(key);
         return true;
     }, [setTab, tabs, props.onNativeTabSelected]);
-    useLibraryHomeTabsRegistration({ getState: () => ({ active: tab, tabs }), setTab: selectTab });
 
     const chrome = useBravaisHomeChrome({
         tab,
@@ -62,6 +61,8 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         scanning: Boolean(actionState.scan?.active),
         props,
     });
+    // F6 的循环也交给句柄：模组的首页页面盖住首页时墙的按键监听让出，页面里按 F6 经句柄接着循环。
+    useLibraryHomeTabsRegistration({ getState: () => ({ active: tab, tabs }), setTab: selectTab, cycleTab: chrome.cycleTab });
     const tabLabel = (key: LibraryHomeTabKey) => tabs.find(candidate => candidate.key === key)?.label ?? key;
     const common = {
         chrome,

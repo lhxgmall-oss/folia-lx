@@ -433,12 +433,14 @@ folium.ui.openHomeTab('console');
   TUI 首页没有入口，但 `openHomeTab` 打开的页面同样会盖在它上面。
 - 选中后宿主盖上一整页：顶部是宿主的页头（返回按钮、原生页签和模组页签），下面是模组的容器，在 ShadowRoot 里、大小确定。
   页头让出自绘标题栏的 32px 拖拽区，整块可点。原生首页保持挂载但不可交互，返回后页签和状态都还在。
+  页面开着时主动打开集合（搜索结果、播放页面板里点专辑或歌手等）会先关闭页面。
 - `ctx` 与 playerPanelTabs 相同（[`FoliumPanelContext`](../docs/folium/api.md#foliumpanelcontext)）；换界面语言时以新的 `ctx.locale` 重新挂载。
 - 离开页面时调用 mount 返回的清理函数。首页整个藏起（切到播放页）时页面也卸载，回到首页时它仍开着，重新挂载。
   注销显示中的入口、停用模组，都会立刻回到原生首页。
 - `openHomeTab(id)` 先切到首页再打开页面，只接受本模组已注册的本地 id，否则抛 `home-tab-not-registered:<id>`。
   导出窗口里注册是空操作，`openHomeTab` 抛 `ui-unavailable-in-export-context`。
-- 页面开着时，页面里的按键不会触发宿主的全局快捷键（直接输入搜索、切页签等），只有 Ctrl+K（macOS 为 Cmd+K）放行给命令面板。
+- 页面开着时，页面里的按键不会触发宿主的全局快捷键（直接输入搜索、切页签等），只有 Ctrl+K（macOS 为 Cmd+K）放行给命令面板；
+  Bravais 下的 F6 / Shift+F6 由宿主接着切换首页页签。打开页面时不抢设置、命令面板等窗口的焦点。
   键盘焦点的细节（Tab 绕回、F6、焦点归还）见 [首页页面](../docs/folium/home-tabs.md)。
 
 ### controlButtons 与 progressLayers

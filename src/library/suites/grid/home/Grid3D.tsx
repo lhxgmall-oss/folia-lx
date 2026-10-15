@@ -275,6 +275,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         });
     };
 
+    // Tab / Shift+Tab 在可用页签之间循环，切完把焦点交回海报轨道，和点胶囊一样。
     // Tab / Shift+Tab includes contributed pages; opening one hands keyboard focus to its own navigation.
     // Its host disables this native surface while the page is open, so subsequent Tab stays inside the page.
     const navigationTabs = [

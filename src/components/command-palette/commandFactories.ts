@@ -269,7 +269,8 @@ export const createHomeTabCommand = (
     keywords,
     execute: (_input, context) => {
         // The mounted surface also dismisses an owned page when reselecting the current source.
-        if (!useLibraryHomeSurfaceStore.getState().tabs?.setTab(tab)) context.navigation.setHomeViewTab(tab);
+        // Without it (Lattice, or home hidden under the player) the host's selectHomeViewTab dismisses the page itself.
+        if (!useLibraryHomeSurfaceStore.getState().tabs?.setTab(tab)) context.navigation.selectHomeViewTab(tab);
         context.navigation.navigateToHome();
         return true;
     },

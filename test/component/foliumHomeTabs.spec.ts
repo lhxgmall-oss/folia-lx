@@ -7,6 +7,8 @@ import '../../dev/probes/homeBehavior/probeApi';
 // Real Home adapters in both suites: owned page lifecycle, full-size layout, and ShadowRoot input isolation.
 // 另外：页头原生页签走首页 surface 的页签句柄（Bravais 收起搜索框）、集合 / 目录图开着时打开的页面画在最上面、
 // 页内 Tab 只在越过首尾时才绕回。
+// 再有：页面开着时显式打开集合会关掉页面、页面不从别的接管键盘的窗口里抢焦点、Bravais 的 F6 在页面里接着循环、
+// TUI 下命令面板重选当前页签也能关掉页面。
 
 type HomeTabWindow = Window & {
     __homeTabTest: { mounts: number; cleanups: number; unregister: () => void };
@@ -19,6 +21,26 @@ const bravaisSearchOpen = (page: Page, open?: boolean) => page.evaluate(async va
     if (value !== undefined) setBravaisSearchOpen(value);
     return useBravaisHomeUiStore.getState().searchOpen as boolean;
 }, open);
+
+/** 与 ui.openHomeTab 一样从模组那边打开页面（不经首页上的入口）。 */
+const openPageFromMod = (page: Page, id = 'home-test:messages') => page.evaluate(async value => {
+    const registryPath = '/src/mods/folium/registries/homeTabs.ts';
+    const { selectFoliumHomeTab } = await import(registryPath);
+    return selectFoliumHomeTab(value) as boolean;
+}, id);
+
+/** 第二个模组页面（同一个模组；id 排在 messages 后面）。 */
+const registerSecondPage = (page: Page) => page.evaluate(async () => {
+    const registryPath = '/src/mods/folium/registries/homeTabs.ts';
+    const { homeTabsRegistry } = await import(registryPath);
+    homeTabsRegistry.register('home-test', {
+        id: 'notes', label: { en: 'Home Notes' },
+        mount(container: HTMLElement) {
+            const heading = document.createElement('h2'); heading.textContent = 'Owned notes page';
+            container.append(heading);
+        },
+    });
+});
 
 async function registerPage(page: Page) {
     await page.evaluate(async () => {
@@ -76,13 +98,13 @@ for (const suite of ['grid', 'bravais'] as const) {
         expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe(nativeTab);
         await expect(homePage).toBeVisible();
         // Native navigation still wins when it reselects the same source tab.
+        // 首页 surface 挂着：命令交给它的页签句柄，宿主那一支（selectHomeViewTab）不该被用到。
         await page.evaluate(async key => {
             const factoryPath = '/src/components/command-palette/commandFactories.ts';
-            const searchPath = '/src/stores/useSearchNavigationStore.ts';
             const { createHomeTabCommand } = await import(factoryPath);
-            const { useSearchNavigationStore } = await import(searchPath);
             createHomeTabCommand(key, '', '', []).execute('', { navigation: {
-                setHomeViewTab: useSearchNavigationStore.getState().setHomeViewTab, navigateToHome: () => {},
+                selectHomeViewTab: () => { throw new Error('the mounted home surface should take the tab'); },
+                navigateToHome: () => {},
             } });
         }, nativeTab);
         await expect(homePage).toHaveCount(0);
@@ -243,6 +265,137 @@ test('bravais: F6 includes contributed pages and aria-selected follows the open 
     await expect(entry).toHaveAttribute('aria-selected', 'true');
     await expect(seam.locator('[data-bravais-tab="navidrome"]')).toHaveAttribute('aria-selected', 'false');
     expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('navidrome');
+
+    // 进了页面之后 F6 接着循环：墙的按键监听让出了，页面经首页 surface 的页签句柄转交。
+    await registerSecondPage(page);
+    const messagesTab = homePage.getByRole('button', { name: 'Home Messages', exact: true });
+    const notesPage = page.locator('[data-folium-home-page="home-test:notes"]');
+    // 在模组的输入框里按的不接（与缝里的过滤框一样）。
+    await homePage.getByRole('textbox', { name: 'Message draft' }).press('F6');
+    await expect(homePage).toBeVisible();
+    // 下一个模组页面：页面换成它，焦点跟到它的页签上。
+    await messagesTab.press('F6');
+    await expect(notesPage.getByText('Owned notes page')).toBeVisible();
+    await expect(notesPage.getByRole('button', { name: 'Home Notes', exact: true })).toBeFocused();
+    await expect(seam.locator('[data-bravais-tab="home-test:notes"]')).toHaveAttribute('aria-selected', 'true');
+    // 最后一个模组页面再按 F6：绕回第一个原生页签，页面关掉。
+    await page.keyboard.press('F6');
+    await expect(page.locator('[data-folium-home-page]')).toHaveCount(0);
+    await expect(seam.locator('[data-bravais-tab="playlist"]')).toHaveAttribute('aria-selected', 'true');
+    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('playlist');
+    await expect(stage).toHaveAttribute('data-bravais-layer', 'home:playlist');
+    await settled();
+    // Shift+F6 反方向：从第一个原生页签绕到最后一个模组页面，再往前是前一个模组页面，再往前回到最后一个原生页签。
+    await page.keyboard.press('Shift+F6');
+    await expect(notesPage.getByText('Owned notes page')).toBeVisible();
+    await page.keyboard.press('Shift+F6');
+    await expect(homePage.getByText('Owned message page')).toBeVisible();
+    await page.keyboard.press('Shift+F6');
+    await expect(page.locator('[data-folium-home-page]')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe('navidrome');
+});
+
+test('grid: explicitly opening a collection while a page is open closes the page and shows the collection', async ({ mount, page }) => {
+    await page.route(LOCAL_MUSIC_SERVICE_ROUTE, route => route.fulfill({ contentType: 'text/javascript', body: buildServiceStubModule() }));
+    await mount('homeBehavior');
+    await expect.poll(() => page.evaluate(() => window.__homeProbe?.ready() ?? false)).toBe(true);
+    await registerPage(page);
+    // 主窗口的 bootstrap 装的规则（探针不经 bootstrap，这里照样装上）。
+    await page.evaluate(async () => {
+        const dismissalPath = '/src/components/app/home/foliumHomePageDismissal.ts';
+        const { installFoliumHomePageDismissal } = await import(dismissalPath);
+        installFoliumHomePageDismissal();
+    });
+    type SavedWindow = Window & { __savedCollection?: unknown };
+    const collection = page.locator('[data-library-surface="collection"]');
+    // 先照常打开一次拿到真实的集合描述，再关掉。
+    await expect.poll(() => page.evaluate(() => window.__homeProbe!.open('owned'))).toBe(true);
+    await expect(collection).toBeVisible();
+    await page.evaluate(async () => {
+        const storePath = '/src/stores/useCollectionNavigationStore.ts';
+        const { useCollectionNavigationStore } = await import(storePath);
+        (window as SavedWindow).__savedCollection = useCollectionNavigationStore.getState().snapshot.stack[0];
+        useCollectionNavigationStore.getState().clear();
+    });
+    await expect(collection).toHaveCount(0);
+
+    const homePage = page.locator('[data-folium-home-page="home-test:messages"]');
+    expect(await openPageFromMod(page)).toBe(true);
+    await expect(homePage.getByText('Owned message page')).toBeVisible();
+    // 与播放页面板、搜索结果里点专辑一样：navigateToCollection 在导航 store 上打开一个根集合。
+    await page.evaluate(async () => {
+        const storePath = '/src/stores/useCollectionNavigationStore.ts';
+        const { useCollectionNavigationStore } = await import(storePath);
+        useCollectionNavigationStore.getState().openRoot((window as SavedWindow).__savedCollection, 'player');
+    });
+    await expect(homePage).toHaveCount(0);
+    await expect(collection).toBeVisible();
+    expect(await collection.evaluate(element => Boolean(element.closest('[inert]')))).toBe(false);
+    expect(await page.evaluate(() => window.__homeProbe!.stack())).toEqual(['Owned Playlist']);
+});
+
+test('a page opened from inside another keyboard window leaves focus there until that window closes', async ({ mount, page }) => {
+    await page.route(LOCAL_MUSIC_SERVICE_ROUTE, route => route.fulfill({ contentType: 'text/javascript', body: buildServiceStubModule() }));
+    await mount('homeBehavior');
+    await expect.poll(() => page.evaluate(() => window.__homeProbe?.ready() ?? false)).toBe(true);
+    await registerPage(page);
+    // 设置弹窗的替身：接管键盘的窗口，Esc 的监听挂在 window 的冒泡阶段（与 SettingsModal 一样），收到就关掉自己。
+    type EscapeWindow = Window & { __escapes: number };
+    await page.evaluate(() => {
+        const modal = document.createElement('div');
+        modal.id = 'stand-in-settings';
+        modal.setAttribute('data-folia-keyboard-window', 'true');
+        modal.style.cssText = 'position: fixed; inset: 25%; z-index: 100; background: #222;';
+        const run = document.createElement('button');
+        run.textContent = 'Run mod command';
+        modal.append(run);
+        document.body.append(modal);
+        (window as unknown as EscapeWindow).__escapes = 0;
+        window.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            (window as unknown as EscapeWindow).__escapes++;
+            modal.remove();
+        });
+    });
+    const run = page.getByRole('button', { name: 'Run mod command' });
+    await run.focus();
+    // 弹窗里运行一个会打开首页页面的模组命令：页面开在弹窗后面，焦点留在弹窗里。
+    expect(await openPageFromMod(page)).toBe(true);
+    const homePage = page.locator('[data-folium-home-page="home-test:messages"]');
+    await expect(homePage.getByText('Owned message page')).toBeVisible();
+    await expect(run).toBeFocused();
+    // Esc 照常到达弹窗的监听（没被页面拦下），弹窗关掉；焦点空出来之后交给页面的当前页签。
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => (window as unknown as EscapeWindow).__escapes)).toBe(1);
+    await expect(page.locator('#stand-in-settings')).toHaveCount(0);
+    await expect(homePage.getByRole('button', { name: 'Home Messages', exact: true })).toBeFocused();
+});
+
+test('tui: reselecting the current native tab from the palette closes a page the mod opened', async ({ mount, page }) => {
+    await page.route(LOCAL_MUSIC_SERVICE_ROUTE, route => route.fulfill({ contentType: 'text/javascript', body: buildServiceStubModule() }));
+    await mount('homeBehavior');
+    await expect.poll(() => page.evaluate(() => window.__homeProbe?.ready() ?? false)).toBe(true);
+    await page.evaluate(() => window.__homeProbe!.setSuite('tui'));
+    await registerPage(page);
+    // TUI 不画入口，页面只能由模组打开；它照样盖在 TUI 首页上。
+    expect(await openPageFromMod(page)).toBe(true);
+    const homePage = page.locator('[data-folium-home-page="home-test:messages"]');
+    await expect(homePage.getByText('Owned message page')).toBeVisible();
+    const nativeTab = await page.evaluate(() => window.__homeProbe!.tab());
+    // 命令面板重选当前页签：TUI 的页签句柄照契约通知宿主（onNativeTabSelected），homeViewTab 不变也能关掉页面。
+    expect(await page.evaluate(async key => {
+        const factoryPath = '/src/components/command-palette/commandFactories.ts';
+        const surfacePath = '/src/library/core/state/useLibraryHomeSurfaceStore.ts';
+        const { createHomeTabCommand } = await import(factoryPath);
+        const { useLibraryHomeSurfaceStore } = await import(surfacePath);
+        const handled = Boolean(useLibraryHomeSurfaceStore.getState().tabs);
+        createHomeTabCommand(key, '', '', []).execute('', { navigation: {
+            selectHomeViewTab: () => { throw new Error('the TUI tab handle should take the tab'); }, navigateToHome: () => {},
+        } });
+        return handled;
+    }, nativeTab)).toBe(true);
+    await expect(homePage).toHaveCount(0);
+    expect(await page.evaluate(() => window.__homeProbe!.tab())).toBe(nativeTab);
 });
 
 test('the Home shell does not re-render for native tab changes while no page is open', async ({ mount, page }) => {

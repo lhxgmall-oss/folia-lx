@@ -3,6 +3,7 @@
 // 到的守卫元素，页内的 Tab 顺序整个交给浏览器（slot 投影、SVG、closed ShadowRoot、iframe 里的控件都按浏览器自己的
 // 序列走），只有焦点落到守卫上（Tab 即将离开页面）时才把它送到另一头。这里给出：守卫该把焦点送到哪一头、从那一头
 // 起依次试着聚焦（穿透模组的 open ShadowRoot），以及穿透 ShadowRoot 的当前焦点元素。只读 DOM，不碰 React 状态。
+// 另有打开页面时交不交焦点的规则（claimHomePageFocus）：不从设置、命令面板这些接管键盘的窗口里抢焦点。
 
 /** 页面首尾守卫元素带的属性；列可聚焦元素时跳过它们。 */
 export const HOME_PAGE_FOCUS_GUARD = 'data-folium-focus-guard';
@@ -77,4 +78,46 @@ export const deepActiveElement = (): Element | null => {
     let active = document.activeElement;
     while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
     return active;
+};
+
+/** 接管键盘的窗口（命令面板、设置等模态，见 utils/keyboardTargets 的 hasBlockingWindow）。 */
+const KEYBOARD_WINDOW_SELECTOR = '[data-folia-keyboard-window="true"]';
+
+/** 页面之外、此刻还算数的接管键盘的窗口：inert 子树里的（原生首页那一层里的集合对话框、bravais 的缝）被页面盖着，不算。 */
+const homePageFocusBlockers = (page: Element): Element[] => [...document.querySelectorAll(KEYBOARD_WINDOW_SELECTOR)]
+    .filter(element => !page.contains(element) && !element.closest('[inert]'));
+
+/**
+ * 焦点算不算「没人拿着」：落在 body（或没有），或在 inert 的子树里（打开页面时原生首页整层变 inert，焦点正随它丢掉）。
+ * includePage 时焦点在页面里也算（页面打开、在几个模组页之间切换时焦点在页头上）。
+ */
+const isHomePageFocusFree = (page: Element, includePage: boolean): boolean => {
+    const active = document.activeElement;
+    if (!active || active === document.body) return true;
+    if (page.contains(active)) return includePage;
+    return Boolean(active.closest('[inert]'));
+};
+
+/**
+ * 页面打开（或换成另一个模组页）时把焦点交给页头的当前页签（focusTarget），但不抢别人的焦点：只在焦点没人拿着（见
+ * isHomePageFocusFree）、并且页面之外没有别的接管键盘的窗口时才交。设置弹窗里运行模组命令打开页面时页面在弹窗后面，
+ * 抢过去的话页面拦下的 Esc 关不掉弹窗，Tab 也只在看不见的页面里转。
+ * 被这样的窗口挡着时等它们关掉（DOM 里摘掉，或撤掉 data-folia-keyboard-window）再看一次：焦点那时空出来就交（命令面板
+ * 里点模组命令打开页面，面板淡出之后焦点才空出来）；焦点已经被用户放到别处（包括页面里）就不再等。
+ * 焦点不在窗口里、也没丢（例如搜索页的输入框）时不交也不等。返回停止等待的函数（页面卸载、换页面时调用）。
+ */
+export const claimHomePageFocus = (page: Element, focusTarget: () => HTMLElement | null): (() => void) => {
+    // 'claimed'：交了；'wait'：被窗口挡着，等；'skip'：焦点在别处，不交也不等。
+    const attempt = (includePage: boolean): 'claimed' | 'wait' | 'skip' => {
+        if (homePageFocusBlockers(page).length > 0) return 'wait';
+        if (!isHomePageFocusFree(page, includePage)) return 'skip';
+        focusTarget()?.focus({ preventScroll: true });
+        return 'claimed';
+    };
+    if (attempt(true) !== 'wait') return () => {};
+    const observer = new MutationObserver(() => {
+        if (attempt(false) !== 'wait') observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-folia-keyboard-window'] });
+    return () => observer.disconnect();
 };

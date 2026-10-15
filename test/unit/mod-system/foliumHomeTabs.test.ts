@@ -8,18 +8,27 @@ import { createFoliumUiService, registerFoliumHostActions, type FoliumHostAction
 import type { ModRuntimeInfo } from '@/mods/types';
 import { selectNativeHomeTabFromPage, useFoliumHomeNavigation } from '@/components/app/home/useFoliumHomeNavigation';
 import {
+    claimHomePageFocus,
     deepActiveElement,
     focusHomePageEdge,
     homePageFocusTargets,
     resolveHomePageGuardEdge,
 } from '@/components/app/home/foliumHomePageFocus';
+import { installFoliumHomePageDismissal, selectNativeHomeTabWithoutSurface } from '@/components/app/home/foliumHomePageDismissal';
+import { createHomeTabCommand } from '@/components/command-palette/commandFactories';
+import type { CommandPaletteContext } from '@/components/command-palette/types';
 import { useLibraryHomeSurfaceStore } from '@/library/core/state/useLibraryHomeSurfaceStore';
+import { useLibraryHomeTabsRegistration } from '@/library/core/bindings/useLibraryHomeSurfaceRegistration';
+import type { GridViewCollectionDescriptor } from '@/library/core/contracts/collection';
+import { useCollectionNavigationStore } from '@/stores/useCollectionNavigationStore';
 import { useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
 
 // test/unit/mod-system/foliumHomeTabs.test.ts
 // Registration ownership, selection cleanup, and the client/export service boundary.
 // 另外：Home 外壳那一侧的导航 hook（选中态、只在页面开着时监听原生页签）、页面页头选原生页签走句柄，
 // 与页面的焦点工具（首尾守卫往哪头送、ShadowRoot 与 slot 投影穿透、focus() 没生效时往下一个试）。
+// 再有：首页之外关掉页面的两条规则（显式打开集合、首页 surface 不在时命令面板选原生页签）、打开时不从别的窗口里抢焦点、
+// 页签句柄带上 suite 的 F6 循环。
 
 vi.hoisted(() => {
     const items = new Map<string, string>();
@@ -227,6 +236,121 @@ describe('native tabs from the page header', () => {
     });
 });
 
+describe('dismissing an open page from outside Home', () => {
+    let uninstall: (() => void) | null = null;
+
+    afterEach(() => {
+        uninstall?.();
+        uninstall = null;
+        useCollectionNavigationStore.setState({ snapshot: null });
+        useLibraryHomeSurfaceStore.setState({ tabs: null });
+        closeFoliumHomeTab();
+    });
+
+    const album = (id: string) => ({
+        source: 'online', providerId: 'netease', id, name: `Album ${id}`, type: 'album',
+    } as unknown as GridViewCollectionDescriptor);
+    const openPage = () => {
+        if (!homeTabsRegistry.get('home-test:messages')) homeTabsRegistry.register('home-test', definition);
+        expect(selectFoliumHomeTab('home-test:messages')).toBe(true);
+    };
+    const pageOpen = () => useFoliumHomeTabStore.getState().activeId !== null;
+
+    it('closes the page when a collection is explicitly opened or pushed, not when history restores one', () => {
+        uninstall = installFoliumHomePageDismissal();
+        const navigation = useCollectionNavigationStore.getState();
+        // 页面打开在已有集合之上：快照不变，页面照旧在最上面。
+        navigation.openRoot(album('a'), 'home');
+        openPage();
+        expect(pageOpen()).toBe(true);
+        // 浏览器前进后退恢复的集合不算显式打开。
+        navigation.restore(null);
+        navigation.restore({ origin: 'home', stack: [album('a'), album('b')] });
+        expect(pageOpen()).toBe(true);
+        // 已经在看的那一层（noop）、紧邻往返（back，交给应用内返回）都没有压新的一层。
+        expect(navigation.push(album('b')).kind).toBe('noop');
+        expect(navigation.push(album('a')).kind).toBe('back');
+        expect(pageOpen()).toBe(true);
+        // 播放页面板、搜索结果里点专辑或歌手：navigateToCollection 打开一个根集合。
+        navigation.openRoot(album('c'), 'player');
+        expect(pageOpen()).toBe(false);
+        openPage();
+        expect(navigation.push(album('d')).kind).toBe('push');
+        expect(pageOpen()).toBe(false);
+        // 卸下之后不再管。
+        uninstall();
+        uninstall = null;
+        openPage();
+        navigation.openRoot(album('e'), 'search');
+        expect(pageOpen()).toBe(true);
+    });
+
+    it('the palette closes the page itself when no home surface handle takes the native tab, including a reselect', () => {
+        const navigateToHome = vi.fn();
+        type Tab = 'playlist' | 'albums' | 'local';
+        const run = (tab: Tab, selectHomeViewTab: (tab: Tab) => void) => {
+            createHomeTabCommand(tab, '', '', []).execute('', {
+                navigation: { selectHomeViewTab, navigateToHome },
+            } as unknown as CommandPaletteContext);
+        };
+        useSearchNavigationStore.getState().setHomeViewTab('playlist');
+        openPage();
+        // 播放页下首页藏起、句柄已注销：重选当前页签时 homeViewTab 不变，Home 外壳的监听收不到。
+        run('playlist', selectNativeHomeTabWithoutSurface);
+        expect(pageOpen()).toBe(false);
+        expect(useSearchNavigationStore.getState().homeViewTab).toBe('playlist');
+        expect(navigateToHome).toHaveBeenCalledTimes(1);
+        // Lattice 下 Home 整个卸载，外壳的监听也不在：换页签同样要在这里关。
+        openPage();
+        run('albums', selectNativeHomeTabWithoutSurface);
+        expect(pageOpen()).toBe(false);
+        expect(useSearchNavigationStore.getState().homeViewTab).toBe('albums');
+        // 句柄在时交给句柄（挂着的 surface 自己关页面），不走宿主这一支。
+        const setTab = vi.fn(() => true);
+        const select = vi.fn();
+        useLibraryHomeSurfaceStore.getState().registerTabs({ getState: () => ({ active: 'albums', tabs: [] }), setTab });
+        run('local', select);
+        expect(setTab).toHaveBeenCalledWith('local');
+        expect(select).not.toHaveBeenCalled();
+    });
+});
+
+describe('the home tabs handle carries the suite F6 cycle', () => {
+    let root: Root | null = null;
+
+    afterEach(() => {
+        act(() => root?.unmount());
+        root = null;
+    });
+
+    const register = (cycleTab?: (delta: 1 | -1) => boolean) => {
+        const Probe = () => {
+            useLibraryHomeTabsRegistration({ getState: () => ({ active: 'playlist', tabs: [] }), setTab: () => true, cycleTab });
+            return null;
+        };
+        root ??= createRoot(document.createElement('div'));
+        act(() => root!.render(React.createElement(Probe)));
+    };
+
+    it('exposes cycleTab only for suites that have one and always calls the latest callback', () => {
+        register();
+        expect(useLibraryHomeSurfaceStore.getState().tabs).not.toBeNull();
+        expect(useLibraryHomeSurfaceStore.getState().tabs?.cycleTab).toBeUndefined();
+        const first = vi.fn(() => true);
+        register(first);
+        expect(useLibraryHomeSurfaceStore.getState().tabs?.cycleTab?.(1)).toBe(true);
+        expect(first).toHaveBeenCalledWith(1);
+        const second = vi.fn(() => false);
+        register(second);
+        expect(useLibraryHomeSurfaceStore.getState().tabs?.cycleTab?.(-1)).toBe(false);
+        expect(second).toHaveBeenCalledWith(-1);
+        expect(first).toHaveBeenCalledTimes(1);
+        act(() => root?.unmount());
+        root = null;
+        expect(useLibraryHomeSurfaceStore.getState().tabs).toBeNull();
+    });
+});
+
 describe('home page focus', () => {
     afterEach(() => {
         document.body.replaceChildren();
@@ -308,6 +432,89 @@ describe('home page focus', () => {
         end.focus();
         expect(focusHomePageEdge(section, resolveHomePageGuardEdge('end', byId('host'), section), end)).toBe(byId('back'));
         expect(document.activeElement).toBe(byId('back'));
+    });
+
+    /** 原生首页那一层（打开页面的入口、被页面盖住的对话框）、页面（页头当前页签与一个输入框），再加一个页面之外的窗口。 */
+    const buildOpening = () => {
+        const nativeLayer = document.createElement('div');
+        nativeLayer.innerHTML = '<button id="opener">Open</button>'
+            + '<div data-folia-keyboard-window="true"><button id="covered">Covered dialog</button></div>';
+        const page = document.createElement('section');
+        page.setAttribute('data-folia-keyboard-window', 'true');
+        page.innerHTML = '<button id="tab">Page tab</button><textarea id="draft"></textarea>';
+        const modal = document.createElement('div');
+        modal.setAttribute('data-folia-keyboard-window', 'true');
+        modal.innerHTML = '<button id="run">Run</button>';
+        document.body.append(nativeLayer, page);
+        const byId = (id: string) => document.getElementById(id)!;
+        return { nativeLayer, page, modal, byId, tab: () => byId('tab') };
+    };
+    const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    it('takes focus lost with the native home, ignoring windows the page covers', () => {
+        const { nativeLayer, page, byId, tab } = buildOpening();
+        byId('opener').focus();
+        nativeLayer.setAttribute('inert', '');
+        claimHomePageFocus(page, tab);
+        expect(document.activeElement).toBe(tab());
+        // 在几个模组页之间切换：焦点在页面里，交给新的当前页签。
+        byId('draft').focus();
+        claimHomePageFocus(page, tab);
+        expect(document.activeElement).toBe(tab());
+    });
+
+    it('does not take focus from another keyboard window and takes it once that window is gone', async () => {
+        const { nativeLayer, page, modal, byId, tab } = buildOpening();
+        nativeLayer.setAttribute('inert', '');
+        document.body.append(modal);
+        byId('run').focus();
+        claimHomePageFocus(page, tab);
+        expect(document.activeElement).toBe(byId('run'));
+        // 设置弹窗的 Esc 监听在 window 上：焦点留在弹窗里，按键照常冒泡到它。
+        const escapes = vi.fn();
+        window.addEventListener('keydown', escapes);
+        byId('run').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        window.removeEventListener('keydown', escapes);
+        expect(escapes).toHaveBeenCalledTimes(1);
+        // 窗口关掉（命令面板淡出）、焦点空出来之后再交。
+        modal.remove();
+        await settle();
+        expect(document.activeElement).toBe(tab());
+    });
+
+    it('waits while a window is open even with focus on body, and gives up once focus is put elsewhere', async () => {
+        const { nativeLayer, page, modal, byId, tab } = buildOpening();
+        nativeLayer.setAttribute('inert', '');
+        document.body.append(modal);
+        (document.activeElement as HTMLElement | null)?.blur();
+        const stop = claimHomePageFocus(page, tab);
+        expect(document.activeElement).toBe(document.body);
+        // 撤掉 data-folia-keyboard-window 也算窗口不在了。
+        modal.removeAttribute('data-folia-keyboard-window');
+        await settle();
+        expect(document.activeElement).toBe(tab());
+        stop();
+
+        // 再来一次：等待中用户自己把焦点放进了页面，窗口关掉后不再挪它。
+        modal.setAttribute('data-folia-keyboard-window', 'true');
+        byId('run').focus();
+        claimHomePageFocus(page, tab);
+        byId('draft').focus();
+        modal.remove();
+        await settle();
+        expect(document.activeElement).toBe(byId('draft'));
+    });
+
+    it('leaves focus held by a live element outside the page and does not wait for it', async () => {
+        const { nativeLayer, page, tab } = buildOpening();
+        nativeLayer.setAttribute('inert', '');
+        const search = document.body.appendChild(document.createElement('input'));
+        search.focus();
+        claimHomePageFocus(page, tab);
+        expect(document.activeElement).toBe(search);
+        search.remove();
+        await settle();
+        expect(document.activeElement).not.toBe(tab());
     });
 
     it('reads the focused element inside a ShadowRoot', () => {

@@ -13,9 +13,11 @@ import { toFoliumTheme } from '../../../mods/folium/dto';
 import { closeFoliumHomeTab } from '../../../mods/folium/registries/homeTabs';
 import { useFoliumPanelContext } from '../../../mods/folium/registries/useFoliumPanelContext';
 import { resolveFoliumLabel } from '../../../mods/folium/params';
-import { isCommandPaletteShortcut } from '../../../utils/keyboardTargets';
+import { isCommandPaletteShortcut, isTextEntryTarget } from '../../../utils/keyboardTargets';
+import { useLibraryHomeSurfaceStore } from '../../../library/core/state/useLibraryHomeSurfaceStore';
 import { selectNativeHomeTabFromPage } from './useFoliumHomeNavigation';
 import {
+    claimHomePageFocus,
     deepActiveElement,
     focusHomePageEdge,
     resolveHomePageGuardEdge,
@@ -30,6 +32,15 @@ import {
 // 就地渲染的登录弹窗（LibraryAccountHost，z-[100]）不在那一层里，仍在页面之上。顶上让出自绘标题栏的拖拽区（pt-8，与 TUI 首页一致）。
 // 焦点：打开时交给当前页签；页内 Tab 顺序交给浏览器，首尾各一个守卫，焦点落到守卫上才绕回另一头（见 foliumHomePageFocus）；
 // 关闭时还给打开它的那个元素。
+// 打开时不从设置、命令面板这些接管键盘的窗口里抢焦点（claimHomePageFocus）；bravais 的 F6 在页面里经首页 surface 的
+// 页签句柄接着循环。显式打开集合、首页 surface 不在时命令面板选原生页签，都会从外面关掉页面（foliumHomePageDismissal）。
+
+/** 页面里的 F6 / Shift+F6（不带 Ctrl、Alt、Meta，不是按住重复，不在输入框里）：往后 / 往前切首页页签，与 bravais 墙上同一对键。 */
+const resolveHomePageCycleKey = (event: KeyboardEvent): 1 | -1 | null => {
+    if (event.key !== 'F6' || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return null;
+    if (isTextEntryTarget(event.composedPath()[0] ?? event.target)) return null;
+    return event.shiftKey ? -1 : 1;
+};
 
 type FoliumHomePageProps = {
     entry: FoliumRegistryEntry<FoliumHomeTabDef>;
@@ -53,7 +64,11 @@ export function FoliumHomePage({ entry, extraTabs, account, surfaceProps }: Foli
     // 页面在几个模组页之间切换时不卸载，这个元素一直是最初打开页面的那一个。
     const [opener] = useState(deepActiveElement);
 
-    useEffect(() => { activeTabRef.current?.focus({ preventScroll: true }); }, [entry.id]);
+    // 打开时把焦点交给当前页签，但不从设置、命令面板这些窗口里抢（页面那时开在它们下面）：等它们关掉、焦点空出来再交。
+    useEffect(() => {
+        const page = sectionRef.current;
+        return page ? claimHomePageFocus(page, () => activeTabRef.current) : undefined;
+    }, [entry.id]);
     useEffect(() => {
         const page = sectionRef.current;
         return () => {
@@ -82,6 +97,11 @@ export function FoliumHomePage({ entry, extraTabs, account, surfaceProps }: Foli
             // Keep the host's explicit global palette entry reachable, including from a ShadowRoot input.
             if (isCommandPaletteShortcut(event.nativeEvent)) return;
             event.stopPropagation();
+            // 首页自己的页签循环键（bravais 的 F6）：页面开着时墙的按键监听让出，这里经首页 surface 的页签句柄接着循环——
+            // 切到下一个模组页面，或绕回原生页签（随之关掉页面）。模组自己 preventDefault 的、在输入框里按的不接，
+            // 没有这个循环的 suite（网格、TUI）不接。
+            const delta = resolveHomePageCycleKey(event.nativeEvent);
+            if (delta && !event.defaultPrevented && useLibraryHomeSurfaceStore.getState().tabs?.cycleTab?.(delta)) event.preventDefault();
         }}>
         {focusGuard('start')}
         <header className="flex shrink-0 items-center gap-4 px-4 py-3 md:px-8 border-b border-current/10">
