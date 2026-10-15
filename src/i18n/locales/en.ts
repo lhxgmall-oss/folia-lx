@@ -1119,6 +1119,12 @@ export default {
     "dropZipHint": "Drop a mod .zip here to install it",
     "installing": "Installing mod…",
     "installSuccess": "Installed mod: {{id}} (you can disable or update it from the list)",
+    "storageData": "Data {{size}}",
+    "storageCache": "Cache {{size}}",
+    "clearCache": "Clear cache",
+    "clearingCache": "Clearing…",
+    "cacheCleared": "Cleared the cache of \"{{name}}\", freeing {{size}}",
+    "cacheClearedUncounted": "Cleared the cache of \"{{name}}\"",
     "errors": {
       "no-electron-bridge": "Mod system is unavailable in this environment",
       "open-directory-failed": "Could not open the mods folder: {{value}}",
@@ -1146,7 +1152,10 @@ export default {
       "export-duration-too-long": "Export range is too long (max 15 minutes)",
       "export-unsupported-platform": "Export is not supported on this platform",
       "export-capture-empty": "Frame capture failed; the render window returned an empty frame",
-      "export-cancelled": "Export was cancelled"
+      "export-cancelled": "Export was cancelled",
+      "storage-usage-failed": "Could not measure how much space this mod uses",
+      "cache-clear-failed": "Could not clear the cache",
+      "cache-clear-partial": "Part of the cache could not be cleared because the mod is using those files. Disable the mod and try again."
     },
     "warnings": {
       "export-alpha-unavailable": "This platform did not preserve the alpha channel; the video has an opaque background. Use a text-only mode with Theme background, or run the export on Windows.",

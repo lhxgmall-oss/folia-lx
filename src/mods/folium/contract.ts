@@ -1312,6 +1312,22 @@ export interface FoliumStorage {
     keys(): Promise<string[]>;
 }
 
+/**
+ * Folium 1.5, main entries only: `api.storage.paths`, the directories this mod writes its files to. Needs
+ * the `filesystem.data` permission; without it, reading either path throws `permission-denied:filesystem.data`.
+ * Each read creates the directory when it is missing. Clients get no paths: they have no file system.
+ */
+export interface FoliumModPaths {
+    /** Files to keep: `<userData>/mods-data/<id>/files`, beside (not holding) the `folium.storage` data file. */
+    readonly data: string;
+    /**
+     * Files the mod can rebuild: `<userData>/mods-cache/<id>`. The user can empty it from the mods panel at
+     * any time, even while the mod runs, so expect files to vanish; the host sets no size limit, so cap it
+     * yourself.
+     */
+    readonly cache: string;
+}
+
 /** `folium.rpc`: calls into this mod's main entry. */
 export interface FoliumRpc {
     /**

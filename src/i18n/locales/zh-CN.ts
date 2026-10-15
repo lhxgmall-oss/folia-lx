@@ -1118,6 +1118,12 @@ export default {
     "dropZipHint": "将模组 zip 包拖到这里即可安装",
     "installing": "正在安装模组…",
     "installSuccess": "已安装模组：{{id}}（如需禁用或更新，可在列表中操作）",
+    "storageData": "数据 {{size}}",
+    "storageCache": "缓存 {{size}}",
+    "clearCache": "清空缓存",
+    "clearingCache": "正在清空…",
+    "cacheCleared": "已清空「{{name}}」的缓存，释放了 {{size}}",
+    "cacheClearedUncounted": "已清空「{{name}}」的缓存",
     "errors": {
       "no-electron-bridge": "当前环境不支持模组系统",
       "open-directory-failed": "无法打开模组目录：{{value}}",
@@ -1145,7 +1151,10 @@ export default {
       "export-duration-too-long": "导出时间范围过长（最长 15 分钟）",
       "export-unsupported-platform": "当前平台不支持导出",
       "export-capture-empty": "帧捕获失败：渲染窗口返回了空白帧",
-      "export-cancelled": "导出已取消"
+      "export-cancelled": "导出已取消",
+      "storage-usage-failed": "无法统计该模组占用的空间",
+      "cache-clear-failed": "清空缓存失败",
+      "cache-clear-partial": "缓存未能全部清空：模组正在使用其中部分文件，停用模组后再试"
     },
     "warnings": {
       "export-alpha-unavailable": "当前平台未保留 Alpha 通道，视频为不透明底。请改用「主题背景色」+ 纯文字动画，或在 Windows 上导出。",

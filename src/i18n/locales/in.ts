@@ -1112,6 +1112,12 @@ export default {
     "dropZipHint": "Seret berkas .zip mod ke sini untuk memasangnya",
     "installing": "Memasang mod…",
     "installSuccess": "Mod terpasang: {{id}} (bisa dinonaktifkan atau diperbarui dari daftar)",
+    "storageData": "Data {{size}}",
+    "storageCache": "Cache {{size}}",
+    "clearCache": "Bersihkan cache",
+    "clearingCache": "Membersihkan…",
+    "cacheCleared": "Cache \"{{name}}\" dibersihkan, {{size}} dibebaskan",
+    "cacheClearedUncounted": "Cache \"{{name}}\" dibersihkan",
     "errors": {
       "no-electron-bridge": "Sistem mod tidak tersedia di lingkungan ini",
       "open-directory-failed": "Gagal membuka folder mod: {{value}}",
@@ -1139,7 +1145,10 @@ export default {
       "export-duration-too-long": "Rentang ekspor terlalu panjang (maks 15 menit)",
       "export-unsupported-platform": "Ekspor tidak didukung di platform ini",
       "export-capture-empty": "Pengambilan frame gagal; jendela render mengembalikan frame kosong",
-      "export-cancelled": "Ekspor dibatalkan"
+      "export-cancelled": "Ekspor dibatalkan",
+      "storage-usage-failed": "Tidak dapat menghitung ruang yang dipakai mod ini",
+      "cache-clear-failed": "Gagal membersihkan cache",
+      "cache-clear-partial": "Sebagian cache tidak dapat dibersihkan karena mod sedang memakai berkas tersebut. Nonaktifkan mod lalu coba lagi."
     },
     "warnings": {
       "export-alpha-unavailable": "Platform ini tidak mempertahankan saluran alpha; video memiliki latar pekat. Gunakan mode latar tema dengan animasi teks, atau ekspor di Windows.",

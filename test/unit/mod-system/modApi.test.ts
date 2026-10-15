@@ -9,7 +9,8 @@ import path from 'path';
 // a capability a mod did not declare has to be unreachable, not merely
 // undocumented. These cover both directions for every guarded API family, the
 // shared data store (queueing, quota), rpc registration and the deactivate
-// hook the loader relies on to stop a disabled mod.
+// hook the loader relies on to stop a disabled mod. Folium 1.5's
+// `api.storage.paths` is covered here too: gated, frozen, and re-created on read.
 
 const require = createRequire(import.meta.url);
 const { createModApi, createModDataStore } = require('../../../electron/modSystem/modApi.cjs');
@@ -77,6 +78,53 @@ describe('mod api permission gate', () => {
             // Frozen in strict mode; either way the gate below must still hold.
         }
         await expect(api.storage.data.get('k')).rejects.toThrow('permission-denied:filesystem.data');
+    });
+});
+
+describe('mod api file paths (Folium 1.5)', () => {
+    const createPathsApi = (permissions: string[]) => {
+        const userData = tempDir();
+        const filesDir = path.join(userData, 'mods-data', 'test-mod', 'files');
+        const cacheDir = path.join(userData, 'mods-cache', 'test-mod');
+        return { api: createApi(permissions, { filesDir, cacheDir }), filesDir, cacheDir };
+    };
+
+    it('is always there for feature detection, and frozen', () => {
+        const { api } = createPathsApi([]);
+        expect('paths' in api.storage).toBe(true);
+        expect(Object.isFrozen(api.storage.paths)).toBe(true);
+    });
+
+    it('throws permission-denied synchronously on read without filesystem.data, creating nothing', () => {
+        const { api, filesDir, cacheDir } = createPathsApi([]);
+        expect(() => api.storage.paths.data).toThrow('permission-denied:filesystem.data');
+        expect(() => api.storage.paths.cache).toThrow('permission-denied:filesystem.data');
+        expect(fs.existsSync(filesDir)).toBe(false);
+        expect(fs.existsSync(cacheDir)).toBe(false);
+    });
+
+    it('returns the absolute directories and creates them on read', () => {
+        const { api, filesDir, cacheDir } = createPathsApi(['filesystem.data']);
+        expect(api.storage.paths.data).toBe(filesDir);
+        expect(api.storage.paths.cache).toBe(cacheDir);
+        expect(path.isAbsolute(api.storage.paths.data)).toBe(true);
+        expect(fs.statSync(filesDir).isDirectory()).toBe(true);
+        expect(fs.statSync(cacheDir).isDirectory()).toBe(true);
+    });
+
+    it('re-creates a directory removed since the last read (the user emptied the cache)', () => {
+        const { api, cacheDir } = createPathsApi(['filesystem.data']);
+        fs.writeFileSync(path.join(api.storage.paths.cache, 'thumb.png'), 'x');
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+        expect(fs.existsSync(cacheDir)).toBe(false);
+        expect(api.storage.paths.cache).toBe(cacheDir);
+        expect(fs.statSync(cacheDir).isDirectory()).toBe(true);
+    });
+
+    it('cannot be pointed elsewhere by the mod', () => {
+        const { api, filesDir } = createPathsApi(['filesystem.data']);
+        expect(() => { (api.storage.paths as { data: string }).data = '/elsewhere'; }).toThrow(TypeError);
+        expect(api.storage.paths.data).toBe(filesDir);
     });
 });
 

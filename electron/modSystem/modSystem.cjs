@@ -29,6 +29,7 @@ const { FOLIUM_VERSION, validateManifest, resolveLoadPlan, satisfiesHostRange, p
 const { computeModDigest, shortDigest } = require('./modDigest.cjs');
 const { verifyModSignature } = require('./modSignature.cjs');
 const { createModApi, createModDataStore, STORAGE_PERMISSION } = require('./modApi.cjs');
+const { clearDirectoryContents, measureDirectoryBytes, resolveModStorageDirs } = require('./modFiles.cjs');
 const { createFileGrantStore } = require('./fileGrants.cjs');
 const { resolveFfmpeg, MODS_RUNTIME_DIR } = require('./ffmpeg.cjs');
 const { createExportService } = require('./exportService.cjs');
@@ -164,6 +165,8 @@ const IPC = {
     ffmpegStatus: 'folia-mods:ffmpeg-status',
     openDirectory: 'folia-mods:open-directory',
     installZip: 'folia-mods:install-zip',
+    storageUsage: 'folia-mods:storage-usage',
+    clearCache: 'folia-mods:clear-cache',
     fStateChanged: 'folia-mods:state-changed',
     fExportProgress: 'folia-mods:export-progress',
     fLog: 'folia-mods:log',
@@ -305,7 +308,8 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
     };
 
     const buildModRuntime = (manifest, entries) => {
-        const dataDir = path.join(app.getPath('userData'), 'mods-data', manifest.id);
+        // mods-data/<id> (with files/ for api.storage.paths.data) and mods-cache/<id>.
+        const { dataDir, filesDir, cacheDir } = resolveModStorageDirs(app.getPath('userData'), manifest.id);
         const dataStore = createModDataStore(dataDir);
         const rpcHandlers = new Map();
         const disposers = [];
@@ -314,6 +318,8 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
             modId: manifest.id,
             manifest,
             dataStore,
+            filesDir,
+            cacheDir,
             hostInfo: hostInfo(),
             emitLog: (level, message, details) => emitLog(manifest.id, level, message, details),
             getPlaybackSnapshot: getPublicSnapshot,
@@ -754,6 +760,8 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         broken.forEach(({ key, discovery }) => {
             nextMods.set(key, {
                 manifest: brokenManifest(key, discovery),
+                // Its key and placeholder id are a directory name, not a validated id (requireDiscoveredMod).
+                broken: true,
                 dirPath: discovery.dirPath,
                 digest: null,
                 status: 'error',
@@ -1055,6 +1063,47 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         }
         const result = await runtime.dataStore[operation](key, value);
         return { ok: true, result: result === undefined ? null : result };
+    };
+
+    /*
+     * The mods panel's file actions work on any mod the loader discovered, loaded or not (a
+     * disabled mod's files still take space), but never on a broken entry: its map key is a
+     * directory name, so only a validated manifest id that is also its own key becomes a path.
+     */
+    const requireDiscoveredMod = (modId) => {
+        const runtime = typeof modId === 'string' ? mods.get(modId) : null;
+        if (!runtime || runtime.broken || runtime.manifest?.id !== modId) {
+            throw new Error('mod-not-found');
+        }
+        return resolveModStorageDirs(app.getPath('userData'), modId);
+    };
+
+    // Disk usage for the mods panel: all of mods-data/<id> (mod-data.json included) and mods-cache/<id>.
+    const getModStorageUsage = async (modId) => {
+        const { dataDir, cacheDir } = requireDiscoveredMod(modId);
+        try {
+            const [data, cache] = await Promise.all([measureDirectoryBytes(dataDir), measureDirectoryBytes(cacheDir)]);
+            return { ok: true, data, cache };
+        } catch {
+            return { ok: false, error: 'storage-usage-failed' };
+        }
+    };
+
+    /*
+     * Empties mods-cache/<id>, keeping the directory itself; api.storage.paths.cache re-creates
+     * it on its next read anyway. A running mod may hold files open, so some can fail (EBUSY on
+     * Windows): the rest still go, and the result says the clear was partial.
+     */
+    const clearModCache = async (modId) => {
+        const { cacheDir } = requireDiscoveredMod(modId);
+        try {
+            const { cleared, failed } = await clearDirectoryContents(cacheDir);
+            return failed > 0
+                ? { ok: false, error: 'cache-clear-partial', cleared }
+                : { ok: true, cleared };
+        } catch {
+            return { ok: false, error: 'cache-clear-failed' };
+        }
     };
 
     const listMods = () => Array.from(mods.values())
@@ -1383,6 +1432,8 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         handle(IPC.ffmpegStatus, async () => ({ ffmpeg: await probeFfmpeg() }));
         handle(IPC.openDirectory, () => openModsDirectory());
         handle(IPC.installZip, (_event, zipPath) => installModFromZip(zipPath));
+        handle(IPC.storageUsage, (_event, modId) => getModStorageUsage(modId));
+        handle(IPC.clearCache, (_event, modId) => clearModCache(modId));
     };
 
     const dispose = () => {
