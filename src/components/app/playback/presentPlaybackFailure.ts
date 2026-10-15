@@ -1,16 +1,20 @@
-import { PlayerState, type StatusMessage } from '../../../types';
+import { PlayerState, type SongResult, type StatusMessage } from '../../../types';
 import type { SkipPromptMessageKey } from '../../../types/appPlayback';
 import type { PlaybackFailure, PlaybackFailureContext } from '../../../types/playbackFailure';
 import type { StatusSetter } from '../../../stores/useStatusMessageStore';
 import { buildPlaybackFailureStatus, resolvePlaybackFailurePolicy } from '../../../services/playbackRecovery/playbackFailurePolicy';
+import type { PlaybackFailedNotice } from '../../../services/hostExtensionHooks';
 
 // src/components/app/playback/presentPlaybackFailure.ts
 // 播放失败的展示层：按策略表决定倒计时跳歌、停播，还是给出带“重试 / 跳过”的常驻消息。
 // 只负责展示和停播，不决定原因；队列控制器在点歌失败和播放中失败时都交给这里。
 // 「无法播放时自动跳过」设置经 deps 的 getter 在展示那一刻读取，策略模块本身保持纯函数。
+// 展示完（消息或倒计时已写入）后经 deps.notifyFailure 报告一次失败（Folium 的 playback.failed），陈旧请求不报。
 
 export interface PlaybackFailurePresentation {
     failure: PlaybackFailure;
+    /** 失败的那首歌：点歌时是请求的那首（不一定是正在显示的），播放中失败时是当前歌曲。只用于报告。 */
+    song: SongResult | null;
     context: PlaybackFailureContext;      // 'play' | 'mid-playback'
     isCurrent: () => boolean;
     skipCount: number;
@@ -29,11 +33,13 @@ export interface PlaybackFailurePresenterDeps {
     maxAutoSkipCount: number;
     /** 「无法播放时自动跳过」设置；每次展示时调用读取，deps 被 useMemo 缓存也拿得到最新值。 */
     getAutoSkipUnplayable: () => boolean;
+    /** 报告一次用户看得到的失败（hostExtensionHooks.notifyPlaybackFailed）；在界面状态写完之后调用。 */
+    notifyFailure: (notice: PlaybackFailedNotice) => void;
 }
 
 /** 按策略表展示一次失败：倒计时跳歌、停播提示或带按钮的持久消息。陈旧请求直接忽略。 */
 export const presentPlaybackFailure = (input: PlaybackFailurePresentation, deps: PlaybackFailurePresenterDeps): void => {
-    const { failure, context, isCurrent, skipCount, retry, skip } = input;
+    const { failure, song, context, isCurrent, skipCount, retry, skip } = input;
     if (!isCurrent()) return;
 
     const policy = resolvePlaybackFailurePolicy(failure, context, { autoSkipUnplayable: deps.getAutoSkipUnplayable() });
@@ -45,6 +51,7 @@ export const presentPlaybackFailure = (input: PlaybackFailurePresentation, deps:
         deps.showTimedSkipPrompt(policy.countdownKey, () => {
             if (isCurrent()) skip();
         });
+        deps.notifyFailure({ song, reason: failure.reason, phase: context, willAutoSkip: true });
         return;
     }
 
@@ -72,4 +79,5 @@ export const presentPlaybackFailure = (input: PlaybackFailurePresentation, deps:
         dismiss: () => deps.setStatusMsg(null),
     });
     deps.setStatusMsg(built);
+    deps.notifyFailure({ song, reason: failure.reason, phase: context, willAutoSkip: false });
 };

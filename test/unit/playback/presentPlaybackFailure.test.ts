@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PlayerState, type StatusMessage } from '@/types';
+import { PlayerState, type SongResult, type StatusMessage } from '@/types';
 import type { PlaybackFailure } from '@/types/playbackFailure';
 import { presentPlaybackFailure, type PlaybackFailurePresentation } from '@/components/app/playback/presentPlaybackFailure';
 
 // test/unit/playback/presentPlaybackFailure.test.ts
+// 展示层：倒计时 / 停播 / 常驻消息，以及展示完之后报告一次失败（Folium playback.failed）。
 
 const network: PlaybackFailure = { reason: 'network', stage: 'resolve-url' };
 const takenDown: PlaybackFailure = { reason: 'taken-down', stage: 'resolve-url' };
 const membership: PlaybackFailure = { reason: 'membership-required', stage: 'resolve-url' };
+const failedSong = { id: 'f1', name: 'Failed', artists: [], album: { id: '', name: '' }, durationMs: 1 } as unknown as SongResult;
 
 function setup(overrides: Partial<PlaybackFailurePresentation> = {}, autoSkipUnplayable = false) {
     let message: StatusMessage | null = null;
@@ -26,9 +28,11 @@ function setup(overrides: Partial<PlaybackFailurePresentation> = {}, autoSkipUnp
         showTimedSkipPrompt: vi.fn(),
         maxAutoSkipCount: 2,
         getAutoSkipUnplayable: vi.fn(() => autoSkipUnplayable),
+        notifyFailure: vi.fn(),
     };
     const input: PlaybackFailurePresentation = {
         failure: network,
+        song: failedSong,
         context: 'play',
         isCurrent: () => true,
         skipCount: 0,
@@ -235,5 +239,72 @@ describe('presentPlaybackFailure with "skip unplayable songs"', () => {
         present();
         expect(deps.getAutoSkipUnplayable).not.toHaveBeenCalled();
         expect(deps.showTimedSkipPrompt).not.toHaveBeenCalled();
+    });
+});
+
+describe('presentPlaybackFailure reporting the failure', () => {
+    it('reports nothing for a stale request', () => {
+        const { deps, present } = setup({ isCurrent: () => false, failure: membership }, true);
+        present();
+        expect(deps.notifyFailure).not.toHaveBeenCalled();
+    });
+
+    it('reports a countdown once, with willAutoSkip, after the prompt is up', () => {
+        const { deps, present } = setup({ failure: takenDown });
+        let promptShownFirst = false;
+        deps.notifyFailure.mockImplementation(() => {
+            promptShownFirst = deps.showTimedSkipPrompt.mock.calls.length === 1;
+        });
+        present();
+        expect(promptShownFirst).toBe(true);
+        expect(deps.notifyFailure).toHaveBeenCalledOnce();
+        expect(deps.notifyFailure).toHaveBeenCalledWith({ song: failedSong, reason: 'taken-down', phase: 'play', willAutoSkip: true });
+    });
+
+    it('reports a persistent message once, without willAutoSkip, after it is shown and playback stopped', () => {
+        const { deps, message, present } = setup();
+        let shownFirst: StatusMessage | null = null;
+        let stoppedFirst = false;
+        deps.notifyFailure.mockImplementation(() => {
+            shownFirst = message();
+            stoppedFirst = deps.setPlayerState.mock.calls.length === 1;
+        });
+        present();
+        expect(shownFirst).toMatchObject({ text: 'status.songNetworkFailed', persistent: true });
+        expect(stoppedFirst).toBe(true);
+        expect(deps.notifyFailure).toHaveBeenCalledOnce();
+        expect(deps.notifyFailure).toHaveBeenCalledWith({ song: failedSong, reason: 'network', phase: 'play', willAutoSkip: false });
+    });
+
+    it('passes the mid-playback phase and the song it was given', () => {
+        const { deps, present } = setup({ context: 'mid-playback', song: null, failure: { reason: 'unknown', stage: 'media-element' } });
+        present();
+        expect(deps.notifyFailure).toHaveBeenCalledWith({ song: null, reason: 'unknown', phase: 'mid-playback', willAutoSkip: false });
+    });
+
+    it.each([
+        ['the setting counts a restricted song down', {}, true],
+        ['the automatic skips are used up', { skipCount: 2 }, false],
+        ['there is no next song', { skip: undefined }, false],
+    ] as const)('willAutoSkip follows the branch taken when %s', (_case, overrides, willAutoSkip) => {
+        const { deps, present } = setup({ failure: membership, ...overrides }, true);
+        present();
+        expect(deps.showTimedSkipPrompt).toHaveBeenCalledTimes(willAutoSkip ? 1 : 0);
+        expect(deps.notifyFailure).toHaveBeenCalledOnce();
+        expect(deps.notifyFailure).toHaveBeenCalledWith(expect.objectContaining({ reason: 'membership-required', willAutoSkip }));
+    });
+
+    it('does not report again when the countdown or a button acts later', () => {
+        const countdown = setup({ failure: takenDown });
+        countdown.present();
+        (countdown.deps.showTimedSkipPrompt.mock.calls[0][1] as () => void)();
+        expect(countdown.input.skip).toHaveBeenCalledOnce();
+        expect(countdown.deps.notifyFailure).toHaveBeenCalledOnce();
+
+        const buttons = setup();
+        buttons.present();
+        buttons.message()?.onAction?.();
+        expect(buttons.input.retry).toHaveBeenCalledOnce();
+        expect(buttons.deps.notifyFailure).toHaveBeenCalledOnce();
     });
 });

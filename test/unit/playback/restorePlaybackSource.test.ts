@@ -31,6 +31,7 @@ vi.mock('@/stores/useStatusMessageStore', () => ({
         toastState.current = typeof next === 'function' ? (next as (prev: unknown) => unknown)(toastState.current) : next;
         setStatusMsgMock(toastState.current);
     },
+    useStatusMessageStore: { getState: () => ({ message: toastState.current }) },
 }));
 vi.mock('@/stores/useOnlineProviderAccountStore', () => ({
     useOnlineProviderAccountStore: { getState: () => ({ accounts: {} }) },
@@ -68,6 +69,7 @@ vi.mock('@/utils/appNavidromeLyrics', () => ({
 vi.mock('@/utils/lyrics/localSongLyrics', () => ({ resolveLocalSongLyrics: vi.fn() }));
 
 import { restorePlaybackSourceForSong } from '@/components/app/playback/restorePlaybackSource';
+import { installPlaybackFailedListener } from '@/services/hostExtensionHooks';
 import type { SongResult } from '@/types';
 
 // test/unit/playback/restorePlaybackSource.test.ts
@@ -257,5 +259,105 @@ describe('restorePlaybackSourceForSong (online)', () => {
         await expect(restore().result).resolves.toBe('failed');
         expect(setStatusMsgMock).toHaveBeenCalledWith({ type: 'error', text: 'status.songTemporarilyUnavailable' });
         expect(loadAudioSourceMock).not.toHaveBeenCalled();
+    });
+});
+
+// 恢复失败单独报告（phase 'restore'，从不自动跳过）；备用源静默接管、陈旧结果、恢复成功都不报。
+describe('restorePlaybackSourceForSong reporting failures', () => {
+    const listener = vi.fn();
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        loadAudioSourceMock.mockReset();
+        canPlaySongMock.mockReturnValue(true);
+        playbackState.currentSong = song;
+        toastState.current = null;
+        installPlaybackFailedListener(listener);
+    });
+
+    afterEach(() => {
+        installPlaybackFailedListener(null);
+        vi.restoreAllMocks();
+    });
+
+    it('reports a failed restore once, after the message is shown', async () => {
+        loadAudioSourceMock.mockResolvedValue({
+            kind: 'failed',
+            failure: { reason: 'membership-required', stage: 'restore', providerId: 'bodian' },
+        });
+        listener.mockImplementationOnce(() => {
+            expect(setStatusMsgMock).toHaveBeenCalledWith({ type: 'error', text: 'status.songMembershipRequired' });
+        });
+
+        await expect(restore().result).resolves.toBe('failed');
+        expect(listener).toHaveBeenCalledOnce();
+        expect(listener).toHaveBeenCalledWith({ song, reason: 'membership-required', phase: 'restore', willAutoSkip: false });
+    });
+
+    it('reports a song no provider can play as unknown', async () => {
+        canPlaySongMock.mockReturnValue(false);
+        await expect(restore().result).resolves.toBe('failed');
+        expect(listener).toHaveBeenCalledWith({ song, reason: 'unknown', phase: 'restore', willAutoSkip: false });
+    });
+
+    it('stays quiet when the caller falls back to its own source', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        loadAudioSourceMock.mockResolvedValue({
+            kind: 'failed',
+            failure: { reason: 'network', stage: 'restore', providerId: 'bodian' },
+        });
+
+        await expect(restorePlaybackSourceForSong(song, {
+            audioQuality: 'high',
+            blobUrlRef: { current: null },
+            currentOnlineAudioUrlFetchedAtRef: { current: null },
+            setLyrics: vi.fn(),
+            queue: [song],
+            hasFallbackSource: true,
+        })).resolves.toBe('failed');
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('does not report a failure for a song the listener already left', async () => {
+        loadAudioSourceMock.mockImplementation(async () => {
+            playbackState.currentSong = otherSong;
+            return { kind: 'failed', failure: { reason: 'network', stage: 'restore', providerId: 'bodian' } };
+        });
+        await expect(restore().result).resolves.toBe('stale');
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    // 恢复期间用户点了另一首、那首失败弹出常驻提示（store 的 currentSong 仍是恢复中的这首）：恢复失败被挡住、看不到，也就不报。
+    it('does not report a failure a newer persistent toast keeps off screen', async () => {
+        const newerToast = { type: 'error', text: 'status.songNetworkFailed', persistent: true };
+        toastState.current = newerToast;
+        loadAudioSourceMock.mockResolvedValue({
+            kind: 'failed',
+            failure: { reason: 'region-restricted', stage: 'restore', providerId: 'bodian' },
+        });
+
+        await expect(restore().result).resolves.toBe('failed');
+        expect(toastState.current).toBe(newerToast);
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('does not report a restore that landed', async () => {
+        loadAudioSourceMock.mockResolvedValue({ kind: 'ok', audioSrc: 'https://cdn.example/song.mp3' });
+        await expect(restore().result).resolves.toBe('restored');
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('reports a local song that is no longer in the library', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const localSong = { ...song, sourceRef: undefined, isLocal: true, localRef: { songId: 'gone' } } as unknown as SongResult;
+        await expect(restorePlaybackSourceForSong(localSong, {
+            audioQuality: 'high',
+            blobUrlRef: { current: null },
+            currentOnlineAudioUrlFetchedAtRef: { current: null },
+            setLyrics: vi.fn(),
+            queue: [localSong],
+        })).resolves.toBe('failed');
+        expect(setStatusMsgMock).toHaveBeenCalledWith({ type: 'info', text: 'status.localSongNotInLibrary' });
+        expect(listener).toHaveBeenCalledWith({ song: localSong, reason: null, phase: 'restore', willAutoSkip: false });
     });
 });

@@ -20,10 +20,10 @@ vi.hoisted(() => {
 import type { Line, LyricData, SongResult } from '@/types';
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
 import { useAudioSettingsStore } from '@/stores/useAudioSettingsStore';
-import { applyLyricsTransform, hasBeforePlayHook, runBeforePlayHook, untransformedLyrics } from '@/services/hostExtensionHooks';
+import { applyLyricsTransform, hasBeforePlayHook, notifyPlaybackFailed, runBeforePlayHook, untransformedLyrics } from '@/services/hostExtensionHooks';
 import { installFoliumHostEvents } from '@/mods/folium/hostEvents';
 import { addFoliumEventHandler, removeFoliumEventHandlers } from '@/mods/folium/events';
-import { toFoliumSong } from '@/mods/folium/dto';
+import { resolveFoliumSongRef, toFoliumSong } from '@/mods/folium/dto';
 import { buildLineRenderHints } from '@/utils/lyrics/renderHints';
 
 // test/unit/mod-system/foliumHostEvents.test.ts
@@ -34,6 +34,7 @@ import { buildLineRenderHints } from '@/utils/lyrics/renderHints';
 // Folium 1.5 notifications from the same wiring: volumeChanged and
 // loopModeChanged from the audio settings store, and queueChanged, one per
 // task, from the playback store.
+// Folium 1.5: the host's playback failure notice becomes playback.failed.
 
 installFoliumHostEvents();
 
@@ -212,5 +213,54 @@ describe('Folium 1.5 playback notifications', () => {
         addFoliumEventHandler('mod-a', 'playback.queueChanged', handler);
         await flushMicrotasks();
         expect(handler).not.toHaveBeenCalled();
+    });
+});
+
+describe('playback.failed', () => {
+    const song = (id: number) => ({ id, name: `f${id}`, artists: [{ id: 1, name: 'A' }], album: { name: 'Al' }, durationMs: 0 }) as unknown as SongResult;
+    const refNumber = (ref: string | null | undefined) => parseInt(String(ref).replace('song-', ''), 36);
+
+    it('does no DTO work while nobody listens, so the shared ref pool is not used up', () => {
+        const before = refNumber(toFoliumSong(song(10))!.ref);
+        notifyPlaybackFailed({ song: song(11), reason: 'network', phase: 'play', willAutoSkip: false });
+        const after = refNumber(toFoliumSong(song(12))!.ref);
+        expect(after).toBe(before + 1);
+    });
+
+    it('emits the song DTO, the coarse reason, the phase and willAutoSkip, frozen', () => {
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.failed', handler);
+        const failed = song(20);
+        notifyPlaybackFailed({ song: failed, reason: 'membership-required', phase: 'mid-playback', willAutoSkip: true });
+
+        expect(handler).toHaveBeenCalledOnce();
+        const event = handler.mock.calls[0][0];
+        expect(event).toEqual({
+            song: toFoliumSong(failed),
+            reason: 'restricted',
+            phase: 'mid-playback',
+            willAutoSkip: true,
+        });
+        expect(event.song).toMatchObject({ id: '20', title: 'f20', artist: 'A', album: 'Al' });
+        expect(Object.isFrozen(event)).toBe(true);
+        // The ref plays the very song that failed (playSong / enqueue / replaceWith accept it).
+        expect(resolveFoliumSongRef(event.song.ref)).toBe(failed);
+    });
+
+    it('reports a path without a reason as unknown and keeps a missing song as null', () => {
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.failed', handler);
+        notifyPlaybackFailed({ song: null, reason: null, phase: 'restore', willAutoSkip: false });
+        expect(handler).toHaveBeenCalledWith({ song: null, reason: 'unknown', phase: 'restore', willAutoSkip: false });
+    });
+
+    it('keeps a throwing handler away from the playback path', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const after = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.failed', () => { throw new Error('boom'); });
+        addFoliumEventHandler('mod-a', 'playback.failed', after);
+        expect(() => notifyPlaybackFailed({ song: song(30), reason: 'taken-down', phase: 'play', willAutoSkip: false })).not.toThrow();
+        expect(after).toHaveBeenCalledWith(expect.objectContaining({ reason: 'taken-down' }));
+        warn.mockRestore();
     });
 });

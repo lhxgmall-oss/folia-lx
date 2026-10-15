@@ -847,6 +847,14 @@ export interface FoliumRegistries {
 /** Handler order for one event type; handlers of the same priority run in registration order. */
 export type FoliumEventPriority = 'highest' | 'high' | 'normal' | 'low' | 'lowest';
 
+/**
+ * Folium 1.5: why a song failed to play, coarsely. `auth`: sign-in needed or expired. `restricted`:
+ * membership, purchase, entitlement, preview-only or region. `taken-down`: no longer offered. `network`:
+ * network, timeout, service unavailable or rate limited. `unknown`: anything else. The host's own reason
+ * codes are not API.
+ */
+export type FoliumPlaybackFailureReason = 'auth' | 'restricted' | 'taken-down' | 'network' | 'unknown';
+
 /** Read-only notifications, emitted after the fact. */
 export interface FoliumNotificationEvents {
     /** The displayed song changed. */
@@ -874,6 +882,18 @@ export interface FoliumNotificationEvents {
      * `playback.getQueue()` for the songs. Changes made in one task arrive as one event.
      */
     'playback.queueChanged': { readonly length: number; readonly currentIndex: number };
+    /**
+     * Folium 1.5: a song failed to play, when picked (`play`), when the last session was restored
+     * (`restore`) or while playing (`mid-playback`); reported once, after the host's own retries.
+     * `willAutoSkip`: the host is counting down to skip it (its policy or the user's "skip unplayable
+     * songs" setting), so do not call `next()` yourself. Not emitted in the export window.
+     */
+    'playback.failed': {
+        readonly song: FoliumSong | null;
+        readonly reason: FoliumPlaybackFailureReason;
+        readonly phase: 'play' | 'restore' | 'mid-playback';
+        readonly willAutoSkip: boolean;
+    };
 }
 
 /**

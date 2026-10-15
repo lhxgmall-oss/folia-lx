@@ -9,11 +9,11 @@ import {
 import { useAppViewStore } from '@/stores/useAppViewStore';
 import { useAudioSettingsStore } from '@/stores/useAudioSettingsStore';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
-import { installBeforePlayHook, installLyricsTransformHook } from '@/services/hostExtensionHooks';
+import { installBeforePlayHook, installLyricsTransformHook, installPlaybackFailedListener, type PlaybackFailedNotice } from '@/services/hostExtensionHooks';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import { clampMediaVolume } from '@/utils/appPlaybackHelpers';
 import type { FoliumBeforePlayEvent, FoliumLyricsTransformEvent, FoliumPlaybackState, FoliumSong } from './contract';
-import { fromFoliumLines, resolveFoliumSongRef, toFoliumLines, toFoliumSong } from './dto';
+import { fromFoliumLines, resolveFoliumSongRef, toFoliumLines, toFoliumPlaybackFailureReason, toFoliumSong } from './dto';
 import { dispatchFoliumHookAsync, dispatchFoliumHookSync, emitFoliumEvent, hasFoliumEventHandlers } from './events';
 import { findFoliumQueueCurrentIndex } from './hostQueue';
 
@@ -26,6 +26,7 @@ import { findFoliumQueueCurrentIndex } from './hostQueue';
 //     view, visualizer mode). Theme and seek notifications come from the host
 //     bridge hook in App, which is where the theme lives.
 //   - Folium 1.5: the queue outline, volume / mute and the repeat mode.
+//   - Folium 1.5: turns the host's playback failure notice into `playback.failed`.
 // Everything is a no-op until some mod listens.
 
 const transformLyrics = (lyrics: LyricData): LyricData => {
@@ -64,6 +65,18 @@ const beforePlay = async (song: SongResult) => {
     await dispatchFoliumHookAsync('playback.beforePlay', event, () => cancelled);
     const replaced = resolveFoliumSongRef((replacement as FoliumSong | null)?.ref);
     return { cancel: cancelled, song: replaced ?? song };
+};
+
+// playback.failed: the host reports through hostExtensionHooks so its playback layer never imports
+// this module. Checked for listeners first: toFoliumSong takes a slot in the shared ref pool.
+const emitPlaybackFailed = (notice: PlaybackFailedNotice) => {
+    if (!hasFoliumEventHandlers('playback.failed')) return;
+    emitFoliumEvent('playback.failed', {
+        song: toFoliumSong(notice.song),
+        reason: toFoliumPlaybackFailureReason(notice.reason),
+        phase: notice.phase,
+        willAutoSkip: notice.willAutoSkip,
+    });
 };
 
 const toFoliumPlaybackState = (state: PlayerState): FoliumPlaybackState => {
@@ -115,6 +128,7 @@ export const installFoliumHostEvents = () => {
     installed = true;
     installLyricsTransformHook(transformLyrics);
     installBeforePlayHook(beforePlay, () => hasFoliumEventHandlers('playback.beforePlay'));
+    installPlaybackFailedListener(emitPlaybackFailed);
 
     usePlaybackStore.subscribe((state, previous) => {
         const song = selectDisplaySong(state);

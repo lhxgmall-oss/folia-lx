@@ -12,11 +12,13 @@ import { buildLineRenderHints, getLineRenderHints } from '@/utils/lyrics/renderH
 import { isValidWordSegmentation } from '@/utils/lyrics/wordSegmentation';
 import { getLineBackgroundVocals } from '@/components/visualizer/harmonyRuntime';
 import { getPlaybackSourceRef } from '@/utils/appPlaybackGuards';
+import type { PlaybackFailureReason } from '@/types/playbackFailure';
 import type {
     FoliumBackgroundVocal,
     FoliumLine,
     FoliumLyricAlternateText,
     FoliumLyricSyllable,
+    FoliumPlaybackFailureReason,
     FoliumSong,
     FoliumTheme,
     FoliumWord,
@@ -196,6 +198,32 @@ export const toFoliumSong = (song: SongResult | null | undefined): FoliumSong | 
         ref: refFor(song),
     };
 };
+
+// Host reason codes are not API: mods see five coarse classes. A Record so a new host reason fails
+// the type check until it is classed here.
+const FOLIUM_PLAYBACK_FAILURE_REASONS: Readonly<Record<PlaybackFailureReason, FoliumPlaybackFailureReason>> = Object.freeze({
+    'not-signed-in': 'auth',
+    'session-expired': 'auth',
+    'membership-required': 'restricted',
+    'purchase-required': 'restricted',
+    'entitlement-required': 'restricted',
+    'preview-only': 'restricted',
+    'region-restricted': 'restricted',
+    'taken-down': 'taken-down',
+    network: 'network',
+    timeout: 'network',
+    'service-unavailable': 'network',
+    'rate-limited': 'network',
+    'invalid-response': 'unknown',
+    unknown: 'unknown',
+});
+
+/** The coarse Folium class of a host failure reason; no reason (a path without one) is `unknown`. */
+export const toFoliumPlaybackFailureReason = (reason: PlaybackFailureReason | null | undefined): FoliumPlaybackFailureReason => (
+    reason && Object.prototype.hasOwnProperty.call(FOLIUM_PLAYBACK_FAILURE_REASONS, reason)
+        ? FOLIUM_PLAYBACK_FAILURE_REASONS[reason]
+        : 'unknown'
+);
 
 /** Song DTO from the title/artist pair visualizers receive (no SongResult there). */
 export const toFoliumSongFromMeta = (
