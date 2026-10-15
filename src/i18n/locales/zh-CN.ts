@@ -1121,6 +1121,7 @@ export default {
     "installSuccess": "已安装模组：{{id}}（如需禁用或更新，可在列表中操作）",
     "storageData": "数据 {{size}}",
     "storageCache": "缓存 {{size}}",
+    "storageCacheBroken": "缓存目录已损坏（是文件或失效的链接），清空后恢复",
     "clearCache": "清空缓存",
     "clearingCache": "正在清空…",
     "cacheCleared": "已清空「{{name}}」的缓存，释放了 {{size}}",

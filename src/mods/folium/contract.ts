@@ -1390,7 +1390,10 @@ export interface FoliumClientModule {
 /**
  * Folium 1.5, main entries only: `api.storage.paths`, the directories this mod writes its files to. Needs
  * the `filesystem.data` permission; without it, reading either path throws `permission-denied:filesystem.data`.
- * Each read creates the directory when it is missing. Clients get no paths: they have no file system.
+ * Each read creates the directory when it is missing, and throws the file system's error when it cannot (a file
+ * or a dead link standing where the directory should be; for `cache`, clearing the cache in the mods panel
+ * removes that entry). Both getters are non-enumerable, so serializing or spreading `api` never reads them.
+ * Clients get no paths: they have no file system.
  */
 export interface FoliumModPaths {
     /** Files to keep: `<userData>/mods-data/<id>/files`, beside (not holding) the `folium.storage` data file. */

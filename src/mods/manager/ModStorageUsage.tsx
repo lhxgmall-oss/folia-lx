@@ -10,7 +10,9 @@ import { translateModError } from './modErrors';
 // src/mods/manager/ModStorageUsage.tsx
 // The expanded mod row's file section: how much the mod keeps on disk (its data directory and its
 // cache) and a button that empties the cache. Shown for mods that declare `filesystem.data`, the
-// permission behind `api.storage.paths`, whether or not they are enabled.
+// permission behind `api.storage.paths`, whether or not they are enabled. A broken cache root (a stray
+// file or a dead link, on which `paths.cache` throws) counts 0 but can still be cleared, which is the
+// panel's only way to remove it.
 
 /** The permission that gives a mod its data file and its `paths.data` / `paths.cache` directories. */
 export const MOD_FILES_PERMISSION = 'filesystem.data';
@@ -18,7 +20,7 @@ export const MOD_FILES_PERMISSION = 'filesystem.data';
 /** A line for the manager's notice slot. */
 export type ModNotice = { kind: 'ok' | 'error'; text: string };
 
-type Usage = { data: number; cache: number };
+type Usage = { data: number; cache: number; cacheBroken: boolean };
 
 type ModStorageUsageProps = {
     mod: ModRuntimeInfo;
@@ -48,7 +50,7 @@ export const ModStorageUsage: React.FC<ModStorageUsageProps> = ({ mod, isDayligh
             setUsageError(result.error ?? 'storage-usage-failed');
             return null;
         }
-        const next = { data: result.data ?? 0, cache: result.cache ?? 0 };
+        const next = { data: result.data ?? 0, cache: result.cache ?? 0, cacheBroken: result.cacheBroken === true };
         setUsage(next);
         setUsageError(null);
         return next;
@@ -64,10 +66,12 @@ export const ModStorageUsage: React.FC<ModStorageUsageProps> = ({ mod, isDayligh
     /*
      * Empties the cache, then re-counts (also after a partial clear, so the numbers stay true) and
      * reports in the manager's notice line how much went. When the re-count fails (or is no longer
-     * this row's), how much went is unknown, so the notice leaves the size out.
+     * this row's), or the cache was a broken root that was never counted, how much went is unknown, so
+     * the notice leaves the size out.
      */
     const handleClearCache = async () => {
         const before = usage?.cache ?? 0;
+        const wasBroken = usage?.cacheBroken === true;
         setClearing(true);
         try {
             const result = await useModsStore.getState().clearModCache(mod.id);
@@ -75,7 +79,7 @@ export const ModStorageUsage: React.FC<ModStorageUsageProps> = ({ mod, isDayligh
             onNotice(result.ok
                 ? {
                     kind: 'ok',
-                    text: after
+                    text: after && !wasBroken
                         ? t('mods.cacheCleared', {
                             name: mod.name,
                             size: formatByteSize(Math.max(0, before - after.cache)),
@@ -103,14 +107,18 @@ export const ModStorageUsage: React.FC<ModStorageUsageProps> = ({ mod, isDayligh
                 ) : (
                     <>
                         <span>{t('mods.storageData', { size: sizeText(usage?.data) })}</span>
-                        <span>{t('mods.storageCache', { size: sizeText(usage?.cache) })}</span>
+                        <span>
+                            {usage?.cacheBroken
+                                ? t('mods.storageCacheBroken')
+                                : t('mods.storageCache', { size: sizeText(usage?.cache) })}
+                        </span>
                     </>
                 )}
             </div>
             <button
                 type="button"
                 onClick={() => { void handleClearCache(); }}
-                disabled={clearing || !usage || usage.cache === 0}
+                disabled={clearing || !usage || (usage.cache === 0 && !usage.cacheBroken)}
                 className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${classes.ghostButton}`}
                 style={{ color: 'var(--text-primary)' }}
             >

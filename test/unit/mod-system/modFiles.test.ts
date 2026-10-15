@@ -6,12 +6,14 @@ import path from 'path';
 
 // test/unit/mod-system/modFiles.test.ts
 // The directory layout behind Folium 1.5 `api.storage.paths` and the mods panel's view of it:
-// only a validated id becomes a path, usage counts regular files without following links, and
-// clearing empties a directory (links removed as links) while keeping it.
+// only a validated id becomes a path, usage counts regular files without following links, a root
+// that is a stray file or a dead link is told apart as broken, and clearing empties a directory
+// (links removed as links) while keeping it.
 
 const require = createRequire(import.meta.url);
 const {
     clearDirectoryContents,
+    isBrokenDirectory,
     measureDirectoryBytes,
     resolveModStorageDirs,
 } = require('../../../electron/modSystem/modFiles.cjs');
@@ -152,6 +154,36 @@ describe('measuring a directory', () => {
     });
 });
 
+// A broken root counts 0 and blocks api.storage.paths, so the panel must still be able to clear it.
+describe('telling a broken directory root', () => {
+    it('is not broken when missing, a plain directory, or a link to a live directory', async () => {
+        const base = tempDir();
+        const outside = path.join(base, 'outside');
+        fs.mkdirSync(outside);
+        const linked = path.join(base, 'linked');
+        linkDirectory(outside, linked);
+        expect(await isBrokenDirectory(path.join(base, 'missing'))).toBe(false);
+        expect(await isBrokenDirectory(outside)).toBe(false);
+        expect(await isBrokenDirectory(linked)).toBe(false);
+    });
+
+    it('is broken when a file stands where the directory should be', async () => {
+        const root = path.join(tempDir(), 'cache');
+        writeFile(root, 4);
+        expect(await isBrokenDirectory(root)).toBe(true);
+    });
+
+    it('is broken when the root is a link whose target is gone', async () => {
+        const base = tempDir();
+        const outside = path.join(base, 'outside');
+        fs.mkdirSync(outside);
+        const root = path.join(base, 'cache');
+        linkDirectory(outside, root);
+        fs.rmSync(outside, { recursive: true });
+        expect(await isBrokenDirectory(root)).toBe(true);
+    });
+});
+
 describe('clearing a directory', () => {
     it('removes every child, nested ones included, and keeps the directory', async () => {
         const root = tempDir();
@@ -189,6 +221,23 @@ describe('clearing a directory', () => {
         expect(await clearDirectoryContents(root)).toEqual({ cleared: 1, failed: 0 });
         expect(fs.existsSync(root)).toBe(false);
         expect(fs.readFileSync(path.join(outside, 'keep.bin')).length).toBe(5);
+    });
+
+    it('removes a root that is a dead link or a stray file, so the directory can be made again', async () => {
+        const base = tempDir();
+        const outside = path.join(base, 'outside');
+        fs.mkdirSync(outside);
+        const deadLink = path.join(base, 'dead');
+        linkDirectory(outside, deadLink);
+        fs.rmSync(outside, { recursive: true });
+        const stray = path.join(base, 'stray');
+        writeFile(stray, 4);
+        for (const root of [deadLink, stray]) {
+            expect(() => fs.mkdirSync(root, { recursive: true })).toThrow();
+            expect(await clearDirectoryContents(root)).toEqual({ cleared: 1, failed: 0 });
+            fs.mkdirSync(root, { recursive: true });
+            expect(await isBrokenDirectory(root)).toBe(false);
+        }
     });
 
     it('goes on past a child it cannot remove and reports it', async () => {

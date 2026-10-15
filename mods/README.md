@@ -621,6 +621,9 @@ module.exports = function activate(api) {
 
 - 两个都是 getter，每次读取都先检查 `filesystem.data`，没有就**同步**抛 `permission-denied:filesystem.data`；然后在目录不存在时创建它，
   返回绝对路径。所以每次用的时候读一次，不要在 activate 里存下字符串就一直用。
+- 目录建不出来时 getter 抛文件系统的错误（如 `EEXIST`、`ENOENT`）：比如 `mods-cache/<id>` 的位置上是一个文件，或是目标已经不在的
+  链接 / junction。模组面板会把这样的缓存目录标成已损坏，「清空缓存」删掉这个条目后，下次读取就能重新建出目录。
+- 两个 getter 不可枚举：`JSON.stringify(api)`、`{ ...api.storage.paths }` 之类遍历属性的写法读不到它们，也就不会抛错或建目录。
 - 模组面板的「清空缓存」删除 `cache` 目录里的全部内容（包括子目录），保留目录本身；模组自己在里面建的子目录，用之前要自己再建一次。
 - `paths` 对象本身总是在（有没有权限都在），可以用 `'paths' in api.storage` 判断宿主是不是 1.5。
 - 路径只用通过校验的清单 `id` 拼出来。client 拿不到路径：它没有文件系统。
@@ -766,6 +769,8 @@ folium.experimental['omni.providers'].register({
   - 只在展开时统计，停用的模组也能查、能清。统计只算普通文件，不跟随符号链接或 junction。
   - 「数据」是整个 `mods-data/<id>`（含 `storage.data` 的数据文件），「缓存」是 `mods-cache/<id>`。
   - 「清空缓存」删除缓存目录里的所有内容，保留目录本身，然后重新统计，并在面板上方的提示条里报告释放了多少。缓存为 0 或目录不存在时按钮不可用。
+    缓存目录的位置上是一个文件或目标已经不在的链接时（这时模组读 `paths.cache` 会一直抛错），面板显示缓存目录已损坏，按钮可用，
+    清空会删掉这个条目本身（不跟随链接），模组下次读取时重新建出目录。指向现存目录的链接照常可用，只是不统计。
     运行中的模组占着某些文件删不掉时，其余照删，并提示「缓存未能全部清空」（`cache-clear-partial`），停用模组后再试。
   - 这两项操作走 `window.electron.mods` 上的面板 IPC（`getModStorageUsage` / `clearModCache`，通道 `folia-mods:storage-usage`、
     `folia-mods:clear-cache`），和 `folium.storage` 用的存储 IPC 一样，以渲染进程传来的模组 id 为准：同一个渲染进程里的模组代码

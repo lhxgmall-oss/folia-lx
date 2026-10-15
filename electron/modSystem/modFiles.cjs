@@ -95,6 +95,28 @@ const measureDirectoryBytes = async (dir) => {
 };
 
 /*
+ * Whether `dir` is there but cannot serve as a directory: a stray file, or a link whose target is gone
+ * or is not a directory (one that cannot be followed at all counts too). mkdir cannot create the
+ * directory over such an entry, so `api.storage.paths` throws on every read until it is removed, which
+ * clearDirectoryContents does. A missing entry is not broken (the next read creates it), and neither
+ * is a link to a live directory: the mod can use it, it is only never counted.
+ */
+const isBrokenDirectory = async (dir) => {
+    const entry = await lstatOrNull(dir);
+    if (!entry || entry.isDirectory()) {
+        return false;
+    }
+    if (!entry.isSymbolicLink()) {
+        return true;
+    }
+    try {
+        return !(await fs.promises.stat(dir)).isDirectory();
+    } catch {
+        return true;
+    }
+};
+
+/*
  * Empties `dir` but keeps it, so a running mod's open handle on the directory stays valid. A root
  * that is a link (or a stray file) is removed as an entry instead: emptying it would delete what it
  * points to. Each child is removed on its own, links as links, with Windows' transient EBUSY/EPERM
@@ -132,6 +154,7 @@ module.exports = {
     DATA_ROOT,
     FILES_DIRECTORY,
     clearDirectoryContents,
+    isBrokenDirectory,
     measureDirectoryBytes,
     resolveModStorageDirs,
 };

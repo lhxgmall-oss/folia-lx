@@ -1122,6 +1122,7 @@ export default {
     "installSuccess": "Installed mod: {{id}} (you can disable or update it from the list)",
     "storageData": "Data {{size}}",
     "storageCache": "Cache {{size}}",
+    "storageCacheBroken": "Cache folder is broken (a file or a dead link); clear it to recover",
     "clearCache": "Clear cache",
     "clearingCache": "Clearing…",
     "cacheCleared": "Cleared the cache of \"{{name}}\", freeing {{size}}",

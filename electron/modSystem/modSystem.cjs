@@ -29,7 +29,7 @@ const { FOLIUM_VERSION, validateManifest, resolveLoadPlan, satisfiesHostRange, p
 const { computeModDigest, shortDigest } = require('./modDigest.cjs');
 const { verifyModSignature } = require('./modSignature.cjs');
 const { createModApi, createModDataStore, STORAGE_PERMISSION } = require('./modApi.cjs');
-const { clearDirectoryContents, measureDirectoryBytes, resolveModStorageDirs } = require('./modFiles.cjs');
+const { clearDirectoryContents, isBrokenDirectory, measureDirectoryBytes, resolveModStorageDirs } = require('./modFiles.cjs');
 const { createFileGrantStore } = require('./fileGrants.cjs');
 const { resolveFfmpeg, MODS_RUNTIME_DIR } = require('./ffmpeg.cjs');
 const { createExportService } = require('./exportService.cjs');
@@ -1078,12 +1078,21 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
         return resolveModStorageDirs(app.getPath('userData'), modId);
     };
 
-    // Disk usage for the mods panel: all of mods-data/<id> (mod-data.json included) and mods-cache/<id>.
+    /*
+     * Disk usage for the mods panel: all of mods-data/<id> (mod-data.json included) and mods-cache/<id>.
+     * `cacheBroken` (only when true) marks a cache root that is a stray file or a dead link: it counts 0,
+     * yet the mod's paths.cache throws on every read, so the panel still offers "clear cache", which
+     * removes the entry and lets the next read create a real directory.
+     */
     const getModStorageUsage = async (modId) => {
         const { dataDir, cacheDir } = requireDiscoveredMod(modId);
         try {
-            const [data, cache] = await Promise.all([measureDirectoryBytes(dataDir), measureDirectoryBytes(cacheDir)]);
-            return { ok: true, data, cache };
+            const [data, cache, cacheBroken] = await Promise.all([
+                measureDirectoryBytes(dataDir),
+                measureDirectoryBytes(cacheDir),
+                isBrokenDirectory(cacheDir),
+            ]);
+            return cacheBroken ? { ok: true, data, cache, cacheBroken: true } : { ok: true, data, cache };
         } catch {
             return { ok: false, error: 'storage-usage-failed' };
         }
@@ -1091,8 +1100,9 @@ const createModSystem = ({ app, BrowserWindow, getMainWindow, getLocaleKey, isFe
 
     /*
      * Empties mods-cache/<id>, keeping the directory itself; api.storage.paths.cache re-creates
-     * it on its next read anyway. A running mod may hold files open, so some can fail (EBUSY on
-     * Windows): the rest still go, and the result says the clear was partial.
+     * it on its next read anyway. A root that is a stray file or a link goes as one entry. A running
+     * mod may hold files open, so some can fail (EBUSY on Windows): the rest still go, and the result
+     * says the clear was partial.
      */
     const clearModCache = async (modId) => {
         const { cacheDir } = requireDiscoveredMod(modId);

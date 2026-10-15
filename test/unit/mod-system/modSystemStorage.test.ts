@@ -12,7 +12,7 @@ import path from 'path';
 
 const require = createRequire(import.meta.url);
 
-type Response = { ok: boolean; data?: number; cache?: number; cleared?: number; error?: string };
+type Response = { ok: boolean; data?: number; cache?: number; cacheBroken?: boolean; cleared?: number; error?: string };
 type Handler = (event: unknown, ...args: unknown[]) => Promise<Response>;
 
 const handlers = new Map<string, Handler>();
@@ -186,6 +186,45 @@ describe('clearing a mod cache from the mods panel', () => {
         launch();
         expect(await invoke(IPC.clearCache, 'mod-b')).toEqual({ ok: true, cleared: 1 });
         expect(fs.readFileSync(path.join(outside, 'precious.txt')).length).toBe(9);
+    });
+
+    /*
+     * A dead link (say, a junction to a drive that was unplugged) or a stray file where the cache
+     * should be: paths.cache throws on every read and the cache counts 0, so the usage flags it and
+     * the clear removes the entry, after which the mod's next read gets a real directory again.
+     */
+    it.each(['dead link', 'stray file'])('recovers a cache root that is a %s', async (kind) => {
+        writeMod('mod-a', { id: 'mod-a', permissions: ['filesystem.data'] }, { enabled: true, main: true });
+        const cacheDir = path.join(userData(), 'mods-cache', 'mod-a');
+        if (kind === 'dead link') {
+            const gone = path.join(root, 'unplugged');
+            fs.mkdirSync(gone);
+            fs.mkdirSync(path.dirname(cacheDir), { recursive: true });
+            fs.symlinkSync(gone, cacheDir, 'junction');
+            fs.rmSync(gone, { recursive: true });
+        } else {
+            writeFile(cacheDir, 4);
+        }
+        const system = launch();
+        expect(seenPaths()).toHaveProperty('error');
+        expect(seenPaths()).not.toEqual({ error: 'permission-denied:filesystem.data' });
+        expect(await invoke(IPC.storageUsage, 'mod-a')).toEqual({ ok: true, data: 0, cache: 0, cacheBroken: true });
+
+        expect(await invoke(IPC.clearCache, 'mod-a')).toEqual({ ok: true, cleared: 1 });
+        expect(await invoke(IPC.storageUsage, 'mod-a')).toEqual({ ok: true, data: 0, cache: 0 });
+        system.loadAll();
+        expect(seenPaths()).toEqual({ data: path.join(userData(), 'mods-data', 'mod-a', 'files'), cache: cacheDir });
+        expect(fs.lstatSync(cacheDir).isDirectory()).toBe(true);
+    });
+
+    it('does not flag a cache root that links to a live directory, which the mod can use', async () => {
+        writeMod('mod-b', { id: 'mod-b', permissions: ['filesystem.data'] });
+        const elsewhere = path.join(root, 'elsewhere');
+        writeFile(path.join(elsewhere, 'big.bin'), 5000);
+        fs.mkdirSync(path.join(userData(), 'mods-cache'), { recursive: true });
+        fs.symlinkSync(elsewhere, path.join(userData(), 'mods-cache', 'mod-b'), 'junction');
+        launch();
+        expect(await invoke(IPC.storageUsage, 'mod-b')).toEqual({ ok: true, data: 0, cache: 0 });
     });
 
     it('has nothing to clear when the cache was never created', async () => {

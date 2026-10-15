@@ -277,7 +277,7 @@ module.exports = function activate(api) {
 | \`api.host\` | \`{ folium: { major, minor }, folia }\`，与客户端的 \`folium.host\` 相同 |
 | \`api.log.info / warn / error(message, details?)\` | 写入模组日志；\`error\` 会显示在模组面板 |
 | \`api.storage.data.get / set / has / delete / keys\` | 异步；需要 \`filesystem.data\`；与客户端 \`folium.storage\` 共用同一个数据文件（上限 1 MB）。更大的内容写成文件，放进 \`api.storage.paths.data\` |
-| \`api.storage.paths.data / cache\` | Folium 1.5：[FoliumModPaths](#foliummodpaths)，本模组写文件的两个目录的绝对路径。两个都是 getter：需要 \`filesystem.data\`，没有时读取即同步抛 \`permission-denied:filesystem.data\`；每次读取都会在目录不存在时先创建它，所以用的时候再读，不要存下来一直用。\`data\` 放要保留的文件；\`cache\` 放能重建的文件，用户随时可能在模组面板里清空它（模组运行时也一样），宿主不限大小，上限自己控制。\`paths\` 对象总是存在，可以用 \`'paths' in api.storage\` 判断宿主是否支持 |
+| \`api.storage.paths.data / cache\` | Folium 1.5：[FoliumModPaths](#foliummodpaths)，本模组写文件的两个目录的绝对路径。两个都是 getter：需要 \`filesystem.data\`，没有时读取即同步抛 \`permission-denied:filesystem.data\`；每次读取都会在目录不存在时先创建它，所以用的时候再读，不要存下来一直用；建不出来时（比如目录的位置上是一个文件或失效的链接）抛文件系统的错误，\`cache\` 是这样时，在模组面板里清空缓存会删掉这个条目。两个 getter 不可枚举，序列化或展开 \`api\` 不会读到它们。\`data\` 放要保留的文件；\`cache\` 放能重建的文件，用户随时可能在模组面板里清空它（模组运行时也一样），宿主不限大小，上限自己控制。\`paths\` 对象总是存在，可以用 \`'paths' in api.storage\` 判断宿主是否支持 |
 | \`api.lifecycle.onDeactivate(fn)\` | 模组被停用、重载或应用退出时调用；\`activate\` 返回的函数效果相同 |
 | \`api.runtime.getPlaybackSnapshot()\` | 当前播放状态的 [FoliumPlaybackSnapshot](#foliumplaybacksnapshot)，渲染端尚未推送时为 \`null\`；需要 \`runtime.playback\`。Folium 1.5 起还带音量 \`volume\`（0–1）、静音开关 \`muted\` 与循环模式 \`loopMode\` |
 | \`api.rpc.handle(name, fn)\` | 注册客户端 \`folium.rpc.call(name, ...args)\` 调用的函数；名称匹配 \`/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/\`，参数与返回值需可 JSON 序列化 |

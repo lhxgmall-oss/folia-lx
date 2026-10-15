@@ -167,6 +167,17 @@ const createModApi = (context) => {
         return directory;
     };
 
+    /*
+     * The getters are non-enumerable: anything that walks the api's own keys (JSON.stringify(api)
+     * while debugging, `{ ...api.storage.paths }`, structuredClone) would otherwise read them, and a
+     * read throws without the permission and creates directories with it, where 1.4's api serialized
+     * cleanly. `'data' in api.storage.paths` still finds them.
+     */
+    const paths = Object.defineProperties({}, {
+        data: { get: () => modDirectory(context.filesDir), enumerable: false },
+        cache: { get: () => modDirectory(context.cacheDir), enumerable: false },
+    });
+
     return {
         // Frozen manifest so mods cannot rewrite their own contract at runtime.
         manifest: Object.freeze(cloneJson(context.manifest)),
@@ -181,10 +192,7 @@ const createModApi = (context) => {
                 keys: guardedStorage('keys'),
             },
             // Always present, permission or not, so `'paths' in api.storage` detects Folium 1.5.
-            paths: Object.freeze({
-                get data() { return modDirectory(context.filesDir); },
-                get cache() { return modDirectory(context.cacheDir); },
-            }),
+            paths: Object.freeze(paths),
         },
         /*
          * Cleanup hook. Anything a mod starts in activate() — timers, watchers,

@@ -126,6 +126,43 @@ describe('mod api file paths (Folium 1.5)', () => {
         expect(() => { (api.storage.paths as { data: string }).data = '/elsewhere'; }).toThrow(TypeError);
         expect(api.storage.paths.data).toBe(filesDir);
     });
+
+    // 1.4's api serialized cleanly, so walking it must not read the gated, directory-creating getters.
+    it('is skipped when the api is serialized or spread, without the permission', () => {
+        const { api, filesDir, cacheDir } = createPathsApi([]);
+        expect('data' in api.storage.paths && 'cache' in api.storage.paths).toBe(true);
+        expect(Object.keys(api.storage.paths)).toEqual([]);
+        expect(JSON.parse(JSON.stringify(api.storage))).toEqual({ data: {}, paths: {} });
+        expect(() => JSON.stringify(api)).not.toThrow();
+        expect({ ...api.storage.paths }).toEqual({});
+        expect(Object.assign({}, api.storage.paths)).toEqual({});
+        expect(structuredClone(api.storage.paths)).toEqual({});
+        expect(fs.existsSync(filesDir)).toBe(false);
+        expect(fs.existsSync(cacheDir)).toBe(false);
+    });
+
+    it('creates no directory when the api is serialized, with the permission', () => {
+        const { api, filesDir, cacheDir } = createPathsApi(['filesystem.data']);
+        expect(JSON.stringify(api.storage.paths)).toBe('{}');
+        expect(() => JSON.stringify(api)).not.toThrow();
+        expect(fs.existsSync(filesDir)).toBe(false);
+        expect(fs.existsSync(cacheDir)).toBe(false);
+    });
+
+    /*
+     * A stray file where the cache directory should be (or a link whose target is gone): the read
+     * fails with the file system's error until the entry goes, which the mods panel's "clear cache"
+     * does (clearDirectoryContents removes a root that is not a directory as one entry).
+     */
+    it('throws while a file stands where the directory should be, and recovers once it is removed', () => {
+        const { api, cacheDir } = createPathsApi(['filesystem.data']);
+        fs.mkdirSync(path.dirname(cacheDir), { recursive: true });
+        fs.writeFileSync(cacheDir, 'stray');
+        expect(() => api.storage.paths.cache).toThrow();
+        fs.rmSync(cacheDir);
+        expect(api.storage.paths.cache).toBe(cacheDir);
+        expect(fs.statSync(cacheDir).isDirectory()).toBe(true);
+    });
 });
 
 describe('mod data store', () => {

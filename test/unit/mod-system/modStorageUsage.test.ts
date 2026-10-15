@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/mod-system/modStorageUsage.test.ts
 // The expanded mod row's file section: counted only when the row of a `filesystem.data` mod opens,
-// "clear cache" disabled while there is nothing to clear, and a clear re-counts and reports how much
-// went (or that it was partial) through the manager's notice line.
+// "clear cache" disabled while there is nothing to clear (but offered for a broken cache root, which
+// counts 0), and a clear re-counts and reports how much went (or that it was partial) through the
+// manager's notice line.
 
 const store = vi.hoisted(() => ({
     getModStorageUsage: vi.fn(),
@@ -105,6 +106,23 @@ describe('mod storage section', () => {
     it('offers no clear while the cache is empty or missing', async () => {
         store.getModStorageUsage.mockResolvedValue({ ok: true, data: 10, cache: 0 });
         await renderSection();
+        expect(host.textContent).toContain('mods.storageCache(size=0 B)');
+        expect(clearButton().disabled).toBe(true);
+    });
+
+    // A stray file or dead link where the cache should be counts 0, yet paths.cache throws until it goes.
+    it('offers a clear for a broken cache root, and reports it without a size', async () => {
+        store.getModStorageUsage
+            .mockResolvedValueOnce({ ok: true, data: 10, cache: 0, cacheBroken: true })
+            .mockResolvedValueOnce({ ok: true, data: 10, cache: 0 });
+        store.clearModCache.mockResolvedValue({ ok: true, cleared: 1 });
+        const onNotice = await renderSection();
+        expect(host.textContent).toContain('mods.storageCacheBroken');
+        expect(host.textContent).not.toContain('mods.storageCache(');
+        expect(clearButton().disabled).toBe(false);
+        await act(async () => { clearButton().click(); });
+        expect(store.clearModCache).toHaveBeenCalledWith('mod-b');
+        expect(onNotice).toHaveBeenCalledWith({ kind: 'ok', text: 'mods.cacheClearedUncounted(name=Mod B)' });
         expect(host.textContent).toContain('mods.storageCache(size=0 B)');
         expect(clearButton().disabled).toBe(true);
     });

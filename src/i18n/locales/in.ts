@@ -1117,6 +1117,7 @@ export default {
     "installSuccess": "Mod terpasang: {{id}} (bisa dinonaktifkan atau diperbarui dari daftar)",
     "storageData": "Data {{size}}",
     "storageCache": "Cache {{size}}",
+    "storageCacheBroken": "Folder cache rusak (berupa berkas atau tautan mati); bersihkan untuk memulihkan",
     "clearCache": "Bersihkan cache",
     "clearingCache": "Membersihkan…",
     "cacheCleared": "Cache \"{{name}}\" dibersihkan, {{size}} dibebaskan",

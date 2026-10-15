@@ -143,6 +143,11 @@ export interface ModStorageUsageResult {
     ok: boolean;
     data?: number;
     cache?: number;
+    /**
+     * Only when true: `mods-cache/<id>` is a stray file or a dead link. It counts 0, but `paths.cache`
+     * throws on every read until "clear cache" removes the entry.
+     */
+    cacheBroken?: boolean;
     error?: string;
 }
 
