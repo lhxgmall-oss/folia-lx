@@ -217,7 +217,7 @@ describe('verifyModSignature', () => {
     });
 
     it('treats a key with a channel the host does not know as untrusted, never as verified', () => {
-        for (const channel of ['Beta', 'preview', 'constructor']) {
+        for (const channel of ['Beta', 'preview', 'constructor', '__proto__', 'toString', '', null]) {
             const keys = [{ ...TEST_KEYS[0], channel }];
             expect(verifyModSignature(signedVectorTree(), VECTOR_MANIFEST, { keys })).toMatchObject({
                 status: 'invalid', reason: 'unknown-key',
@@ -295,5 +295,6 @@ describe('loader integration', () => {
         expect(dialogDetails[3]).toContain('Signature: preview build (Folium beta, folium-beta-2026-1)');
         expect(dialogDetails[3]).toContain('passed the security review only');
         expect(dialogDetails[3]).not.toContain('officially verified');
+        expect(dialogDetails[3]).not.toContain('official Folium signature');
     });
 });

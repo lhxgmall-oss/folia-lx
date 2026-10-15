@@ -3,8 +3,8 @@
   "version": 1,
   "modId": "sample-beta-hello",
   "modVersion": "1.0.0",
-  "digest": "sha256:c4211e46dcea5951ceacd74755ec83555ff849d13212155011d126f1974cd267",
+  "digest": "sha256:3b491bf6fcf0853cf05f217d89e7b26f3d444fefe710c84734be21627da8795d",
   "keyId": "folium-beta-2026-1",
-  "signedAt": "2026-10-15T06:48:50.866Z",
-  "signature": "4QWQ72IhVYzOvtUVXP4eWAicRzGlToMhbEN18vmipdDZQf5OmSydls2orAAP2Fr+SiuFfxi590RziVHwun4DCg=="
+  "signedAt": "2026-10-15T06:56:47.169Z",
+  "signature": "uPC7VycqRjre6bJzgpoB1QvxVdX5eg5kn6z+csXdsY4tczOgg8JPiJGdhG+fcYsNy2HUvriGhZnCmqcErRk5Ag=="
 }

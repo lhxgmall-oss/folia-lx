@@ -13,8 +13,8 @@
 // own approval.
 //
 // Official signatures (modSignature.cjs) only label a mod as verified, beta,
-// unsigned or invalid, in that dialog and in the mods panel. They never enable a mod or
-// skip the confirmation.
+// unsigned or invalid, in that dialog and in the mods panel. They never enable
+// a mod or skip the confirmation.
 
 'use strict';
 

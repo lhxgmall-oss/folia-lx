@@ -196,7 +196,8 @@ const verifyModSignature = (dirPath, manifest, options = {}) => {
     const base = { keyId: record.keyId, signedAt: record.signedAt };
     const key = keys.find((candidate) => candidate.keyId === record.keyId);
     if (!key) return invalid('unknown-key', base);
-    const channel = key.channel ?? 'release';
+    // Only an absent channel means release; null, '' or anything unlisted is unknown.
+    const channel = key.channel === undefined ? 'release' : key.channel;
     if (!Object.hasOwn(CHANNEL_STATUS, channel)) return invalid('unknown-key', base);
     const withKey = { ...base, keyLabel: key.label ?? null };
     if (key.revoked) return invalid('revoked-key', withKey);
