@@ -443,11 +443,14 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     // 封面取（专辑里有带自己封面的歌时，再补上它们）。
     const posterActive = seamTarget.variant === 'poster';
     const albumPoster = posterActive && Boolean(layer?.seam.album);
-    const posterSources = useMemo(() => posterPaletteSourcesFor(posterActive ? layer : null), [layer, posterActive]);
-    const posterPalette = useBravaisPosterPalette(posterSources, posterActive);
+    const renderedPosterLayer = seam.rendered.variant === 'poster' ? seam.rendered.layer : null;
+    // 同一层换形态（点过滤、开列表面板、表单）时目标先不是海报了，海报还要转出去半圈：颜色等它换下来再撤，不然转出的
+    // 那一拍回退成默认色（专辑页是藏青色块）。
+    const paletteLayer = posterActive || (renderedPosterLayer && renderedPosterLayer.key === layer?.key) ? layer : null;
+    const posterSources = useMemo(() => posterPaletteSourcesFor(paletteLayer), [paletteLayer]);
+    const posterPalette = useBravaisPosterPalette(posterSources, Boolean(paletteLayer));
     // 缝里此刻画着的海报可能还是上一层的（换层时缝的内容晚一拍才换，约 0.2s）：它的颜色也留着，不然那一拍里它读不到
     // 自己的颜色、回退成默认色，看着像闪了一下。歌手与专辑两套变量名不同，可以同时在。
-    const renderedPosterLayer = seam.rendered.variant === 'poster' ? seam.rendered.layer : null;
     const lingeringPoster = renderedPosterLayer && renderedPosterLayer.key !== layer?.key ? renderedPosterLayer : null;
     const lingeringSources = useMemo(() => posterPaletteSourcesFor(lingeringPoster), [lingeringPoster]);
     const lingeringPalette = useBravaisPosterPalette(lingeringSources, Boolean(lingeringPoster));
@@ -456,8 +459,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             if (!target) return {};
             return target.seam.album ? albumPaletteVars(palette?.album ?? null) : posterPaletteVars(palette?.artist ?? null);
         };
-        return { ...varsFor(lingeringPoster, lingeringPalette), ...varsFor(posterActive ? layer : null, posterPalette) };
-    }, [layer, lingeringPalette, lingeringPoster, posterActive, posterPalette]);
+        return { ...varsFor(lingeringPoster, lingeringPalette), ...varsFor(paletteLayer, posterPalette) };
+    }, [lingeringPalette, lingeringPoster, paletteLayer, posterPalette]);
 
     const rootClassName = [
         'lattice-root',
