@@ -20,10 +20,11 @@ export interface ModLabelMap {
  * Official signature state (electron/modSystem/modSignature.cjs). A label only:
  * it never enables a mod or skips the enable confirmation.
  *   - verified: signed by a Folium key over exactly the files on disk;
+ *   - beta:     the same, by a preview-channel key: security-reviewed only, may not work;
  *   - unsigned: no signature (an unreviewed third-party mod);
  *   - invalid:  a signature that does not check out (see `reason`).
  */
-export type ModSignatureStatus = 'verified' | 'unsigned' | 'invalid';
+export type ModSignatureStatus = 'verified' | 'beta' | 'unsigned' | 'invalid';
 
 export type ModSignatureInvalidReason =
     | 'malformed'

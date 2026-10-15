@@ -2,8 +2,10 @@
 // Official mod signatures. A mod that ships `folium.sig.json` carries an
 // Ed25519 signature, made with a Folium signing key, over its signed digest,
 // its id and its version. The loader checks it against the public keys built
-// into the host (trustedKeys.cjs) and reports one of three states:
+// into the host (trustedKeys.cjs) and reports one of four states:
 //   - verified: signed by a trusted key over exactly the files on disk;
+//   - beta:     the same, but by a preview-channel key (`channel: 'beta'`): the
+//     mod passed the security review only, not a review of whether it works;
 //   - unsigned: no signature file (an unreviewed third-party mod);
 //   - invalid:  a signature file that does not check out (edited after signing,
 //     unknown or revoked key, revoked mod, malformed file).
@@ -212,7 +214,7 @@ const verifyModSignature = (dirPath, manifest, options = {}) => {
     if (!actual) return invalid('unverifiable', withKey);
     if (actual !== record.digest) return invalid('digest-mismatch', withKey);
     if (revokedDigests.includes(actual)) return invalid('revoked-mod', withKey);
-    return { status: 'verified', ...withKey };
+    return { status: key.channel === 'beta' ? 'beta' : 'verified', ...withKey };
 };
 
 module.exports = {

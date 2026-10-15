@@ -1066,6 +1066,8 @@ export default {
     "devSourceHint": "Development source mod: once confirmed, editing its files keeps the approval (development builds only).",
     "signatureVerified": "Verified",
     "signatureVerifiedDetail": "Carries a valid official Folium signature ({{key}}): its source and content were reviewed by Folium and have not changed since signing. Once enabled it still runs with the app's full privileges.",
+    "signatureBeta": "Preview",
+    "signatureBetaDetail": "Signed with the Folium preview key ({{key}}): it passed the security review only. Its implementation may be rough and its features may not work at all. It is meant for community developers to experiment with; most users should not enable it. Once enabled it still runs with the app's full privileges.",
     "signatureUnsigned": "Unverified",
     "signatureUnsignedDetail": "No official signature: this is a third-party mod not reviewed by Folium. Only enable mods from sources you trust.",
     "signatureInvalid": "Signature mismatch",

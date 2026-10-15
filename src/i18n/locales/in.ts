@@ -1061,6 +1061,8 @@ export default {
     "devSourceHint": "Mod di direktori pengembangan: setelah dikonfirmasi, mengubah berkasnya tidak membatalkan persetujuan (hanya build pengembangan).",
     "signatureVerified": "Terverifikasi",
     "signatureVerifiedDetail": "Memiliki tanda tangan resmi Folium yang valid ({{key}}): sumber dan isinya telah ditinjau Folium dan tidak berubah sejak ditandatangani. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.",
+    "signatureBeta": "Pratinjau",
+    "signatureBetaDetail": "Ditandatangani dengan kunci pratinjau Folium ({{key}}): hanya lolos tinjauan keamanan. Implementasinya mungkin belum rapi dan fiturnya bisa saja sama sekali tidak berfungsi. Ditujukan bagi pengembang komunitas untuk bereksperimen; sebagian besar pengguna sebaiknya tidak mengaktifkannya. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.",
     "signatureUnsigned": "Belum terverifikasi",
     "signatureUnsignedDetail": "Tanpa tanda tangan resmi: ini mod pihak ketiga yang belum ditinjau Folium. Aktifkan hanya mod dari sumber yang Anda percayai.",
     "signatureInvalid": "Tanda tangan tidak cocok",
