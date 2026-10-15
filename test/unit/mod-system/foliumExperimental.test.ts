@@ -33,6 +33,7 @@ vi.mock('@/utils/lyrics/workerClient', async () => {
 
 import type { SongResult } from '@/types';
 import type { ModRuntimeInfo } from '@/mods/types';
+import type { FoliumRemoteActionsDef, FoliumRemoteActionsHandle } from '@/mods/folium/contract';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { omni } from '@/services/onlineMusic/omni';
 import { applyOmniAudioHook, applyOmniLyricsHook } from '@/services/hostExtensionHooks';
@@ -40,6 +41,7 @@ import { findPonderTarget } from '@/components/ponder/ponderRegistry';
 import i18n from '@/i18n/config';
 import { createFoliumExperimental, ponderTargetsRegistry } from '@/mods/folium/experimental';
 import { omniProvidersRegistry } from '@/mods/folium/registries/omniProviders';
+import { remoteActionsRegistry } from '@/mods/folium/registries/remoteActions';
 import { createFoliumClientApi } from '@/mods/folium/api';
 import { removeFoliumEventHandlers } from '@/mods/folium/events';
 
@@ -57,6 +59,7 @@ const mod = (overrides: Partial<ModRuntimeInfo> = {}): ModRuntimeInfo => ({
 afterEach(() => {
     omniProvidersRegistry.unregisterAll('mod-a');
     ponderTargetsRegistry.unregisterAll('mod-a');
+    remoteActionsRegistry.unregisterAll('mod-a');
     removeFoliumEventHandlers('mod-a');
 });
 
@@ -228,10 +231,23 @@ describe('experimental gate', () => {
             experimental: createFoliumExperimental(mod()),
         });
         expect(() => api.experimental['omni.providers']).toThrow('experimental-not-declared:omni.providers');
+        expect(() => api.experimental['remote.actions']).toThrow('experimental-not-declared:remote.actions');
         expect(() => api.events.on('omni.audioSourceResolved', () => {})).toThrow('experimental-not-declared:omni.hooks');
 
         const optedIn = mod({ experimental: ['omni.providers'] });
         const allowed = createFoliumClientApi(optedIn, { context: 'main', internals: null, experimental: createFoliumExperimental(optedIn) });
         expect(allowed.experimental['omni.providers']).toHaveProperty('register');
+    });
+
+    it('exposes only an owned action registration through remote.actions opt-in', () => {
+        const owner = mod({ experimental: ['remote.actions'] });
+        const api = createFoliumClientApi(owner, { context: 'main', internals: null, experimental: createFoliumExperimental(owner) });
+        const remote = api.experimental['remote.actions'] as { register: (def: FoliumRemoteActionsDef) => FoliumRemoteActionsHandle };
+        const handle = remote.register({ id: 'room', actions: () => [] });
+        expect(handle.id).toBe('mod-a:room');
+        expect(handle.invalidate).toBeTypeOf('function');
+        expect(remoteActionsRegistry.list()).toHaveLength(1);
+        handle.unregister();
+        expect(remoteActionsRegistry.list()).toHaveLength(0);
     });
 });

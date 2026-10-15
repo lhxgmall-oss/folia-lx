@@ -261,7 +261,8 @@ declare global {
     | { type: 'start-export'; preset: ElectronVideoExportPreset; startMode: ElectronVideoExportStartMode }
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
-    | { type: 'toggle-like' };
+    | { type: 'toggle-like' }
+    | import('./types/remoteControl').RemoteActionActivation;
 
   type ElectronVideoExportStatus =
     | 'idle'
@@ -299,6 +300,7 @@ declare global {
   }
 
   interface ElectronRemoteControlSnapshot {
+    remoteActions?: import('./types/remoteControl').RemoteActionsSnapshot;
     hasTrack: boolean;
     trackKey: string | null;
     title: string | null;
@@ -991,9 +993,6 @@ declare global {
       onStagePlayerControlRequest: (callback: (request: StagePlayerControlRequest) => void) => () => void;
       onStagePlayerQueueRequest: (callback: (request: StagePlayerQueueRequest) => void) => () => void;
       mods?: {
-        listRemoteUiClients: () => Promise<ModRuntimeInfo[]>;
-        invokeRemoteUiRpc: (modId: string, clientUrl: string, name: string, args: unknown[]) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
-        onRemoteUiClientsChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
         listMods: () => Promise<{ mods: ModRuntimeInfo[]; ffmpeg: ModFfmpegStatus; directories: string[] }>;
         setModEnabled: (modId: string, enabled: boolean) => Promise<{ ok: boolean; error?: string; mods: ModRuntimeInfo[] }>;
         reloadMods: () => Promise<{ mods: ModRuntimeInfo[] }>;

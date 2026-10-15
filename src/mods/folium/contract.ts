@@ -1177,6 +1177,52 @@ export interface FoliumNetService {
 
 // ---------------------------------------------------------------- Experimental
 
+/** EXPERIMENTAL (`remote.actions`). Append-only buttons; native remote controls stay unchanged. */
+export interface FoliumRemoteActionDef {
+    /** Local action id; the host adds the owning mod and registration prefix. */
+    id: string;
+    /** Localized button label and accessible name. */
+    label: FoliumLabel;
+    /** Lucide icon name in kebab-case. */
+    icon: string;
+    /** Prevents invocation while true. */
+    disabled?: boolean;
+    /** Toggle state exposed through aria-pressed. */
+    pressed?: boolean;
+    /** Optional nonnegative finite count. */
+    count?: number;
+    /** Host-defined visual emphasis. */
+    tone?: 'normal' | 'alert';
+    /** `track` (default) expires when the displayed song changes; `session` survives a song change. */
+    scope?: 'track' | 'session';
+    /** Runs in the main window through the host's remote bridge. */
+    run(): void | Promise<void>;
+}
+
+/** EXPERIMENTAL (`remote.actions`). Current playback context for additional buttons. */
+export interface FoliumRemoteActionsContext {
+    /** Currently displayed song, or null when no song is displayed. */
+    readonly song: FoliumSong | null;
+    /** Playback state of the displayed song. */
+    readonly state: FoliumPlaybackState;
+}
+
+/** EXPERIMENTAL (`remote.actions`). A group of buttons appended after native remote controls. */
+export interface FoliumRemoteActionsDef {
+    /** Local registration id; the host adds the owning mod prefix. */
+    id: string;
+    /** Order among mod groups only; native buttons cannot be reordered. */
+    order?: number;
+    /** Buttons for the current context. The per-mod limit is not yet finalized. */
+    actions(context: FoliumRemoteActionsContext): readonly FoliumRemoteActionDef[];
+}
+
+/** EXPERIMENTAL (`remote.actions`). Owns one additional remote-button registration. */
+export interface FoliumRemoteActionsHandle extends FoliumRegistryHandle {
+    /** Re-evaluates actions and refreshes the remote window without changing native buttons. */
+    invalidate(): void;
+}
+
 /** EXPERIMENTAL (`omni.providers`): a song as a mod provider describes it. */
 export interface FoliumProviderSong {
     /** Song id within this provider. */
