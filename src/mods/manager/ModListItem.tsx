@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckSquare, ChevronDown, CircleCheck, CircleOff, ShieldAlert, ShieldCheck, ShieldQuestion, Square, TriangleAlert } from 'lucide-react';
+import { CheckSquare, ChevronDown, CircleCheck, CircleOff, FlaskConical, ShieldAlert, ShieldCheck, ShieldQuestion, Square, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '@/types';
 import { SettingsToggle } from '../../components/modal/settings/SettingsRow';
@@ -40,7 +40,7 @@ const describeModGrants = (mod: ModRuntimeInfo): string[] => [
 /*
  * The signature badge shown in the collapsed row. Unsigned mods get none there
  * (most third-party mods are unsigned, so a badge would be noise); the expanded
- * row explains all three states.
+ * row explains every state.
  */
 const SignatureBadge: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean }> = ({ mod, isDaylight }) => {
     const { t } = useTranslation();
@@ -49,6 +49,13 @@ const SignatureBadge: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean }> = (
         return (
             <span title={t('mods.signatureVerified')} className={`shrink-0 ${isDaylight ? 'text-emerald-600' : 'text-emerald-300'}`}>
                 <ShieldCheck size={14} />
+            </span>
+        );
+    }
+    if (status === 'beta') {
+        return (
+            <span title={t('mods.signatureBeta')} className={`shrink-0 ${isDaylight ? 'text-violet-600' : 'text-violet-300'}`}>
+                <FlaskConical size={14} />
             </span>
         );
     }
@@ -74,6 +81,18 @@ const SignatureNotice: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean; clas
                     <span className="font-medium">{t('mods.signatureVerified')}</span>
                     {' · '}
                     {t('mods.signatureVerifiedDetail', { key: keyLabel ? `${keyLabel}, ${keyId}` : keyId })}
+                </span>
+            </div>
+        );
+    }
+    if (status === 'beta') {
+        return (
+            <div className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2 ${classes.preview}`}>
+                <FlaskConical size={14} className="mt-px shrink-0" />
+                <span>
+                    <span className="font-medium">{t('mods.signatureBeta')}</span>
+                    {' · '}
+                    {t('mods.signatureBetaDetail', { key: keyLabel ? `${keyLabel}, ${keyId}` : keyId })}
                 </span>
             </div>
         );

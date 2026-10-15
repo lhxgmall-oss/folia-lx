@@ -1061,10 +1061,12 @@ export default {
     "devSourceHint": "Mod di direktori pengembangan: setelah dikonfirmasi, mengubah berkasnya tidak membatalkan persetujuan (hanya build pengembangan).",
     "signatureVerified": "Terverifikasi",
     "signatureVerifiedDetail": "Memiliki tanda tangan resmi Folium yang valid ({{key}}): sumber dan isinya telah ditinjau Folium dan tidak berubah sejak ditandatangani. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.",
+    "signatureBeta": "Pratinjau",
+    "signatureBetaDetail": "Ditandatangani dengan kunci pratinjau Folium ({{key}}): hanya lolos tinjauan keamanan. Implementasinya mungkin belum rapi dan fiturnya bisa saja sama sekali tidak berfungsi. Ditujukan bagi pengembang komunitas untuk bereksperimen; sebagian besar pengguna sebaiknya tidak mengaktifkannya. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.",
     "signatureUnsigned": "Belum terverifikasi",
     "signatureUnsignedDetail": "Tanpa tanda tangan resmi: ini mod pihak ketiga yang belum ditinjau Folium. Aktifkan hanya mod dari sumber yang Anda percayai.",
     "signatureInvalid": "Tanda tangan tidak cocok",
-    "signatureInvalidDetail": "Mod ini ditandatangani, tetapi tanda tangannya gagal diperiksa ({{reason}}), jadi bukan lagi mod terverifikasi resmi. Biasanya berkasnya diubah setelah ditandatangani; jika bukan Anda yang mengubahnya, jangan aktifkan.",
+    "signatureInvalidDetail": "Mod ini ditandatangani, tetapi tanda tangannya gagal diperiksa ({{reason}}), jadi tanda tangan ini tidak lagi bisa menjaminnya. Biasanya berkasnya diubah setelah ditandatangani; jika bukan Anda yang mengubahnya, jangan aktifkan.",
     "signatureReasons": {
       "malformed": "berkas tanda tangan rusak",
       "unknown-key": "kunci penanda tangan tidak dipercaya",

@@ -194,7 +194,12 @@ function mountHello(folium, container, ctx) {
 
 ## 6. 发布到模组市场
 
-官方模组和通过审查的社区模组收录在 [folium-compound](https://github.com/chthollyphile/folium-compound)，发布在 [模组市场](https://folium-compound.cielaniska.top)。收录的模组都带有 Folium 签名，用户安装后显示「官方认证」。
+官方模组和通过审查的社区模组收录在 [folium-compound](https://github.com/chthollyphile/folium-compound)，发布在 [模组市场](https://folium-compound.cielaniska.top)。收录的模组都带有 Folium 签名，分两个发布渠道：
+
+- **正式发布**：通过安全审查和功能审查，用户安装后显示「官方认证」。
+- **先行测试**：仅通过了安全审查，不保证功能实现的整洁，甚至功能可以完全无法工作，主要给社区开发者做创意实验。用先行测试密钥签名，用户安装后显示「先行测试」，模组市场只在「先行测试」标签页里列出它们。
+
+提交时在 issue 表单里选择渠道；维护者可以把正式发布的申请降为先行测试。先行测试的模组以后可以开「模组更新」issue 申请转为正式发布。
 
 不需要 fork 任何仓库：你只需要把模组放在自己的公开源码仓库里，再开一个 issue。
 
@@ -240,7 +245,8 @@ function mountHello(folium, container, ctx) {
 
 | 状态 | 含义 |
 | --- | --- |
-| 官方认证 | 签名有效，文件自签名后没有改动 |
+| 官方认证 | 正式发布渠道的签名有效，文件自签名后没有改动 |
+| 先行测试 | 先行测试渠道的签名有效：仅通过了安全审查，不保证功能可用 |
 | 未验证 | 没有签名文件：没有经过 Folium 审查的第三方模组 |
 | 签名不匹配 | 有签名但校验失败，最常见的原因是签名后文件被改动过（包括用户在本地修改了模组） |
 
@@ -261,4 +267,4 @@ function mountHello(folium, container, ctx) {
 不能，模组系统只在桌面版里可用。
 
 **怎样让我的模组显示「官方认证」？**
-按[第 6 节](#6-发布到模组市场)提交到 folium-compound，审查通过后由 CI 签名。本地自己签名不会被认可：只有 Folium 的密钥签出的签名会被宿主信任。
+按[第 6 节](#6-发布到模组市场)提交到 folium-compound，发布渠道选「正式发布」，通过安全审查和功能审查后由 CI 签名。只通过安全审查的模组会收录到先行测试，显示「先行测试」。本地自己签名不会被认可：只有 Folium 的密钥签出的签名会被宿主信任。

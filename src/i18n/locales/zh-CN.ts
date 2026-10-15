@@ -1065,10 +1065,12 @@ export default {
     "devSourceHint": "开发目录中的模组：确认后修改文件不会撤销授权（仅开发版）。",
     "signatureVerified": "官方认证",
     "signatureVerifiedDetail": "带有有效的 Folium 官方签名（{{key}}）：来源与内容经过官方审查，签名后未被修改。它启用后仍以应用的完整权限运行。",
+    "signatureBeta": "先行测试",
+    "signatureBetaDetail": "由 Folium 先行测试密钥签名（{{key}}）：仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作。主要供社区开发者做创意实验，普通用户请勿轻易启用。它启用后仍以应用的完整权限运行。",
     "signatureUnsigned": "未验证",
     "signatureUnsignedDetail": "没有官方签名：这是未经 Folium 审查的第三方模组，请只启用你信任来源的模组。",
     "signatureInvalid": "签名不匹配",
-    "signatureInvalidDetail": "模组带有签名，但校验失败（{{reason}}），不再视为官方认证。通常是签名后文件被改动过；如果不是你自己改的，请不要启用。",
+    "signatureInvalidDetail": "模组带有签名，但校验失败（{{reason}}），这份签名不能作为审查依据。通常是签名后文件被改动过；如果不是你自己改的，请不要启用。",
     "signatureReasons": {
       "malformed": "签名文件格式错误",
       "unknown-key": "签名密钥不受信任",
