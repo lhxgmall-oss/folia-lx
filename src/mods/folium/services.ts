@@ -18,7 +18,9 @@ import type {
 
 // src/mods/folium/services.ts
 // `folium.playback`, `folium.ui` and `folium.net`. This module deliberately
-// imports no app stores: the export window loads it too. The main window's App
+// imports no app stores (nothing under src/stores): the export window loads it
+// too. The one store it does bring in is mods-owned — the home-page selection in
+// registries/homeTabs (pinned by foliumServicesBoundary.test.ts). The main window's App
 // registers the real actions (registerFoliumHostActions, see hostActions.ts);
 // until it has — and always in the export window — calls fail with a clear
 // "unavailable" error instead of touching state that does not exist there.
