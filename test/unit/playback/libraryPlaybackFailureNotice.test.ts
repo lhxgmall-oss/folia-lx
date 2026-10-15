@@ -22,6 +22,8 @@ const env = vi.hoisted(() => {
     return {
         navidromeConfig: null as unknown,
         streamUrlError: null as Error | null,
+        // Navidrome 匹配缓存的查询；用例用它在第一次网络等待之后才让加载失败。
+        matchLookup: null as (() => Promise<unknown>) | null,
     };
 });
 
@@ -36,7 +38,7 @@ vi.mock('@/services/db', () => ({
     getSessionData: async () => ({}),
     clearSession: async () => {},
     getCacheEntriesByPrefix: async () => [],
-    getFromCacheWithMigration: async () => null,
+    getFromCacheWithMigration: () => env.matchLookup?.() ?? Promise.resolve(null),
 }));
 vi.mock('@/services/localMusicService', async importOriginal => ({
     ...(await importOriginal<typeof import('@/services/localMusicService')>()),
@@ -53,6 +55,7 @@ vi.mock('@/services/navidromeService', async importOriginal => {
                 if (env.streamUrlError) throw env.streamUrlError;
                 return 'https://navidrome.example/stream';
             },
+            getSong: async () => null,
         },
     };
 });
@@ -61,8 +64,10 @@ import React, { act, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useLibraryPlaybackController } from '@/hooks/useLibraryPlaybackController';
 import { installPlaybackFailedListener } from '@/services/hostExtensionHooks';
+import { getAudioFromLocalSong } from '@/services/localMusicService';
 import { useStatusMessageStore } from '@/stores/useStatusMessageStore';
 import type { LocalSong } from '@/types';
+import type { LibraryPlayOptions } from '@/types/appPlayback';
 import type { NavidromeSong } from '@/types/navidrome';
 
 const localSong = {
@@ -91,9 +96,17 @@ const navidromeSong = {
 } as unknown as NavidromeSong;
 
 type Controller = {
-    onPlayLocalSong: (song: LocalSong) => Promise<void>;
-    onPlayNavidromeSong: (song: NavidromeSong) => Promise<void>;
+    onPlayLocalSong: (song: LocalSong, queue?: LocalSong[], options?: LibraryPlayOptions) => Promise<void>;
+    onPlayNavidromeSong: (song: NavidromeSong, queue?: NavidromeSong[], options?: LibraryPlayOptions) => Promise<void>;
 };
+
+const deferred = <T,>() => {
+    let resolve!: (value: T) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+};
+const naviConfig = { serverUrl: 'https://navidrome.example', username: 'u', password: 'p' };
 
 const listener = vi.fn();
 let controller: Controller;
@@ -122,6 +135,7 @@ beforeEach(async () => {
     (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     env.navidromeConfig = null;
     env.streamUrlError = null;
+    env.matchLookup = null;
     listener.mockReset();
     installPlaybackFailedListener(listener);
     useStatusMessageStore.setState({ message: null });
@@ -156,10 +170,58 @@ describe('library playback failure reports', () => {
 
     it('reports a Navidrome song whose load threw, with the carrier itself', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
-        env.navidromeConfig = { serverUrl: 'https://navidrome.example', username: 'u', password: 'p' };
+        env.navidromeConfig = naviConfig;
         env.streamUrlError = new Error('stream url failed');
         await act(async () => { await controller.onPlayNavidromeSong(navidromeSong); });
         expect(listener).toHaveBeenCalledOnce();
         expect(listener).toHaveBeenCalledWith({ song: navidromeSong, reason: null, phase: 'play', willAutoSkip: false });
+    });
+});
+
+// 等待期间用户换了歌：旧请求的失败已不是用户眼前的事，既不提示也不报告（否则按契约在 willAutoSkip 为 false 时调 next() 的模组会跳过用户的新歌）。
+describe('library playback failures of a replaced pick', () => {
+    it('neither shows nor reports a local file read the caller says was replaced', async () => {
+        const read = deferred<string | null>();
+        vi.mocked(getAudioFromLocalSong).mockReturnValueOnce(read.promise);
+        let current = true;
+        let playing!: Promise<void>;
+        act(() => { playing = controller.onPlayLocalSong(localSong, [], { isCurrent: () => current }); });
+
+        current = false;
+        await act(async () => { read.resolve(null); await playing; });
+        expect(useStatusMessageStore.getState().message).toBeNull();
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('reports only the latest of two overlapping library plays', async () => {
+        const firstRead = deferred<string | null>();
+        vi.mocked(getAudioFromLocalSong).mockReturnValueOnce(firstRead.promise);
+        let first!: Promise<void>;
+        act(() => { first = controller.onPlayLocalSong(localSong); });
+        await act(async () => { await controller.onPlayLocalSong(localSong); });
+        expect(listener).toHaveBeenCalledOnce();
+
+        await act(async () => { firstRead.resolve(null); await first; });
+        expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+        ['still the latest pick', true, 1],
+        ['replaced by a newer pick', false, 0],
+    ] as const)('handles a Navidrome load that fails after a network wait while %s', async (_case, stillCurrent, reports) => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        env.navidromeConfig = naviConfig;
+        const lookup = deferred<unknown>();
+        env.matchLookup = () => lookup.promise;
+        let current = true;
+        let playing!: Promise<void>;
+        act(() => { playing = controller.onPlayNavidromeSong(navidromeSong, [], { isCurrent: () => current }); });
+
+        current = stillCurrent;
+        await act(async () => { lookup.reject(new Error('cache read failed')); await playing; });
+        expect(listener).toHaveBeenCalledTimes(reports);
+        expect(useStatusMessageStore.getState().message).toEqual(
+            reports ? expect.objectContaining({ type: 'error' }) : null,
+        );
     });
 });

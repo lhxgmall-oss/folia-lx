@@ -129,7 +129,10 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-function controller({ mainPlaybackSnapshotRef = { current: null } }: { mainPlaybackSnapshotRef?: { current: unknown } } = {}) {
+function controller({ mainPlaybackSnapshotRef = { current: null }, onPlayNavidromeSong }: {
+    mainPlaybackSnapshotRef?: { current: unknown };
+    onPlayNavidromeSong?: (...args: unknown[]) => Promise<void>;
+} = {}) {
     hookRefs.index = 0;
     hookStates.index = 0;
     const pause = vi.fn();
@@ -148,6 +151,7 @@ function controller({ mainPlaybackSnapshotRef = { current: null } }: { mainPlayb
         setIsLyricsLoading: vi.fn(), setLyrics, persistLastPlaybackCache,
         navigateToPlaybackView: vi.fn(), restoreCachedThemeForSong: vi.fn(async () => undefined),
         interruptStagePlaybackForMainTransition: vi.fn(),
+        onPlayNavidromeSong,
     } as never);
     const setPendingUnavailableReplacement = stateSetters.at(-1)!;
     return {
@@ -480,6 +484,47 @@ describe('skip unplayable songs setting', () => {
         await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
         expect(loader.mock.calls[1][0]).toBe(songs[2]);
         expect(queue.playbackAutoSkipCountRef.current).toBe(3);
+    });
+
+    // 取消倒计时 = 这次不跳：和设置关闭时一样停播并给出重试 / 跳过。否则 transport 停在 PLAYING（出错 deck 的 pause 事件被忽略），
+    // 强制刷新的「重试」也没了。
+    it('pauses and offers the forced retry when a mid-playback countdown is cancelled', () => {
+        audioSettings.autoSkipUnplayable = true;
+        const retry = vi.fn();
+        const queue = controller();
+        queue.skipAfterPlaybackFailure({ reason: 'unknown', stage: 'refresh' }, { failedSongKey: getPlaybackSongKey(songs[0]), retry });
+        expect(message()).toMatchObject({ text: 'status.songUnplayableSkipPrompt', cancelLabel: 'status.cancel' });
+        expect(queue.pause).not.toHaveBeenCalled();
+
+        message()?.onCancel?.();
+        expect(window.clearTimeout).toHaveBeenCalled();
+        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(queue.shouldAutoPlayRef.current).toBe(false);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+        expect(message()).toMatchObject({
+            text: 'status.songTemporarilyUnavailable', persistent: true,
+            actionLabel: 'ui.retry', cancelLabel: 'status.skipUnavailableAction',
+        });
+        message()?.onAction?.();
+        expect(retry).toHaveBeenCalledOnce();
+        expect(notified).toHaveBeenCalledOnce();
+        expect(notified).toHaveBeenCalledWith(expect.objectContaining({ reason: 'unknown', phase: 'mid-playback', willAutoSkip: true }));
+    });
+
+    it('stops with the restricted message when a play countdown is cancelled', async () => {
+        audioSettings.autoSkipUnplayable = true;
+        loader.mockResolvedValueOnce(failed('membership-required')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        message()?.onCancel?.();
+        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
+        expect(message()).toMatchObject({ text: 'status.songMembershipRequired', actionLabel: 'status.skipUnavailableAction' });
+
+        message()?.onAction?.();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(notified).toHaveBeenCalledOnce();
     });
 
     it('counts down on a mid-playback restricted failure and counts the skip', async () => {
@@ -942,6 +987,21 @@ describe('reporting playback failures', () => {
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(notified).toHaveBeenCalledWith({ song: songs[1], reason: 'purchase-required', phase: 'play', willAutoSkip: true });
+    });
+
+    // 本地 / Navidrome 的失败在 useLibraryPlaybackController 里提示和报告：playSong 把「这次点歌是否仍是最新请求」交给它，
+    // 被更新的点歌取代后那边就不提示也不报告。
+    it('tells a library play when a newer pick has replaced it', async () => {
+        const onPlayNavidromeSong = vi.fn(async (..._args: unknown[]) => undefined);
+        const navi = { ...makeSong('n1'), sourceRef: undefined, isNavidrome: true, navidromeData: { id: 'n1' } } as unknown as UnifiedSong;
+        loader.mockReturnValue(new Promise(() => undefined));
+        const queue = controller({ onPlayNavidromeSong });
+        await queue.playSong(navi, [navi]);
+        const options = onPlayNavidromeSong.mock.calls[0][2] as { isCurrent?: () => boolean };
+        expect(options.isCurrent?.()).toBe(true);
+
+        void queue.playSong(songs[1], songs);
+        expect(options.isCurrent?.()).toBe(false);
     });
 
     it('reports a Navidrome song that has no stream carrier', async () => {

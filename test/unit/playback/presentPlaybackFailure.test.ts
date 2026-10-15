@@ -61,7 +61,8 @@ describe('presentPlaybackFailure', () => {
         let current = true;
         const { deps, input, present } = setup({ failure: takenDown, isCurrent: () => current });
         present();
-        expect(deps.showTimedSkipPrompt).toHaveBeenCalledWith('status.songUnavailablePrompt', expect.any(Function));
+        // 下架原本既不停播也没有按钮：取消只收起倒计时，不给 onCancel。
+        expect(deps.showTimedSkipPrompt).toHaveBeenCalledWith('status.songUnavailablePrompt', expect.any(Function), undefined);
         expect(deps.setIsLyricsLoading).toHaveBeenCalledWith(false);
         expect(deps.audioRef.current.pause).not.toHaveBeenCalled();
         expect(deps.setPlayerState).not.toHaveBeenCalled();
@@ -179,7 +180,7 @@ describe('presentPlaybackFailure with "skip unplayable songs"', () => {
         let current = true;
         const { deps, input, present } = setup({ failure: membership, isCurrent: () => current }, true);
         present();
-        expect(deps.showTimedSkipPrompt).toHaveBeenCalledWith('status.songUnplayableSkipPrompt', expect.any(Function));
+        expect(deps.showTimedSkipPrompt).toHaveBeenCalledWith('status.songUnplayableSkipPrompt', expect.any(Function), expect.any(Function));
         expect(deps.audioRef.current.pause).not.toHaveBeenCalled();
         expect(deps.setPlayerState).not.toHaveBeenCalled();
         expect(deps.shouldAutoPlayRef.current).toBe(true);
@@ -197,7 +198,7 @@ describe('presentPlaybackFailure with "skip unplayable songs"', () => {
     it('counts down on an unknown failure mid-playback', () => {
         const { deps, present } = setup({ failure: { reason: 'unknown', stage: 'media-element' }, context: 'mid-playback' }, true);
         present();
-        expect(deps.showTimedSkipPrompt).toHaveBeenCalledWith('status.songUnplayableSkipPrompt', expect.any(Function));
+        expect(deps.showTimedSkipPrompt).toHaveBeenCalledWith('status.songUnplayableSkipPrompt', expect.any(Function), expect.any(Function));
         expect(deps.setPlayerState).not.toHaveBeenCalled();
     });
 
@@ -222,6 +223,49 @@ describe('presentPlaybackFailure with "skip unplayable songs"', () => {
         present();
         expect(deps.showTimedSkipPrompt).not.toHaveBeenCalled();
         expect(deps.audioRef.current.pause).toHaveBeenCalledOnce();
+    });
+
+    // 取消倒计时 = 这次不跳：退回该原因原本的停播与按钮，和设置关闭时一样；不再报告第二次。
+    it('falls back to the reason\'s own stop and buttons when the countdown is cancelled', () => {
+        const { deps, input, message, present } = setup({ failure: membership }, true);
+        present();
+        const onCancel = deps.showTimedSkipPrompt.mock.calls[0][2] as () => void;
+        onCancel();
+        expect(deps.shouldAutoPlayRef.current).toBe(false);
+        expect(deps.audioRef.current.pause).toHaveBeenCalledOnce();
+        expect(deps.setPlayerState).toHaveBeenCalledWith(PlayerState.IDLE);
+        expect(message()).toMatchObject({
+            text: 'status.songMembershipRequired', persistent: true,
+            actionLabel: 'status.skipUnavailableAction', cancelLabel: 'status.cancel',
+        });
+        message()?.onAction?.();
+        expect(input.skip).toHaveBeenCalledOnce();
+        expect(deps.notifyFailure).toHaveBeenCalledOnce();
+        expect(deps.notifyFailure).toHaveBeenCalledWith(expect.objectContaining({ willAutoSkip: true }));
+    });
+
+    it('pauses and offers the retry again when a mid-playback countdown is cancelled', () => {
+        const { deps, input, message, present } = setup({ failure: { reason: 'unknown', stage: 'refresh' }, context: 'mid-playback' }, true);
+        present();
+        (deps.showTimedSkipPrompt.mock.calls[0][2] as () => void)();
+        expect(deps.audioRef.current.pause).toHaveBeenCalledOnce();
+        expect(deps.setPlayerState).toHaveBeenCalledWith(PlayerState.PAUSED);
+        expect(message()).toMatchObject({ text: 'status.songTemporarilyUnavailable', actionLabel: 'ui.retry' });
+        message()?.onAction?.();
+        expect(input.retry).toHaveBeenCalledOnce();
+        expect(deps.notifyFailure).toHaveBeenCalledOnce();
+    });
+
+    it('does nothing when a countdown is cancelled after the listener moved on', () => {
+        let current = true;
+        const { deps, message, present } = setup({ failure: membership, isCurrent: () => current }, true);
+        present();
+        current = false;
+        (deps.showTimedSkipPrompt.mock.calls[0][2] as () => void)();
+        expect(deps.audioRef.current.pause).not.toHaveBeenCalled();
+        expect(deps.setPlayerState).not.toHaveBeenCalled();
+        expect(deps.shouldAutoPlayRef.current).toBe(true);
+        expect(message()).toBeNull();
     });
 
     it('reads the setting when presenting, not when the deps were built', () => {

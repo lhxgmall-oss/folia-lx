@@ -120,7 +120,7 @@ export const getPlaybackFailureMessage = (
  * 解析一次失败在给定上下文下的最终策略：先套变体（文案、未配置时去掉重试），再套上下文覆盖。
  * 'restore' 只显示一条消息，不倒计时也不给按钮；'mid-playback' 与 'play' 相同（停播时由 presenter 置 PAUSED）。
  * 用户设置 autoSkipUnplayable 在上下文覆盖之前套用（所以 restore 仍不跳），只加上倒计时：stopPlayback 与 actions
- * 保持该原因原本的值，连跳次数用尽时 presenter 退回它们。
+ * 保持该原因原本的值，连跳次数用尽或用户取消倒计时时 presenter 退回它们。
  */
 export const resolvePlaybackFailurePolicy = (
     failure: PlaybackFailure,

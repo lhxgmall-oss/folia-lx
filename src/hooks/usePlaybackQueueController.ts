@@ -14,7 +14,7 @@ import { loadOnlineLyricsState } from '../utils/onlineLyricsState';
 import { PlayerState, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../types';
 import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../types';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
-import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
+import type { LibraryPlayOptions, NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
 import type { PlaybackFailure, PlaybackFailureSkipOptions } from '../types/playbackFailure';
 import type { NavidromeSong } from '../types/navidrome';
 import {
@@ -95,11 +95,11 @@ type UsePlaybackQueueControllerParams = {
         preserveCurrentOnMiss?: boolean;
     }) => Promise<unknown>;
     interruptStagePlaybackForMainTransition: () => unknown;
-    onPlayLocalSong: (localSong: LocalSong, queue?: LocalSong[], options?: PlaybackNavigationOptions) => Promise<void>;
+    onPlayLocalSong: (localSong: LocalSong, queue?: LocalSong[], options?: LibraryPlayOptions) => Promise<void>;
     onPlayNavidromeSong: (
         navidromeSong: NavidromeSong,
         queue?: NavidromeSong[],
-        options?: PlaybackNavigationOptions,
+        options?: LibraryPlayOptions,
     ) => Promise<void>;
     onAddLocalSongToQueue: (localSong: LocalSong) => void;
     onAddNavidromeSongsToQueue: (songs: NavidromeSong[]) => void;
@@ -618,9 +618,11 @@ export function usePlaybackQueueController({
                 })
                 .filter((queuedSong): queuedSong is LocalSong => Boolean(queuedSong));
             fmModeBeforePendingPlayRef.current = null;
+            // 失败时库内播放据此判断这次点歌是否已被取代（取代了就不提示、不报告）。
             await onPlayLocalSong(resolvedLocalData, localQueue, {
                 shouldNavigateToPlayer,
                 unifiedQueue: newQueue,
+                isCurrent: isLatestPlaybackRequest,
             });
             return;
         }
@@ -641,6 +643,7 @@ export function usePlaybackQueueController({
             await onPlayNavidromeSong(navidromeSong, navidromeQueue, {
                 shouldNavigateToPlayer,
                 unifiedQueue: newQueue,
+                isCurrent: isLatestPlaybackRequest,
             });
             return;
         }

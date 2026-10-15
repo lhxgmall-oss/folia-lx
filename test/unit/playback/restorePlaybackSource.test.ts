@@ -70,7 +70,10 @@ vi.mock('@/utils/lyrics/localSongLyrics', () => ({ resolveLocalSongLyrics: vi.fn
 
 import { restorePlaybackSourceForSong } from '@/components/app/playback/restorePlaybackSource';
 import { installPlaybackFailedListener } from '@/services/hostExtensionHooks';
-import type { SongResult } from '@/types';
+import { getLocalSongs } from '@/services/db';
+import { ensureLocalSongCoverAsset, getAudioFromLocalSong } from '@/services/localMusicService';
+import { getLocalLibraryCatalogSnapshot } from '@/services/localLibraryEntityRepository';
+import type { LocalSong, SongResult } from '@/types';
 
 // test/unit/playback/restorePlaybackSource.test.ts
 
@@ -285,11 +288,12 @@ describe('restorePlaybackSourceForSong reporting failures', () => {
             kind: 'failed',
             failure: { reason: 'membership-required', stage: 'restore', providerId: 'bodian' },
         });
-        listener.mockImplementationOnce(() => {
-            expect(setStatusMsgMock).toHaveBeenCalledWith({ type: 'error', text: 'status.songMembershipRequired' });
-        });
+        // 监听器里只记下当时显示的消息、事后再断言：监听器抛出的断言错误会被 notifyPlaybackFailed 的 try/catch 吞掉。
+        let shownWhenReported: unknown = null;
+        listener.mockImplementationOnce(() => { shownWhenReported = toastState.current; });
 
         await expect(restore().result).resolves.toBe('failed');
+        expect(shownWhenReported).toEqual({ type: 'error', text: 'status.songMembershipRequired' });
         expect(listener).toHaveBeenCalledOnce();
         expect(listener).toHaveBeenCalledWith({ song, reason: 'membership-required', phase: 'restore', willAutoSkip: false });
     });
@@ -347,17 +351,110 @@ describe('restorePlaybackSourceForSong reporting failures', () => {
         expect(listener).not.toHaveBeenCalled();
     });
 
-    it('reports a local song that is no longer in the library', async () => {
+});
+
+// 本地歌曲的恢复：和在线一样，等待期间用户换了歌就返回 stale、什么都不写也不报；失败消息同样不盖住更新请求的常驻提示。
+describe('restorePlaybackSourceForSong (local)', () => {
+    const listener = vi.fn();
+    const localSong = { ...song, sourceRef: undefined, isLocal: true, localRef: { songId: 'local-1' } } as unknown as SongResult;
+    const localRecord = { id: 'local-1', title: 'Song', fileName: 'song.mp3', duration: 1000 } as unknown as LocalSong;
+    const restoreLocal = () => restorePlaybackSourceForSong(localSong, {
+        audioQuality: 'high',
+        blobUrlRef: { current: null },
+        currentOnlineAudioUrlFetchedAtRef: { current: null },
+        setLyrics: vi.fn(),
+        queue: [localSong],
+    });
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        // 调用方（会话恢复、窗口交接）先把要恢复的这首写成当前歌曲，再调用恢复。
+        playbackState.currentSong = localSong;
+        toastState.current = null;
+        installPlaybackFailedListener(listener);
         vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-        const localSong = { ...song, sourceRef: undefined, isLocal: true, localRef: { songId: 'gone' } } as unknown as SongResult;
-        await expect(restorePlaybackSourceForSong(localSong, {
-            audioQuality: 'high',
-            blobUrlRef: { current: null },
-            currentOnlineAudioUrlFetchedAtRef: { current: null },
-            setLyrics: vi.fn(),
-            queue: [localSong],
-        })).resolves.toBe('failed');
-        expect(setStatusMsgMock).toHaveBeenCalledWith({ type: 'info', text: 'status.localSongNotInLibrary' });
+    });
+
+    afterEach(() => {
+        installPlaybackFailedListener(null);
+        vi.restoreAllMocks();
+    });
+
+    it('reports a local song that is no longer in the library, after the message is shown', async () => {
+        let shownWhenReported: unknown = null;
+        listener.mockImplementationOnce(() => { shownWhenReported = toastState.current; });
+
+        await expect(restoreLocal()).resolves.toBe('failed');
+        expect(shownWhenReported).toEqual({ type: 'info', text: 'status.localSongNotInLibrary' });
+        expect(listener).toHaveBeenCalledOnce();
         expect(listener).toHaveBeenCalledWith({ song: localSong, reason: null, phase: 'restore', willAutoSkip: false });
+    });
+
+    it('reports a local file that can no longer be opened', async () => {
+        vi.mocked(getLocalSongs).mockResolvedValueOnce([localRecord]);
+        vi.mocked(getAudioFromLocalSong).mockResolvedValueOnce(null);
+
+        await expect(restoreLocal()).resolves.toBe('failed');
+        expect(toastState.current).toEqual({ type: 'info', text: 'status.localFileReauthorize' });
+        expect(listener).toHaveBeenCalledOnce();
+    });
+
+    it('neither shows nor reports a missing song the listener left while the library loaded', async () => {
+        vi.mocked(getLocalSongs).mockImplementationOnce(async () => {
+            playbackState.currentSong = otherSong;
+            return [];
+        });
+
+        await expect(restoreLocal()).resolves.toBe('stale');
+        expect(setStatusMsgMock).not.toHaveBeenCalled();
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('neither shows nor reports an unreadable file the listener left while it was opening', async () => {
+        vi.mocked(getLocalSongs).mockResolvedValueOnce([localRecord]);
+        vi.mocked(getAudioFromLocalSong).mockImplementationOnce(async () => {
+            playbackState.currentSong = otherSong;
+            return null;
+        });
+
+        await expect(restoreLocal()).resolves.toBe('stale');
+        expect(setStatusMsgMock).not.toHaveBeenCalled();
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['the file opens', () => {
+            vi.mocked(getAudioFromLocalSong).mockImplementationOnce(async () => {
+                playbackState.currentSong = otherSong;
+                return 'blob:folia/local';
+            });
+        }],
+        ['the cover and catalog load', () => {
+            vi.mocked(getAudioFromLocalSong).mockResolvedValueOnce('blob:folia/local');
+            vi.mocked(ensureLocalSongCoverAsset).mockResolvedValueOnce(localRecord);
+            vi.mocked(getLocalLibraryCatalogSnapshot).mockImplementationOnce(async () => {
+                playbackState.currentSong = otherSong;
+                return {} as never;
+            });
+        }],
+    ] as const)('drops a local source when the listener moves on while %s', async (_case, arrange) => {
+        const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+        vi.mocked(getLocalSongs).mockResolvedValueOnce([localRecord]);
+        arrange();
+
+        await expect(restoreLocal()).resolves.toBe('stale');
+        expect(revokeSpy).toHaveBeenCalledWith('blob:folia/local');
+        expect(setCurrentSongMock).not.toHaveBeenCalled();
+        expect(setAudioSrcMock).not.toHaveBeenCalled();
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('does not replace a persistent toast with its local failure line, nor report it', async () => {
+        const newerToast = { type: 'error', text: 'status.songNetworkFailed', persistent: true };
+        toastState.current = newerToast;
+
+        await expect(restoreLocal()).resolves.toBe('failed');
+        expect(toastState.current).toBe(newerToast);
+        expect(listener).not.toHaveBeenCalled();
     });
 });
