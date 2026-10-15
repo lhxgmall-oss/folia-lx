@@ -166,8 +166,8 @@ describe('qqProvider', () => {
         resetQqProviderRuntimeCache();
     });
 
-    // 3.3.0 开放了推荐、歌单增删与收藏歌单；红心、收藏专辑、不喜欢与历史日推后端还没有，不能冒出来。
-    it('declares the 3.3.0 recommendations and mutations without the ones the backend lacks', () => {
+    // 3.3.0 开放了推荐、歌单增删与收藏歌单，3.3.1 补上红心与收藏专辑；不喜欢与历史日推后端还没有，不能冒出来。
+    it('declares the 3.3.1 recommendations and mutations without the ones the backend lacks', () => {
         expect(qqProvider.capabilities).toMatchObject({
             userLibrary: true,
             playlists: true,
@@ -181,7 +181,9 @@ describe('qqProvider', () => {
         expect(qqProvider.capabilities.personalFmModes).toBeFalsy();
         expect(qqProvider.capabilities.historyRecommendations).toBeFalsy();
         expect(Object.keys(qqProvider.recommendations ?? {}).sort()).toEqual(['getDailySongs', 'getPersonalFm', 'getRecommendedCollections']);
-        expect(Object.keys(qqProvider.mutations ?? {}).sort()).toEqual(['canAddToPlaylist', 'canEditPlaylistTracks', 'subscribePlaylist', 'updatePlaylistTracks']);
+        expect(Object.keys(qqProvider.mutations ?? {}).sort()).toEqual([
+            'canAddToPlaylist', 'canEditPlaylistTracks', 'likeSong', 'subscribeAlbum', 'subscribePlaylist', 'updatePlaylistTracks',
+        ]);
         expect(qqProvider.catalog?.getSubscriptionStatus).toBeTypeOf('function');
     });
 
@@ -630,7 +632,7 @@ describe('qqProvider', () => {
         requestMock.mockResolvedValue({ code: 200, playlist, total: 3, more: false });
 
         const firstPage = await qqProvider.library!.getUserPlaylists(123, 2, 0);
-        expect(requestMock).toHaveBeenCalledWith('user_playlist', {});
+        expect(requestMock).toHaveBeenCalledWith('user_playlist', { playCount: 1 });
         expect(firstPage.items.map(item => item.name)).toEqual(['我喜欢', '收藏歌单']);
         expect(firstPage).toMatchObject({ total: 3, hasMore: true, nextOffset: 2 });
 
@@ -640,6 +642,25 @@ describe('qqProvider', () => {
 
         const pastEnd = await qqProvider.library!.getUserPlaylists(123, 2, 4);
         expect(pastEnd).toMatchObject({ items: [], hasMore: false, nextOffset: 4 });
+    });
+
+    // `playCount=1` 时后端只给对得上的歌单补 `play_cnt`，Android 自建列表原本那个总是 0 的值会拿掉；没有就不显示，不补 0。
+    it('reads the play count the backend filled in and leaves it out where there is none', async () => {
+        requestMock.mockResolvedValue({
+            code: 200,
+            playlist: [
+                { tid: 8, dirId: 5, dirName: '自建歌单', songNum: 3, play_cnt: 1234 },
+                { tid: 9, dirId: 6, dirName: '没有播放数' },
+                { tid: 80001, dirId: 36, name: '收藏歌单', songnum: 9, play_cnt: 0 },
+            ],
+            total: 3,
+            more: false,
+            playCountComplete: false,
+        });
+
+        const page = await qqProvider.library!.getUserPlaylists(123, 50, 0);
+
+        expect(page.items.map(item => item.playCount)).toEqual([1234, undefined, 0]);
     });
 
     // 条目形状取自 2026-08-08 对真实账号的实测：收藏专辑走的是 profile-asset CGI，
@@ -721,7 +742,7 @@ describe('qqProvider', () => {
 
         for (const userId of ['', 0, '0', 123]) {
             await qqProvider.library!.getUserPlaylists(userId, 50, 0);
-            expect(requestMock).toHaveBeenLastCalledWith('user_playlist', {});
+            expect(requestMock).toHaveBeenLastCalledWith('user_playlist', { playCount: 1 });
         }
     });
 
@@ -763,6 +784,12 @@ describe('qqProvider', () => {
         await qqProvider.auth!.logout();
         expect(requestMock).not.toHaveBeenCalled();
         expect(clearSessionMock).toHaveBeenCalledTimes(2);
+    });
+
+    // 网页上的单曲页按 songmid 定位，与网易云的 `getSongPageUrl` 同一份契约：拿不到 songmid 就不给链接。
+    it('links a song to its QQ Music web page by songmid', () => {
+        expect(qqProvider.getSongPageUrl?.(normalizeQqSong(SEARCH_ITEM))).toBe('https://y.qq.com/n/ryqq/songDetail/003rJSwm3TechU');
+        expect(qqProvider.getSongPageUrl?.(normalizeQqSong({ ...SEARCH_ITEM, mid: '' }))).toBeNull();
     });
 
     it('routes search and lyrics through the existing QQ modules', async () => {
