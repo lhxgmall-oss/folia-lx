@@ -1063,14 +1063,17 @@ export interface FoliumPlaybackService {
     /**
      * Folium 1.5: a page of the play queue. `limit` defaults to 500, the most one call returns; without
      * `offset` the page is centred on the displayed song. Song refs come from a pool of 2,000 shared with
-     * every other song DTO, oldest dropped first, so read the pages you show rather than the whole queue.
+     * every other song DTO, the least recently handed out dropped first: every ref of the page you just read
+     * resolves, so read the pages you show rather than the whole queue.
      */
     getQueue(options?: { offset?: number; limit?: number }): FoliumQueueSnapshot;
     /**
-     * Folium 1.5: plays queue entry `index`, like clicking it in the host's queue panel. With
-     * `expectedRef`, resolves false without acting when that position no longer holds that song (the
-     * queue changed between your calls). False for an index out of range and during external Stage
-     * playback. Needs `playback.control`.
+     * Folium 1.5: plays queue entry `index`, with the same playback and navigation as clicking it in the
+     * host's queue panel; if it fails to play, the retry and skip buttons follow the queue as it is when
+     * pressed. In Personal FM, where the panel lists no queue, it plays the entry and FM stays on. With
+     * `expectedRef`, resolves false without acting when that position no longer holds that song (the queue
+     * changed between your calls). False for an index out of range and during external Stage playback.
+     * Needs `playback.control`.
      */
     playQueueItem(index: number, expectedRef?: string): Promise<boolean>;
 }

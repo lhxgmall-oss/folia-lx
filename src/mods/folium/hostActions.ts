@@ -34,8 +34,9 @@ export interface FoliumAppActions {
     previous: () => void;
     playSong: (song: SongResult) => void | Promise<void>;
     /**
-     * A queue panel click: plays `song` within `queue`, which must be the store's playQueue array
-     * itself, keeping Personal FM on when `isFm`.
+     * playQueueItem: plays `song` within `queue`, which must be the store's playQueue array itself
+     * (the queue controller then retries and skips a failure against the live queue), keeping
+     * Personal FM on when `isFm`.
      */
     playQueueSong: (song: SongResult, queue: SongResult[], isFm: boolean) => void | Promise<void>;
     enqueue: (song: SongResult) => void;

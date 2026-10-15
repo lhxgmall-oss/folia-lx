@@ -244,7 +244,7 @@ describe('online playback stop conditions', () => {
         const extra = makeSong('9');
         loader.mockResolvedValueOnce(failed('network')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/2.mp3' });
         const queue = controller();
-        // The store's own queue, the way handleNextTrack and the queue panel pass it.
+        // The store's own queue, the way handleNextTrack and Folium's playQueueItem pass it.
         await queue.playSong(songs[1], usePlaybackStore.getState().playQueue);
         const shown = message()!;
         const edited = [songs[0], songs[1], extra];

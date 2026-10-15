@@ -162,6 +162,10 @@ const describeSource = (song: SongResult): string | null => {
  * (playSong, enqueue, beforePlay.replaceWith) without ever holding a
  * SongResult. The same host object always gets the same token; the map is
  * bounded, so a token for a long-gone song eventually stops resolving.
+ * Eviction is least recently handed out, not oldest minted: a reused token
+ * moves to the end of the map, so minting the rest of one getQueue page (at
+ * most 500 songs, well under the bound) can never evict a token that same
+ * page has just returned.
  */
 const MAX_SONG_REFS = 2000;
 const refBySong = new WeakMap<SongResult, string>();
@@ -170,7 +174,12 @@ let refCounter = 0;
 
 const refFor = (song: SongResult): string => {
     const existing = refBySong.get(song);
-    if (existing && songByRef.has(existing)) return existing;
+    if (existing && songByRef.has(existing)) {
+        // Map keeps insertion order: delete and set again to mark the token as just used.
+        songByRef.delete(existing);
+        songByRef.set(existing, song);
+        return existing;
+    }
     refCounter += 1;
     const ref = `song-${refCounter.toString(36)}`;
     refBySong.set(song, ref);

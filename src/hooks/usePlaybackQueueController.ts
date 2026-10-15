@@ -460,8 +460,9 @@ export function usePlaybackQueueController({
         // out instead of replacing the song the user picked last.
         // An automix advance skips the hook (see `isAutomixAdvance`).
         const playSongCallId = ++playSongCallIdRef.current;
-        // 没传队列，或传的就是 store 里的当前队列（下一首 / 上一首 / 队列面板 / FM 续歌）：失败按钮按点击时的最新队列走。
+        // 没传队列，或传的就是 store 里的当前队列（下一首 / 上一首 / 模组 playQueueItem / FM 续歌）：失败按钮按点击时的最新队列走。
         // 只有还没写进 store 的显式队列（如从歌单点歌）才用快照。在 beforePlay 的 await 之前取，比较的是调用方看到的队列。
+        // 队列面板传的是 App 套过本地库展示信息的副本（playerDisplayQueue，每次都是新数组），不是 store 数组，所以也走快照。
         const queueFollowsStore = queue.length === 0 || queue === usePlaybackStore.getState().playQueue;
         const allowedSong = !options.isAutomixAdvance && hasBeforePlayHook()
             ? await runBeforePlayHook(requestedSong)

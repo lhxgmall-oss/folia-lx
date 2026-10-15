@@ -57,7 +57,13 @@ export const buildFoliumQueueSnapshot = (
     });
 };
 
-/** What playQueueItem hands to the host's playSong, exactly as a queue panel click would. */
+/*
+ * What playQueueItem hands to the host's playSong. Playback and navigation
+ * match a queue panel click, but the queue differs: the panel passes its
+ * display copy of the queue (local songs re-labelled from the library), so
+ * after a failed play its retry and skip replay that snapshot; this passes
+ * the store's own array, so they follow the queue as it is when pressed.
+ */
 export interface FoliumQueuePlayRequest {
     song: SongResult;
     /** The store's own playQueue array: the queue controller recognises it by identity. */

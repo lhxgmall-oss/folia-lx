@@ -21,7 +21,7 @@ import { usePlaybackStore } from '@/stores/usePlaybackStore';
 import { useAudioSettingsStore } from '@/stores/useAudioSettingsStore';
 import { useStatusMessageStore } from '@/stores/useStatusMessageStore';
 import { addFoliumEventHandler, removeFoliumEventHandlers } from '@/mods/folium/events';
-import { resolveFoliumSongRef } from '@/mods/folium/dto';
+import { resolveFoliumSongRef, toFoliumSong } from '@/mods/folium/dto';
 import { useFoliumHostActions, type FoliumAppActions } from '@/mods/folium/hostActions';
 import { createFoliumPlaybackService } from '@/mods/folium/services';
 import type { ModRuntimeInfo } from '@/mods/types';
@@ -32,7 +32,9 @@ import type { ModRuntimeInfo } from '@/mods/types';
 // playback.likeChanged follows the liked value getState() reports.
 // Folium 1.5: volume, mute and repeat mode go through the audio settings
 // store's own setters; getQueue pages the store queue around the displayed
-// song; playQueueItem plays an entry the way a queue panel click does.
+// song, and a page's refs stay valid when the ref pool is full; playQueueItem
+// plays an entry with the store's own queue array, so a failed play's retry
+// and skip follow the live queue.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -233,6 +235,32 @@ describe('folium play queue', () => {
         expect(resolveFoliumSongRef(page.items[1].song.ref)).toBe(queue[1]);
     });
 
+    it('keeps every ref of the page it returns when the ref pool is full', async () => {
+        const actions = appActions();
+        render(actions);
+        const playback = createFoliumPlaybackService(mod, 'main');
+        const mintFillers = (count: number, from: number) => {
+            for (let filler = 0; filler < count; filler += 1) toFoliumSong(song(from + filler));
+        };
+        // The first entry's ref is the oldest in a full pool (2,000) and the second has none yet: minting
+        // the second must not evict the ref the same page has just handed out for the first.
+        const [first, second] = [song(1), song(2)];
+        const firstRef = toFoliumSong(first)!.ref;
+        mintFillers(1999, 10_000);
+        usePlaybackStore.setState({ playQueue: [first, second] });
+        const { items } = playback.getQueue({ offset: 0, limit: 2 });
+        expect(items[0].song.ref).toBe(firstRef);
+        expect(items.map((item) => resolveFoliumSongRef(item.song.ref))).toEqual([first, second]);
+        await expect(playback.playQueueItem(0, items[0].song.ref!)).resolves.toBe(true);
+        expect((actions.playQueueSong as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe(first);
+
+        // Still bounded: reading the page counts as use, so the ref outlives 1,998 newer ones, not 2,000.
+        mintFillers(1998, 20_000);
+        expect(resolveFoliumSongRef(firstRef)).toBe(first);
+        mintFillers(1, 30_000);
+        expect(resolveFoliumSongRef(firstRef)).toBeNull();
+    });
+
     it('counts a song listed twice at its first position, matched by playback key', () => {
         render(appActions());
         const [a, b] = songs(2);
@@ -262,7 +290,7 @@ describe('folium play queue', () => {
         expect(playback.getQueue().kind).toBe('stage');
     });
 
-    it('plays an entry with the store queue array itself, like a queue panel click', async () => {
+    it('plays an entry with the store queue array itself', async () => {
         const actions = appActions();
         render(actions);
         const queue = songs(3);
