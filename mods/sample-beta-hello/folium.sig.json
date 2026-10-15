@@ -1,0 +1,10 @@
+{
+  "format": "folium-signature",
+  "version": 1,
+  "modId": "sample-beta-hello",
+  "modVersion": "1.0.0",
+  "digest": "sha256:c4211e46dcea5951ceacd74755ec83555ff849d13212155011d126f1974cd267",
+  "keyId": "folium-beta-2026-1",
+  "signedAt": "2026-10-15T06:48:50.866Z",
+  "signature": "4QWQ72IhVYzOvtUVXP4eWAicRzGlToMhbEN18vmipdDZQf5OmSydls2orAAP2Fr+SiuFfxi590RziVHwun4DCg=="
+}

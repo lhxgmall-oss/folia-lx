@@ -28,6 +28,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | `sample-progress-bar` | 改造进度条：按钮、样式、外部动态数据图层、设置分区、net.fetch、storage |
 | `more-progress-buttons` | 进度条两侧加「打乱队列」「音量」「喜爱」按钮，可分别关闭；用 `--folium-player-bar-extra` 把胶囊加宽补回轨道长度（1.3） |
 | `sample-rickroll` | 在播放页嵌入外部网页（stageLayers + ui.embed + embedOrigins） |
+| `sample-beta-hello` | 先行测试渠道的最小示例：启用后在控制台打印 hello world，用先行测试密钥签名 |
 
 ## 安全声明（重要）
 
@@ -64,9 +65,9 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 `revoked-mod`（该版本已被官方撤回）、`bad-signature`、`malformed`、`unverifiable`。
 
 **先行测试**：folium-compound 把社区模组分为正式发布和先行测试两个渠道。先行测试模组用单独的密钥
-（`folium-beta-2026-1`）签名，定位是「仅通过了安全审查，不保证功能实现的整洁，甚至功能可以完全无法工作」，
+（`folium-beta-2026-1`）签名，定位是「仅通过了安全审查，不保证功能实现的整洁，甚至功能可能完全无法工作」，
 主要供社区开发者做创意实验。渠道由签名密钥决定，写在 `trustedKeys.cjs` 里；不认识这把密钥的旧版宿主会把
-先行测试模组显示为签名不匹配（`unknown-key`）。
+先行测试模组显示为签名不匹配（`unknown-key`）。宿主不认识的渠道值同样按 `unknown-key` 处理，不会退回官方认证。
 
 **签名覆盖什么**（签名摘要 v1，与用于绑定启用确认的内容摘要是两套算法）：
 
@@ -85,8 +86,8 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 查询；新增、吊销密钥或撤回模组都要发新版才生效。轮换密钥时先发布带新公钥的宿主，再用新密钥签名，最后才把
 旧密钥标为 `revoked`（用已吊销密钥做的签名会显示为签名不匹配）。私钥泄露时立即吊销。
 
-本仓库 `mods/` 里的示范模组都已用官方密钥签名，`sampleMods.test.ts` 会校验它们；改动任何示范模组后都要
-用 folium-compound 的 `tools/sign.mjs` 重新签名，否则测试失败，开发时面板里也会显示「签名不匹配」。
+本仓库 `mods/` 里的示范模组都已用官方密钥签名（`sample-beta-hello` 用先行测试密钥签名，演示「先行测试」状态），
+`sampleMods.test.ts` 会校验它们；改动任何示范模组后都要用 folium-compound 的 `tools/sign.mjs` 重新签名，否则测试失败，开发时面板里也会显示「签名不匹配」。
 
 **第三方模组作者**不需要做任何事：不带签名的模组照常可以安装和启用，只是显示为「未验证」。想获得官方认证，
 就把模组提交到 folium-compound，审查通过后由维护者签名。
