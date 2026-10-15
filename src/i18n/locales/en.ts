@@ -3044,6 +3044,33 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_7_20": {
+      "intro": "0.7.20 fills in QQ Music with recommendations, likes, favorites and playlist editing; adds \"Skip songs that can't be played\"; makes desktop video export reliable for large files and on Linux; brings stem separation to Intel Macs; and lets mods add their own pages to the home screen.",
+      "qqMusic": {
+        "title": "QQ Music Catches Up",
+        "description": "Signed in to QQ Music, you now get daily recommendations, Personal FM and recommended playlists (recommended playlists work without signing in too). You can like songs, save playlists and albums, and add or remove songs in playlists you created; removing a song from \"Liked\" unlikes it. When a failed song may be blocked by membership or region, Folia says so as a likely cause. QQ doesn't support \"dislike\" yet, so the Personal FM trash button is greyed out."
+      },
+      "autoSkip": {
+        "title": "Skip Songs That Can't Be Played",
+        "description": "A new \"Skip songs that can't be played\" switch (off by default) sits in the queue card of the playback settings. When on, songs that need membership or purchase, are preview-only, are blocked in your region, or fail for an unknown reason count down and skip to the next track, just like removed songs. Songs that need you to sign in and network problems still stop and wait for you. It can also be toggled from the command palette."
+      },
+      "videoExport": {
+        "title": "More Reliable Video Export",
+        "description": "Desktop video export now writes to disk while recording, so large files such as 4K no longer fail at the last step. It also records Folia's own page directly: Linux (including Wayland) no longer fails to find a capture source, covered windows still record correctly, and 4K recording runs at a much higher frame rate. Exported MP4 files now show the right duration."
+      },
+      "automixIntelMac": {
+        "title": "Stem Separation on Intel Macs",
+        "description": "The stem separation model used by automix now runs on Intel Macs (macOS 13 or later), and separation is slightly faster on other platforms."
+      },
+      "modHomePages": {
+        "title": "Mods Can Add Home Pages",
+        "description": "Folium 1.5: mods can add their own pages to the home screen, next to the built-in tabs. They can read and change volume, mute and loop mode, view and play from the queue, and react to playback failures. The mod panel shows how much space each mod uses and can clear its cache; dropdowns in mod settings now match the rest of Folia. Mods from the community Beta channel are marked in purple and warn you before you enable them."
+      },
+      "stabilityFixes": {
+        "title": "Polish and Fixes",
+        "description": "The Bravais home settings tile now tells you when a new version is available. Searching from the Bravais home no longer shows an empty result page, and no longer searches the wrong platform on KuGou or QQ. Vertical Chinese labels no longer pile up on some Linux distributions, and artist or album posters no longer flash the default colors as they flip away. The desktop app tightens security checks on external links and internal messaging, and AI keys are only sent to the address they were saved for."
+      }
+    },
     "v0_7_19": {
       "intro": "0.7.19 turns the artist and album pages in Bravais into Tempera-style posters. When an online song fails to play, Folia now tells you the real reason instead of always saying it was removed; word-by-word visualizers such as Tempera split Chinese and Japanese lyrics more naturally; and the web version starts up offline again.",
       "artistPoster": {
