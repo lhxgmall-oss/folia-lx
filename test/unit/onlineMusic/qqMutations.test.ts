@@ -184,6 +184,8 @@ describe('QQ song like', () => {
 
     it('refuses a song without a songmid before issuing any request', async () => {
         await expect(qqMutations.likeSong!(101, true)).rejects.toMatchObject({ code: 'invalid-response' });
+        // 没有 mid 的条目 mediaId 会退成数字 id，不能拿它当 songmid。
+        await expect(qqMutations.likeSong!(song('', 101), true)).rejects.toMatchObject({ code: 'invalid-response' });
         expect(requestMock).not.toHaveBeenCalled();
     });
 });
