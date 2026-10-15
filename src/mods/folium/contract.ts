@@ -1316,22 +1316,6 @@ export interface FoliumStorage {
     keys(): Promise<string[]>;
 }
 
-/**
- * Folium 1.5, main entries only: `api.storage.paths`, the directories this mod writes its files to. Needs
- * the `filesystem.data` permission; without it, reading either path throws `permission-denied:filesystem.data`.
- * Each read creates the directory when it is missing. Clients get no paths: they have no file system.
- */
-export interface FoliumModPaths {
-    /** Files to keep: `<userData>/mods-data/<id>/files`, beside (not holding) the `folium.storage` data file. */
-    readonly data: string;
-    /**
-     * Files the mod can rebuild: `<userData>/mods-cache/<id>`. The user can empty it from the mods panel at
-     * any time, even while the mod runs, so expect files to vanish; the host sets no size limit, so cap it
-     * yourself.
-     */
-    readonly cache: string;
-}
-
 /** `folium.rpc`: calls into this mod's main entry. */
 export interface FoliumRpc {
     /**
@@ -1392,4 +1376,26 @@ export interface FoliumClientApi {
 export interface FoliumClientModule {
     /** `activate(folium)`; may return a disposer, which runs before the host removes the mod's registrations. */
     default: (folium: FoliumClientApi) => void | FoliumDisposer | Promise<void | FoliumDisposer>;
+}
+
+// ---------------------------------------------------------------- Main entry
+// Shapes of objects on the main (Node) entry's `activate(api)` parameter. That
+// `api` is plain JS (electron/modSystem/modApi.cjs) and its member table is
+// written by hand in dev/folium/api-docs.mjs; types here are listed under the
+// main entry heading of the reference, never under the client entry.
+
+/**
+ * Folium 1.5, main entries only: `api.storage.paths`, the directories this mod writes its files to. Needs
+ * the `filesystem.data` permission; without it, reading either path throws `permission-denied:filesystem.data`.
+ * Each read creates the directory when it is missing. Clients get no paths: they have no file system.
+ */
+export interface FoliumModPaths {
+    /** Files to keep: `<userData>/mods-data/<id>/files`, beside (not holding) the `folium.storage` data file. */
+    readonly data: string;
+    /**
+     * Files the mod can rebuild: `<userData>/mods-cache/<id>`. The user can empty it from the mods panel at
+     * any time, even while the mod runs, so expect files to vanish; the host sets no size limit, so cap it
+     * yourself.
+     */
+    readonly cache: string;
 }

@@ -168,7 +168,7 @@ const SECTION_INFO = {
     'Client API': {
         order: 1,
         title: '客户端入口',
-        intro: '模组的 `client` 入口默认导出 `activate(folium)`，参数就是 [FoliumClientApi](#foliumclientapi)，所有能力都从这里取。[FoliumModPaths](#foliummodpaths)（1.5）例外：它只属于 main 入口的 `api.storage.paths`，见 [main 入口](#main-入口node)。',
+        intro: '模组的 `client` 入口默认导出 `activate(folium)`，参数就是 [FoliumClientApi](#foliumclientapi)，所有能力都从这里取。',
     },
     'Registry definitions': {
         order: 2,
@@ -217,6 +217,10 @@ const SECTION_INFO = {
     },
 };
 
+// Contract section whose types describe objects on the main entry's `api`. They render under
+// MAIN_ENTRY_API's heading, after its member table, instead of as a section of their own.
+export const MAIN_ENTRY_SECTION = 'Main entry';
+
 const anchorOf = (name) => name.toLowerCase();
 
 const escapeCell = (value) => value.replace(/\|/g, '\\|').replace(/\n+/g, ' ');
@@ -251,7 +255,10 @@ const renderItem = (item, known) => {
     return lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
 };
 
-/* The main (Node) entry API: plain JS in electron/modSystem/modApi.cjs, documented by hand. */
+/*
+ * The main (Node) entry API: plain JS in electron/modSystem/modApi.cjs, documented by hand. The types its
+ * rows link to (the contract's MAIN_ENTRY_SECTION) are rendered right after this table.
+ */
 const MAIN_ENTRY_API = `## main 入口（Node）
 
 \`mod.json\` 的 \`main\` 指向一个 \`.cjs\` / \`.js\` 文件，导出 \`activate(api)\`，在主进程运行，拥有完整 Node.js 权限。
@@ -280,10 +287,13 @@ module.exports = function activate(api) {
 
 /* The whole reference as markdown. */
 export const renderApiDocs = (contractText) => {
-    const sections = parseContract(contractText)
+    const parsed = parseContract(contractText);
+    const mainEntryItems = parsed.filter((section) => section.title === MAIN_ENTRY_SECTION).flatMap((section) => section.items);
+    const sections = parsed
+        .filter((section) => section.title !== MAIN_ENTRY_SECTION)
         .map((section) => ({ ...section, info: SECTION_INFO[section.title] ?? { order: 99, title: section.title, intro: '' } }))
         .sort((left, right) => left.info.order - right.info.order);
-    const known = new Set(sections.flatMap((section) => section.items.map((item) => item.name)));
+    const known = new Set(parsed.flatMap((section) => section.items.map((item) => item.name)));
     const version = /FOLIUM_VERSION = Object\.freeze\(\{ major: (\d+), minor: (\d+) \}\)/.exec(contractText);
 
     const out = [
@@ -300,7 +310,7 @@ export const renderApiDocs = (contractText) => {
         '## 目录',
         '',
         ...sections.map((section) => `- **${section.info.title}**：${section.items.map((item) => `[${item.name}](#${anchorOf(item.name)})`).join(' · ')}`),
-        '- **main 入口（Node）**：[api 对象](#main-入口node)',
+        `- **main 入口（Node）**：${['[api 对象](#main-入口node)', ...mainEntryItems.map((item) => `[${item.name}](#${anchorOf(item.name)})`)].join(' · ')}`,
         '',
     ];
     for (const section of sections) {
@@ -308,7 +318,9 @@ export const renderApiDocs = (contractText) => {
         if (section.info.intro) out.push(section.info.intro, '');
         for (const item of section.items) out.push(renderItem(item, known), '');
     }
-    out.push(MAIN_ENTRY_API);
+    out.push(MAIN_ENTRY_API, '');
+    if (mainEntryItems.length > 0) out.push('只属于 main 入口的类型，同样来自契约文件：', '');
+    for (const item of mainEntryItems) out.push(renderItem(item, known), '');
     return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
 };
 

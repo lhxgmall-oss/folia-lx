@@ -10,7 +10,7 @@
 
 ## 目录
 
-- **客户端入口**：[FoliumContextKind](#foliumcontextkind) · [FoliumHostInfo](#foliumhostinfo) · [FoliumStorage](#foliumstorage) · [FoliumModPaths](#foliummodpaths) · [FoliumRpc](#foliumrpc) · [FoliumLogger](#foliumlogger) · [FoliumClientApi](#foliumclientapi) · [FoliumClientModule](#foliumclientmodule)
+- **客户端入口**：[FoliumContextKind](#foliumcontextkind) · [FoliumHostInfo](#foliumhostinfo) · [FoliumStorage](#foliumstorage) · [FoliumRpc](#foliumrpc) · [FoliumLogger](#foliumlogger) · [FoliumClientApi](#foliumclientapi) · [FoliumClientModule](#foliumclientmodule)
 - **注册表与条目**：[FoliumVisualizerDef](#foliumvisualizerdef) · [FoliumTuningDef](#foliumtuningdef) · [FoliumCommandContext](#foliumcommandcontext) · [FoliumCommandDef](#foliumcommanddef) · [FoliumBackgroundContext](#foliumbackgroundcontext) · [FoliumBackgroundDef](#foliumbackgrounddef) · [FoliumStageSlot](#foliumstageslot) · [FoliumStageLayerDef](#foliumstagelayerdef) · [FoliumSettingsSectionDef](#foliumsettingssectiondef) · [FoliumPlayerPanelTabDef](#foliumplayerpaneltabdef) · [FoliumHomeTabDef](#foliumhometabdef) · [FoliumProgressContext](#foliumprogresscontext) · [FoliumControlSlot](#foliumcontrolslot) · [FoliumControlButtonDef](#foliumcontrolbuttondef) · [FoliumProgressLayerDef](#foliumprogresslayerdef) · [FoliumStyleDef](#foliumstyledef) · [FoliumRegistryHandle](#foliumregistryhandle) · [FoliumSettingsSectionHandle](#foliumsettingssectionhandle) · [FoliumRegistry](#foliumregistry) · [FoliumRegistries](#foliumregistries)
 - **宿主容器与上下文**：[FoliumMount](#foliummount) · [FoliumPanelContext](#foliumpanelcontext) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext) · [FoliumClock](#foliumclock) · [FoliumSurface](#foliumsurface) · [FoliumAudioBands](#foliumaudiobands) · [FoliumAudio](#foliumaudio) · [FoliumDisplay](#foliumdisplay) · [FoliumStageContext](#foliumstagecontext)
 - **事件**：[FoliumEventPriority](#foliumeventpriority) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumNotificationEvents](#foliumnotificationevents) · [FoliumLyricsTransformEvent](#foliumlyricstransformevent) · [FoliumBeforePlayEvent](#foliumbeforeplayevent) · [FoliumOmniLyricsEvent](#foliumomnilyricsevent) · [FoliumOmniAudioEvent](#foliumomniaudioevent) · [FoliumHookEvents](#foliumhookevents) · [FoliumEventMap](#foliumeventmap) · [FoliumEvents](#foliumevents)
@@ -20,11 +20,11 @@
 - **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
 - **实验接口**：[FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef)
 - **基础类型**：[FOLIUM_VERSION](#folium_version) · [FoliumId](#foliumid) · [FoliumLabel](#foliumlabel) · [FoliumDisposer](#foliumdisposer)
-- **main 入口（Node）**：[api 对象](#main-入口node)
+- **main 入口（Node）**：[api 对象](#main-入口node) · [FoliumModPaths](#foliummodpaths)
 
 ## 客户端入口
 
-模组的 `client` 入口默认导出 `activate(folium)`，参数就是 [FoliumClientApi](#foliumclientapi)，所有能力都从这里取。[FoliumModPaths](#foliummodpaths)（1.5）例外：它只属于 main 入口的 `api.storage.paths`，见 [main 入口](#main-入口node)。
+模组的 `client` 入口默认导出 `activate(folium)`，参数就是 [FoliumClientApi](#foliumclientapi)，所有能力都从这里取。
 
 ### FoliumContextKind
 
@@ -55,17 +55,6 @@ permission; values must be JSON-serializable.
 | `has()` | `(key: string): Promise<boolean>` | Whether the key exists. |
 | `delete()` | `(key: string): Promise<void>` | Removes the key. |
 | `keys()` | `(): Promise<string[]>` | All keys. |
-
-### FoliumModPaths
-
-Folium 1.5, main entries only: `api.storage.paths`, the directories this mod writes its files to. Needs
-the `filesystem.data` permission; without it, reading either path throws `permission-denied:filesystem.data`.
-Each read creates the directory when it is missing. Clients get no paths: they have no file system.
-
-| 成员 | 类型 | 说明 |
-| --- | --- | --- |
-| `readonly data` | `string` | Files to keep: `<userData>/mods-data/<id>/files`, beside (not holding) the `folium.storage` data file. |
-| `readonly cache` | `string` | Files the mod can rebuild: `<userData>/mods-cache/<id>`. The user can empty it from the mods panel at any time, even while the mod runs, so expect files to vanish; the host sets no size limit, so cap it yourself. |
 
 ### FoliumRpc
 
@@ -1308,3 +1297,16 @@ module.exports = function activate(api) {
 | `api.rpc.handle(name, fn)` | 注册客户端 `folium.rpc.call(name, ...args)` 调用的函数；名称匹配 `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/`，参数与返回值需可 JSON 序列化 |
 | `api.render.exportVideo(spec)` | 按当前歌曲、动画模式与参数导出透明视频；需要 `render.export` 与 ffmpeg |
 | `api.experimental` | 预留，目前为空 |
+
+只属于 main 入口的类型，同样来自契约文件：
+
+### FoliumModPaths
+
+Folium 1.5, main entries only: `api.storage.paths`, the directories this mod writes its files to. Needs
+the `filesystem.data` permission; without it, reading either path throws `permission-denied:filesystem.data`.
+Each read creates the directory when it is missing. Clients get no paths: they have no file system.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly data` | `string` | Files to keep: `<userData>/mods-data/<id>/files`, beside (not holding) the `folium.storage` data file. |
+| `readonly cache` | `string` | Files the mod can rebuild: `<userData>/mods-cache/<id>`. The user can empty it from the mods panel at any time, even while the mod runs, so expect files to vanish; the host sets no size limit, so cap it yourself. |
