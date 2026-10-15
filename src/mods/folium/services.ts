@@ -8,8 +8,10 @@ import type {
     FoliumFetchResponse,
     FoliumFileHandle,
     FoliumIconOptions,
+    FoliumLoopMode,
     FoliumNetService,
     FoliumPlaybackService,
+    FoliumQueueSnapshot,
     FoliumSong,
     FoliumUiService,
 } from './contract';
@@ -38,6 +40,16 @@ export interface FoliumHostActions {
     shuffleQueue: () => boolean;
     /** False when the displayed song cannot be liked right now. */
     toggleLike: () => boolean;
+    getVolume: () => { volume: number; muted: boolean };
+    /** Already clamped to 0–1 by the service. */
+    setVolume: (volume: number) => void;
+    setMuted: (muted: boolean) => void;
+    getLoopMode: () => FoliumLoopMode;
+    setLoopMode: (mode: FoliumLoopMode) => void;
+    /** `offset` is a whole number or undefined (centre on the displayed song); `limit` is 1–500. */
+    getQueue: (offset: number | undefined, limit: number) => FoliumQueueSnapshot;
+    /** False when the entry cannot be played: out of range, Stage playback, or no longer `expectedRef`. */
+    playQueueItem: (index: number, expectedRef: string | undefined) => Promise<boolean>;
     toast: (message: string, type: 'info' | 'success' | 'error', durationMs?: number) => void;
     openPlayerPanel: (tab: string | null) => void;
     navigate: (view: 'home' | 'player') => void;
@@ -73,6 +85,30 @@ const requireRef = (song: FoliumSong): string => {
     return song.ref;
 };
 
+const LOOP_MODES: readonly FoliumLoopMode[] = ['off', 'all', 'one'];
+// The most queue entries one getQueue call returns, and its default page size.
+const MAX_QUEUE_PAGE = 500;
+
+/*
+ * getQueue's options, checked: a value that is given must be a finite number
+ * (anything else throws rather than silently reading another page). Both are
+ * floored; the limit is clamped to 1–500 here, the offset to the queue length
+ * by the host, which is the side that knows the length.
+ */
+const resolveQueuePage = (options: { offset?: number; limit?: number } | undefined) => {
+    const { offset, limit } = options ?? {};
+    if (offset !== undefined && !Number.isFinite(offset)) {
+        throw new Error('playback.getQueue: offset must be a finite number');
+    }
+    if (limit !== undefined && !Number.isFinite(limit)) {
+        throw new Error('playback.getQueue: limit must be a finite number');
+    }
+    return {
+        offset: offset === undefined ? undefined : Math.floor(offset),
+        limit: limit === undefined ? MAX_QUEUE_PAGE : Math.min(MAX_QUEUE_PAGE, Math.max(1, Math.floor(limit))),
+    };
+};
+
 export const createFoliumPlaybackService = (mod: ModRuntimeInfo, context: FoliumContextKind): FoliumPlaybackService => {
     const control = () => {
         requirePermission(mod, PLAYBACK_CONTROL);
@@ -97,6 +133,28 @@ export const createFoliumPlaybackService = (mod: ModRuntimeInfo, context: Folium
         enqueue: (song: FoliumSong) => control().enqueueSongRef(requireRef(song)),
         shuffleQueue: () => control().shuffleQueue(),
         toggleLike: () => control().toggleLike(),
+        getVolume: () => requireActions('playback', context).getVolume(),
+        setVolume: (volume: number) => {
+            if (!Number.isFinite(volume)) throw new Error('playback.setVolume requires a finite number');
+            control().setVolume(Math.min(1, Math.max(0, volume)));
+        },
+        setMuted: (muted: boolean) => {
+            if (typeof muted !== 'boolean') throw new Error('playback.setMuted requires a boolean');
+            control().setMuted(muted);
+        },
+        getLoopMode: () => requireActions('playback', context).getLoopMode(),
+        setLoopMode: (mode: FoliumLoopMode) => {
+            if (!LOOP_MODES.includes(mode)) throw new Error(`playback.setLoopMode: unknown mode "${String(mode)}"`);
+            control().setLoopMode(mode);
+        },
+        getQueue: (options?: { offset?: number; limit?: number }) => {
+            const page = resolveQueuePage(options);
+            return requireActions('playback', context).getQueue(page.offset, page.limit);
+        },
+        playQueueItem: async (index: number, expectedRef?: string) => {
+            if (!Number.isInteger(index)) throw new Error('playback.playQueueItem requires an integer index');
+            return control().playQueueItem(index, expectedRef);
+        },
     });
 };
 

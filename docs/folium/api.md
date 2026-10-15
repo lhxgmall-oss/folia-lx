@@ -17,7 +17,7 @@
 - **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumNetService](#foliumnetservice)
 - **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
 - **参数 schema**：[FoliumParamType](#foliumparamtype) · [FoliumParamOption](#foliumparamoption) · [FoliumParam](#foliumparam) · [FoliumParamValues](#foliumparamvalues) · [FoliumParamAccess](#foliumparamaccess)
-- **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
+- **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
 - **实验接口**：[FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef)
 - **基础类型**：[FOLIUM_VERSION](#folium_version) · [FoliumId](#foliumid) · [FoliumLabel](#foliumlabel) · [FoliumDisposer](#foliumdisposer)
 - **main 入口（Node）**：[api 对象](#main-入口node)
@@ -560,8 +560,11 @@ Read-only notifications, emitted after the fact.
 | `visualizer.modeChanged` | `{ readonly mode: string }` | The lyric animation mode changed. |
 | `theme.changed` | `{ readonly theme: FoliumTheme }` | The theme or daylight mode changed. |
 | `playback.likeChanged` | `{ readonly liked: boolean }` | Folium 1.3: `playback.getState().liked` changed (a like or unlike, or a new song). |
+| `playback.volumeChanged` | `{ readonly volume: number; readonly muted: boolean }` | Folium 1.5: the volume or the mute switch changed, whoever changed it. |
+| `playback.loopModeChanged` | `{ readonly mode: FoliumLoopMode }` | Folium 1.5: the repeat mode changed. |
+| `playback.queueChanged` | `{ readonly length: number; readonly currentIndex: number }` | Folium 1.5: the queue changed, or the displayed song moved within it. Only the outline: call `playback.getQueue()` for the songs. Changes made in one task arrive as one event. |
 
-相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme)
+相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumLoopMode](#foliumloopmode)
 
 ### FoliumLyricsTransformEvent
 
@@ -660,8 +663,9 @@ The event bus, as `folium.events`.
 
 ### FoliumPlaybackService
 
-`folium.playback`. `getState` is always available; every other method needs the `playback.control`
-permission. All of it is unavailable in the export window.
+`folium.playback`. The readers (`getState`, and from Folium 1.5 `getVolume`, `getLoopMode` and `getQueue`)
+need no permission; every other method needs the `playback.control` permission. All of it is unavailable
+in the export window.
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
@@ -677,8 +681,15 @@ permission. All of it is unavailable in the export window.
 | `enqueue()` | `(song: FoliumSong): boolean` | Appends a song (by `ref`) to the queue. Needs `playback.control`. |
 | `shuffleQueue()` | `(): boolean` | Folium 1.3: shuffles the play queue, keeping the current song first. False when there is nothing to shuffle (Personal FM, a queue of one, external Stage playback). Needs `playback.control`. |
 | `toggleLike()` | `(): boolean` | Folium 1.3: likes or unlikes the displayed song, like the host's like button, which also reports the result. False when `canLike` is false. Needs `playback.control`. |
+| `getVolume()` | `(): { volume: number; muted: boolean }` | Folium 1.5: output volume (0–1) and the mute switch, which is separate from it. |
+| `setVolume()` | `(volume: number): void` | Folium 1.5: sets the volume, clamped to 0–1, the way the host's volume slider does; `muted` stays as it is. Every call is saved, so set the value you settled on rather than animating through it. Needs `playback.control`. |
+| `setMuted()` | `(muted: boolean): void` | Folium 1.5: mutes or unmutes. A set rather than a toggle, so two windows acting at once cannot cancel each other out. Needs `playback.control`. |
+| `getLoopMode()` | `(): FoliumLoopMode` | Folium 1.5: the repeat mode. |
+| `setLoopMode()` | `(mode: FoliumLoopMode): void` | Folium 1.5: sets the repeat mode; the host reports the change like its own repeat button does. Setting the mode already in effect does nothing. Needs `playback.control`. |
+| `getQueue()` | `(options?: { offset?: number; limit?: number }): FoliumQueueSnapshot` | Folium 1.5: a page of the play queue. `limit` defaults to 500, the most one call returns; without `offset` the page is centred on the displayed song. Song refs come from a pool of 2,000 shared with every other song DTO, oldest dropped first, so read the pages you show rather than the whole queue. |
+| `playQueueItem()` | `(index: number, expectedRef?: string): Promise<boolean>` | Folium 1.5: plays queue entry `index`, like clicking it in the host's queue panel. With `expectedRef`, resolves false without acting when that position no longer holds that song (the queue changed between your calls). False for an index out of range and during external Stage playback. Needs `playback.control`. |
 
-相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate)
+相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueSnapshot](#foliumqueuesnapshot)
 
 ### FoliumFileHandle
 
@@ -1058,6 +1069,38 @@ The host player state.
 type FoliumPlaybackState = 'playing' | 'paused' | 'stopped'
 ```
 
+### FoliumLoopMode
+
+Folium 1.5: the repeat mode. `all` repeats the queue, `one` the current song.
+
+```ts
+type FoliumLoopMode = 'off' | 'all' | 'one'
+```
+
+### FoliumQueueItem
+
+Folium 1.5: one entry of the play queue, as `folium.playback.getQueue()` lists it.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly song` | `FoliumSong` | The song; its `ref` works with playSong, enqueue and playQueueItem. |
+| `readonly index` | `number` | Its position in the host queue; stale as soon as the queue changes (`playback.queueChanged`). |
+
+相关：[FoliumSong](#foliumsong)
+
+### FoliumQueueSnapshot
+
+Folium 1.5: a page of the play queue, from `folium.playback.getQueue()`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly items` | `readonly FoliumQueueItem[]` | The requested page, in queue order; each item carries its absolute `index`. |
+| `readonly length` | `number` | Songs in the whole queue, not just this page. |
+| `readonly currentIndex` | `number` | Position of the displayed song in the queue; -1 when it is not in it. The host finds the current song by identity, so a song listed twice counts at its first position. |
+| `readonly kind` | `'queue' \| 'fm' \| 'stage'` | `queue`: the play queue. `fm`: Personal FM, whose queue is the current FM batch. `stage`: external Stage playback; the queue has nothing to do with what is playing, and playQueueItem refuses. |
+
+相关：[FoliumQueueItem](#foliumqueueitem)
+
 ### FoliumPlaybackSnapshot
 
 The whole playback picture, as main entries read it with `api.runtime.getPlaybackSnapshot()`.
@@ -1071,8 +1114,11 @@ The whole playback picture, as main entries read it with `api.runtime.getPlaybac
 | `lines` | `FoliumLine[]` | Lyrics of the displayed song. |
 | `theme` | `FoliumTheme \| null` | The current theme. |
 | `visualizerMode` | `string \| null` | The current lyric animation mode id. |
+| `volume` | `number` | Folium 1.5: output volume, 0–1. |
+| `muted` | `boolean` | Folium 1.5: the mute switch, separate from `volume`. |
+| `loopMode` | `FoliumLoopMode` | Folium 1.5: the repeat mode. |
 
-相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme)
+相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumLoopMode](#foliumloopmode)
 
 ### FoliumLyricFormat
 

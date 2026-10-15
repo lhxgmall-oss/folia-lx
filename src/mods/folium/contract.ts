@@ -224,6 +224,35 @@ export interface FoliumSong {
 /** The host player state. */
 export type FoliumPlaybackState = 'playing' | 'paused' | 'stopped';
 
+/** Folium 1.5: the repeat mode. `all` repeats the queue, `one` the current song. */
+export type FoliumLoopMode = 'off' | 'all' | 'one';
+
+/** Folium 1.5: one entry of the play queue, as `folium.playback.getQueue()` lists it. */
+export interface FoliumQueueItem {
+    /** The song; its `ref` works with playSong, enqueue and playQueueItem. */
+    readonly song: FoliumSong;
+    /** Its position in the host queue; stale as soon as the queue changes (`playback.queueChanged`). */
+    readonly index: number;
+}
+
+/** Folium 1.5: a page of the play queue, from `folium.playback.getQueue()`. */
+export interface FoliumQueueSnapshot {
+    /** The requested page, in queue order; each item carries its absolute `index`. */
+    readonly items: readonly FoliumQueueItem[];
+    /** Songs in the whole queue, not just this page. */
+    readonly length: number;
+    /**
+     * Position of the displayed song in the queue; -1 when it is not in it. The host finds the current
+     * song by identity, so a song listed twice counts at its first position.
+     */
+    readonly currentIndex: number;
+    /**
+     * `queue`: the play queue. `fm`: Personal FM, whose queue is the current FM batch. `stage`: external
+     * Stage playback; the queue has nothing to do with what is playing, and playQueueItem refuses.
+     */
+    readonly kind: 'queue' | 'fm' | 'stage';
+}
+
 /** The whole playback picture, as main entries read it with `api.runtime.getPlaybackSnapshot()`. */
 export interface FoliumPlaybackSnapshot {
     /** The displayed song. */
@@ -240,6 +269,12 @@ export interface FoliumPlaybackSnapshot {
     theme: FoliumTheme | null;
     /** The current lyric animation mode id. */
     visualizerMode: string | null;
+    /** Folium 1.5: output volume, 0–1. */
+    volume: number;
+    /** Folium 1.5: the mute switch, separate from `volume`. */
+    muted: boolean;
+    /** Folium 1.5: the repeat mode. */
+    loopMode: FoliumLoopMode;
 }
 
 /**
@@ -830,6 +865,15 @@ export interface FoliumNotificationEvents {
     'theme.changed': { readonly theme: FoliumTheme };
     /** Folium 1.3: `playback.getState().liked` changed (a like or unlike, or a new song). */
     'playback.likeChanged': { readonly liked: boolean };
+    /** Folium 1.5: the volume or the mute switch changed, whoever changed it. */
+    'playback.volumeChanged': { readonly volume: number; readonly muted: boolean };
+    /** Folium 1.5: the repeat mode changed. */
+    'playback.loopModeChanged': { readonly mode: FoliumLoopMode };
+    /**
+     * Folium 1.5: the queue changed, or the displayed song moved within it. Only the outline: call
+     * `playback.getQueue()` for the songs. Changes made in one task arrive as one event.
+     */
+    'playback.queueChanged': { readonly length: number; readonly currentIndex: number };
 }
 
 /**
@@ -918,8 +962,9 @@ export interface FoliumEvents {
 // ---------------------------------------------------------------- Services
 
 /**
- * `folium.playback`. `getState` is always available; every other method needs the `playback.control`
- * permission. All of it is unavailable in the export window.
+ * `folium.playback`. The readers (`getState`, and from Folium 1.5 `getVolume`, `getLoopMode` and `getQueue`)
+ * need no permission; every other method needs the `playback.control` permission. All of it is unavailable
+ * in the export window.
  */
 export interface FoliumPlaybackService {
     /**
@@ -971,6 +1016,39 @@ export interface FoliumPlaybackService {
      * Needs `playback.control`.
      */
     toggleLike(): boolean;
+    /** Folium 1.5: output volume (0–1) and the mute switch, which is separate from it. */
+    getVolume(): { volume: number; muted: boolean };
+    /**
+     * Folium 1.5: sets the volume, clamped to 0–1, the way the host's volume slider does; `muted` stays as
+     * it is. Every call is saved, so set the value you settled on rather than animating through it.
+     * Needs `playback.control`.
+     */
+    setVolume(volume: number): void;
+    /**
+     * Folium 1.5: mutes or unmutes. A set rather than a toggle, so two windows acting at once cannot cancel
+     * each other out. Needs `playback.control`.
+     */
+    setMuted(muted: boolean): void;
+    /** Folium 1.5: the repeat mode. */
+    getLoopMode(): FoliumLoopMode;
+    /**
+     * Folium 1.5: sets the repeat mode; the host reports the change like its own repeat button does.
+     * Setting the mode already in effect does nothing. Needs `playback.control`.
+     */
+    setLoopMode(mode: FoliumLoopMode): void;
+    /**
+     * Folium 1.5: a page of the play queue. `limit` defaults to 500, the most one call returns; without
+     * `offset` the page is centred on the displayed song. Song refs come from a pool of 2,000 shared with
+     * every other song DTO, oldest dropped first, so read the pages you show rather than the whole queue.
+     */
+    getQueue(options?: { offset?: number; limit?: number }): FoliumQueueSnapshot;
+    /**
+     * Folium 1.5: plays queue entry `index`, like clicking it in the host's queue panel. With
+     * `expectedRef`, resolves false without acting when that position no longer holds that song (the
+     * queue changed between your calls). False for an index out of range and during external Stage
+     * playback. Needs `playback.control`.
+     */
+    playQueueItem(index: number, expectedRef?: string): Promise<boolean>;
 }
 
 /** A local file the user picked for this mod. */

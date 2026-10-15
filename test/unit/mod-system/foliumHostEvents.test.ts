@@ -19,6 +19,7 @@ vi.hoisted(() => {
 
 import type { Line, LyricData, SongResult } from '@/types';
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
+import { useAudioSettingsStore } from '@/stores/useAudioSettingsStore';
 import { applyLyricsTransform, hasBeforePlayHook, runBeforePlayHook, untransformedLyrics } from '@/services/hostExtensionHooks';
 import { installFoliumHostEvents } from '@/mods/folium/hostEvents';
 import { addFoliumEventHandler, removeFoliumEventHandlers } from '@/mods/folium/events';
@@ -30,6 +31,9 @@ import { buildLineRenderHints } from '@/utils/lyrics/renderHints';
 // the end of the lyrics pipeline (untouched lines keep their host data, the
 // transform never stacks on its own output), and
 // playback.beforePlay in front of playSong (cancel, replace, pass-through).
+// Folium 1.5 notifications from the same wiring: volumeChanged and
+// loopModeChanged from the audio settings store, and queueChanged, one per
+// task, from the playback store.
 
 installFoliumHostEvents();
 
@@ -107,5 +111,106 @@ describe('playback.beforePlay hook', () => {
         expect(await runBeforePlayHook(song(3))).toBeNull();
         const untouched = song(4);
         expect(await runBeforePlayHook(untouched)).toBe(untouched);
+    });
+});
+
+describe('Folium 1.5 playback notifications', () => {
+    const song = (id: number) => ({ id, name: `s${id}`, artists: [], album: { name: '' } }) as unknown as SongResult;
+    const initialPlayback = usePlaybackStore.getState();
+    const initialAudio = useAudioSettingsStore.getState();
+    const flushMicrotasks = () => Promise.resolve();
+
+    // Handlers go first, so resetting the stores schedules nothing into the next test.
+    afterEach(async () => {
+        removeFoliumEventHandlers('mod-a');
+        usePlaybackStore.setState(initialPlayback, true);
+        useAudioSettingsStore.setState(initialAudio, true);
+        await flushMicrotasks();
+    });
+
+    it('reports volume and mute changes, whoever made them, once per change', () => {
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.volumeChanged', handler);
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false });
+        handler.mockClear();
+
+        useAudioSettingsStore.getState().handleSetVolume(0.5);
+        useAudioSettingsStore.getState().handleToggleMute();
+        useAudioSettingsStore.getState().handleSetMuted(true);
+        useAudioSettingsStore.getState().handleSetLoopMode('one');
+        expect(handler.mock.calls).toEqual([
+            [{ volume: 0.5, muted: false }],
+            [{ volume: 0.5, muted: true }],
+        ]);
+    });
+
+    it('reports repeat mode changes', () => {
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.loopModeChanged', handler);
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        handler.mockClear();
+
+        useAudioSettingsStore.getState().handleToggleLoopMode();
+        useAudioSettingsStore.getState().handleSetLoopMode('all');
+        useAudioSettingsStore.getState().handleSetLoopMode('off');
+        useAudioSettingsStore.getState().handleSetVolume(0.2);
+        expect(handler.mock.calls).toEqual([[{ mode: 'all' }], [{ mode: 'off' }]]);
+    });
+
+    it('turns the queue changes of one task into one event, read once they settled', async () => {
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.queueChanged', handler);
+        const queue = [song(1), song(2), song(3)];
+        usePlaybackStore.setState({ playQueue: queue });
+        usePlaybackStore.setState({ currentSong: queue[1] });
+        usePlaybackStore.setState({ isFmMode: true });
+        expect(handler).not.toHaveBeenCalled();
+        await flushMicrotasks();
+        expect(handler.mock.calls).toEqual([[{ length: 3, currentIndex: 1 }]]);
+    });
+
+    it('reports a shuffle even though the length and the current index stay the same', async () => {
+        const queue = [song(1), song(2), song(3)];
+        usePlaybackStore.setState({ playQueue: queue, currentSong: queue[0] });
+        await flushMicrotasks();
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.queueChanged', handler);
+        usePlaybackStore.setState({ playQueue: [queue[0], queue[2], queue[1]] });
+        await flushMicrotasks();
+        expect(handler.mock.calls).toEqual([[{ length: 3, currentIndex: 0 }]]);
+    });
+
+    it('reports the displayed song moving, FM and Stage switches, but not changes that leave the outline alone', async () => {
+        const queue = [song(1), song(2), song(3)];
+        usePlaybackStore.setState({ playQueue: queue, currentSong: queue[0] });
+        await flushMicrotasks();
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.queueChanged', handler);
+
+        // The same song as a fresh object (the host does this when a song starts), and an unrelated field.
+        usePlaybackStore.setState({ currentSong: { ...queue[0] } as SongResult });
+        usePlaybackStore.setState({ currentLineIndex: 4 });
+        await flushMicrotasks();
+        expect(handler).not.toHaveBeenCalled();
+
+        usePlaybackStore.setState({ currentSong: queue[2] });
+        await flushMicrotasks();
+        usePlaybackStore.setState({ isFmMode: true });
+        await flushMicrotasks();
+        usePlaybackStore.setState({ activePlaybackContext: 'stage' });
+        await flushMicrotasks();
+        expect(handler.mock.calls).toEqual([
+            [{ length: 3, currentIndex: 2 }],
+            [{ length: 3, currentIndex: 2 }],
+            [{ length: 3, currentIndex: 2 }],
+        ]);
+    });
+
+    it('schedules nothing while nobody listens', async () => {
+        usePlaybackStore.setState({ playQueue: [song(1)] });
+        const handler = vi.fn();
+        addFoliumEventHandler('mod-a', 'playback.queueChanged', handler);
+        await flushMicrotasks();
+        expect(handler).not.toHaveBeenCalled();
     });
 });
