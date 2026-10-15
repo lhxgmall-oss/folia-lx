@@ -7,24 +7,15 @@ import { SettingsToggle } from '../../components/modal/settings/SettingsRow';
 import type { ModRuntimeInfo } from '../types';
 import { ModSurfaceRenderer } from '../ModSurfaceRenderer';
 import type { ModManagerClasses } from './modManagerClasses';
+import { translateModError } from './modErrors';
+import { MOD_FILES_PERMISSION, ModStorageUsage, type ModNotice } from './ModStorageUsage';
 
 // src/mods/manager/ModListItem.tsx
 // One mod as a row of the manager's list card. The row expands in place to show the mod's
 // metadata, grants, signature state and its own command surface, so params get the full width.
 
-/*
- * Maps a loader error code onto its localized message. Codes that have no entry
- * (a raw JS message from a mod's own failure) fall through to themselves, and
- * `value` is supplied for the messages that quote the underlying detail.
- */
-export const translateModError = (
-    t: (key: string, options: Record<string, unknown>) => string,
-    error: string | null | undefined,
-    fallbackCode: string,
-): string => {
-    const code = error ?? fallbackCode;
-    return t(`mods.errors.${code}`, { value: code, defaultValue: code });
-};
+// Moved to modErrors.ts so the row's storage section can share it without importing this file back.
+export { translateModError };
 
 /*
  * Everything the trust dialog listed for this mod, as chips: permissions,
@@ -143,10 +134,12 @@ type ModListItemProps = {
     onToggleExpand: () => void;
     onToggleEnabled: () => void;
     onToggleSelected: () => void;
+    /** Reports an outcome in the manager's notice line (the storage section's "clear cache"). */
+    onNotice: (notice: ModNotice) => void;
 };
 
 export const ModListItem: React.FC<ModListItemProps> = ({
-    mod, expanded, selected, selectionMode, isLast, isDaylight, theme, classes, onToggleExpand, onToggleEnabled, onToggleSelected,
+    mod, expanded, selected, selectionMode, isLast, isDaylight, theme, classes, onToggleExpand, onToggleEnabled, onToggleSelected, onNotice,
 }) => {
     const { t } = useTranslation();
     const grants = describeModGrants(mod);
@@ -251,6 +244,10 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                                     <TriangleAlert size={14} className="mt-px shrink-0" />
                                     <span className="break-all">{translateModError(t, mod.error, 'unknown')}</span>
                                 </div>
+                            ) : null}
+                            {/* Mounted with the expanded row, so the directories are only counted when looked at. */}
+                            {mod.permissions.includes(MOD_FILES_PERMISSION) ? (
+                                <ModStorageUsage mod={mod} isDaylight={isDaylight} classes={classes} onNotice={onNotice} />
                             ) : null}
 
                             {mod.status === 'loaded' ? (

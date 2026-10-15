@@ -405,6 +405,7 @@ export default {
     "songUnavailableAlternativeDefaultType": "Versi lain bisa diputar",
     "playAlternativeVersion": "Putar versi alternatif",
     "playbackErrorPrompt": "Pemutaran gagal. Akan dilewati otomatis dalam {{seconds}} detik",
+    "songUnplayableSkipPrompt": "Lagu ini tidak dapat diputar. Dilewati dalam {{seconds}} detik",
     "skipUnavailableAction": "Lewati",
     "cancel": "Batal",
     "confirm": "Konfirmasi",
@@ -826,6 +827,7 @@ export default {
       "settings-toggle-auto-play-on-launch": { "title": "Putar otomatis saat dibuka", "description": "Alihkan apakah membuka aplikasi langsung melanjutkan sesi terakhir" },
       "settings-toggle-transcode-fallback": { "title": "Konversi audio yang tidak didukung", "description": "Alihkan pemulihan Electron untuk audio lokal dan Navidrome yang tidak dapat didekode Chromium" },
       "settings-toggle-playback-fade": { "title": "Fade saat jeda dan lanjut", "description": "Alihkan fade singkat saat menjeda dan melanjutkan pemutaran" },
+      "settings-toggle-auto-skip-unplayable": { "title": "Lewati lagu yang tidak dapat diputar", "description": "Alihkan hitung mundur untuk melewati lagu yang dibatasi atau gagal diputar tanpa alasan yang jelas" },
       "settings-toggle-bottom-subtitle-overlay": { "title": "Alihkan overlay subtitle bawah", "description": "Tampilkan atau sembunyikan seluruh overlay subtitle bawah" },
       "settings-cycle-subtitle-content-mode": { "title": "Putar mode konten subtitle", "description": "Putar konten subtitle antara terjemahan, romanisasi, dan romanisasi plus terjemahan" },
       "settings-toggle-subtitle-background": { "title": "Alihkan latar subtitle", "description": "Tampilkan atau sembunyikan latar belakang subtitle untuk keterbacaan" },
@@ -837,6 +839,7 @@ export default {
   },
   "ui": {
     "noTrack": "Tidak Ada Trek",
+    "selectPlaceholder": "Pilih...",
     "previousTrack": "Lagu sebelumnya",
     "nextTrack": "Lagu berikutnya",
     "stageTrackPillNext": "Selanjutnya diputar",
@@ -1053,6 +1056,8 @@ export default {
     }
   },
   "mods": {
+    "homeBackToLibrary": "Kembali ke pustaka",
+    "homePageNavigation": "Halaman beranda",
     "title": "Manajer Mod",
     "experimental": "Eksperimental",
     "warning": "Mod kompatibel dengan Folium v{{version}}. Mod bertanda Terverifikasi telah ditinjau dan ditandatangani Folium; selebihnya mod pihak ketiga yang belum ditinjau. Terverifikasi atau tidak, setelah diaktifkan mod berjalan dengan hak penuh aplikasi (termasuk runtime Node.js dan pengaturan apa pun seperti URL dan kunci layanan AI). Aktifkan hanya mod dari sumber tepercaya.",
@@ -1110,6 +1115,13 @@ export default {
     "dropZipHint": "Seret berkas .zip mod ke sini untuk memasangnya",
     "installing": "Memasang mod…",
     "installSuccess": "Mod terpasang: {{id}} (bisa dinonaktifkan atau diperbarui dari daftar)",
+    "storageData": "Data {{size}}",
+    "storageCache": "Cache {{size}}",
+    "storageCacheBroken": "Folder cache rusak (berupa berkas atau tautan mati); bersihkan untuk memulihkan",
+    "clearCache": "Bersihkan cache",
+    "clearingCache": "Membersihkan…",
+    "cacheCleared": "Cache \"{{name}}\" dibersihkan, {{size}} dibebaskan",
+    "cacheClearedUncounted": "Cache \"{{name}}\" dibersihkan",
     "errors": {
       "no-electron-bridge": "Sistem mod tidak tersedia di lingkungan ini",
       "open-directory-failed": "Gagal membuka folder mod: {{value}}",
@@ -1137,7 +1149,10 @@ export default {
       "export-duration-too-long": "Rentang ekspor terlalu panjang (maks 15 menit)",
       "export-unsupported-platform": "Ekspor tidak didukung di platform ini",
       "export-capture-empty": "Pengambilan frame gagal; jendela render mengembalikan frame kosong",
-      "export-cancelled": "Ekspor dibatalkan"
+      "export-cancelled": "Ekspor dibatalkan",
+      "storage-usage-failed": "Tidak dapat menghitung ruang yang dipakai mod ini",
+      "cache-clear-failed": "Gagal membersihkan cache",
+      "cache-clear-partial": "Sebagian cache tidak dapat dibersihkan karena mod sedang memakai berkas tersebut. Nonaktifkan mod lalu coba lagi."
     },
     "warnings": {
       "export-alpha-unavailable": "Platform ini tidak mempertahankan saluran alpha; video memiliki latar pekat. Gunakan mode latar tema dengan animasi teks, atau ekspor di Windows.",
@@ -2390,6 +2405,8 @@ export default {
     "transcodeFallbackDesc": "Di Electron, gunakan FFmpeg untuk memulihkan trek lokal dan Navidrome yang tidak dapat didekode Chromium tanpa mengubah file asli.",
     "playbackFade": "Fade saat jeda dan lanjut",
     "playbackFadeDesc": "Kecilkan suara sebentar sebelum menjeda dan naikkan kembali saat melanjutkan, bukan memotongnya. Fade dilewati bila audio tidak melalui mesin audio.",
+    "autoSkipUnplayable": "Lewati lagu yang tidak dapat diputar",
+    "autoSkipUnplayableDesc": "Bila lagu memerlukan langganan atau pembelian, hanya tersedia pratinjau, diblokir di wilayah Anda, atau gagal diputar tanpa alasan yang jelas, hitung mundur lalu lewati ke lagu berikutnya, seperti lagu yang telah dihapus. Lagu yang memerlukan login dan masalah jaringan tidak pernah dilewati.",
     "audioOutputDevice": "Perangkat Output Saat Ini",
     "audioOutputDeviceDesc": "Ganti output audio yang digunakan oleh pemutar saat ini. Target utama adalah desktop Electron, dan lingkungan browser juga berfungsi bila setSinkId tersedia.",
     "audioOutputRefresh": "Segarkan",

@@ -134,6 +134,33 @@ export interface ModsListPayload {
     directories: string[];
 }
 
+/**
+ * A mod's disk usage in bytes, for the mods panel (`folia-mods:storage-usage`). `data` is all of
+ * `mods-data/<id>` (the storage file and `paths.data`), `cache` is `mods-cache/<id>`; a missing
+ * directory counts 0. Works for disabled mods too.
+ */
+export interface ModStorageUsageResult {
+    ok: boolean;
+    data?: number;
+    cache?: number;
+    /**
+     * Only when true: `mods-cache/<id>` is a stray file or a dead link. It counts 0, but `paths.cache`
+     * throws on every read until "clear cache" removes the entry.
+     */
+    cacheBroken?: boolean;
+    error?: string;
+}
+
+/**
+ * The mods panel's "clear cache" (`folia-mods:clear-cache`): `cleared` entries removed from the top of
+ * `mods-cache/<id>`, which itself stays. `cache-clear-partial` when a running mod held some open.
+ */
+export interface ModClearCacheResult {
+    ok: boolean;
+    cleared?: number;
+    error?: string;
+}
+
 /*
  * What the renderer pushes to the main process whenever the playing song, its
  * lyrics, the theme or the visualizer settings change. Two halves that never mix:

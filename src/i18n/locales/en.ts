@@ -407,6 +407,7 @@ export default {
     "songUnavailableAlternativeDefaultType": "Another version can be played",
     "playAlternativeVersion": "Play alternate",
     "playbackErrorPrompt": "Playback failed. Auto-skipping in {{seconds}}s",
+    "songUnplayableSkipPrompt": "Can't play this song. Skipping in {{seconds}}s",
     "skipUnavailableAction": "Skip",
     "cancel": "Cancel",
     "confirm": "Confirm",
@@ -828,6 +829,7 @@ export default {
       "settings-toggle-auto-play-on-launch": { "title": "Auto-play on launch", "description": "Toggle whether opening the app resumes the last session by itself" },
       "settings-toggle-transcode-fallback": { "title": "Transcode unsupported audio", "description": "Toggle Electron recovery for local and Navidrome audio Chromium cannot decode" },
       "settings-toggle-playback-fade": { "title": "Fade on pause and resume", "description": "Toggle the short fade when pausing and resuming playback" },
+      "settings-toggle-auto-skip-unplayable": { "title": "Skip unplayable songs", "description": "Toggle counting down to a skip when a song is restricted or fails for an unknown reason" },
       "settings-toggle-bottom-subtitle-overlay": { "title": "Toggle bottom subtitle overlay", "description": "Show or hide the whole bottom subtitle overlay" },
       "settings-cycle-subtitle-content-mode": { "title": "Cycle subtitle content mode", "description": "Cycle subtitle content between translation, romanization, and romanization plus translation" },
       "settings-toggle-subtitle-background": { "title": "Toggle subtitle background", "description": "Show or hide the readability background behind visualizer subtitles" },
@@ -839,6 +841,7 @@ export default {
   },
   "ui": {
     "noTrack": "No Track",
+    "selectPlaceholder": "Select...",
     "previousTrack": "Previous track",
     "nextTrack": "Next track",
     "stageTrackPillNext": "Next playing",
@@ -1058,6 +1061,8 @@ export default {
     }
   },
   "mods": {
+    "homeBackToLibrary": "Back to library",
+    "homePageNavigation": "Home pages",
     "title": "Mod Manager",
     "experimental": "Experimental",
     "warning": "Mods are compatible with Folium v{{version}}. Mods marked Verified were reviewed and signed by Folium; all others are third-party and unreviewed. Verified or not, once enabled a mod runs with the full privileges of the app (including the Node.js runtime and any setting, such as the AI service URL and key). Only enable mods from trusted sources.",
@@ -1115,6 +1120,13 @@ export default {
     "dropZipHint": "Drop a mod .zip here to install it",
     "installing": "Installing mod…",
     "installSuccess": "Installed mod: {{id}} (you can disable or update it from the list)",
+    "storageData": "Data {{size}}",
+    "storageCache": "Cache {{size}}",
+    "storageCacheBroken": "Cache folder is broken (a file or a dead link); clear it to recover",
+    "clearCache": "Clear cache",
+    "clearingCache": "Clearing…",
+    "cacheCleared": "Cleared the cache of \"{{name}}\", freeing {{size}}",
+    "cacheClearedUncounted": "Cleared the cache of \"{{name}}\"",
     "errors": {
       "no-electron-bridge": "Mod system is unavailable in this environment",
       "open-directory-failed": "Could not open the mods folder: {{value}}",
@@ -1142,7 +1154,10 @@ export default {
       "export-duration-too-long": "Export range is too long (max 15 minutes)",
       "export-unsupported-platform": "Export is not supported on this platform",
       "export-capture-empty": "Frame capture failed; the render window returned an empty frame",
-      "export-cancelled": "Export was cancelled"
+      "export-cancelled": "Export was cancelled",
+      "storage-usage-failed": "Could not measure how much space this mod uses",
+      "cache-clear-failed": "Could not clear the cache",
+      "cache-clear-partial": "Part of the cache could not be cleared because the mod is using those files. Disable the mod and try again."
     },
     "warnings": {
       "export-alpha-unavailable": "This platform did not preserve the alpha channel; the video has an opaque background. Use a text-only mode with Theme background, or run the export on Windows.",
@@ -2524,6 +2539,8 @@ export default {
     "transcodeFallbackDesc": "In the Electron app, use FFmpeg to recover local and Navidrome tracks that Chromium cannot decode. The original file is not modified.",
     "playbackFade": "Fade on pause and resume",
     "playbackFadeDesc": "Fade the sound out briefly before pausing and back in when resuming, instead of cutting it. Skips the fade when audio is not routed through the audio engine.",
+    "autoSkipUnplayable": "Skip songs that can't be played",
+    "autoSkipUnplayableDesc": "When a song needs a membership or purchase, is preview-only, is blocked in your region or fails for an unknown reason, count down and skip to the next one, as with a taken-down song. Songs that need you to sign in, and network problems, are never skipped.",
     "audioOutputDevice": "Current Output Device",
     "audioOutputDeviceDesc": "Switch the audio output used by the current player. Electron desktop is the primary target, and browser environments also work when setSinkId is available.",
     "audioOutputRefresh": "Refresh",

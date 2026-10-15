@@ -110,6 +110,7 @@ const GeneralSettingsSubview: React.FC<GeneralSettingsSubviewProps> = ({
                             void onAppLanguagePreferenceChange(value as AppLanguagePreference);
                         }}
                         options={languageOptions}
+                        ariaLabel={t('options.appLanguage')}
                         isDaylight={isDaylight}
                         theme={theme}
                     />
