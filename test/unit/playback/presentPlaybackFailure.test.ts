@@ -7,8 +7,9 @@ import { presentPlaybackFailure, type PlaybackFailurePresentation } from '@/comp
 
 const network: PlaybackFailure = { reason: 'network', stage: 'resolve-url' };
 const takenDown: PlaybackFailure = { reason: 'taken-down', stage: 'resolve-url' };
+const membership: PlaybackFailure = { reason: 'membership-required', stage: 'resolve-url' };
 
-function setup(overrides: Partial<PlaybackFailurePresentation> = {}) {
+function setup(overrides: Partial<PlaybackFailurePresentation> = {}, autoSkipUnplayable = false) {
     let message: StatusMessage | null = null;
     const calls: string[] = [];
     const setStatusMsg = vi.fn((next: StatusMessage | null | ((prev: StatusMessage | null) => StatusMessage | null)) => {
@@ -24,6 +25,7 @@ function setup(overrides: Partial<PlaybackFailurePresentation> = {}) {
         setIsLyricsLoading: vi.fn(),
         showTimedSkipPrompt: vi.fn(),
         maxAutoSkipCount: 2,
+        getAutoSkipUnplayable: vi.fn(() => autoSkipUnplayable),
     };
     const input: PlaybackFailurePresentation = {
         failure: network,
@@ -157,5 +159,81 @@ describe('presentPlaybackFailure', () => {
         expect(message()).toMatchObject({
             text: 'status.songLoginRequired', actionLabel: 'status.skipUnavailableAction', cancelLabel: 'status.cancel',
         });
+    });
+});
+
+describe('presentPlaybackFailure with "skip unplayable songs"', () => {
+    it('stops on a restricted song while the setting is off', () => {
+        const { deps, message, present } = setup({ failure: membership });
+        present();
+        expect(deps.showTimedSkipPrompt).not.toHaveBeenCalled();
+        expect(deps.audioRef.current.pause).toHaveBeenCalledOnce();
+        expect(message()).toMatchObject({ text: 'status.songMembershipRequired', persistent: true });
+    });
+
+    it('counts down on a restricted song without stopping playback, like taken-down', () => {
+        let current = true;
+        const { deps, input, present } = setup({ failure: membership, isCurrent: () => current }, true);
+        present();
+        expect(deps.showTimedSkipPrompt).toHaveBeenCalledWith('status.songUnplayableSkipPrompt', expect.any(Function));
+        expect(deps.audioRef.current.pause).not.toHaveBeenCalled();
+        expect(deps.setPlayerState).not.toHaveBeenCalled();
+        expect(deps.shouldAutoPlayRef.current).toBe(true);
+        expect(deps.setStatusMsg).not.toHaveBeenCalled();
+
+        const onSkip = deps.showTimedSkipPrompt.mock.calls[0][1] as () => void;
+        current = false;
+        onSkip();
+        expect(input.skip).not.toHaveBeenCalled();
+        current = true;
+        onSkip();
+        expect(input.skip).toHaveBeenCalledOnce();
+    });
+
+    it('counts down on an unknown failure mid-playback', () => {
+        const { deps, present } = setup({ failure: { reason: 'unknown', stage: 'media-element' }, context: 'mid-playback' }, true);
+        present();
+        expect(deps.showTimedSkipPrompt).toHaveBeenCalledWith('status.songUnplayableSkipPrompt', expect.any(Function));
+        expect(deps.setPlayerState).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['the automatic skips are used up', { skipCount: 2 }],
+        ['there is no next song', { skip: undefined }],
+    ] as const)('falls back to the reason\'s own message and buttons when %s', (_case, overrides) => {
+        const { deps, message, present } = setup({ failure: membership, ...overrides }, true);
+        present();
+        expect(deps.showTimedSkipPrompt).not.toHaveBeenCalled();
+        expect(deps.audioRef.current.pause).toHaveBeenCalledOnce();
+        expect(deps.setPlayerState).toHaveBeenCalledWith(PlayerState.IDLE);
+        expect(message()?.text).toBe('status.songMembershipRequired');
+    });
+
+    it.each([
+        ['a sign-in failure', { reason: 'session-expired', stage: 'resolve-url' }],
+        ['a network failure', network],
+        ['unknown with a sign-in hint', { reason: 'unknown', stage: 'resolve-url', hint: 'sign-in-may-help' }],
+    ] as const)('still stops on %s', (_case, failure) => {
+        const { deps, present } = setup({ failure: failure as PlaybackFailure }, true);
+        present();
+        expect(deps.showTimedSkipPrompt).not.toHaveBeenCalled();
+        expect(deps.audioRef.current.pause).toHaveBeenCalledOnce();
+    });
+
+    it('reads the setting when presenting, not when the deps were built', () => {
+        let enabled = false;
+        const { deps, present } = setup({ failure: membership });
+        deps.getAutoSkipUnplayable.mockImplementation(() => enabled);
+        enabled = true;
+        present();
+        expect(deps.getAutoSkipUnplayable).toHaveBeenCalled();
+        expect(deps.showTimedSkipPrompt).toHaveBeenCalledOnce();
+    });
+
+    it('does not read the setting for a stale request', () => {
+        const { deps, present } = setup({ failure: membership, isCurrent: () => false }, true);
+        present();
+        expect(deps.getAutoSkipUnplayable).not.toHaveBeenCalled();
+        expect(deps.showTimedSkipPrompt).not.toHaveBeenCalled();
     });
 });

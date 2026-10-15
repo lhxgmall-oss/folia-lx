@@ -30,8 +30,13 @@ vi.mock('@/stores/usePlaybackStore', async importOriginal => {
     return { ...actual, usePlaybackStore: Object.assign(
         (selector: (state: unknown) => unknown) => selector(actual.usePlaybackStore.getState()), actual.usePlaybackStore) };
 });
+// 控制器在失败那一刻经 getState() 读「无法播放时自动跳过」；用例按需改 audioSettings.autoSkipUnplayable。
+const audioSettings = vi.hoisted(() => ({ audioQuality: 'high', loopMode: 'all', autoSkipUnplayable: false }));
 vi.mock('@/stores/useAudioSettingsStore', () => ({
-    useAudioSettingsStore: (selector: (state: unknown) => unknown) => selector({ audioQuality: 'high', loopMode: 'all' }),
+    useAudioSettingsStore: Object.assign(
+        (selector: (state: unknown) => unknown) => selector(audioSettings),
+        { getState: () => audioSettings },
+    ),
 }));
 vi.mock('@/stores/useSearchNavigationStore', () => ({
     useSearchNavigationStore: (selector: (state: unknown) => unknown) => selector({}),
@@ -104,6 +109,7 @@ beforeEach(() => {
     vi.mocked(loadOnlineLyricsState).mockReset().mockImplementation(async () => null);
     vi.mocked(getCachedSongCoverUrl).mockReset().mockImplementation(async () => null);
     playbackGenerationRef.current = 0;
+    audioSettings.autoSkipUnplayable = false;
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
     usePlaybackStore.setState({ activePlaybackContext: 'main', currentSong: songs[0], playQueue: songs,
         playerState: PlayerState.PLAYING, isFmMode: false, audioSrc: 'https://cdn.example/1.mp3' });
@@ -386,6 +392,100 @@ describe('taken-down songs', () => {
         await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 2 });
         expect(window.setTimeout).not.toHaveBeenCalled();
         expect(message()).toEqual({ type: 'error', text: 'status.songUnavailable' });
+    });
+});
+
+describe('skip unplayable songs setting', () => {
+    const extraSongs = ['4', '5'].map(makeSong);
+    const longQueue = [...songs, ...extraSongs];
+
+    it('counts a restricted song down to the next one and counts the skip', async () => {
+        audioSettings.autoSkipUnplayable = true;
+        loader.mockResolvedValueOnce(failed('membership-required')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        expect(queue.pause).not.toHaveBeenCalled();
+        expect(message()).toMatchObject({ text: 'status.songUnplayableSkipPrompt', persistent: true });
+        expect(getSongReplacement).not.toHaveBeenCalled();
+
+        const countdownSkip = vi.mocked(window.setTimeout).mock.calls[0][0] as () => void;
+        countdownSkip();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+
+    it('stops skipping restricted songs once the automatic skips are used up', async () => {
+        audioSettings.autoSkipUnplayable = true;
+        loader.mockResolvedValue(failed('region-restricted'));
+        usePlaybackStore.setState({ playQueue: longQueue });
+        const queue = controller();
+        await queue.playSong(longQueue[0], longQueue);
+
+        // 两次倒计时跳过（计数 1、2），第三首失败时次数已用尽：不再倒计时，退回该原因原本的停播消息与按钮。
+        for (let skipped = 1; skipped <= 2; skipped += 1) {
+            const countdownSkip = vi.mocked(window.setTimeout).mock.calls.at(-1)![0] as () => void;
+            countdownSkip();
+            await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(skipped + 1));
+            await vi.waitFor(() => expect(queue.playbackAutoSkipCountRef.current).toBe(skipped));
+        }
+        await vi.waitFor(() => expect(message()).toMatchObject({ text: 'status.songRegionRestricted', persistent: true }));
+        expect(window.setTimeout).toHaveBeenCalledTimes(2);
+        expect(loader.mock.calls.map(([song]) => song)).toEqual([longQueue[0], longQueue[1], longQueue[2]]);
+        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
+    });
+
+    it('does not count a skip past a network failure even with the setting on', async () => {
+        audioSettings.autoSkipUnplayable = true;
+        loader.mockResolvedValueOnce(failed('network')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 1 });
+        expect(window.setTimeout).not.toHaveBeenCalled();
+        expect(message()).toMatchObject({ text: 'status.songNetworkFailed', cancelLabel: 'status.skipUnavailableAction' });
+
+        message()?.onCancel?.();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(queue.playbackAutoSkipCountRef.current).toBe(0);
+    });
+
+    it('does not count a manual skip past a restricted song while the setting is off', async () => {
+        loader.mockResolvedValueOnce(failed('membership-required')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 1 });
+        expect(window.setTimeout).not.toHaveBeenCalled();
+        message()?.onAction?.();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(queue.playbackAutoSkipCountRef.current).toBe(0);
+    });
+
+    // 设置打开、次数已用尽：不再倒计时，退回常驻消息；用户手动点「跳过」仍算一次连跳，下一首受限时也不会重新开始倒计时。
+    it('counts a manual skip past a restricted song while the setting is on', async () => {
+        audioSettings.autoSkipUnplayable = true;
+        loader.mockResolvedValueOnce(failed('membership-required')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 2 });
+        expect(window.setTimeout).not.toHaveBeenCalled();
+        expect(message()).toMatchObject({ text: 'status.songMembershipRequired', actionLabel: 'status.skipUnavailableAction' });
+        message()?.onAction?.();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(3);
+    });
+
+    it('counts down on a mid-playback restricted failure and counts the skip', async () => {
+        audioSettings.autoSkipUnplayable = true;
+        loader.mockReturnValue(new Promise(() => undefined));
+        const queue = controller();
+        queue.skipAfterPlaybackFailure({ reason: 'preview-only', stage: 'refresh' }, { failedSongKey: getPlaybackSongKey(songs[0]) });
+        expect(message()).toMatchObject({ text: 'status.songUnplayableSkipPrompt', persistent: true });
+        expect(queue.pause).not.toHaveBeenCalled();
+
+        const countdownSkip = vi.mocked(window.setTimeout).mock.calls[0][0] as () => void;
+        countdownSkip();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
+        expect(loader.mock.calls[0][0]).toBe(songs[1]);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
     });
 });
 

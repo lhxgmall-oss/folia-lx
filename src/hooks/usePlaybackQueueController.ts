@@ -46,7 +46,7 @@ import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../stores/usePla
 import { useStableActionSurface } from './useStableCallbacks';
 import { hasBeforePlayHook, runBeforePlayHook } from '../services/hostExtensionHooks';
 import { classifyPlaybackError, isTransientPlaybackFailure } from '../services/playbackRecovery/onlinePlaybackFailure';
-import { PLAYBACK_RETRYING_MESSAGE_KEY } from '../services/playbackRecovery/playbackFailurePolicy';
+import { PLAYBACK_RETRYING_MESSAGE_KEY, isAutoSkipFailure } from '../services/playbackRecovery/playbackFailurePolicy';
 import { presentPlaybackFailure, type PlaybackFailurePresenterDeps } from '../components/app/playback/presentPlaybackFailure';
 
 // src/hooks/usePlaybackQueueController.ts
@@ -141,6 +141,9 @@ type UsePlaybackQueueControllerParams = {
 const MAX_UNAVAILABLE_AUTO_SKIP_COUNT = 2;
 const UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS = 5000;
 const UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS = 1000;
+
+// 「无法播放时自动跳过」在失败发生那一刻读取，不订阅：presenter 与连跳计数用的是同一刻的值。
+const readAutoSkipUnplayable = () => useAudioSettingsStore.getState().autoSkipUnplayable;
 
 const getStageSnapshotSongDurationMs = (song: SongResult | null, fallbackSec = 0): number => {
     return Math.max(0, Math.floor(getProviderSongMetadata(song).durationMs || fallbackSec * 1000 || 0));
@@ -440,6 +443,7 @@ export function usePlaybackQueueController({
     const presenterDeps = useMemo<PlaybackFailurePresenterDeps>(() => ({
         t, setStatusMsg, setPlayerState, audioRef, shouldAutoPlayRef, setIsLyricsLoading, showTimedSkipPrompt,
         maxAutoSkipCount: MAX_UNAVAILABLE_AUTO_SKIP_COUNT,
+        getAutoSkipUnplayable: readAutoSkipUnplayable,
     }), [audioRef, setIsLyricsLoading, shouldAutoPlayRef, showTimedSkipPrompt, t]);
 
     // Loads one requested song and normalizes queue behavior across sources.
@@ -517,9 +521,12 @@ export function usePlaybackQueueController({
         const providerId = getOnlineProviderIdForSong(song) ?? undefined;
 
         // 按策略表展示这次点歌的失败；“跳过”只在有下一首可播歌曲时提供，只有 taken-down 才累计连跳次数。
+        // 「无法播放时自动跳过」打开后受限类与原因不明也倒计时，同样要累计，否则会无限连跳：是否累计改由 isAutoSkipFailure
+        // 判断，与 presenter 用同一个策略、同一刻的设置。
         const presentOnlineFailure = (failure: PlaybackFailure) => {
             restoreFmModeIfNotLanded();
             const nextSong = getNextPlayableQueueSong(queueContext, song);
+            const skipCountAfterSkip = isAutoSkipFailure(failure, 'play', { autoSkipUnplayable: readAutoSkipUnplayable() }) ? skipCount + 1 : 0;
             // 按钮可能很久以后才被点：队列跟着 store 走时，读点击那一刻的主队列（Stage 期间主队列在 mainPlaybackSnapshotRef 里）。
             const readClickTimeQueue = (): SongResult[] | null => {
                 if (!queueFollowsStore) return null;
@@ -542,7 +549,7 @@ export function usePlaybackQueueController({
                     const targetQueue = readClickTimeQueue() ?? newQueue;
                     void latestQueueActionsRef.current.playSong(getNextPlayableQueueSong(targetQueue, song) ?? nextSong, targetQueue, isFmCall, {
                         ...deferredPlayOptions,
-                        unavailableSkipCount: failure.reason === 'taken-down' ? skipCount + 1 : 0,
+                        unavailableSkipCount: skipCountAfterSkip,
                     });
                 } : undefined,
             }, presenterDeps);
@@ -665,6 +672,7 @@ export function usePlaybackQueueController({
             }
 
             // 只有 taken-down 走替代版本与倒计时；其余原因按策略表停播并给出重试 / 跳过，保留队列。
+            // 「无法播放时自动跳过」打开时受限类与原因不明的失败也倒计时（不找替代版本），由 presenter 按策略决定。
             if (preloadedOnlineAudioResult.kind === 'failed') {
                 if (preloadedOnlineAudioResult.failure.reason === 'taken-down') await presentTakenDown(preloadedOnlineAudioResult.failure);
                 else presentOnlineFailure(preloadedOnlineAudioResult.failure);
@@ -1073,6 +1081,8 @@ export function usePlaybackQueueController({
         );
 
         if (failure) {
+            // 与点歌失败相同：只有走倒计时的原因才累计连跳次数（见 presentOnlineFailure）。
+            const skipCountAfterSkip = isAutoSkipFailure(failure, 'mid-playback', { autoSkipUnplayable: readAutoSkipUnplayable() }) ? skipCount + 1 : 0;
             presentPlaybackFailure({
                 failure, context: 'mid-playback', skipCount,
                 isCurrent: isFailedPlaybackCurrent,
@@ -1083,7 +1093,7 @@ export function usePlaybackQueueController({
                 skip: hasNextTrack ? () => void latestQueueActionsRef.current.handleNextTrack({
                     allowStopOnMissing: true,
                     shouldNavigateToPlayer: false,
-                    unavailableSkipCount: failure.reason === 'taken-down' ? skipCount + 1 : 0,
+                    unavailableSkipCount: skipCountAfterSkip,
                     fromSong: currentSong ?? undefined,
                 }) : undefined,
             }, presenterDeps);

@@ -7,6 +7,7 @@ import { buildPlaybackFailureStatus, resolvePlaybackFailurePolicy } from '../../
 // src/components/app/playback/presentPlaybackFailure.ts
 // 播放失败的展示层：按策略表决定倒计时跳歌、停播，还是给出带“重试 / 跳过”的常驻消息。
 // 只负责展示和停播，不决定原因；队列控制器在点歌失败和播放中失败时都交给这里。
+// 「无法播放时自动跳过」设置经 deps 的 getter 在展示那一刻读取，策略模块本身保持纯函数。
 
 export interface PlaybackFailurePresentation {
     failure: PlaybackFailure;
@@ -26,6 +27,8 @@ export interface PlaybackFailurePresenterDeps {
     setIsLyricsLoading: (value: boolean) => void;
     showTimedSkipPrompt: (key: SkipPromptMessageKey, onSkip: () => void) => void;
     maxAutoSkipCount: number;
+    /** 「无法播放时自动跳过」设置；每次展示时调用读取，deps 被 useMemo 缓存也拿得到最新值。 */
+    getAutoSkipUnplayable: () => boolean;
 }
 
 /** 按策略表展示一次失败：倒计时跳歌、停播提示或带按钮的持久消息。陈旧请求直接忽略。 */
@@ -33,10 +36,11 @@ export const presentPlaybackFailure = (input: PlaybackFailurePresentation, deps:
     const { failure, context, isCurrent, skipCount, retry, skip } = input;
     if (!isCurrent()) return;
 
-    const policy = resolvePlaybackFailurePolicy(failure, context);
+    const policy = resolvePlaybackFailurePolicy(failure, context, { autoSkipUnplayable: deps.getAutoSkipUnplayable() });
     deps.setIsLyricsLoading(false);
 
     // 只有 taken-down 会走到倒计时；次数用尽或没有下一首时落到下面的普通消息。
+    // 「无法播放时自动跳过」打开时受限类与原因不明也走这里；次数用尽时同样落到下面，用该原因原本的消息与按钮。
     if (policy.autoSkip === 'countdown' && policy.countdownKey && skip && skipCount < deps.maxAutoSkipCount) {
         deps.showTimedSkipPrompt(policy.countdownKey, () => {
             if (isCurrent()) skip();
