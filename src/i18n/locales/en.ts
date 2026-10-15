@@ -1071,7 +1071,7 @@ export default {
     "signatureUnsigned": "Unverified",
     "signatureUnsignedDetail": "No official signature: this is a third-party mod not reviewed by Folium. Only enable mods from sources you trust.",
     "signatureInvalid": "Signature mismatch",
-    "signatureInvalidDetail": "This mod is signed, but the signature does not check out ({{reason}}), so it is no longer officially verified. Usually its files were changed after signing; if you did not change them yourself, do not enable it.",
+    "signatureInvalidDetail": "This mod is signed, but the signature does not check out ({{reason}}), so the signature can no longer vouch for it. Usually its files were changed after signing; if you did not change them yourself, do not enable it.",
     "signatureReasons": {
       "malformed": "malformed signature file",
       "unknown-key": "untrusted signing key",

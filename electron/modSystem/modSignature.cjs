@@ -158,6 +158,12 @@ const publicKeyFor = (key) => {
 
 const invalid = (reason, extra = {}) => ({ status: 'invalid', reason, ...extra });
 
+// The status a valid signature reports, by the signing key's `channel`. A key
+// without one is a release key. Any other channel is not one this host knows,
+// so its signatures show as invalid (`unknown-key`) instead of falling back to
+// officially verified.
+const CHANNEL_STATUS = Object.freeze({ release: 'verified', beta: 'beta' });
+
 /*
  * Verifies a mod directory's signature against the host's trusted keys.
  * `manifest` is the validated manifest; the signature must name the same id
@@ -190,6 +196,8 @@ const verifyModSignature = (dirPath, manifest, options = {}) => {
     const base = { keyId: record.keyId, signedAt: record.signedAt };
     const key = keys.find((candidate) => candidate.keyId === record.keyId);
     if (!key) return invalid('unknown-key', base);
+    const channel = key.channel ?? 'release';
+    if (!Object.hasOwn(CHANNEL_STATUS, channel)) return invalid('unknown-key', base);
     const withKey = { ...base, keyLabel: key.label ?? null };
     if (key.revoked) return invalid('revoked-key', withKey);
     if (record.modId !== manifest?.id || record.modVersion !== manifest?.version) {
@@ -214,10 +222,11 @@ const verifyModSignature = (dirPath, manifest, options = {}) => {
     if (!actual) return invalid('unverifiable', withKey);
     if (actual !== record.digest) return invalid('digest-mismatch', withKey);
     if (revokedDigests.includes(actual)) return invalid('revoked-mod', withKey);
-    return { status: key.channel === 'beta' ? 'beta' : 'verified', ...withKey };
+    return { status: CHANNEL_STATUS[channel], ...withKey };
 };
 
 module.exports = {
+    CHANNEL_STATUS,
     SIGNATURE_FILE,
     SIGNATURE_FORMAT,
     SIGNATURE_VERSION,

@@ -1070,7 +1070,7 @@ export default {
     "signatureUnsigned": "未验证",
     "signatureUnsignedDetail": "没有官方签名：这是未经 Folium 审查的第三方模组，请只启用你信任来源的模组。",
     "signatureInvalid": "签名不匹配",
-    "signatureInvalidDetail": "模组带有签名，但校验失败（{{reason}}），不再视为官方认证。通常是签名后文件被改动过；如果不是你自己改的，请不要启用。",
+    "signatureInvalidDetail": "模组带有签名，但校验失败（{{reason}}），这份签名不能作为审查依据。通常是签名后文件被改动过；如果不是你自己改的，请不要启用。",
     "signatureReasons": {
       "malformed": "签名文件格式错误",
       "unknown-key": "签名密钥不受信任",

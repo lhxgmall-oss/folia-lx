@@ -54,7 +54,7 @@ const SignatureBadge: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean }> = (
     }
     if (status === 'beta') {
         return (
-            <span title={t('mods.signatureBeta')} className={`shrink-0 ${isDaylight ? 'text-amber-700' : 'text-amber-300'}`}>
+            <span title={t('mods.signatureBeta')} className={`shrink-0 ${isDaylight ? 'text-violet-600' : 'text-violet-300'}`}>
                 <FlaskConical size={14} />
             </span>
         );
@@ -87,7 +87,7 @@ const SignatureNotice: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean; clas
     }
     if (status === 'beta') {
         return (
-            <div className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2 ${classes.warning}`}>
+            <div className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2 ${classes.preview}`}>
                 <FlaskConical size={14} className="mt-px shrink-0" />
                 <span>
                     <span className="font-medium">{t('mods.signatureBeta')}</span>

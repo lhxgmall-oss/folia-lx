@@ -1066,7 +1066,7 @@ export default {
     "signatureUnsigned": "Belum terverifikasi",
     "signatureUnsignedDetail": "Tanpa tanda tangan resmi: ini mod pihak ketiga yang belum ditinjau Folium. Aktifkan hanya mod dari sumber yang Anda percayai.",
     "signatureInvalid": "Tanda tangan tidak cocok",
-    "signatureInvalidDetail": "Mod ini ditandatangani, tetapi tanda tangannya gagal diperiksa ({{reason}}), jadi bukan lagi mod terverifikasi resmi. Biasanya berkasnya diubah setelah ditandatangani; jika bukan Anda yang mengubahnya, jangan aktifkan.",
+    "signatureInvalidDetail": "Mod ini ditandatangani, tetapi tanda tangannya gagal diperiksa ({{reason}}), jadi tanda tangan ini tidak lagi bisa menjaminnya. Biasanya berkasnya diubah setelah ditandatangani; jika bukan Anda yang mengubahnya, jangan aktifkan.",
     "signatureReasons": {
       "malformed": "berkas tanda tangan rusak",
       "unknown-key": "kunci penanda tangan tidak dipercaya",

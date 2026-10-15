@@ -61,6 +61,7 @@ stubModule('electron', {
 stubModule('electron-store', FakeStore);
 
 const {
+    CHANNEL_STATUS,
     SIGNATURE_FILE,
     buildSignedMessage,
     computeSignedDigest,
@@ -212,6 +213,18 @@ describe('verifyModSignature', () => {
             status: 'beta',
             keyId: 'folium-beta-2026-1',
             keyLabel: 'Folium beta',
+        });
+    });
+
+    it('treats a key with a channel the host does not know as untrusted, never as verified', () => {
+        for (const channel of ['Beta', 'preview', 'constructor']) {
+            const keys = [{ ...TEST_KEYS[0], channel }];
+            expect(verifyModSignature(signedVectorTree(), VECTOR_MANIFEST, { keys })).toMatchObject({
+                status: 'invalid', reason: 'unknown-key',
+            });
+        }
+        TRUSTED_SIGNING_KEYS.forEach((key: { channel?: string }) => {
+            expect(Object.hasOwn(CHANNEL_STATUS, key.channel ?? 'release')).toBe(true);
         });
     });
 });
