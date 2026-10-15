@@ -12,7 +12,7 @@
 
 ## 1. 开始之前
 
-- **先确认接口边界。** Folium 1.3 是首个稳定版本，稳定扩展接口目前只有 UI 相关部分，以及 1.4 起的歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状）。其余部分，尤其是 `omni.providers` 等 Omni provider 接口，仍属实验接口，能力尚不能与应用内置 Omni provider 对等。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；这类实现必然遇到接口缺口，浪费开发者和维护者的时间。
+- **先确认接口边界。** Folium 1.3 是首个稳定版本，稳定扩展接口目前只有 UI 相关部分，1.4 起的歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及 1.5 起的播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）。其余部分，尤其是 `omni.providers` 等 Omni provider 接口，仍属实验接口，能力尚不能与应用内置 Omni provider 对等。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；这类实现必然遇到接口缺口，浪费开发者和维护者的时间。
 - **原始音频导出模组不得上架。** 任何尝试导出 provider 的原始音频流或解密之后的原始音频文件的模组，都有极高的平台法律风险。无论采用何种实现方式，此类模组都不会上架官方模组市场。
 - **模组是可信代码，不是沙箱。** `client` 入口运行在主界面的渲染进程里，`main` 入口运行在主进程里、拥有完整的 Node.js 权限。`mod.json` 里的权限是功能开关，不是安全边界。
 - **只在桌面版可用。** 网页版和 PWA 没有模组系统。
@@ -134,13 +134,16 @@ function mountHello(folium, container, ctx) {
 | 模组自己的设置 | `registries.settingsSections` | — | [FoliumSettingsSectionDef](api.md#foliumsettingssectiondef) |
 | 命令（模组面板与命令面板） | `registries.commands` | — | [FoliumCommandDef](api.md#foliumcommanddef) |
 | 播放器面板里的标签页 | `registries.playerPanelTabs` | — | [FoliumPlayerPanelTabDef](api.md#foliumplayerpaneltabdef) |
+| 首页导航里的完整页面（1.5） | `registries.homeTabs`，用 `folium.ui.openHomeTab` 打开 | — | [FoliumHomeTabDef](api.md#foliumhometabdef)，[首页页面](home-tabs.md)，`dev/folium/sample-home-tab` |
 | 进度条旁的按钮、轨道上的标记 | `registries.controlButtons` / `progressLayers` | — | [FoliumProgressContext](api.md#foliumprogresscontext)，`sample-progress-bar` |
 | 改宿主外观 | `registries.styles`（只针对公开 part） | — | [FoliumStyleDef](api.md#foliumstyledef)，规范里的「styles 与公开 part」 |
 | 改写歌词、拦截播放 | `events.on('lyrics.transform' / 'playback.beforePlay')` | — | [FoliumHookEvents](api.md#foliumhookevents) |
 | 读取或控制播放、点击歌词跳转 | `folium.playback` | 控制需 `playback.control` | [FoliumPlaybackService](api.md#foliumplaybackservice) |
+| 音量、静音、循环模式，浏览并点播播放队列（1.5） | `folium.playback.getVolume` / `setVolume` / `setMuted` / `getLoopMode` / `setLoopMode` / `getQueue` / `playQueueItem`，变化看 `playback.volumeChanged` / `loopModeChanged` / `queueChanged` | 读取不需要；设置与点播需 `playback.control` | [FoliumPlaybackService](api.md#foliumplaybackservice)，[FoliumQueueSnapshot](api.md#foliumqueuesnapshot)，`dev/folium/sample-playback-console` |
+| 得知一首歌放不了（1.5） | `events.on('playback.failed')` | — | [FoliumNotificationEvents](api.md#foliumnotificationevents)，规范里的「事件」 |
 | 访问网络（不受 CORS 限制） | `folium.net.fetch` | `net.fetch` | [FoliumNetService](api.md#foliumnetservice) |
 | 嵌入外部网页 | `folium.ui.embed` | `net.embed` + `embedOrigins` | [FoliumUiService](api.md#foliumuiservice) |
-| 保存数据 | `folium.storage`（与 main 共用） | `filesystem.data` | [FoliumStorage](api.md#foliumstorage) |
+| 保存数据 | 设置大小的数据（上限 1 MB）：`folium.storage`，与 main 入口的 `api.storage.data` 共用；文件（1.5）：main 入口写进 `api.storage.paths.data`，可重建的放 `api.storage.paths.cache` | `filesystem.data` | [FoliumStorage](api.md#foliumstorage)，[FoliumModPaths](api.md#foliummodpaths)，`dev/folium/sample-playback-console` |
 | 让用户选择本地文件 | `folium.ui.pickFile` / `restoreFile` | — | [FoliumFileHandle](api.md#foliumfilehandle) |
 | 使用宿主图标 | `folium.ui.icon` | — | [FoliumIconOptions](api.md#foliumiconoptions) |
 | 需要 Node 的工作（文件、进程、ffmpeg） | `main` 入口 + `folium.rpc` | 视用到的 api 而定 | [main 入口](api.md#main-入口node)，`sample-transparent-mov-export` |
@@ -187,7 +190,7 @@ function mountHello(folium, container, ctx) {
 
 ### 兼容与版本
 
-- 用 `folium.host.folium.minor` 做功能探测，例如 `if (folium.host.folium.minor >= 4)` 再使用 1.4 新增的接口（如 `folium.lyrics.parse`）。
+- 用 `folium.host.folium.minor` 做功能探测，例如 `if (folium.host.folium.minor >= 5)` 再使用 1.5 新增的接口（如 `folium.playback.getQueue`、`folium.registries.homeTabs`）。main 入口读 `api.host.folium.minor`，或用 `'paths' in api.storage` 判断有没有 1.5 的文件目录。
 - 实验接口（`omni.providers`、`omni.hooks`、`ponder.targets`）需要在清单的 `experimental` 里选用，任何 minor 版本都可能变化。
 - `folium.internals` 没有兼容承诺，使用时必须在清单里用 `folia` 固定宿主版本范围；社区模组应尽量不用。
 - 模组更新时提升 `mod.json` 的 `version`（`MAJOR.MINOR.PATCH`）。
@@ -225,7 +228,7 @@ function mountHello(folium, container, ctx) {
 
 - 通读 `main` 与 `client` 的全部代码，以及它们能加载的所有文件，包括 `vendor/` 里的第三方库；
 - 声明的权限、`embedOrigins`、实验接口与 issue 里的说明、与实际用途相符，没有多余的权限；
-- 不上传用户数据，不下载并执行远程代码，不读写模组目录和数据目录以外的文件（除非这正是它声明的功能）。
+- 不上传用户数据，不下载并执行远程代码；只写 `api.storage.paths.data` 与 `api.storage.paths.cache`，写别处要在 issue 的模组说明里申报。
 
 审查通过后，维护者在 issue 里评论 `/sign <commit>`。CI 会再次取回同一个 commit、重跑检查，把文件复制进 folium-compound，签名，登记你为这个模组的维护者，然后发布。几分钟后模组就会出现在模组市场，issue 自动关闭。
 
