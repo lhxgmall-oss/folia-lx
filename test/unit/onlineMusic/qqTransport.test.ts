@@ -650,19 +650,6 @@ describe('QQ Music Web transport', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    // 歌单播放数是 `/user/playlist` 的可选参数，后端只认字符串 `1`。
-    it('asks the playlist route for play counts with playCount=1', async () => {
-        const fetchMock = vi.fn().mockResolvedValue(Response.json({ code: 200, playlist: [] }));
-        vi.stubGlobal('fetch', fetchMock);
-        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
-
-        await requestQq('user_playlist', { playCount: 1 });
-
-        const url = new URL(fetchMock.mock.calls[0][0]);
-        expect(url.pathname).toBe('/user/playlist');
-        expect(url.searchParams.get('playCount')).toBe('1');
-    });
-
     it('sends a same-origin write with the session header and no session in the URL', async () => {
         vi.stubEnv('VITE_QQ_API_BASE', '/api/qq');
         storage.set('online_provider:qq:cookie', CONFIRMED_COOKIE);

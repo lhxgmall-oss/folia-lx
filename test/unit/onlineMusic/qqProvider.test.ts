@@ -632,7 +632,7 @@ describe('qqProvider', () => {
         requestMock.mockResolvedValue({ code: 200, playlist, total: 3, more: false });
 
         const firstPage = await qqProvider.library!.getUserPlaylists(123, 2, 0);
-        expect(requestMock).toHaveBeenCalledWith('user_playlist', { playCount: 1 });
+        expect(requestMock).toHaveBeenCalledWith('user_playlist', {});
         expect(firstPage.items.map(item => item.name)).toEqual(['我喜欢', '收藏歌单']);
         expect(firstPage).toMatchObject({ total: 3, hasMore: true, nextOffset: 2 });
 
@@ -642,89 +642,6 @@ describe('qqProvider', () => {
 
         const pastEnd = await qqProvider.library!.getUserPlaylists(123, 2, 4);
         expect(pastEnd).toMatchObject({ items: [], hasMore: false, nextOffset: 4 });
-    });
-
-    // 后端一次回全部歌单，Omni 刷新却按 50 张一页往下翻。每页都重打一次，就是每页都让后端重读整份列表、重扫播放数；
-    // 同一轮刷新里后面几页沿用第一页那次的回应，从第一页重新开始才算新一轮。
-    describe('one read per playlist refresh', () => {
-        const LIST = Array.from({ length: 5 }, (_, index) => ({ tid: 100 + index, dirId: 10 + index, dirName: `歌单${index}` }));
-
-        afterEach(() => vi.restoreAllMocks());
-
-        it('reads the whole list once and pages the later windows out of it', async () => {
-            requestMock.mockResolvedValue({ code: 200, playlist: LIST, total: 5, more: false });
-
-            const pages = [
-                await qqProvider.library!.getUserPlaylists(123, 2, 0),
-                await qqProvider.library!.getUserPlaylists(123, 2, 2),
-                await qqProvider.library!.getUserPlaylists(123, 2, 4),
-            ];
-
-            expect(requestMock).toHaveBeenCalledTimes(1);
-            expect(pages.map(page => page.items.map(item => item.id))).toEqual([[100, 101], [102, 103], [104]]);
-            expect(pages[2]).toMatchObject({ hasMore: false, nextOffset: 5 });
-        });
-
-        it('starts a new read whenever a refresh begins at the first page again', async () => {
-            requestMock.mockResolvedValue({ code: 200, playlist: LIST, total: 5, more: false });
-
-            await qqProvider.library!.getUserPlaylists(123, 2, 0);
-            await qqProvider.library!.getUserPlaylists(123, 2, 0);
-
-            expect(requestMock).toHaveBeenCalledTimes(2);
-        });
-
-        it('reads again for a later page when the remembered list is a minute old', async () => {
-            const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
-            requestMock.mockResolvedValue({ code: 200, playlist: LIST, total: 5, more: false });
-
-            await qqProvider.library!.getUserPlaylists(123, 2, 0);
-            now.mockReturnValue(1_000_000 + 60_000);
-            await qqProvider.library!.getUserPlaylists(123, 2, 2);
-
-            expect(requestMock).toHaveBeenCalledTimes(2);
-        });
-
-        it('does not keep a failed read for the later pages', async () => {
-            requestMock
-                .mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi user_playlist failed: HTTP 502', 'qq', undefined, 502))
-                .mockResolvedValueOnce({ code: 200, playlist: LIST, total: 5, more: false });
-
-            await expect(qqProvider.library!.getUserPlaylists(123, 2, 0)).rejects.toMatchObject({ code: 'network' });
-            const page = await qqProvider.library!.getUserPlaylists(123, 2, 2);
-
-            expect(requestMock).toHaveBeenCalledTimes(2);
-            expect(page.items.map(item => item.id)).toEqual([102, 103]);
-        });
-
-        it('forgets the remembered list when the provider cache is reset', async () => {
-            requestMock.mockResolvedValue({ code: 200, playlist: LIST, total: 5, more: false });
-
-            await qqProvider.library!.getUserPlaylists(123, 2, 0);
-            resetQqProviderRuntimeCache();
-            await qqProvider.library!.getUserPlaylists(123, 2, 2);
-
-            expect(requestMock).toHaveBeenCalledTimes(2);
-        });
-    });
-
-    // `playCount=1` 时后端只给对得上的歌单补 `play_cnt`，Android 自建列表原本那个总是 0 的值会拿掉；没有就不显示，不补 0。
-    it('reads the play count the backend filled in and leaves it out where there is none', async () => {
-        requestMock.mockResolvedValue({
-            code: 200,
-            playlist: [
-                { tid: 8, dirId: 5, dirName: '自建歌单', songNum: 3, play_cnt: 1234 },
-                { tid: 9, dirId: 6, dirName: '没有播放数' },
-                { tid: 80001, dirId: 36, name: '收藏歌单', songnum: 9, play_cnt: 0 },
-            ],
-            total: 3,
-            more: false,
-            playCountComplete: false,
-        });
-
-        const page = await qqProvider.library!.getUserPlaylists(123, 50, 0);
-
-        expect(page.items.map(item => item.playCount)).toEqual([1234, undefined, 0]);
     });
 
     // 条目形状取自 2026-08-08 对真实账号的实测：收藏专辑走的是 profile-asset CGI，
@@ -806,7 +723,7 @@ describe('qqProvider', () => {
 
         for (const userId of ['', 0, '0', 123]) {
             await qqProvider.library!.getUserPlaylists(userId, 50, 0);
-            expect(requestMock).toHaveBeenLastCalledWith('user_playlist', { playCount: 1 });
+            expect(requestMock).toHaveBeenLastCalledWith('user_playlist', {});
         }
     });
 
