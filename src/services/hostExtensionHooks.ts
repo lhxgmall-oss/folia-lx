@@ -132,6 +132,7 @@ export interface PlaybackFailedNotice {
     song: SongResult | null;
     /** The classified reason, or null when the path has none (local, Navidrome, a bare media error). */
     reason: PlaybackFailureReason | null;
+    /** No source for a pick ('play') or a restore ('restore'); any media error is 'mid-playback', even before the first sound. */
     phase: PlaybackFailureContext;
     /** The host is counting down to skip it. */
     willAutoSkip: boolean;

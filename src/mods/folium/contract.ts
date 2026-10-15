@@ -883,8 +883,12 @@ export interface FoliumNotificationEvents {
      */
     'playback.queueChanged': { readonly length: number; readonly currentIndex: number };
     /**
-     * Folium 1.5: a song failed to play, when picked (`play`), when the last session was restored
-     * (`restore`) or while playing (`mid-playback`); reported once, after the host's own retries.
+     * Folium 1.5: a song failed to play; reported once, after the host's own retries. `phase` says
+     * where it failed: `play`, the host got no playable source for the song just picked (sign-in,
+     * membership, taken down, the address lookup failed, a missing local file); `restore`, the same
+     * while restoring the last session; `mid-playback`, the player failed on the media itself (it
+     * would not load, decode or keep streaming). Every media error is `mid-playback`, so a song
+     * just picked or restored that fails before any sound is reported as `mid-playback` too.
      * `willAutoSkip`: the host is counting down to skip it (its policy or the user's "skip unplayable
      * songs" setting), so do not call `next()` yourself. Not emitted in the export window.
      */

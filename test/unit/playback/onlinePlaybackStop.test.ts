@@ -983,4 +983,28 @@ describe('reporting playback failures', () => {
         await queue.playSong(songs[1], songs);
         expect(notified).not.toHaveBeenCalled();
     });
+
+    // 契约 playback.failed 的 phase 划分：play 只是点歌时拿不到音源；音源拿到之后播放器的媒体错误一律是 mid-playback，
+    // 刚点的歌还没出声就出错（CDN 403、解不了码）也一样。改了这条划分就得同时改契约、mods/README.md 和 api.md。
+    it('reports a media error on the first load of a picked song as mid-playback, not play', async () => {
+        loader.mockResolvedValue({ kind: 'ok', audioSrc: 'https://cdn.example/2.mp3' });
+        await controller().playSong(songs[1], songs);
+        expect(notified).not.toHaveBeenCalled();
+        const landed = usePlaybackStore.getState().currentSong;
+        expect(landed).toMatchObject({ id: songs[1].id });
+
+        // 重新「渲染」：点的歌已落地，<audio> 第一次加载就出错。
+        const queue = controller();
+        const failedSongKey = getPlaybackSongKey(songs[1]);
+        queue.currentSongRef.current = failedSongKey;
+        // 在线源：刷新一次仍失败后带着媒体元素的原因进来（handleOnlineMediaFailure）。
+        queue.skipAfterPlaybackFailure({ reason: 'unknown', stage: 'media-element', mediaErrorCode: 4 },
+            { failedSongKey, failedGeneration: playbackGenerationRef.current });
+        expect(notified).toHaveBeenLastCalledWith({ song: landed, reason: 'unknown', phase: 'mid-playback', willAutoSkip: false });
+        // 本地、Navidrome、转码失败：不带原因的那条路径。
+        queue.skipAfterPlaybackFailure();
+        expect(notified).toHaveBeenLastCalledWith({ song: landed, reason: null, phase: 'mid-playback', willAutoSkip: true });
+        expect(notified).toHaveBeenCalledTimes(2);
+        expect(notified).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'play' }));
+    });
 });
