@@ -841,6 +841,7 @@ export default {
   },
   "ui": {
     "noTrack": "No Track",
+    "selectPlaceholder": "Select...",
     "previousTrack": "Previous track",
     "nextTrack": "Next track",
     "stageTrackPillNext": "Next playing",

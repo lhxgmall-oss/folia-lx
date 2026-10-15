@@ -841,6 +841,7 @@ export default {
   },
   "ui": {
     "noTrack": "无音轨",
+    "selectPlaceholder": "请选择...",
     "previousTrack": "上一首",
     "nextTrack": "下一首",
     "stageTrackPillNext": "接下来播放",

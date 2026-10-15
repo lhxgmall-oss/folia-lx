@@ -839,6 +839,7 @@ export default {
   },
   "ui": {
     "noTrack": "Tidak Ada Trek",
+    "selectPlaceholder": "Pilih...",
     "previousTrack": "Lagu sebelumnya",
     "nextTrack": "Lagu berikutnya",
     "stageTrackPillNext": "Selanjutnya diputar",

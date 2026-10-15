@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
-import { List, type RowComponentProps } from 'react-window';
+import { List, useListRef, type RowComponentProps } from 'react-window';
 
 // CustomSelectMenu.tsx
 // Renders the viewport-anchored option menu used by CustomSelect.
@@ -12,6 +12,10 @@ import { List, type RowComponentProps } from 'react-window';
 //
 // 高度策略：**不引入任何新测量**。虚拟化分支消费的是 CustomSelect.updateDropdownPosition
 // 已经算好的 position.maxHeight（开合与 resize/scroll 时更新），只是把它减去内边距当成列表高度。
+//
+// 高亮项（activeIndex）由 CustomSelect 的 useCustomSelectNavigation 持有：指针移动和 ↑↓ 都改它，
+// 两个分支的底色都从它渲染（原先是 onMouseEnter/Leave 直接改 style，视觉相同）。只有键盘移动
+// （followActive）才把高亮项滚进视野，指针高亮不滚，免得列表在鼠标下面跑。
 
 export interface CustomSelectOption {
     value: string;
@@ -33,10 +37,18 @@ interface CustomSelectMenuProps {
     options: CustomSelectOption[];
     value: string;
     ariaLabel?: string;
+    /** Names the listbox when there is no `ariaLabel`. */
+    ariaLabelledBy?: string;
     isDaylight: boolean;
     accentColor: string;
     textColor: string;
     borderColor: string;
+    /** 高亮项下标，-1 表示没有。 */
+    activeIndex: number;
+    /** 高亮来自键盘：要把它滚进视野。 */
+    followActive: boolean;
+    onActivate: (index: number) => void;
+    onPointerLeave: () => void;
     onSelect: (value: string) => void;
 }
 
@@ -51,48 +63,48 @@ const MENU_PADDING = 12;
 type OptionRowProps = {
     options: CustomSelectOption[];
     value: string;
+    activeIndex: number;
     isDaylight: boolean;
     accentColor: string;
     textColor: string;
+    onActivate: (index: number) => void;
     onSelect: (value: string) => void;
 };
 
-const optionBackground = (isSelected: boolean, isDaylight: boolean, accentColor: string) => (
-    isSelected ? (isDaylight ? `${accentColor}12` : `${accentColor}18`) : 'transparent'
-);
+// 选中项用强调色底；高亮（悬停或键盘）的非选中项用原先的悬停底色。
+const optionBackground = (isSelected: boolean, isActive: boolean, isDaylight: boolean, accentColor: string) => {
+    if (isSelected) return isDaylight ? `${accentColor}12` : `${accentColor}18`;
+    if (isActive) return isDaylight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)';
+    return 'transparent';
+};
 
 const OptionButton: React.FC<{
     option: CustomSelectOption;
+    index: number;
     isSelected: boolean;
+    isActive: boolean;
     isDaylight: boolean;
     accentColor: string;
     textColor: string;
     fixedHeight?: number;
+    onActivate: (index: number) => void;
     onSelect: (value: string) => void;
-}> = ({ option, isSelected, isDaylight, accentColor, textColor, fixedHeight, onSelect }) => (
+}> = ({ option, index, isSelected, isActive, isDaylight, accentColor, textColor, fixedHeight, onActivate, onSelect }) => (
     <button
         type="button"
         role="option"
         aria-selected={isSelected}
+        data-option-index={index}
+        data-active={isActive ? 'true' : undefined}
         onClick={() => onSelect(option.value)}
         className="w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg transition-colors text-left cursor-pointer"
         style={{
             color: textColor,
-            backgroundColor: optionBackground(isSelected, isDaylight, accentColor),
+            backgroundColor: optionBackground(isSelected, isActive, isDaylight, accentColor),
             ...(fixedHeight ? { height: fixedHeight, paddingTop: 0, paddingBottom: 0 } : {}),
         }}
-        onMouseEnter={(event) => {
-            if (!isSelected) {
-                event.currentTarget.style.backgroundColor = isDaylight
-                    ? 'rgba(0, 0, 0, 0.04)'
-                    : 'rgba(255, 255, 255, 0.06)';
-            }
-        }}
-        onMouseLeave={(event) => {
-            if (!isSelected) {
-                event.currentTarget.style.backgroundColor = 'transparent';
-            }
-        }}
+        // mousemove 而不是 mouseenter：键盘把列表滚动后，停着不动的指针下面换了一行，不该把高亮抢走。
+        onMouseMove={isActive ? undefined : () => onActivate(index)}
     >
         <span className="truncate mr-2">{option.label}</span>
         {isSelected && (
@@ -110,9 +122,11 @@ const CustomSelectMenuRow = ({
     style,
     options,
     value,
+    activeIndex,
     isDaylight,
     accentColor,
     textColor,
+    onActivate,
     onSelect,
 }: RowComponentProps<OptionRowProps>): React.ReactElement | null => {
     const option = options[index];
@@ -124,11 +138,14 @@ const CustomSelectMenuRow = ({
         <div style={{ ...style, paddingBottom: OPTION_ROW_GAP }}>
             <OptionButton
                 option={option}
+                index={index}
                 isSelected={option.value === value}
+                isActive={index === activeIndex}
                 isDaylight={isDaylight}
                 accentColor={accentColor}
                 textColor={textColor}
                 fixedHeight={OPTION_ROW_HEIGHT}
+                onActivate={onActivate}
                 onSelect={onSelect}
             />
         </div>
@@ -141,22 +158,41 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
     options,
     value,
     ariaLabel,
+    ariaLabelledBy,
     isDaylight,
     accentColor,
     textColor,
     borderColor,
+    activeIndex,
+    followActive,
+    onActivate,
+    onPointerLeave,
     onSelect,
 }) => {
     const isVirtualized = options.length >= VIRTUALIZE_THRESHOLD;
+    const listRef = useListRef(null);
 
     const rowProps = useMemo(() => ({
         options,
         value,
+        activeIndex,
         isDaylight,
         accentColor,
         textColor,
+        onActivate,
         onSelect,
-    }), [options, value, isDaylight, accentColor, textColor, onSelect]);
+    }), [options, value, activeIndex, isDaylight, accentColor, textColor, onActivate, onSelect]);
+
+    // 键盘移动高亮后把它滚进视野（就近对齐，已经看得见就不动）。
+    useEffect(() => {
+        if (!followActive || activeIndex < 0 || activeIndex >= options.length) return;
+        if (isVirtualized) {
+            listRef.current?.scrollToRow({ index: activeIndex, align: 'auto' });
+            return;
+        }
+        const row = menuRef.current?.querySelector<HTMLElement>(`[data-option-index="${activeIndex}"]`);
+        row?.scrollIntoView?.({ block: 'nearest' });
+    }, [activeIndex, followActive, isVirtualized, listRef, menuRef, options.length]);
 
     const listHeight = Math.max(
         OPTION_ROW_HEIGHT,
@@ -185,6 +221,8 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
             data-wheel-scroll-region
             role="listbox"
             aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
+            onMouseLeave={onPointerLeave}
             style={{
                 left: position.left,
                 top: position.top,
@@ -199,6 +237,7 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
             {isVirtualized ? (
                 <div className="p-1.5">
                     <List
+                        listRef={listRef}
                         rowCount={options.length}
                         rowHeight={OPTION_ROW_HEIGHT + OPTION_ROW_GAP}
                         rowComponent={CustomSelectMenuRow}
@@ -210,14 +249,17 @@ export const CustomSelectMenu: React.FC<CustomSelectMenuProps> = ({
                 </div>
             ) : (
                 <div className="p-1.5 space-y-0.5">
-                    {options.map((option) => (
+                    {options.map((option, index) => (
                         <OptionButton
                             key={option.value}
                             option={option}
+                            index={index}
                             isSelected={option.value === value}
+                            isActive={index === activeIndex}
                             isDaylight={isDaylight}
                             accentColor={accentColor}
                             textColor={textColor}
+                            onActivate={onActivate}
                             onSelect={onSelect}
                         />
                     ))}
