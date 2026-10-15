@@ -241,6 +241,11 @@ export type LibraryArtistSurfaceProps = LibrarySurfaceBaseProps & LibraryCollect
 export type LibraryHomeExtraTab = {
     id: string;
     label: string;
+    /**
+     * 宿主算好的选中态：这个页面此刻开着。有一个为 true 时原生页签都不算选中（aria-selected、高亮），
+     * F6 / Tab 循环也从它算起。
+     */
+    active: boolean;
     select: () => void;
 };
 
