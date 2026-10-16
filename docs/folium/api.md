@@ -18,7 +18,7 @@
 - **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
 - **参数 schema**：[FoliumParamType](#foliumparamtype) · [FoliumParamOption](#foliumparamoption) · [FoliumParam](#foliumparam) · [FoliumParamValues](#foliumparamvalues) · [FoliumParamAccess](#foliumparamaccess)
 - **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
-- **实验接口**：[FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef)
+- **实验接口**：[FoliumLayoutRect](#foliumlayoutrect) · [FoliumPlayerObstacle](#foliumplayerobstacle) · [FoliumPlayerLayout](#foliumplayerlayout) · [FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef)
 - **基础类型**：[FOLIUM_VERSION](#folium_version) · [FoliumId](#foliumid) · [FoliumLabel](#foliumlabel) · [FoliumDisposer](#foliumdisposer)
 - **main 入口（Node）**：[api 对象](#main-入口node) · [FoliumModPaths](#foliummodpaths)
 
@@ -529,10 +529,11 @@ including while paused, when `currentTime` is idle.
 | `getDisplay()` | `(): FoliumDisplay` | Folium 1.3. The same object until a value changes; `subscribe` announces changes. |
 | `getSettings()` | `(): FoliumParamValues` | This entry's settings values (defaults merged); empty without a schema. |
 | `getSurface()` | `(): FoliumSurface` | What the host draws around this content. |
-| `subscribe()` | `(listener: () => void): FoliumDisposer` | Called when the line index, pause, theme, subtitle theme, cover, display, settings or surface change. |
+| `getLayout()` | `(): FoliumPlayerLayout \| null` | EXPERIMENTAL (`player.layout`): frozen live-player geometry in viewport CSS pixels. Null without the manifest opt-in, outside the live player (including previews, OBS and export), or before a subscriber's first measurement. Reading never starts measurement. |
+| `subscribe()` | `(listener: () => void): FoliumDisposer` | Called when the line index, pause, theme, subtitle theme, cover, display, settings, surface or opted-in layout change. |
 | `readonly audio` | `FoliumAudio` | Folium 1.2. |
 
-相关：[FoliumLine](#foliumline) · [FoliumSong](#foliumsong) · [FoliumClock](#foliumclock) · [FoliumTheme](#foliumtheme) · [FoliumDisplay](#foliumdisplay) · [FoliumParamValues](#foliumparamvalues) · [FoliumSurface](#foliumsurface) · [FoliumDisposer](#foliumdisposer) · [FoliumAudio](#foliumaudio)
+相关：[FoliumLine](#foliumline) · [FoliumSong](#foliumsong) · [FoliumClock](#foliumclock) · [FoliumTheme](#foliumtheme) · [FoliumDisplay](#foliumdisplay) · [FoliumParamValues](#foliumparamvalues) · [FoliumSurface](#foliumsurface) · [FoliumPlayerLayout](#foliumplayerlayout) · [FoliumDisposer](#foliumdisposer) · [FoliumAudio](#foliumaudio)
 
 ## 事件
 
@@ -1199,6 +1200,41 @@ Folium 1.4: what `folium.lyrics.parse` returns.
 ## 实验接口
 
 需要在 `mod.json` 的 `experimental` 里选用，经 `folium.experimental[name]` 访问；任何 minor 版本都可能变化。
+
+### FoliumLayoutRect
+
+EXPERIMENTAL (`player.layout`): a rectangle in viewport CSS pixels.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly left` | `number` | Left edge. |
+| `readonly top` | `number` | Top edge. |
+| `readonly width` | `number` | Width. |
+| `readonly height` | `number` | Height. |
+
+### FoliumPlayerObstacle
+
+EXPERIMENTAL (`player.layout`): a native control or its interactive reveal region; no internal ids.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly role` | `'navigation' \| 'window' \| 'playback' \| 'now-playing' \| 'panel' \| 'notification' \| (string & {})` | Coarse purpose; future hosts may add roles. |
+| `readonly kind` | `'control' \| 'reveal-area'` | Hidden controls still reserve the pointer region that reveals them. |
+| `readonly rect` | `FoliumLayoutRect` | Occupied rectangle. |
+
+相关：[FoliumLayoutRect](#foliumlayoutrect)
+
+### FoliumPlayerLayout
+
+EXPERIMENTAL (`player.layout`): immutable snapshot; identity is stable until geometry changes.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly bounds` | `FoliumLayoutRect` | Live-player bounds in viewport CSS pixels. |
+| `readonly insets` | `Readonly<{ top: number; right: number; bottom: number; left: number }>` | Four safe edge distances in CSS pixels, relative to bounds. |
+| `readonly obstacles` | `readonly FoliumPlayerObstacle[]` | Regions to avoid; not guaranteed complete. Count, order and roles are not compatibility promises; native ids stay private. |
+
+相关：[FoliumLayoutRect](#foliumlayoutrect) · [FoliumPlayerObstacle](#foliumplayerobstacle)
 
 ### FoliumProviderSong
 

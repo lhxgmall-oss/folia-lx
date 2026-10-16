@@ -154,7 +154,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `depends` | 模组 id 或 `id@^1.2.3`（仅支持 `^` 与 `*`）。缺失、版本不符、成环或依赖未启用时，只有该依赖子图不加载 |
 | `permissions` | 见下表。未知权限直接拒绝 |
 | `embedOrigins` | `folium.ui.embed` 可以加载的 https origin（形如 `https://host[:port]`），需要 `net.embed` |
-| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets` |
+| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout` |
 | `folia` | 宿主版本范围（空格分隔的比较式，支持 `>= > <= < = ^` 与 `*`）。**使用 `folium.internals` 时必填**；宿主版本不在范围内时加载器拒绝加载（`host-version-mismatch`） |
 
 | 权限 | 解锁 |
@@ -222,6 +222,7 @@ export default function activate(folium) {
 | `styles` | 模组 CSS，只针对公开 part | 稳定 |
 | `experimental['omni.providers']` | 在线音乐源 | 实验 |
 | `experimental['ponder.targets']` | 思索（应用内教程）目标 | 实验 |
+| `FoliumStageContext.getLayout()` | 播放页只读布局快照（需选用 `player.layout`） | 实验 |
 
 ### 宿主托管容器
 
@@ -275,7 +276,8 @@ folium.registries.visualizers.register({
 | `currentTime.get()` / `.on('change', cb)` | 歌词时钟 |
 | `getLineIndex()` / `isPaused()` / `getTheme()` / `getSettings()` / `getSurface()` | 随时读取，每帧读也没问题 |
 | `getSubtitleTheme()` / `getCoverUrl()` / `getDisplay()`（1.3） | 字幕主题（没有单独的字幕主题时等于 `getTheme()`）、封面地址、显示设置。`getDisplay()` 的字段与内置模式收到的同名 prop 一致：`showText`、`lyricsFontScale`、`subtitleFontScale`、`subtitleOverlayOpacity`、`subtitleOverlayBackground`、`subtitleUpcomingLyricsBlur`、`showHarmonySubtitle`、`harmonySubtitleBackground`、`showSubtitleTranslation`、`hideTranslationSubtitle`、`subtitleContentMode`、`isPlayerChromeHidden`、`isPanelOpen`、`visualizerOpacity`；值不变时返回同一个对象 |
-| `subscribe(cb)` | 行号、暂停、主题、字幕主题、封面、显示设置、模组设置、表面任一变化时回调（暂停时时钟不走，靠它得知变化） |
+| `getLayout()`（实验） | 选用了 `player.layout` 时读取播放页布局与安全边距；未选用、预览、OBS 或导出中返回 `null`，见 [player.layout](#playerlayout实验只读) |
+| `subscribe(cb)` | 行号、暂停、主题、字幕主题、封面、显示设置、模组设置、表面任一变化时回调；选用了 `player.layout` 时也通知布局变化（暂停时时钟不走，靠它得知变化） |
 | `audio`（1.2） | 音频分析：`getPower()`、`getBands()`（`bass` / `lowMid` / `mid` / `vocal` / `treble`）都是 0..1；`getSpectrum()` 是原始 FFT 幅值（0–255）或 `null`。每帧都在变且不通知，在自己的帧循环里读；`getBands()` 每次返回同一个对象、原地刷新，要保留读数就复制。预览里是宿主生成的模拟信号，静音或没有分析器时读到 0 |
 
 - **只在歌词数据、歌曲、`staticMode` 或静态预览行变化时重挂载**；换行不会重挂载，行号从 `getLineIndex()` 读。
@@ -711,6 +713,55 @@ folium.experimental['omni.providers'].register({
 **建议**：别追求把界面画得像。用通用骨架勾出结构——一个 `surface` 面板、几个 `control` 按钮、几条 `rail`
 滑轨——再让字幕把意思讲清楚：每一步只讲一件事，用 `pointTo` 把字幕连到它讲的那个框，用 `highlight` 和
 `reveal` 标出「现在看这里」。这正是宿主思索的做法：骨架负责「在哪」，文字负责「是什么、为什么」。
+
+### player.layout（实验，只读）
+
+清单声明 `"experimental": ["player.layout"]` 后，通过已有 `mount(container, ctx)` 的
+`ctx.getLayout(): FoliumPlayerLayout | null` 读取快照，布局变化并入已有 `ctx.subscribe(listener)` 通知。
+此成员仍是 **EXPERIMENTAL (`player.layout`)**，不会提升稳定 Folium 1.5 的版本；
+没有单独的 `folium.experimental['player.layout']` 服务。类型定义在 `src/mods/folium/contract.ts` 的 Experimental 段。
+
+- `bounds` 是播放页范围，`insets: { top, right, bottom, left }` 是相对该范围四条边的安全预留像素。
+  模组先应用 `insets`，再依据 `obstacles` 逐个做矩形相交判断；局部面板不会把所在整列都变成禁区。
+  当前仅自定义标题栏提供顶部 56px 预留（按播放页高度裁剪），其他方向为 0；局部控件由障碍物矩形表达。
+- `obstacles` 每项只有粗粒度 `role`、`kind: 'control' | 'reveal-area'`、`rect`，不暴露内部组件 id。
+  `role` 可为 `navigation`、`window`、`playback`、`now-playing`、`panel`、`notification` 或其他字符串。
+  障碍物**不保证完整，数量、顺序和 role 都不承诺兼容**；同一 role 的多个矩形不能合并为一个大框。
+- `FoliumLayoutRect` 是 `{ left, top, width, height }`：坐标为**视口 CSS 像素**，原点在视口左上角，
+  与 `getBoundingClientRect()` 一致。`bounds` 和所有障碍物使用同一坐标系，障碍物已裁剪到 `bounds` 内。
+  快照深冻结，数值未变时引用不变。
+- 清单未选用、非播放页、舞台已卸载、设置预览、OBS 或导出场景返回 `null`。
+  无布局订阅或首次测量尚未完成时也返回 `null`；订阅启动测量后会通知新快照。
+  静态歌词播放页仍有原生控件，因此仍提供布局。
+- 只有选用了 `player.layout` 的模组通过 `ctx.subscribe` 订阅时才测量；单独调用 `getLayout()` 不启动测量。
+  动画、滚动、resize 共用 80ms 合并测量，不逐帧更新 React；`ctx.subscribe` 还会通知其他上下文变化，
+  可以比较快照引用来跳过无关更新。停用模组自动移除订阅；最后一个布局订阅取消或离开播放页后停止监听/测量。
+
+返回按钮保留完整 **120×120** 的鼠标唤出区域，而不只是按钮点击区域。鼠标在 `app.overlay` 的模组内容
+上移动不会穿透并唤出背后的返回按钮，模组应避开这块区域。标题栏预留为**整条宽、56px 高**，
+仅在自定义窗口标题栏启用时出现；使用原生窗口边框或浏览器时不预留这一条。
+
+此接口不能修改原生控件、重排、隐藏或替换原生条目，也不提供原生 DOM。
+模组自己的完整组件仍挂在已有 `stageLayers` 的 `app.overlay` 槽位（需 `ui.stage`）；
+样式与交互由模组负责，通过现有 ShadowRoot 隔离，不增加另一套浮层渲染接口。
+
+```js
+export default function activate(folium) {
+  if (folium.env.context !== 'main') return;
+  folium.registries.stageLayers.register({
+    id: 'conversation', slot: 'app.overlay',
+    mount(container, ctx) {
+      // Mount your component and position only your own nodes from ctx.getLayout().
+      const render = () => positionOwnOverlay(container, ctx.getLayout());
+      const off = ctx.subscribe(render);
+      render();
+      return off;
+    },
+  });
+}
+```
+
+`dev/folium/player-layout-demo` 提供无账号、无网络、可停用恢复的完整示例。
 
 ## internals（自由度出口）
 
