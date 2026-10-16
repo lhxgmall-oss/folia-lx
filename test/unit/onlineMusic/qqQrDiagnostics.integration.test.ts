@@ -4,7 +4,7 @@ import type { LibraryAccountAuthPort, LibraryAccountClock } from '@/library/core
 // test/unit/onlineMusic/qqQrDiagnostics.integration.test.ts
 // 正式的 transport、provider 与 core 的扫码会话串起来，只把 HTTP 换成桩：后端回了什么，复制出来的报告里就是什么
 // （失败阶段与原因、HTTP 状态、退避时长原样保留），而登录凭据（session 的值）永远不出现。
-vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({ fetchQQLyrics: vi.fn(), searchQQLyrics: vi.fn() }));
+vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({ fetchQQLyrics: vi.fn(), searchQQLyrics: vi.fn(), searchQQSongs: vi.fn() }));
 
 const storage = new Map<string, string>();
 const fetchMock = vi.fn();

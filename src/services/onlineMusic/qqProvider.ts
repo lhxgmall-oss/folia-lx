@@ -14,7 +14,7 @@ import type {
 import { OnlineProviderError } from '../../types/onlineMusic';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
 import { toSafePlaybackUrl } from '../../utils/appPlaybackHelpers';
-import { fetchQQLyrics, searchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
+import { fetchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
 import { writeProviderSessionValue } from './providerStorage';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from './qqNormalize';
 import { clearQqSession, getQqRemoteApiBase, getQqTransportAvailability, hasQqSession, requestQq } from './qqTransport';
@@ -24,6 +24,7 @@ import { canRunLoginSelfCheck, runLoginSelfCheck } from './loginSelfCheck';
 import { formatDiagnosticClock } from '../../utils/qrLoginDiagnosticReport';
 import { getQqSongDetail, requestQqSongDetail } from './qqSongDetail';
 import { qqRecommendations } from './qqRecommendations';
+import { searchQqSongs } from './qqSearch';
 import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
 
 // src/services/onlineMusic/qqProvider.ts
@@ -32,13 +33,6 @@ const errorFields = (error: unknown) => ({
     name: error instanceof Error ? error.name : 'Error',
     message: error instanceof Error ? error.message : String(error),
 });
-
-const searchSongs = async (query: string, limit: number, offset: number) => {
-    // Reuses the QQ search that already backs lyric matching; only the provider contract is new.
-    const results = await searchQQLyrics(query, Math.floor(offset / Math.max(1, limit)) + 1, limit);
-    const items = results.map(normalizeQqSong);
-    return { items, hasMore: items.length === limit, nextOffset: offset + items.length };
-};
 
 const QQ_QUALITY_FALLBACKS: Record<
     AudioQualityPreference,
@@ -880,7 +874,7 @@ export const qqProvider: OnlineMusicProvider = {
         const songmid = String(song.qqMid || sourceRef?.providerData?.songMid || '').trim();
         return songmid ? `https://y.qq.com/n/ryqq/songDetail/${encodeURIComponent(songmid)}` : null;
     },
-    search: { searchSongs },
+    search: { searchSongs: searchQqSongs },
     playback: { getSongDetail: getQqSongDetail, getAudioSource },
     lyrics: { getLyrics },
     auth: {
