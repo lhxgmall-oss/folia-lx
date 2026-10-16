@@ -12,6 +12,7 @@ export const QQ_OPERATIONS = [
     'user_song_like', 'user_album_subscribe',
     'music_play', 'song_list_detail', 'song_info',
     'album_info', 'artist_albums', 'artist_songs',
+    'search',
 ] as const;
 
 export type QqOperation = typeof QQ_OPERATIONS[number];
@@ -57,6 +58,9 @@ const ENDPOINTS: Record<QqOperation, string> = {
     album_info: '/getAlbumInfo',
     artist_albums: '/getSingerAlbum',
     artist_songs: '/getSingerHotsong',
+    // 3.3.1 的关键字搜索：有会话就带会话搜。匿名搜歌常被上游以 2001 拒绝（#473），带会话的不受这个限额影响。
+    // 拒绝回 502 `search.rejected`；旧后端没有这条路由，照例 404 → `unsupported`。
+    search: '/search',
 };
 
 // qq-music-api translates the native QR states into the Netease codes; 803 is the only one carrying a session.

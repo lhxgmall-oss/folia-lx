@@ -18,6 +18,7 @@ vi.mock('@/services/onlineMusic/providerStorage', () => ({
 
 vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({
     searchQQLyrics: vi.fn(),
+    searchQQSongs: vi.fn(),
     fetchQQLyrics: vi.fn(),
 }));
 

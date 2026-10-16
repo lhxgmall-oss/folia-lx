@@ -88,9 +88,9 @@ function detectIsQrc(content: string): boolean {
 }
 
 /**
- * Searches songs on QQ Music.
+ * Searches songs on QQ Music anonymously and throws on upstream refusal (e.g. the frequent code 2001).
  */
-export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+export async function searchQQSongs(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
   const safeKeyword = keyword.trim();
   if (!safeKeyword) return [];
 
@@ -112,34 +112,41 @@ export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): 
     grp: 1,
   };
 
-  try {
-    const data = await requestQQ("DoSearchForQQMusicLite", "music.search.SearchCgiService", param);
-    const songs = data?.body?.item_song || [];
-    
-    return songs.map((info: any) => {
-      const artists = (info.singer || []).map((s: any, idx: number) => ({
-        id: s.id || idx,
-        name: s.name || 'Unknown Artist',
-      }));
-      
-      const albumMid = info.album?.mid;
-      const picUrl = albumMid
-        ? getOriginalCoverUrl(`https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg?max_age=2592000`)
-        : undefined;
+  const data = await requestQQ("DoSearchForQQMusicLite", "music.search.SearchCgiService", param);
+  const songs = data?.body?.item_song || [];
 
-      return {
-        id: Number(info.id || 0),
-        name: info.title || 'Unknown Song',
-        artists,
-        album: {
-          id: Number(info.album?.id || 0),
-          name: info.album?.name || 'Unknown Album',
-          coverUrl: picUrl,
-        },
-        durationMs: (info.interval || 0) * 1000,
-        qqMid: info.mid,
-      };
-    });
+  return songs.map((info: any) => {
+    const artists = (info.singer || []).map((s: any, idx: number) => ({
+      id: s.id || idx,
+      name: s.name || 'Unknown Artist',
+    }));
+
+    const albumMid = info.album?.mid;
+    const picUrl = albumMid
+      ? getOriginalCoverUrl(`https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg?max_age=2592000`)
+      : undefined;
+
+    return {
+      id: Number(info.id || 0),
+      name: info.title || 'Unknown Song',
+      artists,
+      album: {
+        id: Number(info.album?.id || 0),
+        name: info.album?.name || 'Unknown Album',
+        coverUrl: picUrl,
+      },
+      durationMs: (info.interval || 0) * 1000,
+      qqMid: info.mid,
+    };
+  });
+}
+
+/**
+ * Searches songs on QQ Music for lyric and metadata matching: a refused search is just "no candidates".
+ */
+export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+  try {
+    return await searchQQSongs(keyword, page, pageSize);
   } catch (error) {
     console.error('[QQMusic] Search failed:', error);
     return [];
