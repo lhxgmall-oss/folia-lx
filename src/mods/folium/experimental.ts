@@ -8,12 +8,14 @@ import type {
     FoliumOmniAudioEvent,
     FoliumOmniLyricsEvent,
     FoliumOmniProviderDef,
+    FoliumRemoteActionsDef,
     FoliumSong,
 } from './contract';
 import { fromFoliumLines, toFoliumLines, toFoliumSong } from './dto';
 import { addFoliumEventHandler, dispatchFoliumHookAsync, hasFoliumEventHandlers } from './events';
 import { createFoliumRegistry } from './registry';
 import { omniProvidersRegistry } from './registries/omniProviders';
+import { registerRemoteActions, remoteActionsRegistry } from './registries/remoteActions';
 import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderText } from './ponderText';
 
 // src/mods/folium/experimental.ts
@@ -21,6 +23,7 @@ import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderT
 //   - omni.providers: register an online music source (registries/omniProviders);
 //   - omni.hooks:     rewrite lyrics / swap audio URLs Omni resolved;
 //   - ponder.targets: add Ponder (in-app tutorial) targets for the mod's own UI.
+//   - remote.actions: append host-rendered buttons in the remote window.
 // player.layout opts into FoliumStageContext.getLayout(), not a separate service.
 // Loaded lazily and only in the main window, so the export bundle never pulls
 // in the provider registry. These can change in any folium minor.
@@ -63,7 +66,7 @@ export const ponderTargetsRegistry = createFoliumRegistry<PonderTargetInput, Sto
 });
 
 /** Registries owned by this module, for teardown alongside the stable ones. */
-export const EXPERIMENTAL_REGISTRIES = [omniProvidersRegistry, ponderTargetsRegistry];
+export const EXPERIMENTAL_REGISTRIES = [omniProvidersRegistry, ponderTargetsRegistry, remoteActionsRegistry];
 
 // ---- omni.hooks: installed once, active only while some mod listens
 
@@ -108,5 +111,8 @@ export const createFoliumExperimental = (mod: ModRuntimeInfo): Record<string, un
     }),
     'ponder.targets': Object.freeze({
         register: (def: PonderTargetInput) => ponderTargetsRegistry.register(mod.id, def),
+    }),
+    'remote.actions': Object.freeze({
+        register: (def: FoliumRemoteActionsDef) => registerRemoteActions(mod.id, def),
     }),
 });

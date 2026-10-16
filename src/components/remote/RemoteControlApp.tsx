@@ -1,3 +1,4 @@
+import { RemoteActionButtons } from './RemoteActionButtons';
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { ChevronLeft, Heart, Lock, LockOpen, Pause, Pin, PinOff, Play, Repeat, Repeat1, RepeatOff, SkipBack, SkipForward, Video, MirrorRectangular, X, Check, Sliders, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1043,6 +1044,10 @@ const RemoteControlApp: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                <RemoteActionButtons snapshot={snapshot.remoteActions} isDaylight={isDaylight} sendCommand={sendCommand}
+                    classes={{ base: secondaryButtonBase, idle: secondaryIdleClass, active: secondaryActiveClass, alert: secondaryAlertClass }}
+                    visible={activePanel === 'playback' && !presetSelectorOpen} />
 
                 {/* Root-Level Preset Selector Overlay Modal */}
                 <AnimatePresence>

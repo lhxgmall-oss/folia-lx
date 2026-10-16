@@ -154,7 +154,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `depends` | 模组 id 或 `id@^1.2.3`（仅支持 `^` 与 `*`）。缺失、版本不符、成环或依赖未启用时，只有该依赖子图不加载 |
 | `permissions` | 见下表。未知权限直接拒绝 |
 | `embedOrigins` | `folium.ui.embed` 可以加载的 https origin（形如 `https://host[:port]`），需要 `net.embed` |
-| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout` |
+| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout`、`remote.actions` |
 | `folia` | 宿主版本范围（空格分隔的比较式，支持 `>= > <= < = ^` 与 `*`）。**使用 `folium.internals` 时必填**；宿主版本不在范围内时加载器拒绝加载（`host-version-mismatch`） |
 
 | 权限 | 解锁 |
@@ -223,6 +223,7 @@ export default function activate(folium) {
 | `experimental['omni.providers']` | 在线音乐源 | 实验 |
 | `experimental['ponder.targets']` | 思索（应用内教程）目标 | 实验 |
 | `FoliumStageContext.getLayout()` | 播放页只读布局快照（需选用 `player.layout`） | 实验 |
+| `experimental['remote.actions']` | 在独立遥控窗口末尾追加宿主绘制的按钮 | 实验 |
 
 ### 宿主托管容器
 
@@ -762,6 +763,50 @@ export default function activate(folium) {
 ```
 
 `dev/folium/player-layout-demo` 提供无账号、无网络、可停用恢复的完整示例。
+
+### remote.actions：独立遥控窗口追加按钮
+
+清单声明 `"experimental": ["remote.actions"]`，在主窗口的 `client` 默认入口注册。
+这是 **EXPERIMENTAL (`remote.actions`)**，稳定 Folium 版本保持 1.5。
+遥控窗口只接收可序列化的按钮定义，由宿主绘制；模组代码及 `run()` 始终在主窗口执行。
+
+```js
+export default function activate(folium) {
+  let count = 0;
+  const handle = folium.experimental['remote.actions'].register({
+    id: 'room-actions', order: 10,
+    actions(context) {
+      return [{
+        id: 'like', label: { 'zh-CN': '房间点赞', en: 'Like in room' },
+        icon: 'thumbs-up', count, disabled: !context.song,
+        run() { count += 1; handle.invalidate(); },
+      }];
+    },
+  });
+  return () => handle.unregister();
+}
+```
+
+- `actions(context)` 同步返回追加按钮。上下文只有当前显示的 `song: FoliumSong | null` 和
+  `state: 'playing' | 'paused' | 'stopped'`。回调应只计算定义，副作用放进按钮的 `run()`。
+- 注册项有局部 `id` 和可选 `order`；按钮也有局部 `id`，宿主为其加上模组及注册项前缀。
+  `label` 是真正的多语言 `FoliumLabel`，由遥控窗口按自己的语言解析；`icon` 是 Lucide 图标名。
+  可选呈现字段为 `disabled`、`pressed`、非负有限数 `count`、`tone: 'normal' | 'alert'`。
+- `scope` 缺省为 `track`：按钮对应的显示曲目已变化或当前没有曲目时，旧点击不会执行。
+  `session` 允许跨歌执行，适合停止试听等会话动作。两者都检查注册仍有效及最新 `disabled`。
+- 状态变化后调用当前注册 handle 的 `invalidate()`，重新计算定义并刷新已打开的遥控窗口。
+  它只刷新模组按钮，不改变原生命令，也没有全局 `ui.refreshRemoteControls()`。
+  卸载后的旧 handle 不会影响同 id 的新注册；停用模组会自动清理注册及旧点击资格。
+- 模组按钮票据在相同注册周期和按钮 id 下稳定，计数、按下态等展示更新不会使第二次连续点击丢失。
+  原生播放、切歌、进度条及其他按钮仍直接发送原有命令，不经过模组动作票据。
+- 宿主在原生控件末尾绘制追加区域，空间不足时内部滚动；无按钮时不创建额外 DOM。
+  颜色、尺寸、图标和焦点样式由宿主统一，计数在悬停或键盘聚焦时显示为圆角标记。
+  每模组的最终按钮配额尚未冻结，宿主可限制过大的动作列表，模组应只提供少量必要动作。
+- 仅独立 Electron 遥控窗口的播放视图显示这些按钮；录制/透明控制视图及预设弹层中隐藏。
+  不提供自由组件、输入框或原生按钮的替换、重排、隐藏、禁用接口，也不授予额外播放权限。
+
+公开类型见 `src/mods/folium/contract.ts` 的 Experimental 段。
+离线示例：`dev/folium/sample-remote-actions`，可检查连续点击、键盘操作、状态刷新和停用恢复。
 
 ## internals（自由度出口）
 

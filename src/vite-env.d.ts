@@ -261,7 +261,8 @@ declare global {
     | { type: 'start-export'; preset: ElectronVideoExportPreset; startMode: ElectronVideoExportStartMode }
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
-    | { type: 'toggle-like' };
+    | { type: 'toggle-like' }
+    | import('./types/remoteControl').RemoteActionActivation;
 
   type ElectronVideoExportStatus =
     | 'idle'
@@ -299,6 +300,7 @@ declare global {
   }
 
   interface ElectronRemoteControlSnapshot {
+    remoteActions?: import('./types/remoteControl').RemoteActionsSnapshot;
     hasTrack: boolean;
     trackKey: string | null;
     title: string | null;

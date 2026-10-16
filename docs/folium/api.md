@@ -18,7 +18,7 @@
 - **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
 - **参数 schema**：[FoliumParamType](#foliumparamtype) · [FoliumParamOption](#foliumparamoption) · [FoliumParam](#foliumparam) · [FoliumParamValues](#foliumparamvalues) · [FoliumParamAccess](#foliumparamaccess)
 - **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
-- **实验接口**：[FoliumLayoutRect](#foliumlayoutrect) · [FoliumPlayerObstacle](#foliumplayerobstacle) · [FoliumPlayerLayout](#foliumplayerlayout) · [FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef)
+- **实验接口**：[FoliumLayoutRect](#foliumlayoutrect) · [FoliumPlayerObstacle](#foliumplayerobstacle) · [FoliumPlayerLayout](#foliumplayerlayout) · [FoliumRemoteActionDef](#foliumremoteactiondef) · [FoliumRemoteActionsContext](#foliumremoteactionscontext) · [FoliumRemoteActionsDef](#foliumremoteactionsdef) · [FoliumRemoteActionsHandle](#foliumremoteactionshandle) · [FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef)
 - **基础类型**：[FOLIUM_VERSION](#folium_version) · [FoliumId](#foliumid) · [FoliumLabel](#foliumlabel) · [FoliumDisposer](#foliumdisposer)
 - **main 入口（Node）**：[api 对象](#main-入口node) · [FoliumModPaths](#foliummodpaths)
 
@@ -1235,6 +1235,61 @@ EXPERIMENTAL (`player.layout`): immutable snapshot; identity is stable until geo
 | `readonly obstacles` | `readonly FoliumPlayerObstacle[]` | Regions to avoid; not guaranteed complete. Count, order and roles are not compatibility promises; native ids stay private. |
 
 相关：[FoliumLayoutRect](#foliumlayoutrect) · [FoliumPlayerObstacle](#foliumplayerobstacle)
+
+### FoliumRemoteActionDef
+
+EXPERIMENTAL (`remote.actions`). Append-only buttons; native remote controls stay unchanged.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | Local action id; the host adds the owning mod and registration prefix. |
+| `label` | `FoliumLabel` | Localized button label and accessible name. |
+| `icon` | `string` | Lucide icon name in kebab-case. |
+| `disabled?` | `boolean` | Prevents invocation while true. |
+| `pressed?` | `boolean` | Toggle state exposed through aria-pressed. |
+| `count?` | `number` | Optional nonnegative finite count. |
+| `tone?` | `'normal' \| 'alert'` | Host-defined visual emphasis. |
+| `scope?` | `'track' \| 'session'` | `track` (default) expires when the displayed song changes; `session` survives a song change. |
+| `run()` | `(): void \| Promise<void>` | Runs in the main window through the host's remote bridge. |
+
+相关：[FoliumLabel](#foliumlabel)
+
+### FoliumRemoteActionsContext
+
+EXPERIMENTAL (`remote.actions`). Current playback context for additional buttons.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly song` | `FoliumSong \| null` | Currently displayed song, or null when no song is displayed. |
+| `readonly state` | `FoliumPlaybackState` | Playback state of the displayed song. |
+
+相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate)
+
+### FoliumRemoteActionsDef
+
+EXPERIMENTAL (`remote.actions`). A group of buttons appended after native remote controls.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | Local registration id; the host adds the owning mod prefix. |
+| `order?` | `number` | Order among mod groups only; native buttons cannot be reordered. |
+| `actions()` | `(context: FoliumRemoteActionsContext): readonly FoliumRemoteActionDef[]` | Buttons for the current context. The per-mod limit is not yet finalized. |
+
+相关：[FoliumRemoteActionsContext](#foliumremoteactionscontext) · [FoliumRemoteActionDef](#foliumremoteactiondef)
+
+### FoliumRemoteActionsHandle
+
+EXPERIMENTAL (`remote.actions`). Owns one additional remote-button registration.
+
+```ts
+interface FoliumRemoteActionsHandle extends FoliumRegistryHandle
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `invalidate()` | `(): void` | Re-evaluates actions and refreshes the remote window without changing native buttons. |
+
+相关：[FoliumRegistryHandle](#foliumregistryhandle)
 
 ### FoliumProviderSong
 

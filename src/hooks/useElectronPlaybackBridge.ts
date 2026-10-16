@@ -19,7 +19,7 @@ import {
     buildTaskbarControlsFromPlaybackSyncBridge,
 } from '../utils/playbackSyncBridge';
 import { resolveStagePlayerPositionSec } from '../utils/stagePlayerSnapshot';
-import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
+import { getPlaybackSongKey, getPlaybackSourceRef } from '../utils/appPlaybackGuards';
 import { omni } from '../services/onlineMusic/omni';
 import { subscribeToTransitionCue } from '../services/automix/transitionCue';
 import { useStableActionSurface } from './useStableCallbacks';
@@ -28,6 +28,8 @@ import { useAppChromeStore } from '../stores/useAppChromeStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { currentTime } from '../stores/motionSignals';
+import { useRemoteControlActions } from './useRemoteControlActions';
+import { subscribeRemoteActions } from '../mods/folium/registries/remoteActions';
 
 // Bridges Electron-specific shell features without coupling to UI components.
 const DISCORD_PRESENCE_SNAPSHOT_INTERVAL_MS = 1000;
@@ -140,6 +142,7 @@ export const useElectronPlaybackBridge = ({
     const coverUrl = usePlaybackStore(selectDisplayCoverUrl);
     const duration = usePlaybackStore(selectDisplayDuration);
     const playerState = usePlaybackStore(selectDisplayPlayerState);
+    const remoteActions = useRemoteControlActions(isElectronWindow);
 
     const [playbackSyncBridgeStatus, setPlaybackSyncBridgeStatus] = useState<ElectronPlaybackSyncBridgeStatus>(() => emptyPlaybackSyncBridgeStatus());
     const pausedByVoiceInputRef = useRef(false);
@@ -274,8 +277,7 @@ export const useElectronPlaybackBridge = ({
     };
 
     const buildRemoteSnapshot = (options: { includeLyrics?: boolean } = {}): RemoteControlSnapshot => {
-        return {
-            ...buildRemoteControlSnapshotFromPlaybackSyncBridge(
+        const snapshot = buildRemoteControlSnapshotFromPlaybackSyncBridge(
             buildPlaybackSyncBridgeModelFromCurrentState(),
             {
                 includeLyrics: options.includeLyrics,
@@ -285,9 +287,17 @@ export const useElectronPlaybackBridge = ({
                     ? remoteTrackTransitionRef.current
                     : null,
             },
-            ),
+        );
+        const actions = remoteActions.read();
+        const displayedTrackKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+        return {
+            ...snapshot,
             canLike: canLikeCurrentSong,
             likeUnavailableProvider,
+            // Store updates may precede this render's displayed song. Never publish new-song
+            // action tickets underneath the previous song's title during that brief interval.
+            // Use displayed identity: native transport has a null key for now-playing stages.
+            remoteActions: actions?.trackKey === displayedTrackKey ? actions : undefined,
         };
     };
 
@@ -495,6 +505,7 @@ export const useElectronPlaybackBridge = ({
 
         publish({ includeLyrics: true });
         const intervalId = window.setInterval(() => publish(), 500);
+        const unsubscribeActions = subscribeRemoteActions(() => publish());
 
         let lastReportedDpr = window.devicePixelRatio || 1;
         const handleResize = () => {
@@ -512,6 +523,7 @@ export const useElectronPlaybackBridge = ({
 
         return () => {
             window.clearInterval(intervalId);
+            unsubscribeActions();
             window.removeEventListener('resize', handleResize);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -554,6 +566,10 @@ export const useElectronPlaybackBridge = ({
         }
 
         const runCommand = (command: RemoteControlCommand) => {
+            if (command.type === 'remote-action') {
+                void remoteActions.activate(command);
+                return;
+            }
             if (onRemoteExportCommand?.(command)) {
                 return;
             }
