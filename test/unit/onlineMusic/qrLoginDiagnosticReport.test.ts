@@ -111,6 +111,28 @@ describe('login backend diagnostics', () => {
         ]));
     });
 
+    it('still produces a report when the NetEase upstream package never loaded', () => {
+        const error = "ENOENT: no such file or directory, open 'D:\\Folia\\%USERPROFILE%\\AppData\\Local\\Temp\\anonymous_token'";
+        const lines = formatLoginBackendDiagnostics({
+            ...neteaseSnapshot,
+            backend: { status: 'error', port: null, error: `load: ${error}`, updatedAt: AT },
+            startup: [{
+                startedAt: AT,
+                finishedAt: AT,
+                outcome: 'failed',
+                steps: [{ id: 'load', startedAt: AT, durationMs: 0, outcome: 'failed', detail: {}, error }],
+            }],
+            login: null,
+            identity: null,
+        }, []);
+
+        expect(lines).toEqual(expect.arrayContaining([
+            `backend: error error=${JSON.stringify(`load: ${error}`)} (since 12:00:00.000)`,
+            `    load failed 0ms error=${JSON.stringify(error)}`,
+            'upstream package: not loaded (see the load step above)',
+        ]));
+    });
+
     it('lists each address Happy Eyeballs tried when the first one failed', () => {
         expect(formatConnection({
             ...resetConnection,

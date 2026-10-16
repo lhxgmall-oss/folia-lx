@@ -25,6 +25,7 @@ const {
 // 网易云本地 API（@neteasecloudmusicapienhanced/api）在主进程里的完整生命周期，按顺序分三段：
 // 1. 加载前的准备（createNeteaseBackend 同步完成，必须在任何代码 require 上游之前调用）：
 //    上游的 util/request 在首次 require 时同步读临时目录里的 anonymous_token，文件不存在会直接抛 ENOENT，所以先建好。
+//    第 1、2 段与加载上游都在 loadUpstream 里；它抛错不会带崩主进程，而是变成 start() 里 load 步骤的失败（见错误边界注释）。
 // 2. 替换上游模块：经 require.cache 换掉 util/request（请求管线）与 module/login_qr_check（修正上游吞错的 bug），
 //    必须赶在上游 main / server 首次 require 它们之前，它们拿到的才是替换后的版本。
 //    请求管线从外到内：身份轮换 → 扫码网络层重试 → 来源 IP 策略 → 登录请求记录 → 上游 request。
@@ -54,15 +55,10 @@ const readCachedXeapiKey = (keyPath) => {
 };
 
 /**
- * 准备并替换上游模块，返回网易后端的控制面。broadcast(channel, status) 把状态推给所有窗口；
- * networkRecorder 是已经 start() 的连接层记录器。
+ * 第 1～3 段：准备匿名 token 文件、替换上游模块、加载上游，返回拉起要用的上游入口与诊断对象。
+ * 全程同步，任何一步抛错都原样抛给调用方（createNeteaseBackend 的错误边界）。
  */
-function createNeteaseBackend({
-  broadcast,
-  networkRecorder = null,
-  logger = console,
-  now = Date.now,
-}) {
+function loadUpstream({ networkRecorder, logger }) {
   // ── 1. 加载前的准备 ────────────────────────────────────────────────
   // Provide Netease API unblock parameter as requested
   process.env.ENABLE_GENERAL_UNBLOCK = 'false';
@@ -108,9 +104,45 @@ function createNeteaseBackend({
   const { getXeapiPublicKey } = require(`${NCM_PACKAGE}/util/xeapiKey`);
   const { serveNcmApi } = require(`${NCM_PACKAGE}/server`);
 
+  return {
+    tokenPath,
+    xeapiPublicKeyPath,
+    ncmUtil,
+    loginDiagnostics,
+    loginIdentity,
+    registerAnonymous,
+    getXeapiPublicKey,
+    serveNcmApi,
+  };
+}
+
+/**
+ * 准备并替换上游模块，返回网易后端的控制面。broadcast(channel, status) 把状态推给所有窗口；
+ * networkRecorder 是已经 start() 的连接层记录器。
+ */
+function createNeteaseBackend({
+  broadcast,
+  networkRecorder = null,
+  logger = console,
+  now = Date.now,
+}) {
   const status = createBackendStatus({ channel: STATUS_CHANNEL, broadcast, now });
   const startup = createStartupRecorder({ name: 'Netease API', now, logger });
   let startPromise = null;
+
+  // 错误边界：这一段在 main.cjs 顶层同步执行，抛出去就是启动即崩（#690：TEMP 环境变量里的 %USERPROFILE%
+  // 没展开，os.tmpdir() 成了相对路径，写匿名 token 时 ENOENT）。网易后端是硬依赖，不能静默降级：
+  // 失败留在 loadError 里，start() 把它记成 load 步骤的失败并置 error 状态，经现有的状态广播、
+  // 故障提示和诊断报告带着原始错误交给用户。上游可能已经加载了一半、缓存项可能已被替换，
+  // 重启不重试加载，只会如实再报一次同样的错误。
+  let upstream = null;
+  let loadError = null;
+  try {
+    upstream = loadUpstream({ networkRecorder, logger });
+  } catch (error) {
+    loadError = error;
+    logger.error('[Netease API] failed to load upstream package', error);
+  }
 
   // 一次完整的拉起。失败时状态里的错误带上失败的那一步，界面上的故障原因一眼能看出卡在哪。
   const startOnce = async () => {
@@ -122,6 +154,20 @@ function createNeteaseBackend({
       return startup.step(id, fn);
     };
     try {
+      if (loadError) {
+        await step('load', () => {
+          throw loadError;
+        });
+      }
+      const {
+        tokenPath,
+        xeapiPublicKeyPath,
+        ncmUtil,
+        registerAnonymous,
+        getXeapiPublicKey,
+        serveNcmApi,
+      } = upstream;
+
       const port = await step('port', async (note) => {
         const freePort = await findFreePort();
         note({ port: freePort });
@@ -198,8 +244,8 @@ function createNeteaseBackend({
   const getDiagnostics = () => ({
     backend: { ...status.get() },
     startup: startup.snapshot(),
-    login: loginDiagnostics.snapshot(),
-    identity: loginIdentity.describe(),
+    login: upstream ? upstream.loginDiagnostics.snapshot() : null,
+    identity: upstream ? upstream.loginIdentity.describe() : null,
     connections: networkRecorder
       ? networkRecorder.snapshot('netease').filter(entry => entry.tag === null).slice(-RECENT_CONNECTIONS)
       : [],

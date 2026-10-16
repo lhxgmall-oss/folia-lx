@@ -169,6 +169,7 @@ declare global {
     app: ElectronAppEnvironment;
     backend: ElectronNeteaseApiStatus;
     startup: ElectronBackendStartupRun[];
+    /** 上游包没加载起来（startup 里 load 步骤失败）时为 null，identity 同理。 */
     login: {
       capturedAt: number;
       startup: { anonymousTokenAtLoad?: 'present' | 'empty' };
@@ -177,7 +178,7 @@ declare global {
         error?: string;
       };
       requests: ElectronNeteaseLoginRequestRecord[];
-    };
+    } | null;
     /**
      * 扫码身份轮换（electron/neteaseLoginIdentity.cjs）：进程启动时刻、当前 deviceId、扫码请求被重置的次数、
      * 实际轮换的次数（被重置后到下一次要码才换）、最近一次是否换到了新的匿名 token、是否还有待轮换。
@@ -190,7 +191,7 @@ declare global {
       lastRotatedAt: number | null;
       lastTokenRenewed: boolean | null;
       pendingRotation: boolean;
-    };
+    } | null;
     /** 最近的上游连接（不属于任何一次登录请求的那些，例如启动时取 xeapi 公钥）。 */
     connections: ElectronNetworkConnection[];
   }

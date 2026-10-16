@@ -109,7 +109,7 @@ const formatNeteaseRequest = (request: ElectronNeteaseLoginRequestRecord): strin
     return [head, ...(request.connections ?? []).map(connection => `      ↳ ${connection.host} ${formatConnection(connection, { withTarget: false })}`)];
 };
 
-const formatNeteaseIdentity = (identity: ElectronNeteaseLoginDiagnostics['identity']): string => {
+const formatNeteaseIdentity = (identity: NonNullable<ElectronNeteaseLoginDiagnostics['identity']>): string => {
     const last = identity.lastRotatedAt === null
         ? ''
         : ` (last ${formatDiagnosticClock(identity.lastRotatedAt)}, new anonymous token=${yesNo(identity.lastTokenRenewed)})`;
@@ -122,7 +122,7 @@ const formatNeteaseIdentity = (identity: ElectronNeteaseLoginDiagnostics['identi
     ].join(', ');
 };
 
-const formatInterfaces = (network: ElectronNeteaseLoginDiagnostics['login']['network']): string => {
+const formatInterfaces = (network: NonNullable<ElectronNeteaseLoginDiagnostics['login']>['network']): string => {
     if (network.error) return `network interfaces: error ${JSON.stringify(network.error)}`;
     const interfaces = network.interfaces
         .map(item => `${item.name}: ${item.addresses.map(address => address.address).join(', ')}`)
@@ -131,6 +131,13 @@ const formatInterfaces = (network: ElectronNeteaseLoginDiagnostics['login']['net
 };
 
 const formatNeteaseSnapshot = (snapshot: ElectronNeteaseLoginDiagnostics): string[] => {
+    // 上游包没加载起来就没有登录记录与扫码身份，原因在 startup 的 load 步骤里。
+    if (!snapshot.login || !snapshot.identity) {
+        return [
+            'upstream package: not loaded (see the load step above)',
+            ...formatRecentConnections('other upstream connections', snapshot.connections),
+        ];
+    }
     const { requests } = snapshot.login;
     // 同一轮扫码里 deviceId 变过是一个可疑点（渲染进程注册匿名身份会改掉主进程的全局 deviceId），
     // 连接被重置后的主动轮换也会换它，对照 identity 行区分。
