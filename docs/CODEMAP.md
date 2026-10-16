@@ -111,6 +111,7 @@
 - `dev/probes/playbackLyricsSettings.probe.tsx`
 - `dev/probes/playerBarModButtons.probe.tsx`
 - `dev/probes/playerBottomBar.probe.tsx`
+- `dev/probes/playerLayout.probe.tsx`
 - `dev/probes/ponderBravaisSeam.probe.tsx`
 - `dev/probes/ponderHint.probe.tsx`
 - `dev/probes/ponderPageSurfaces.probe.tsx`
