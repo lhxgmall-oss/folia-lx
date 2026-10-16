@@ -131,7 +131,8 @@ function createNeteaseBackend({
   let startPromise = null;
 
   // 错误边界：这一段在 main.cjs 顶层同步执行，抛出去就是启动即崩（#690：TEMP 环境变量里的 %USERPROFILE%
-  // 没展开，os.tmpdir() 成了相对路径，写匿名 token 时 ENOENT）。网易后端是硬依赖，不能静默降级：
+  // 没展开，os.tmpdir() 成了相对路径，写匿名 token 时 ENOENT；这种情形现在由 main.cjs 开头的
+  // repairTempDirEnvironment 展开，这里兜的是展开不了与其它加载失败）。网易后端是硬依赖，不能静默降级：
   // 失败留在 loadError 里，start() 把它记成 load 步骤的失败并置 error 状态，经现有的状态广播、
   // 故障提示和诊断报告带着原始错误交给用户。上游可能已经加载了一半、缓存项可能已被替换，
   // 重启不重试加载，只会如实再报一次同样的错误。
