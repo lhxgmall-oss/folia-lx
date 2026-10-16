@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
@@ -10,6 +10,9 @@ import { getSizedCoverUrl } from '../../utils/coverUrl';
 import { FoliumStageLayerSlot } from '../../mods/folium/registries/stageLayers';
 import VideoLayer from './videoLayer/VideoLayer';
 import { isMainAppSurface } from '../../utils/appSurface';
+import { usePlayerOverlayReservation } from '../../hooks/usePlayerOverlayLayout';
+import type { FoliumLayoutRect } from '../../mods/folium/contract';
+import { useIsPlayerBottomBarHost } from '../floating-player/PlayerBottomBarLayoutContext';
 
 // Shared outer shell for all visualizers.
 // This is where we keep background layering, font injection, and the hover-only back button
@@ -44,6 +47,15 @@ interface VisualizerShellProps {
 
 const PLAYER_CHROME_HOTSPOT_SIZE = 120;
 const TOUCH_GUIDE_DISPLAY_MS = 1400;
+const backRevealArea = (bounds: FoliumLayoutRect): FoliumLayoutRect => ({
+    left: bounds.left, top: bounds.top,
+    width: PLAYER_CHROME_HOTSPOT_SIZE, height: PLAYER_CHROME_HOTSPOT_SIZE,
+});
+const panelRevealArea = (bounds: FoliumLayoutRect): FoliumLayoutRect => ({
+    left: bounds.left + bounds.width - PLAYER_CHROME_HOTSPOT_SIZE,
+    top: bounds.top + bounds.height - PLAYER_CHROME_HOTSPOT_SIZE,
+    width: PLAYER_CHROME_HOTSPOT_SIZE, height: PLAYER_CHROME_HOTSPOT_SIZE,
+});
 
 const isNearPlayerPanelHotspot = (clientX: number, clientY: number) => (
     typeof window !== 'undefined'
@@ -63,6 +75,8 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 }, ref) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
+    const backVisibilityRef = useRef(false);
+    const isPlayerPage = useIsPlayerBottomBarHost();
     const playerPanelGuideHotspotRef = useRef(false);
     const touchGuideHideTimeoutRef = useRef<number | null>(null);
     const resolvedCoverUrl = getSizedCoverUrl(sharedProps?.coverUrl, 1024) || undefined;
@@ -76,7 +90,18 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     const onPlayerPanelGuideHotspotChange = sharedProps?.onPlayerPanelGuideHotspotChange;
     const isBackButtonVisible = sharedProps?.alwaysShowBackButton || showBackButton;
     const showStageLayers = !sharedProps?.isPreviewMode && !resolvedStaticMode;
+    // Static visuals still have live native controls and an app.overlay layer.
+    const publishLayout = isPlayerPage && !sharedProps?.isPreviewMode && isMainAppSurface;
+    const hasBackAction = Boolean(resolvedOnBack);
+    // Overlay content is outside this shell; reserve the complete native reveal hot area.
+    usePlayerOverlayReservation('back-reveal', 'navigation', backRevealArea, publishLayout && hasBackAction);
+    usePlayerOverlayReservation('panel-reveal', 'panel', panelRevealArea, publishLayout && !resolvedIsPanelOpen);
 
+    const updateBackVisibility = useCallback((visible: boolean) => {
+        if (backVisibilityRef.current === visible) return;
+        backVisibilityRef.current = visible;
+        setShowBackButton(visible);
+    }, []);
     const updatePlayerPanelGuideHotspot = (isActive: boolean) => {
         if (playerPanelGuideHotspotRef.current === isActive) {
             return;
@@ -132,20 +157,15 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                 fontWeight: resolveThemeFontWeight(theme, 400),
                 opacity: resolvedVisualizerOpacity,
             }}
-            onMouseMove={(event) => {
+            onMouseMoveCapture={(event) => {
                 // Back button is intentionally hidden most of the time.
                 // Only reveal it near the top-left hot area so it does not pollute the visual field.
-                const nearBackArea = event.clientX <= PLAYER_CHROME_HOTSPOT_SIZE && event.clientY <= PLAYER_CHROME_HOTSPOT_SIZE;
-                if (nearBackArea !== showBackButton) {
-                    setShowBackButton(nearBackArea);
-                }
+                updateBackVisibility(event.clientX <= PLAYER_CHROME_HOTSPOT_SIZE && event.clientY <= PLAYER_CHROME_HOTSPOT_SIZE);
 
                 updatePlayerPanelGuideHotspot(!resolvedIsPanelOpen && isNearPlayerPanelHotspot(event.clientX, event.clientY));
             }}
             onMouseLeave={() => {
-                if (showBackButton) {
-                    setShowBackButton(false);
-                }
+                updateBackVisibility(false);
                 updatePlayerPanelGuideHotspot(false);
             }}
             onPointerDown={(event) => {

@@ -143,6 +143,8 @@ export const useFoliumStageContext = (inputs: FoliumStageInputs): FoliumStageCon
             getDisplay: () => displayRef.current,
             getSettings: () => inputsRef.current.settings?.get() ?? EMPTY_SETTINGS,
             getSurface: () => inputsRef.current.surface,
+            // Registration binds layout access and lifetime to the owning mod's actual mount.
+            getLayout: () => null,
             subscribe: (listener: () => void) => {
                 listenersRef.current.add(listener);
                 return () => listenersRef.current.delete(listener);

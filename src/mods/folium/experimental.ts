@@ -24,6 +24,7 @@ import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderT
 //   - omni.hooks:     rewrite lyrics / swap audio URLs Omni resolved;
 //   - ponder.targets: add Ponder (in-app tutorial) targets for the mod's own UI.
 //   - remote.actions: append host-rendered buttons in the remote window.
+// player.layout opts into FoliumStageContext.getLayout(), not a separate service.
 // Loaded lazily and only in the main window, so the export bundle never pulls
 // in the provider registry. These can change in any folium minor.
 

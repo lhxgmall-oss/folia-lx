@@ -251,3 +251,21 @@ describe('experimental gate', () => {
         expect(remoteActionsRegistry.list()).toHaveLength(0);
     });
 });
+
+
+describe('player.layout declaration without a standalone experimental service', () => {
+    it('keeps layout access on the stage context and leaves the stable Folium version at 1.5', () => {
+        for (const experimental of [[], ['player.layout']]) {
+            const descriptor = mod({ experimental });
+            const api = createFoliumClientApi(descriptor, {
+                context: 'main', internals: null, experimental: createFoliumExperimental(descriptor),
+            });
+            expect(api.host.folium).toEqual({ major: 1, minor: 5 });
+            expect(() => api.experimental['player.layout']).toThrow(
+                experimental.length ? 'experimental-unknown:player.layout' : 'experimental-not-declared:player.layout',
+            );
+        }
+        const exported = createFoliumClientApi(mod({ experimental: ['player.layout'] }), { context: 'export', internals: null });
+        expect(() => exported.experimental['player.layout']).toThrow('experimental-unknown:player.layout');
+    });
+});
