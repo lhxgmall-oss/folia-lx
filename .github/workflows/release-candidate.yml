@@ -131,6 +131,7 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
           PRERELEASE_LABEL: ${{ needs.prepare-release.outputs.prerelease_label }}
           TARGET_REF: ${{ github.sha }}
+          MACOS_UNSIGNED_HELP_URL: https://github.com/${{ github.repository }}/blob/main/docs/desktop/macos-app-damaged.md
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -146,6 +147,7 @@ jobs:
             TAG: process.env.RELEASE_TAG || '',
             PRERELEASE_LABEL: process.env.PRERELEASE_LABEL || '',
             TARGET_REF: process.env.TARGET_REF || '',
+            MACOS_UNSIGNED_HELP_URL: process.env.MACOS_UNSIGNED_HELP_URL || '',
           };
 
           for (const [key, value] of Object.entries(replacements)) {
