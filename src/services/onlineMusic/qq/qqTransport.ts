@@ -7,7 +7,7 @@ import { withOnlineRequestLimit } from '../failure/onlineRequestLimit';
 
 export const QQ_OPERATIONS = [
     'login_qr_key', 'login_qr_create', 'login_qr_check', 'login_qr_cancel', 'login_status', 'logout',
-    'login_channels',
+    'login_channels', 'login_refresh',
     'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'user_playlist_detail',
     'user_guess_you_like', 'user_daily_songs', 'recommend_playlists',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
@@ -26,6 +26,7 @@ export type QqParams = Record<string, string | number | boolean | undefined>;
 
 // 写入路由只收 POST + JSON 正文；GET 会回 405。
 const POST_OPERATIONS: ReadonlySet<QqOperation> = new Set<QqOperation>([
+    'login_refresh',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_song_like', 'user_album_subscribe',
     'user_playlist_create',
 ]);
@@ -39,6 +40,8 @@ const ENDPOINTS: Record<QqOperation, string> = {
     logout: '/logout',
     // 只有 3.0.0 之后的后端有这条路由，旧后端回 404，调用方要把它当成「没有声明」而不是错误。
     login_channels: '/login/channels',
+    // 3.3.3 的主动续期：Serverless 在快到期时换新 token。旧后端照例 404 → `unsupported`（qqSessionRefresh.ts）。
+    login_refresh: '/login/refresh',
     user_detail: '/user/detail',
     user_playlist: '/user/playlist',
     user_albums: '/user/albums',

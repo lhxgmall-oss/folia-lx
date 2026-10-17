@@ -558,6 +558,7 @@ describe('qqProvider', () => {
             'session: backend session stored=yes',
             'login channels: not declared by the backend',
             'last account check: none',
+            'login methods shown: qq, wechat',
         ]);
 
         transportState.hasSession = false;
