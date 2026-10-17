@@ -2,7 +2,7 @@ import type { UnifiedSong } from '../../../types';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { OnlineCatalogProvider, ProviderCollection } from '../../../types/onlineMusic';
 import { createYtmPager, normalizeYtmCollection, normalizeYtmSong, ytmSlicePage } from './ytmNormalize';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 import { requestYtm } from './ytmTransport';
 import type { YtmWireAlbum, YtmWireArtistPage, YtmWirePage, YtmWireSong } from './ytmTransport';
 
@@ -66,7 +66,7 @@ export const ytmPlaylistTracks = (id: string, limit: number, offset: number, asA
             const page = await requestYtm<YtmWirePage<YtmWireSong>>('public_playlist', { id, continuation: continuation?.slice(PUBLIC_PAGE.length) })
                 .catch(error => {
                     if (continuation !== undefined) throw error;
-                    console.warn(`[Ytm] Playlist ${id} could not be read as a guest (${cleanPrivateError(error).message}); it is read as the account`);
+                    console.warn(`[Ytm] Playlist ${id} could not be read as a guest (${errorMessage(error)}); it is read as the account`);
                     return null;
                 });
             if (page && (continuation !== undefined || page.items.length > 0)) {

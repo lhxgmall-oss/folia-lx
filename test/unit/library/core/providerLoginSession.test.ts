@@ -610,14 +610,13 @@ describe('providerLoginSession · why the sign-in did not succeed', () => {
         expect(session.getSnapshot()).toMatchObject({ phase: 'waiting', failure: null });
     });
 
-    it('takes nothing of a thrown error\'s sentence into the facts, and cleans it for the report', async () => {
+    it('takes nothing of a thrown error\'s sentence into the facts, and keeps it whole in the report\'s timeline', async () => {
         auth.startLogin.mockRejectedValueOnce(new Error("EPERM: open 'C:\\Users\\Zhang San\\AppData\\Roaming\\Folia\\token'"));
         const session = createSession();
         await session.start('netease').settled;
         expect(JSON.stringify(session.getSnapshot().failure)).not.toMatch(/Zhang|AppData/);
         const report = await session.buildDiagnosticReport();
-        expect(report).not.toMatch(/Zhang|AppData/);
-        expect(report).toContain('start:error');
+        expect(report).toMatch(/start:error name=Error message=".*Zhang San.*AppData.*token'"/);
     });
 
     it('ends a check that throws with its timers gone, whatever the error names', async () => {

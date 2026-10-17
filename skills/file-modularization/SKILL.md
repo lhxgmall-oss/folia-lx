@@ -36,7 +36,7 @@ description: Use when adding a feature or a file, moving or renaming files, or r
 
 - 测试的收集范围：`vitest.config.ts` 的 `include`，`playwright.config.ts` 各 project 的 `testDir`。
 - `import.meta.glob` 找的文件：歌词样式 `src/components/visualizer/<mode>/entry.tsx` 和 `<mode>/tuning.ts`，背景 `backgrounds/<name>/entry.tsx`、`tuning.ts`、`settings.ts`，开发探针 `dev/probes/*.probe.tsx`，登录方式图标 `src/assets/providers/*.svg`，ponder 的 `src/components/ponder/targets/**/*.target.ts` 和 `surfaces/**/*.surface.tsx`。
-- 检查脚本扫描的目录和文件：例如 `test/unit/privateText/privateTextLogLines.test.ts` 开头列出它读哪些目录，`test/unit/onlineMusic/platformNamePlaces.ts` 按路径登记文件。
+- 检查脚本扫描的目录和文件：例如 `test/unit/onlineMusic/platformNamePlaces.ts` 按路径登记文件。
 - 代码地图生成器 `dev/mcp/ts-code-map/codemap.mjs`：区域和依赖方向都按路径判断。
 
 挪完以后 rg 一遍旧路径（文档、配置、测试），一起改掉。

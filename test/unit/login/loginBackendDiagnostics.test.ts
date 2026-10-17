@@ -5,7 +5,8 @@ import { collectQqLoginDiagnostics, formatQqLoginDiagnostics } from '@/services/
 
 // test/unit/login/loginBackendDiagnostics.test.ts
 // What the main process records about the local API (its start-up steps, the connections it opened)
-// as the report prints it. Addresses stay out: a connection says which family it reached.
+// as the report prints it. The report keeps what triage needs whole: the address each connection
+// reached, the network interfaces, the device id; the user is told what it holds before sending it.
 
 const AT = Date.UTC(2026, 8, 26, 12, 0, 0);
 
@@ -94,25 +95,24 @@ describe('login backend diagnostics', () => {
         const lines = textOf(formatNeteaseLoginDiagnostics(neteaseSnapshot, session));
 
         expect(lines).toEqual(expect.arrayContaining([
-            'app: 1.2.3 electron 43.7.5 win32 x64 (10.0.22631)',
-            'os: Windows 11 Pro, locale zh-CN, time zone Asia/Shanghai, uptime 120s',
+            'app: 1.2.3 electron 43.7.5 (node 24.21.0, chrome 150.0.7871.250) win32 x64',
+            'os: 10.0.22631 (Windows 11 Pro), locale zh-CN, time zone Asia/Shanghai, uptime 120s',
             'credential store: encryption=yes',
+            'local api: running 127.0.0.1:52001 (since 12:00:00.000)',
             'startup runs (1, oldest first, UTC):',
             '  12:00:00.000 running (1500ms)',
-            // A number in a field is cleaned with its name (an account id would be one): the port is in the local api line.
-            '    port ok 1ms port=<value>',
-            '    runtime ok 5ms deviceId=<value>',
+            '    port ok 1ms port=52001',
+            '    runtime ok 5ms deviceId=DEVICE0123456789CEABCDEF',
             '    xeapi-key ok 1400ms cache=missing source=network',
             '    anonymous-token ok 90ms refreshed=false error="socket hang up"',
-            'identity: connection resets=3, rotations=2, last token renewed=no, pending rotation=yes, process started 2026-09-26T11:30:00.000Z, last rotation 12:05:00.000',
-            '  12:00:00.000 api/login/qrcode/client/login rejected status=502 code=502 msg="read ECONNRESET" 80ms ip-header=none device=…CEABCDEF MUSIC_U=no MUSIC_A=yes',
-            '      ↳ POST interfacepc.music.163.com → v6 tcp=31ms → ECONNRESET at tls: read ECONNRESET (80ms)',
+            'network interfaces: Wi-Fi: 192.168.1.5',
+            'identity: process started 2026-09-26T11:30:00.000Z, deviceId=DEVICE0123456789CEABCDEF, qr connection resets=3, device rotations=2 (last 12:05:00.000, new anonymous token=no), rotation pending=yes',
+            'device ids seen in login requests: 1',
+            '  12:00:00.000 /api/login/qrcode/client/login rejected status=502 code=502 msg="read ECONNRESET" 80ms ip-header=none device=…CEABCDEF MUSIC_U=no MUSIC_A=yes',
+            '      ↳ interfacepc.music.163.com → 240e:96c:6100::7 (v6) tcp=31ms → ECONNRESET at tls: read ECONNRESET (80ms)',
             'other upstream connections (1, oldest first, UTC):',
-            '  12:00:00.000 GET interfacepc.music.163.com/api/xeapi/key?<query> → v6 tcp=31ms tls=40ms → HTTP 200 (80ms)',
+            '  12:00:00.000 GET interfacepc.music.163.com/api/xeapi/key?nick=Zhang.San → 240e:96c:6100::7 (v6) tcp=31ms tls=40ms → HTTP 200 (80ms)',
         ]));
-        // The full device id is an identifier: only its tail, in the request line, goes in.
-        expect(lines.join('\n')).not.toContain('DEVICE0123456789');
-        expect(lines.join('\n')).not.toContain('San');
     });
 
     it('still produces a report when the NetEase upstream package never loaded', () => {
@@ -149,7 +149,7 @@ describe('login backend diagnostics', () => {
         ]));
     });
 
-    it('lists each address family Happy Eyeballs tried when the first one failed', () => {
+    it('lists each address Happy Eyeballs tried when the first one failed', () => {
         expect(formatConnection({
             ...resetConnection,
             remote: { address: '59.111.181.35', family: 4 },
@@ -160,12 +160,12 @@ describe('login backend diagnostics', () => {
             tlsMs: 120,
             status: 200,
             error: null,
-        }, () => true).text).toBe('POST interfacepc.music.163.com/eapi/login/qrcode/client/login → v4 tcp=31ms tls=120ms → HTTP 200 (80ms); attempts: v6 timeout, v4 connected');
+        }).text).toBe('POST interfacepc.music.163.com/eapi/login/qrcode/client/login → 59.111.181.35 (v4) tcp=31ms tls=120ms → HTTP 200 (80ms); attempts: 240e:96c:6100::7 v6 timeout, 59.111.181.35 v4 connected');
     });
 
-    it('names a host only when the platform knows it', () => {
-        expect(formatConnection({ ...resetConnection, host: 'proxy.lan', error: null, dnsError: { code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND proxy.lan' }, remote: null }, () => false).text)
-            .toBe('POST <host> → no connection tcp=31ms → DNS ENOTFOUND: getaddrinfo ENOTFOUND <address> (80ms)');
+    it('prints any host with its path, and the error in its own words', () => {
+        expect(formatConnection({ ...resetConnection, host: 'proxy.lan', error: null, dnsError: { code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND proxy.lan' }, remote: null }).text)
+            .toBe('POST proxy.lan/eapi/login/qrcode/client/login → no connection tcp=31ms → DNS ENOTFOUND: getaddrinfo ENOTFOUND proxy.lan (80ms)');
     });
 
     it('lays out the QQ local API, the package\'s failures with their original error, the auth events and the connections', () => {
@@ -197,10 +197,10 @@ describe('login backend diagnostics', () => {
 
         expect(lines).toEqual([
             'runtime: electron (local API)',
-            'app: 1.2.3 electron 43.7.5 linux x64 (10.0.22631)',
-            'os: Windows 11 Pro, locale zh-CN, time zone Asia/Shanghai, uptime 120s',
+            'app: 1.2.3 electron 43.7.5 (node 24.21.0, chrome 150.0.7871.250) linux x64',
+            'os: 10.0.22631 (Windows 11 Pro), locale zh-CN, time zone Asia/Shanghai, uptime 120s',
             'credential store: encryption=yes backend=basic_text',
-            'local api: running port=41057',
+            'local api: running 127.0.0.1:41057 (since 12:00:00.000)',
             'qq-music-api: 3.1.3, hooks: failSession, failBootstrap, logger',
             'startup runs: none',
             'session: backend session stored=no',
@@ -213,7 +213,7 @@ describe('login backend diagnostics', () => {
             'auth events (1, oldest first, UTC):',
             '  12:00:00.000 warn qq-auth.session-failed failureStage=session-issue name=Error',
             'upstream connections (1, oldest first, UTC):',
-            '  12:00:00.000 POST u.y.qq.com/cgi-bin/musicu.fcg → v6 tcp=31ms tls=90ms → HTTP 200 (80ms)',
+            '  12:00:00.000 POST u.y.qq.com/cgi-bin/musicu.fcg → 240e:96c:6100::7 (v6) tcp=31ms tls=90ms → HTTP 200 (80ms)',
         ]);
     });
 

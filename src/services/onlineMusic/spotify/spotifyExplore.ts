@@ -8,7 +8,7 @@ import type { SpotifyAlbum, SpotifyArtistRow, SpotifyPlaylist } from './spotifyN
 import { addSpotifySeeds, noteSpotifyListened, spotifyLikedSeeds, spotifyRadioSongs, spotifySeedOf } from './spotifyRadio';
 import type { SpotifySeed } from './spotifyRadio';
 import { querySpotify } from './spotifyTransport';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/spotify/spotifyExplore.ts
 // The explore page is what Spotify itself picks for the account, in four parts, each asked for
@@ -103,7 +103,7 @@ const SONGS = 'songs';
 // A shelf made here is another one in every read; it is told apart by when it was made.
 let shelvesMade = 0;
 
-export const wordsOf = (error: unknown) => cleanPrivateError(error).message;
+export const wordsOf = (error: unknown) => errorMessage(error);
 // An entry's second line on this page: what the entry is, then whose. The app's own rule (the
 // names, and the kind only where there are none) told nothing apart here: every playlist of the
 // home page and of the account's lists is Spotify's own (115 of 115, 2026-10-08), so each card

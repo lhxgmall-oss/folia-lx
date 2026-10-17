@@ -31,7 +31,7 @@ import { useTypographySettingsStore } from '../../../../stores/useTypographySett
 import { currentTime } from '../../../../stores/motionSignals';
 import { useRemoteControlActions } from '../../../../hooks/useRemoteControlActions';
 import { subscribeRemoteActions } from '../../../../mods/folium/registries/remoteActions';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
+import { errorMessage } from '../../../../utils/errorText';
 
 // Bridges Electron-specific shell features without coupling to UI components.
 const DISCORD_PRESENCE_SNAPSHOT_INTERVAL_MS = 1000;
@@ -362,7 +362,7 @@ export const useElectronPlaybackBridge = ({
         }
 
         void window.electron.publishDiscordPresenceSnapshot(buildDiscordPresenceSnapshot()).catch((error) => {
-            console.warn('[Discord] Failed to publish presence snapshot', cleanPrivateError(error));
+            console.warn('[Discord] Failed to publish presence snapshot', error);
         });
     };
 
@@ -439,7 +439,7 @@ export const useElectronPlaybackBridge = ({
         void window.electron.updateTaskbarControls(
             buildTaskbarControlsFromPlaybackSyncBridge(buildPlaybackSyncBridgeModelFromCurrentState())
         ).catch((error) => {
-            console.warn('[Electron] Failed to update Windows taskbar controls', cleanPrivateError(error));
+            console.warn('[Electron] Failed to update Windows taskbar controls', error);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playerState]);
@@ -486,7 +486,7 @@ export const useElectronPlaybackBridge = ({
         void window.electron?.getPlaybackSyncBridgeStatus?.().then(status => {
             setPlaybackSyncBridgeStatus(status);
         }).catch((error) => {
-            console.warn('[Electron] Failed to read playback sync bridge status', cleanPrivateError(error));
+            console.warn('[Electron] Failed to read playback sync bridge status', error);
         });
 
         return window.electron?.onPlaybackSyncBridgeStatusChanged?.(status => {
@@ -505,7 +505,7 @@ export const useElectronPlaybackBridge = ({
 
         const publish = (options: { includeLyrics?: boolean } = {}) => {
             void window.electron?.publishRemoteControlSnapshot(buildRemoteSnapshot(options)).catch((error) => {
-                console.warn('[Electron] Failed to publish remote control snapshot', cleanPrivateError(error));
+                console.warn('[Electron] Failed to publish remote control snapshot', error);
             });
         };
 
@@ -553,7 +553,7 @@ export const useElectronPlaybackBridge = ({
 
         const publish = () => {
             void window.electron?.publishStagePlayerSnapshot(buildCurrentStagePlayerSnapshot()).catch((error) => {
-                console.warn('[Stage] Failed to publish player snapshot', cleanPrivateError(error));
+                console.warn('[Stage] Failed to publish player snapshot', error);
             });
         };
 
@@ -680,7 +680,7 @@ export const useElectronPlaybackBridge = ({
             void window.electron?.completeStagePlayerControlRequest?.({
                 requestId,
                 ok,
-                error: ok ? null : cleanPrivateError(error).message,
+                error: ok ? null : errorMessage(error),
             });
         };
 

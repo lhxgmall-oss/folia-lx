@@ -10,7 +10,6 @@ import type {
     LibraryArtistUpdateHint,
 } from './artist.contract';
 import type { LibraryCollectionDescriptor } from '../collection/collection.contract';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 import {
     appendArtistAlbums,
     ARTIST_ALBUM_OFFSET_CAP,
@@ -95,7 +94,7 @@ export const createArtistResource = (
     /** 最近一次派生用的本地输入（同一份 catalog 与歌曲不重复派生、不重复通知）。 */
     let derivedFrom: { catalog: unknown; songs: unknown } | null = null;
     const listeners = new Set<() => void>();
-    const report = deps.reportError ?? ((message: string, error: unknown) => console.error(message, cleanPrivateError(error)));
+    const report = deps.reportError ?? ((message: string, error: unknown) => console.error(message, error));
 
     const commit = (patch: Partial<Omit<LibraryArtistSnapshot, 'key' | 'hint'>>, hint: LibraryArtistUpdateHint = 'urgent') => {
         snapshot = { ...snapshot, ...patch, hint };

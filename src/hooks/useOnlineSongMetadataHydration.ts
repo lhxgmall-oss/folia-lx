@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { SongResult, UnifiedSong } from '../types';
 import { omni } from '../services/onlineMusic/omni';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 
 // src/hooks/useOnlineSongMetadataHydration.ts
 
@@ -59,7 +58,7 @@ export const useOnlineSongMetadataHydration = (
                 });
             })
             .catch(error => {
-                console.warn('[OnlineMetadata] Failed to hydrate current song metadata:', cleanPrivateError(error));
+                console.warn('[OnlineMetadata] Failed to hydrate current song metadata:', error);
             });
 
         return () => {

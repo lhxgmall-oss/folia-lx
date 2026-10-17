@@ -3,7 +3,6 @@ import type { OnlineRecommendationProvider, ProviderCollection } from '../../../
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { hasQqSession, requestQq, type QqOperation } from './qqTransport';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 // src/services/onlineMusic/qq/qqRecommendations.ts
 // QQ 音乐的推荐：猜你喜欢（私人 FM）、每日 30 首、推荐歌单。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，
@@ -38,7 +37,7 @@ const getPersonalFm = async (): Promise<UnifiedSong[]> => {
         const batch = await loadRecommendedSongs('user_guess_you_like');
         return batch.filter((song, index) => batch.findIndex(other => other.qqMid === song.qqMid) === index);
     } catch (error) {
-        console.warn('[QQProvider] personal-fm:failed', cleanPrivateError(error));
+        console.warn('[QQProvider] personal-fm:failed', error);
         return [];
     }
 };
@@ -60,7 +59,7 @@ const getRecommendedCollections = async (limit: number): Promise<ProviderCollect
             .slice(0, safeLimit);
     } catch (error) {
         // 首页三块推荐一起取，推荐歌单失败不该连 FM 和日推一起拖下去。
-        if (!isEmptyAnswer(error)) console.warn('[QQProvider] recommended-playlists:failed', cleanPrivateError(error));
+        if (!isEmptyAnswer(error)) console.warn('[QQProvider] recommended-playlists:failed', error);
         return [];
     }
 };

@@ -1,6 +1,5 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { ProviderErrorCode } from '../../../types/onlineMusic';
-import { cleanPrivateText } from '../../../utils/privateText/privateText';
 
 // src/services/onlineMusic/spotify/spotifyTransport.ts
 // The IPC boundary to electron/spotify/spotifyApiBridge.cjs. The Spotify token stays in the main
@@ -47,7 +46,7 @@ export async function requestSpotify<T = unknown>(operation: SpotifyOperation, p
         throw new OnlineProviderError('network', 'Spotify desktop request failed', 'spotify');
     }
     if (!result.ok) {
-        console.warn(`[Spotify] ${named} failed after ${Date.now() - startedAt}ms: ${result.error.code} (${cleanPrivateText(result.error.message) ?? ''})`);
+        console.warn(`[Spotify] ${named} failed after ${Date.now() - startedAt}ms: ${result.error.code} (${result.error.message ?? ''})`);
         // The reason goes with the error as its cause (spotifyLoginFailure.ts reads it there).
         throw new OnlineProviderError(result.error.code, result.error.message, 'spotify', result.error.reason);
     }

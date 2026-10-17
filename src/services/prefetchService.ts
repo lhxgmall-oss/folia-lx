@@ -27,7 +27,6 @@ import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
 import { onlineFailureOf } from './onlineMusic/failure/onlineFailureCase';
 import { noteOnlineRequestCooldown, onlineRequestCooldown } from './onlineMusic/failure/onlineRequestCooldown';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 
 // Prefetch configuration
 //
@@ -205,7 +204,7 @@ export const resolvePrefetchAudioUrl = async (
         console.log(`[Prefetch] Got audio URL for: ${song.name} (quality: ${audioQuality})`);
         return { audioUrl: url, replayGain: audioSource?.replayGain };
     } catch (e) {
-        console.warn(`[Prefetch] Failed to get audio URL for ${song.name}:`, cleanPrivateError(e));
+        console.warn(`[Prefetch] Failed to get audio URL for ${song.name}:`, e);
         // 只有平台要求稍后再试、或它的服务出了错才登记冷却；别的失败在这里什么都不留。
         noteOnlineRequestCooldown(onlineFailureOf({ operation: 'audio', providerId }, { error: e }));
         return null;
@@ -369,7 +368,7 @@ const prefetchSong = async (
                             if (data.lyricRaw) data.lyricRaw.isPureMusic = true;
                         }
                     } catch (error) {
-                        console.warn('[Prefetch] Failed to auto-match best lyric:', cleanPrivateError(error));
+                        console.warn('[Prefetch] Failed to auto-match best lyric:', error);
                     }
                 } else {
                     console.log(
@@ -390,7 +389,7 @@ const prefetchSong = async (
                 }
             }
         } catch (e) {
-            console.warn(`[Prefetch] Failed to get lyrics for ${song.name}:`, cleanPrivateError(e));
+            console.warn(`[Prefetch] Failed to get lyrics for ${song.name}:`, e);
         }
     }
 

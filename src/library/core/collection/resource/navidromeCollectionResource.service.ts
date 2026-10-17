@@ -2,7 +2,6 @@ import type { SongResult } from '../../../../types';
 import type { NavidromeGridViewCollectionDescriptor } from '../collection.contract';
 import type { CollectionResource } from '../../shared/resource.contract';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 import { collectionRevision } from '../collectionIdentity';
 import { createCollectionResourceState } from './collectionResourceState.service';
 import { resolveNavidromeGridViewTracks } from './navidromeCollectionTracks.service';
@@ -33,7 +32,7 @@ export const createNavidromeCollectionResource = (
         try {
             ({ tracks, failed } = await loadTracks(descriptor));
         } catch (error) {
-            console.error('[LibraryUi] Failed to load Navidrome collection tracks:', cleanPrivateError(error));
+            console.error('[LibraryUi] Failed to load Navidrome collection tracks:', error);
             failed = true;
         }
         if (disposed || current !== generation) return;

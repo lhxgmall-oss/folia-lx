@@ -14,7 +14,6 @@ import { applyDetectedChorusEffects, applyChorusRangesByTime } from '../../../ut
 import type { ChorusRange } from '../../../utils/lyrics/chorusEffects';
 import { buildKugouLyricSearchQuery } from '../../../utils/lyrics/searchQuery';
 import { lyricProxyWebUrl } from '../../lyricProxy';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 const isElectron = typeof window !== 'undefined' && (window as any).electron;
 type KugouLyricFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'krc';
@@ -56,7 +55,7 @@ export async function decodeKugouDownloadedLyric(
   } catch (error) {
     const fallbackText = decodeUtf8(bytes);
     if (looksLikeTimedLyric(fallbackText)) {
-      console.warn('[Kugou] KRC decrypt failed; using plain lyric fallback:', cleanPrivateError(error));
+      console.warn('[Kugou] KRC decrypt failed; using plain lyric fallback:', error);
       return {
         lyricText: fallbackText,
         format: detectNonTtmlTimedLyricFormat(fallbackText),
@@ -202,7 +201,7 @@ export async function searchKugouLyrics(keyword: string, page = 1, pageSize = 20
       };
     }).filter((song: SongResult) => Boolean(song.kgHash));
   } catch (error) {
-    console.error('[Kugou] Search failed, trying old API:', cleanPrivateError(error));
+    console.error('[Kugou] Search failed, trying old API:', error);
     return await searchKugouLyricsOld(searchKeyword, page, pageSize);
   }
 }
@@ -282,7 +281,7 @@ async function searchKugouLyricsOld(keyword: string, page = 1, pageSize = 20): P
       };
     }).filter((song: SongResult) => Boolean(song.kgHash));
   } catch (err) {
-    console.error('[Kugou] Fallback search also failed:', cleanPrivateError(err));
+    console.error('[Kugou] Fallback search also failed:', err);
     return [];
   }
 }
@@ -372,7 +371,7 @@ export async function fetchKugouLyrics(
     }
     return applyDetectedChorusEffects(parsed, lyricText);
   } catch (error) {
-    console.error('[Kugou] Fetch lyrics failed:', cleanPrivateError(error));
+    console.error('[Kugou] Fetch lyrics failed:', error);
     return null;
   }
 }

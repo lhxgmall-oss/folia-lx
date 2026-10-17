@@ -8,7 +8,6 @@ import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
 import { clearCachedSongAudioDistrust, isCachedSongAudioDistrusted, isCacheableAudioResponse } from './playbackRecovery/mediaCacheGuard';
 import { getPlaybackSongKey, getPlaybackSourceRef } from '../utils/appPlaybackGuards';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 import { mayStoreSongAudio, whyPreviewClip } from './wholeSongCheck';
 
 // src/services/playedTrackCache.ts
@@ -104,7 +103,7 @@ export const cachePlayedTrackAssets = async (
                 }
             }
         } catch (error) {
-            console.error('[Cache] Failed to download audio for cache', cleanPrivateError(error));
+            console.error('[Cache] Failed to download audio for cache', error);
         }
     }
 
@@ -124,7 +123,7 @@ export const cachePlayedTrackAssets = async (
             result.cover = true;
             console.log('[Cache] Cover saved');
         } catch (error) {
-            console.error('[Cache] Failed to download cover for cache', cleanPrivateError(error));
+            console.error('[Cache] Failed to download cover for cache', error);
         }
     }
 

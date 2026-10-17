@@ -240,13 +240,13 @@ describe('what a failure says under its headline', () => {
         expect(failureNoteKey(failed('code-expired', 'wait'), undefined)).toBeUndefined();
     });
 
-    it('quotes the platform\'s words with its code, the code alone, or the local service\'s own words, cleaned', () => {
+    it('quotes the platform\'s words with its code, the code alone, or the local service\'s own words', () => {
         expect(failureQuote(failed('refused', 'check', { code: '8821', message: '需要验证' }), null)).toEqual({ text: '需要验证', code: '8821' });
         expect(failureQuote(failed('refused', 'check', { message: '需要验证' }), null)).toEqual({ text: '需要验证', code: undefined });
         expect(failureQuote(failed('refused', 'check', { code: '8821' }), null)).toEqual({ text: '8821' });
-        // Only a case that offers a restart quotes the service, and what the service said passes the cleaner.
+        // Only a case that offers a restart quotes the service, in its own words.
         const serviceSaid = "EPERM: operation not permitted, open 'C:\\Users\\Zhang San\\AppData\\Roaming\\Folia\\key'";
-        expect(failureQuote(failed('local-service-stopped', 'start'), serviceSaid)).toEqual({ text: "EPERM: operation not permitted, open '<path>'" });
+        expect(failureQuote(failed('local-service-stopped', 'start'), serviceSaid)).toEqual({ text: serviceSaid });
         expect(failureQuote(failed('local-service-unavailable', 'start'), serviceSaid)).toBeUndefined();
         expect(failureQuote(failed('local-service-stopped', 'start'), null)).toBeUndefined();
         // The platform's words come before the service's.

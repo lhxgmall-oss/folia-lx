@@ -1,6 +1,6 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { OnlineFailureCaseId, OnlineFailureDetail, OnlineFailureOperation, OnlineProviderId, ProviderErrorCode } from '../../../types/onlineMusic';
-import { cleanPrivateCode, cleanPrivateError, cleanPrivateText } from '../../../utils/privateText/privateText';
+import { codeText } from '../../../utils/errorText';
 import { OnlineRequestTimeout } from './onlineRequestLimit';
 
 // src/services/onlineMusic/failure/onlineFailureCase.ts
@@ -10,8 +10,7 @@ import { OnlineRequestTimeout } from './onlineRequestLimit';
 // 由那个平台的 adapter 说（`describeFailure`）。新增一个平台不用改这个文件。
 
 // 一次失败的全部事实：provider 交出来的，加上抛出的错的共用代码。抛出的错自己的那句话不在里面：它多半是
-// Folia 自己的英文，还可能带着地址、账号，只进日志（logOnlineFailure）。
-// 平台的原话（`message`）过 cleanPrivateText，状态码和代号过 cleanPrivateCode。
+// Folia 自己的英文，只进日志（logOnlineFailure）。
 export interface OnlineFailureFacts extends OnlineFailureDetail {
     // 抛出的是 OnlineProviderError 时它的 code。
     errorCode?: ProviderErrorCode;
@@ -130,15 +129,15 @@ export const onlineFailureOf = (
     const facts = withoutEmpty<OnlineFailureFacts>({
         // 点的名不在表里就是原因不明。
         case: detail.case === undefined ? undefined : Object.hasOwn(CASES, detail.case) ? detail.case : 'unknown',
-        code: cleanPrivateCode(detail.code),
-        message: cleanPrivateText(detail.message),
+        code: codeText(detail.code),
+        message: typeof detail.message === 'string' && detail.message !== '' ? detail.message : undefined,
         httpStatus: Number.isInteger(status) ? status : undefined,
-        upstreamCode: cleanPrivateCode(detail.upstreamCode),
+        upstreamCode: codeText(detail.upstreamCode),
         retryAfterMs: typeof wait === 'number' && Number.isFinite(wait) && wait >= 0 ? wait : undefined,
         likelyCause: detail.likelyCause && LIKELY_CAUSES.has(detail.likelyCause) ? detail.likelyCause : undefined,
         signedOut: at.signedOut === true || detail.signedOut === true ? true : undefined,
-        // 共用的代号是几个固定的词；一个 mod 自己造的错可以在这里放任何东西，所以也当一个代号去洗。
-        errorCode: thrown ? cleanPrivateCode(thrown.code) as ProviderErrorCode | undefined : undefined,
+        // 共用的代号是几个固定的词；一个 mod 自己造的错可以在这里放任何东西，只收字符串和数。
+        errorCode: thrown ? codeText(thrown.code) as ProviderErrorCode | undefined : undefined,
         timedOut: error instanceof OnlineRequestTimeout ? true : undefined,
     });
     return withoutEmpty({ case: caseIdOf(facts), operation: at.operation, providerId: at.providerId, facts });
@@ -146,7 +145,7 @@ export const onlineFailureOf = (
 
 /**
  * 媒体元素放不了一首在线歌、重新要地址也没有用时的失败。MediaError 2 是读音频时断了网；3（解码失败）、
- * 4（格式不支持）和没有码的，是这首歌的音频放不了。码记在 `code`；浏览器自己的那句话洗过记在 `message`，
+ * 4（格式不支持）和没有码的，是这首歌的音频放不了。码记在 `code`；浏览器自己的那句话记在 `message`，
  * 只进日志，界面引的是码和它的名字。
  */
 export const mediaFailureOf = (media: { code?: number; message?: string } | null, providerId?: OnlineProviderId): OnlineFailure => {
@@ -155,21 +154,19 @@ export const mediaFailureOf = (media: { code?: number; message?: string } | null
         case: code === '2' ? 'unreachable' as const : 'audio-unplayable' as const,
         operation: 'media' as const,
         providerId,
-        facts: withoutEmpty<OnlineFailureFacts>({ code, message: cleanPrivateText(media?.message) }),
+        facts: withoutEmpty<OnlineFailureFacts>({ code, message: media?.message || undefined }),
     });
 };
 
 /**
- * 给维护者的那一行：是哪一种请求、哪个平台、哪一种情况，和全部事实（都洗过）。`thrown` 是抛出的错，
- * 记它洗过的名字、那句话和代号；屏幕上从不显示它。
+ * 给维护者的那一行：是哪一种请求、哪个平台、哪一种情况，和全部事实。`thrown` 是抛出的错，原样跟在后面
+ * （会话日志记下它的调用栈）；屏幕上从不显示它。
  */
 export const logOnlineFailure = (shown: OnlineFailure, thrown?: unknown): void => {
-    const cleaned = thrown === undefined ? undefined : cleanPrivateError(thrown);
     console.warn(`[OnlineFailure] ${shown.operation} ${shown.providerId ?? '-'} ${shown.case}`, {
         operation: shown.operation,
         provider: shown.providerId,
         case: shown.case,
         ...shown.facts,
-        ...(cleaned ? { error: cleaned } : {}),
-    });
+    }, ...(thrown === undefined ? [] : [thrown]));
 };

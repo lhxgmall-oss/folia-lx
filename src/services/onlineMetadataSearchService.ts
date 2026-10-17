@@ -10,7 +10,6 @@ import {
     getMatchResultArtistEntities,
     getMatchResultCoverUrl,
 } from '../utils/lyrics/matchResult';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 
 // src/services/onlineMetadataSearchService.ts
 // Searches song metadata without invoking any lyric provider or lyric download path.
@@ -155,7 +154,7 @@ export async function findAutomaticOnlineMetadataCandidate(
         neteaseCandidates = await searchOnlineMetadata('netease', query, target, { limit: 10, signal });
     } catch (error) {
         if ((error as Error).name === 'AbortError') throw error;
-        console.warn('[LocalMusic] NetEase metadata search failed, falling back to QQ:', cleanPrivateError(error));
+        console.warn('[LocalMusic] NetEase metadata search failed, falling back to QQ:', error);
     }
     if (neteaseCandidates[0]?.titleMatched) return neteaseCandidates[0];
     try {
@@ -163,7 +162,7 @@ export async function findAutomaticOnlineMetadataCandidate(
         if (qqCandidates[0]?.titleMatched) return qqCandidates[0];
     } catch (error) {
         if ((error as Error).name === 'AbortError') throw error;
-        console.warn('[LocalMusic] QQ metadata search failed, falling back to KuGou:', cleanPrivateError(error));
+        console.warn('[LocalMusic] QQ metadata search failed, falling back to KuGou:', error);
     }
     const kugouCandidates = await searchOnlineMetadata('kugou', query, target, { limit: 10, signal });
     return kugouCandidates[0]?.titleMatched ? kugouCandidates[0] : null;

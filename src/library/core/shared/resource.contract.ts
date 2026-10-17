@@ -14,7 +14,7 @@ export type CollectionLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 /**
  * 存判别式而不是成品文案：翻译在渲染时做，切换语言才能跟着变。`cause` 是抛出来的那个错（在线集合）：renderer 可以拿它
- * 把失败分成有名字的情况再说（网格用 services/onlineMusic/failure 的 onlineFailureOf）；`message` 已经洗过私人信息。
+ * 把失败分成有名字的情况再说（网格用 services/onlineMusic/failure 的 onlineFailureOf）；`message` 是那个错的原话。
  */
 export type CollectionLoadError =
     | { kind: 'not-public'; cause?: unknown }

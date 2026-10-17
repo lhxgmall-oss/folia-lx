@@ -10,7 +10,7 @@ import type {
 } from '../../../types/onlineMusic';
 import { neteaseApi } from './netease';
 import { createHandedOut, cursorWords, stampCursor } from '../exploreReads';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/netease/neteaseExplore.ts
 // The explore page of NetEase Cloud Music, in three parts, each asked for when the list gets to
@@ -165,7 +165,7 @@ const newRead = (number: number, memory: ReturnType<typeof newMemory>) => ({
 type Read = ReturnType<typeof newRead>;
 
 const present = <T>(value: T | null | undefined): value is T => value != null;
-const wordsOf = (error: unknown) => cleanPrivateError(error).message;
+const wordsOf = (error: unknown) => errorMessage(error);
 const keyOf = (item: ProviderExploreItem): string => (item.kind === 'collection' ? `${item.collection.type}:${item.collection.id}` : `song:${item.song.id}`);
 const countOf = (sections: ProviderExploreSection[]) => sections.reduce((count, section) => count + section.items.length, 0);
 /** The rows of a list in an answer that name something: an id and a name. */

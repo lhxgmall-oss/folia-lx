@@ -1,5 +1,5 @@
 import type { MediaId, OnlineProviderId } from '../../../types/onlineMusic';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/account/likedChecks.ts
 // The hearts of the songs being played and queued, asked of the platform for those songs alone,
@@ -105,7 +105,7 @@ export const createLikedChecks = <R>(deps: LikedChecksDeps<R>) => {
                 } catch (error) {
                     platform.stopped = true;
                     const left = slice.length + notAsked(providerId, platform).length;
-                    console.warn(`[Like] ${providerId}: the hearts of ${left} songs in play could not be checked, they stay as they were until the next read of the liked songs: ${cleanPrivateError(error).message}`);
+                    console.warn(`[Like] ${providerId}: the hearts of ${left} songs in play could not be checked, they stay as they were until the next read of the liked songs: ${errorMessage(error)}`);
                     continue;
                 }
                 // A read of the liked ids was applied while the request was out.

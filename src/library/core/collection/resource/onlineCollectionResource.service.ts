@@ -4,7 +4,7 @@ import { OmniError } from '../../../../types/onlineMusic';
 import type { OnlineGridViewCollectionDescriptor } from '../collection.contract';
 import type { CollectionLoadError, CollectionResource, CollectionResourceContext } from '../../shared/resource.contract';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
+import { errorMessage } from '../../../../utils/errorText';
 import { logOnlineFailure, onlineFailureOf } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import type { LikedListRead } from '../../../../services/onlineMusic/omni';
 import { collectionRevision } from '../collectionIdentity';
@@ -51,7 +51,7 @@ export type OnlineCollectionResourceDeps = {
 const toLoadError = (error: unknown): CollectionLoadError => (
     error instanceof OmniError && error.code === 'not-public'
         ? { kind: 'not-public', cause: error }
-        : { kind: 'generic', message: cleanPrivateError(error).message, cause: error }
+        : { kind: 'generic', message: errorMessage(error), cause: error }
 );
 
 /** A row of a collection: the song, and where the collection names its rows, the row's own name. Two rows of one song are two rows. */
@@ -100,7 +100,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
                     },
                 }, 'urgent');
             })
-            .catch(error => console.warn('[LibraryUi] Failed to fetch collection detail:', cleanPrivateError(error)));
+            .catch(error => console.warn('[LibraryUi] Failed to fetch collection detail:', error));
     };
 
     // 后台补齐剩余页，从 startOffset 续上。
@@ -153,7 +153,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             state.set({
                 sync: {
                     status: 'interrupted',
-                    message: cleanPrivateError(result.error).message,
+                    message: errorMessage(result.error),
                     offset: result.offset,
                     cause: result.error,
                 },
@@ -327,7 +327,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             const next = current.filter((_, position) => position !== index);
             commitTracks(next);
             deps.writeCache(cacheKey(), next, 0)
-                .catch(error => console.warn('[LibraryUi] Failed to invalidate collection tracks cache:', cleanPrivateError(error)));
+                .catch(error => console.warn('[LibraryUi] Failed to invalidate collection tracks cache:', error));
             return true;
         },
         replaceTrackAt: (index, expectedKey, next) => {
@@ -348,7 +348,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
                 return true;
             } catch (error) {
                 if (disposed || generation !== loadGeneration) return false;
-                console.error('[LibraryUi] Failed to replace collection tracks:', cleanPrivateError(error));
+                console.error('[LibraryUi] Failed to replace collection tracks:', error);
                 state.set({ status: 'ready' }, 'urgent');
                 return false;
             } finally {

@@ -23,7 +23,6 @@ import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore'
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { currentTime } from '../../../../stores/motionSignals';
 import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 
 // src/components/app/playback/restore/useElectronWindowPlaybackHandoff.ts
 // Captures and restores renderer playback state across Electron BrowserWindow rebuilds.
@@ -295,7 +294,7 @@ export function useElectronWindowPlaybackHandoff({
             stillWanted,
             hasFallbackSource: fallbackAudioSrc !== null,
         }).catch((error): RestorePlaybackSourceOutcome => {
-            console.warn('[Electron] Failed to restore window playback handoff source', cleanPrivateError(error));
+            console.warn('[Electron] Failed to restore window playback handoff source', error);
             return 'failed';
         });
 
@@ -416,7 +415,7 @@ export function useElectronWindowPlaybackHandoff({
                 isRestoringHandoffRef.current = false;
                 setRestoreStatus(restored ? 'restored' : 'none');
             } catch (error) {
-                console.warn('[Electron] Failed to consume window playback handoff', cleanPrivateError(error));
+                console.warn('[Electron] Failed to consume window playback handoff', error);
                 hasCompletedRestoreCheckRef.current = true;
                 isRestoringHandoffRef.current = false;
                 setRestoreStatus('none');

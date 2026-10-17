@@ -24,7 +24,6 @@ import LibraryTuiRow, { LIBRARY_TUI_COLUMNS, LIBRARY_TUI_ROW_HEIGHT, type Librar
 import LibraryTuiPrompt, { type LibraryTuiPromptRequest } from './LibraryTuiPrompt';
 import { useLibraryTuiFocus } from './useLibraryTuiFocus';
 import { useLibraryTuiKeyboard } from './useLibraryTuiKeyboard';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 // src/library/suites/tui/LibraryTuiView.tsx
 // 集合详情的第二个 renderer：终端风格的等宽列表。它只做展示和按键映射——曲目、筛选、排序、
@@ -152,7 +151,7 @@ const LibraryTuiView: React.FC<LibraryCollectionSurfaceProps> = ({
         try {
             result = await mutations.removeEntry({ entryKey, track });
         } catch (error) {
-            console.error('Failed to remove track in LibraryTuiView', cleanPrivateError(error));
+            console.error('Failed to remove track in LibraryTuiView', error);
             result = { ok: false, reason: 'failed' };
         }
         if (!isMountedRef.current || result.ok) return;

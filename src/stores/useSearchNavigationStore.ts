@@ -10,7 +10,6 @@ import {
 } from '../services/playbackAdapters';
 import { omni } from '../services/onlineMusic/omni';
 import { isLocalPlaybackSong, isNavidromePlaybackSong } from '../utils/appPlaybackGuards';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 
 const LAST_HOME_VIEW_TAB_KEY = 'last_home_view_tab';
 const DEFAULT_SEARCH_LIMIT = 30;
@@ -298,7 +297,7 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
             }));
             return true;
         } catch (error) {
-            console.error('[SearchStore] submitSearch failed:', cleanPrivateError(error));
+            console.error('[SearchStore] submitSearch failed:', error);
             if (get().requestId !== requestId) {
                 return true;
             }
@@ -362,7 +361,7 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
                 };
             });
         } catch (error) {
-            console.error('[SearchStore] loadMoreSearchResults failed:', cleanPrivateError(error));
+            console.error('[SearchStore] loadMoreSearchResults failed:', error);
             if (get().requestId === requestId) {
                 set({
                     isLoadingMore: false,

@@ -8,7 +8,6 @@ import { formatSongName } from '../../../utils/songNameFormatter';
 import { LyricMatchWindow } from './LyricMatchWindow';
 import { pickOnlineResult, saveOnlineLyricMatch } from './onlineSongMatch';
 import { useLyricMatchSearch } from './useLyricMatchSearch';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 // src/components/modal/lyric-match/OnlineSongLyricMatch.tsx
 // The lyric match window for a song of an online platform: only the lyrics are matched.
@@ -42,7 +41,7 @@ const OnlineSongLyricMatch: React.FC<OnlineSongLyricMatchProps> = ({ song, onClo
             }
             onMatch();
         } catch (error) {
-            console.error('Online lyric match failed', cleanPrivateError(error));
+            console.error('Online lyric match failed', error);
         }
     };
 

@@ -4,7 +4,6 @@ import { LocalFileLyricAdapter } from '@/utils/lyrics/adapters/LocalFileLyricAda
 import { resolveLyricProcessingOptions } from '@/utils/lyrics/filtering';
 import { parseLRC } from '@/utils/lyrics/parserCore';
 import type { FoliumLegacyLyricsResult, FoliumLyricFormat, FoliumLyricsTrack } from './contract';
-import { cleanPrivateError } from '../../utils/privateText/privateText';
 
 // src/mods/folium/lyricsSource.ts
 // Lyrics from a mod: it hands raw lyric text plus its format, and the host parses it exactly like a
@@ -118,7 +117,7 @@ const tryParseTrack = async (track: FoliumLyricsTrack, label: string, key: strin
     try {
         return await parseFoliumLyricsTrack(track);
     } catch (error) {
-        console.warn(`[Folium] ${label}: the ${key} lyrics track failed to parse`, cleanPrivateError(error));
+        console.warn(`[Folium] ${label}: the ${key} lyrics track failed to parse`, error);
         return null;
     }
 };

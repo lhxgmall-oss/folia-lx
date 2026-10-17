@@ -15,7 +15,6 @@ import { setPlayQueue } from '../../../../stores/usePlaybackStore';
 import { askedSongKeyRef, makeSongCurrent, startRestore } from '../currentSong';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { isRestoredSongPlayable } from '../playableSong';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 
 // src/components/app/playback/restore/useSessionRestoreController.ts
 
@@ -169,7 +168,7 @@ export function useSessionRestoreController({
                         stillWanted,
                     });
                 } catch (error) {
-                    console.warn('Failed to restore audio/lyrics for last session', cleanPrivateError(error));
+                    console.warn('Failed to restore audio/lyrics for last session', error);
                 }
 
                 // A song was asked for meanwhile, another one or this same one: the intent to play
@@ -189,7 +188,7 @@ export function useSessionRestoreController({
                 // Every other entry into playback prefetches; this one was simply never wired to.
                 void prefetchNearbySongs(lastSong, lastQueue || [lastSong], audioQuality, userId);
             } catch (error) {
-                console.error('Session restore failed', cleanPrivateError(error));
+                console.error('Session restore failed', error);
             }
         };
 

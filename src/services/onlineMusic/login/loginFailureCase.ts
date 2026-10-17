@@ -2,7 +2,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { LoginCaseId, LoginFailureDetail, LoginStep, ProviderErrorCode } from '../../../types/onlineMusic';
 import type { LoginCase, LoginCaseAction, LoginCaseKind, LoginFailureFacts } from '../../../types/loginFailure';
 import { LoginRequestTimeout } from './loginRequestLimit';
-import { cleanPrivateCode, cleanPrivateText } from '../../../utils/privateText/privateText';
+import { codeText } from '../../../utils/errorText';
 
 // src/services/onlineMusic/login/loginFailureCase.ts
 // 登录没有成功时：把知道的事实拼在一起，再分成一种有名字的情况，登录窗口按情况给标题和操作。
@@ -90,14 +90,14 @@ export const loginFailureFacts = (
     const facts = {
         ...at,
         case: named,
-        code: cleanPrivateCode(detail.code),
-        message: cleanPrivateText(detail.message),
+        code: codeText(detail.code),
+        message: typeof detail.message === 'string' && detail.message !== '' ? detail.message : undefined,
         httpStatus: Number.isInteger(detail.httpStatus) ? detail.httpStatus : undefined,
-        upstreamCode: cleanPrivateCode(detail.upstreamCode),
+        upstreamCode: codeText(detail.upstreamCode),
         retryAfterMs: typeof wait === 'number' && Number.isFinite(wait) && wait >= 0 ? wait : undefined,
-        mainCode: cleanPrivateCode(detail.mainCode),
-        // 共用的代号是几个固定的词；一个 mod 自己造的错可以在这里放任何东西，所以也当一个代号去洗。
-        errorCode: error instanceof OnlineProviderError ? cleanPrivateCode(error.code) as ProviderErrorCode | undefined : undefined,
+        mainCode: codeText(detail.mainCode),
+        // 共用的代号是几个固定的词；一个 mod 自己造的错可以在这里放任何东西，只收字符串和数。
+        errorCode: error instanceof OnlineProviderError ? codeText(error.code) as ProviderErrorCode | undefined : undefined,
     };
     return Object.fromEntries(Object.entries(facts).filter(([, value]) => value !== undefined)) as unknown as LoginFailureFacts;
 };

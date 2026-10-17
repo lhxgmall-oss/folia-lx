@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 // src/services/onlineMusic/netease/useNeteaseApiStatusStore.ts
 // Mirrors the Electron NetEase backend lifecycle into the renderer.
@@ -41,8 +40,7 @@ export const useNeteaseApiStatusStore = create<NeteaseApiStatusState>((set, get)
             const next = await bridge.restartNeteaseApi();
             if (next) set({ status: next });
         } catch (error) {
-            // The thrown sentence can hold a path with the user's folder: only its cleaned form is logged.
-            console.warn('[Electron] Failed to restart Netease API', cleanPrivateError(error));
+            console.warn('[Electron] Failed to restart Netease API', error);
         } finally {
             set({ restarting: false });
         }

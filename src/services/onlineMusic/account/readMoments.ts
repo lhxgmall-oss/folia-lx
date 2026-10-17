@@ -1,6 +1,6 @@
 import type { MediaId, OnlineProviderId } from '../../../types/onlineMusic';
 import { answeredWithin } from './answeredWithin';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/account/readMoments.ts
 // The one place that decides whether the liked songs of a signed-in account are read again from
@@ -150,7 +150,7 @@ export const createAccountMoments = (deps: AccountMomentsDeps) => {
                 platform.ahead = { userId: userKey, by: read - after.likedHeld };
             }
         } catch (error) {
-            console.warn(`${line}: ${failed}, they stay as they were: ${cleanPrivateError(error).message}`);
+            console.warn(`${line}: ${failed}, they stay as they were: ${errorMessage(error)}`);
         } finally {
             platform.underWay = false;
         }

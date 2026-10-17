@@ -1,13 +1,13 @@
 import type { LoginDiagnosticLine, LoginFailureKind, LoginSelfCheckError, LoginSelfCheckHost, LoginSelfCheckResult, OnlineProviderId } from '../../../types/onlineMusic';
 import type { LoginFailure } from '../../../types/loginFailure';
-import { cleanPrivateText } from '../../../utils/privateText/privateText';
 
 // src/services/onlineMusic/login/loginDiagnosticReport.ts
 // 扫码登录诊断报告的格式。报告是给用户原样贴进 issue 的，所以用固定的英文字段、包在代码块里，
 // 不随界面语言变化。几段：本轮登录的时间线、窗口显示的那一种情况、失败后的主动自检、provider 自己的行
-// （provider 用这里的 diagnosticLine 一行一行写好再交进来）。从外面来的文字都先洗过。
+// （provider 用这里的 diagnosticLine 一行一行写好再交进来）。界面已告知用户报告里有哪些数据
+// （版本、网卡与 IP、代理设置、请求记录与错误原文）；凭据的值从不进报告。
 
-// diagnosticLine 写出来的行，和每一行写成的那句话。报告只原样印这里记着的；别的东西整行当成一句没洗过的话。
+// diagnosticLine 写出来的行，和每一行写成的那句话。报告只原样印这里记着的；别的东西整行转成字符串再印。
 // 印的是这里记着的那句话，不读行上的 text：行写成之后改不了（行本身也冻住了）。
 const builtLines = new WeakMap<object, string>();
 
@@ -22,16 +22,16 @@ const asText = (value: unknown): string => {
     }
 };
 
-// 洗过的一段文字放在一行里：里面的换行换成 /，一行还是一行。
+// 一段文字放在一行里：里面的换行换成 /，一行还是一行。
 const onOneLine = (text: string | undefined): string => (text ?? '').replace(/\s*\n\s*/g, ' / ');
 
-// 放进一行里的一个值：数和是否原样印，没有值是一个短横；一段文字先过 cleanPrivateText；
+// 放进一行里的一个值：数和是否原样印，没有值是一个短横；一段文字原样放进来（换行折成 /）；
 // 另一行（diagnosticLine 写的一小段）原样接上。
 const diagnosticValue = (value: DiagnosticValue): string => {
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     if (value == null) return '-';
-    if (typeof value === 'object') return builtLines.get(value) ?? '';
-    return onOneLine(cleanPrivateText(value));
+    if (typeof value === 'object') return builtLines.get(value) ?? onOneLine(asText(value));
+    return onOneLine(value);
 };
 
 // 是不是当作模板的标签来叫的：模板里写死的那几段是一个冻住的、带着 raw 的数组。
@@ -40,23 +40,21 @@ const isTemplate = (fixed: unknown): fixed is TemplateStringsArray => (
 );
 
 /**
- * provider 写诊断报告里自己的一行，只有这一条路。模板里写死的字是 provider 的代码，原样留下
- * （`status=`、`code=` 这样的结构因此读得出来）；放进去的每一段文字都先洗过，所以一句从外面来的话
- * （平台的原话、抛出的错的那句话、请求的地址）带不进私人信息。
- * 当成普通的函数来叫的（那几段字可能是拿数据拼的）没有哪一段算写死的：整句洗。
+ * provider 写诊断报告里自己的一行，只有这一条路。模板里写死的字和放进去的值按顺序接起来；
+ * 一段文字里的换行折成 /，报告的一行还是一行。当成普通的函数来叫的，几段字按顺序接成一句。
  */
 export const diagnosticLine = (fixed: TemplateStringsArray, ...values: DiagnosticValue[]): LoginDiagnosticLine => {
     const text = isTemplate(fixed)
         ? fixed.reduce((text, part, index) => text + diagnosticValue(values[index - 1]) + part)
-        : onOneLine(cleanPrivateText([fixed].flat().map((part, index) => (index > 0 ? asText(values[index - 1]) : '') + asText(part)).join('')));
+        : onOneLine([fixed].flat().map((part, index) => (index > 0 ? asText(values[index - 1]) : '') + asText(part)).join(''));
     const line = Object.freeze({ text });
     builtLines.set(line, text);
     return line as LoginDiagnosticLine;
 };
 
-// 报告里 provider 的一行：diagnosticLine 写的原样印，别的（mod 交来的一个字符串，或者随便什么）整行洗过再印。
+// 报告里 provider 的一行：diagnosticLine 写的原样印，别的（mod 交来的一个字符串，或者随便什么）转成字符串再印。
 const formatProviderLine = (line: unknown): string => (
-    (typeof line === 'object' && line !== null ? builtLines.get(line) : undefined) ?? onOneLine(cleanPrivateText(asText(line)))
+    (typeof line === 'object' && line !== null ? builtLines.get(line) : undefined) ?? onOneLine(asText(line))
 );
 
 export type LoginTimelineEvent = {
@@ -99,8 +97,10 @@ export type LoginReportSelfCheck =
     | { status: 'done'; result: LoginSelfCheckResult; verdict: { kind: string; detail: string | null; proxy: string | null } }
     | { status: 'failed'; message: string };
 
-// 自检里从外面来的文字（错误原文、后端的错误、远端地址、代理设置）洗过再印；域名、地址族、耗时、错误码是检查自己量的，原样印。
-const said = (text: string | null | undefined): string => onOneLine(cleanPrivateText(text ?? '') ?? '');
+// 自检里从外面来的文字（错误原文、后端的错误、远端地址、代理设置）放在一行里印。
+const said = (text: string | null | undefined): string => onOneLine(text ?? '');
+// 代理地址里的用户名和密码（http://user:pass@host:port）是凭据，报告说过不带：换成 ***，主机和端口照印。
+const withoutProxyPassword = (text: string): string => text.replace(/(\/\/)[^\s/@]+@/g, '$1***@');
 
 const formatSelfCheckError = (error: LoginSelfCheckError): string => (
     `${error.code ?? 'error'}${error.phase ? ` at ${error.phase}` : ''}: ${said(error.message)}`
@@ -149,8 +149,8 @@ export const formatLoginSelfCheck = (selfCheck: LoginReportSelfCheck | null): st
             : `  credential store: encryption=${store.encryptionAvailable ? 'yes' : 'no'}${store.backend ? ` backend=${store.backend}` : ''}`);
     }
     if (result.proxy) {
-        const env = Object.entries(result.proxy.env).map(([name, value]) => `${name}=${said(value)}`).join(' ');
-        lines.push(`  proxy: env ${env || 'none'}; system ${result.proxy.system ? said(result.proxy.system) : 'unknown'}`);
+        const env = Object.entries(result.proxy.env).map(([name, value]) => `${name}=${withoutProxyPassword(said(value))}`).join(' ');
+        lines.push(`  proxy: env ${env || 'none'}; system ${result.proxy.system ? withoutProxyPassword(said(result.proxy.system)) : 'unknown'}`);
     }
     return [...lines, ...result.hosts.flatMap(formatSelfCheckHost)];
 };
@@ -180,7 +180,7 @@ export const formatLoginDiagnosticReport = ({
     providerId: OnlineProviderId;
     methodId: string | null;
     failure: LoginFailureKind | null;
-    // 登录窗口显示的那一种情况和它的事实（事实里的文字已经洗过）；没有失败就不给。
+    // 登录窗口显示的那一种情况和它的事实；没有失败就不给。
     loginFailure?: LoginFailure | null;
     timeline: readonly LoginTimelineEvent[];
     selfCheck?: LoginReportSelfCheck | null;

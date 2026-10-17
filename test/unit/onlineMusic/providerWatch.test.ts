@@ -92,16 +92,16 @@ describe('what a provider watches while the app is open', () => {
         expect(desktop.isListening()).toBe(false);
     });
 
-    // The service's sentence comes from the main process as Node wrote it: with the path of a file
-    // in the user's folder. Neither the message on screen nor the log line carries it. The paths
-    // here are made up.
-    it('tells the failure with its sentence cleaned, on screen and in the log, also when the status cannot be read', async () => {
+    // The service's sentence comes from the main process as Node wrote it, with the path of the
+    // file it could not open: the message on screen and the log line both carry it whole, so a
+    // report says which file it was. The paths here are made up.
+    it('tells the failure in its own words, on screen and in the log, also when the status cannot be read', async () => {
         const failed = status('error', "ENOENT: no such file or directory, open 'C:\\Users\\Zhang San\\AppData\\Roaming\\Folia\\ncm\\anonymous_token'");
         vi.stubGlobal('window', { electron: makeBridge(failed).bridge });
         const stop = omni.watchProviders(tell);
         await settle();
         stop();
-        expect(told[0].params).toEqual({ reason: "ENOENT: no such file or directory, open '<path>'" });
+        expect(told[0].params).toEqual({ reason: "ENOENT: no such file or directory, open 'C:\\Users\\Zhang San\\AppData\\Roaming\\Folia\\ncm\\anonymous_token'" });
 
         vi.stubGlobal('window', {
             electron: { getNeteaseApiStatus: async () => { throw new Error('read C:\\Users\\Zhang San\\AppData\\Roaming\\Folia\\status.json failed'); } },
@@ -111,7 +111,7 @@ describe('what a provider watches while the app is open', () => {
         const logged = JSON.stringify(vi.mocked(console.warn).mock.calls);
         expect(logged).toContain('Netease API failed to start');
         expect(logged).toContain('Failed to read Netease API status');
-        expect(logged).not.toMatch(/Zhang|AppData/);
+        expect(logged).toContain('anonymous_token');
     });
 
     it('started again, does not tell the failure it told before', async () => {

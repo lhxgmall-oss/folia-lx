@@ -4,7 +4,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { PersonalFmRequestOptions, ProviderSongAvailability } from '../../../types/onlineMusic';
 import { withLoginRequestLimit } from '../login/loginRequestLimit';
 import { withOnlineRequestLimit } from '../failure/onlineRequestLimit';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorFields } from '../../../utils/errorText';
 
 type UnavailableSongReplacement = {
   replacementSong: SongResult;
@@ -218,7 +218,7 @@ const fetchWithCreds = async (endpoint: string, options: RequestInit = {}, limit
             writeProviderSessionValue('netease', 'anonymous_cookie', anonRes.cookie);
           }
         } catch (e) {
-          console.warn('Failed to fetch anonymous cookie', cleanPrivateError(e));
+          console.warn('Failed to fetch anonymous cookie', e);
         }
       }
       cookieToUse = anonCookie;
@@ -994,7 +994,7 @@ export const neteaseApi = {
       }
       console.warn('[Netease] personal fm mode unsupported, falling back', { mode, code: res?.code });
     } catch (error) {
-      console.warn('[Netease] personal fm mode request failed, falling back', { mode, ...cleanPrivateError(error) });
+      console.warn('[Netease] personal fm mode request failed, falling back', { mode, ...errorFields(error) });
     }
     return fetchDefaultFm();
   },

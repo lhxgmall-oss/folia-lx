@@ -34,7 +34,7 @@ import {
 } from './kugouTransport';
 import { describeKugouLoginFailure, kugouCheckFailure } from './kugouLoginFailure';
 import { describeKugouFailure, isKugouTimeout, kugouNoUrlError } from './kugouFailure';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorFields } from '../../../utils/errorText';
 
 // src/services/onlineMusic/kugou/kugouProvider.ts
 
@@ -540,8 +540,8 @@ const ensureKugouYouthVip = async (userId?: string): Promise<boolean> => {
         }
         console.info('[KugouProvider] youth-union-vip:already-vip, skipping youth_day_vip');
     } catch (error) {
-        // Runs while the account is read after a sign-in: the thrown sentence is logged cleaned.
-        console.warn('[KugouProvider] youth-vip-check:failed', cleanPrivateError(error));
+        // Runs while the account is read after a sign-in: the error is logged whole.
+        console.warn('[KugouProvider] youth-vip-check:failed', error);
     }
     return false;
 };
@@ -707,7 +707,7 @@ const getKugouChorusRanges = async (songId: MediaId): Promise<ChorusRange[]> => 
     const request = requestKugou('song_climax', { hash })
         .then(parseKugouChorusRanges)
         .catch(error => {
-            console.warn(`[KugouProvider] Failed to fetch chorus ranges for song ${hash}:`, cleanPrivateError(error));
+            console.warn(`[KugouProvider] Failed to fetch chorus ranges for song ${hash}:`, error);
             return [];
         });
     kugouChorusRangesCache.set(hash, request);
@@ -1142,7 +1142,7 @@ export const kugouProvider: OnlineMusicProvider = {
                             requestedQuality: quality,
                             candidateQuality,
                             requestVariant: requestVariant.name,
-                            ...cleanPrivateError(error),
+                            ...errorFields(error),
                         });
                         // Asked to wait, or nowhere to ask (the local service is not loaded, the web build has no
                         // address): every other request would be answered the same, the legacy one too.
@@ -1188,7 +1188,7 @@ export const kugouProvider: OnlineMusicProvider = {
                     console.warn('[KuGouProvider] playback:legacy-failed', {
                         hash,
                         requestedQuality: quality,
-                        ...cleanPrivateError(error),
+                        ...errorFields(error),
                     });
                 }
             }
@@ -1224,7 +1224,7 @@ export const kugouProvider: OnlineMusicProvider = {
                             user = { ...user, vipType: 1 };
                         }
                     } catch (error) {
-                        console.warn('[KugouProvider] login-status:vip-error', cleanPrivateError(error));
+                        console.warn('[KugouProvider] login-status:vip-error', error);
                     }
                 }
                 const responseKeys = Object.keys(dataOf(response) || {});
@@ -1237,7 +1237,7 @@ export const kugouProvider: OnlineMusicProvider = {
                 });
                 return user.id && user.nickname ? user : null;
             } catch (error) {
-                console.warn('[KugouProvider] login-status:error', cleanPrivateError(error));
+                console.warn('[KugouProvider] login-status:error', error);
                 throw error;
             }
         },
@@ -1463,7 +1463,7 @@ export const kugouProvider: OnlineMusicProvider = {
                 } catch (error) {
                     console.warn('[KugouProvider] recommendation-card:failed', {
                         cardId: card.id,
-                        ...cleanPrivateError(error),
+                        ...errorFields(error),
                     });
                     return null;
                 }

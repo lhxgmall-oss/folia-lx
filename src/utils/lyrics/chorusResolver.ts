@@ -1,6 +1,5 @@
 import type { ChorusRange, OnlineProviderId, ProviderLyricsResult } from '../../types/onlineMusic';
 import { applyDetectedChorusEffects, applyChorusRangesByTime } from './chorusEffects';
-import { cleanPrivateError } from '../privateText/privateText';
 
 // src/utils/lyrics/chorusResolver.ts
 
@@ -35,7 +34,7 @@ export const resolveProviderLyricsChorus = async (
         try {
             chorusRanges = await options.fetchChorusRanges();
         } catch (error) {
-            console.warn(`[ChorusResolver] provider=${options.providerId} song=${options.songId} native chorus request failed; falling back to text detection`, cleanPrivateError(error));
+            console.warn(`[ChorusResolver] provider=${options.providerId} song=${options.songId} native chorus request failed; falling back to text detection`, error);
         }
     }
 

@@ -229,7 +229,7 @@ export const LoginDetails: React.FC<LoginDetailsProps> = ({ providerId, provider
             {selfCheck && <SelfCheckNote view={selfCheck} />}
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                 {reportElsewhere && <span className="min-w-0 flex-[1_1_100%] text-xs leading-[18px] text-[color:var(--st-t2)]">{reportElsewhere}</span>}
-                <span className="min-w-0 flex-[1_1_100%] text-xs leading-[18px] text-[color:var(--st-t3)]">{t('home.qrDiagnosticsPrivacy')}</span>
+                <span className="min-w-0 flex-[1_1_100%] text-xs leading-[18px] text-[color:var(--st-t3)]">{t('home.qrDiagnosticsDisclosure')}</span>
                 <div className="ml-auto flex shrink-0 flex-wrap gap-2">
                     <CopyButton text={buildReport}>{t('home.qrDiagnosticsCopy')}</CopyButton>
                     {!reportElsewhere && <Button icon={ExternalLink} onClick={() => void report()}>{t('home.qrDiagnosticsReport')}</Button>}

@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Album, Artist, SongResult, UnifiedSong } from '../../../types';
 import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 import { getProviderSongMetadata, getProviderSongPageUrl } from '../../../services/onlineMusic/songMetadata';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 import { copyText } from '../../../utils/system/clipboard';
 import { openOutsideLink } from '../../../utils/system/outsideLink';
 
@@ -63,7 +62,7 @@ const SongCredits: React.FC<SongCreditsProps> = ({
         }
 
         void openOutsideLink(songPageUrl).catch((error) => {
-            console.error('Failed to open provider song page:', cleanPrivateError(error));
+            console.error('Failed to open provider song page:', error);
         });
     };
 
@@ -83,7 +82,7 @@ const SongCredits: React.FC<SongCreditsProps> = ({
                 onCopySongInfoSuccess();
             })
             .catch((error) => {
-                console.error('Failed to copy current song info:', cleanPrivateError(error));
+                console.error('Failed to copy current song info:', error);
             });
     };
 

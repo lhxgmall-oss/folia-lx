@@ -5,7 +5,7 @@ import { normalizeYtmCollection, normalizeYtmSong } from './ytmNormalize';
 import { addYtmSeeds, noteYtmListened, ytmListenedSeeds, ytmRadioSongs, ytmSeedOf } from './ytmRadio';
 import type { YtmSeed } from './ytmRadio';
 import { requestYtm } from './ytmTransport';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 import type { YtmWireExploreItem, YtmWireExplorePage } from './ytmTransport';
 
 // src/services/onlineMusic/ytm/ytmExplore.ts
@@ -143,7 +143,7 @@ const radioShelf = async (seed: YtmSeed): Promise<ProviderExploreSection | null>
             changesWithRead: true,
         };
     } catch (error) {
-        console.warn(`[Ytm] Explore radio of ${seed.id} could not be read (${cleanPrivateError(error).message}); the page goes on without it`);
+        console.warn(`[Ytm] Explore radio of ${seed.id} could not be read (${errorMessage(error)}); the page goes on without it`);
         return null;
     }
 };

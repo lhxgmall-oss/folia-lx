@@ -35,7 +35,6 @@ import { buildSettingsSearchEntries, searchSettings, type SettingsSearchEntry } 
 import { isSettingsSectionSubview, resolveInitialSettingsSection, sectionForSettingsSubview, writeLastSettingsSection } from './settings/navigation/settingsLastSection';
 import { useSettingsLanding, type SettingsLandingTarget } from './settings/navigation/useSettingsLanding';
 import { runsOnWindows } from '../../utils/platform';
-import { cleanPrivateError } from '../../utils/privateText/privateText';
 import { openOutsideLink } from '../../utils/system/outsideLink';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useSettingsScrollSpy } from '../../hooks/useSettingsScrollSpy';
@@ -721,7 +720,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         void refreshNavidromeServerProfile(config)
             .then(setNavidromeServerProfile)
             .catch((error) => {
-                console.warn('[Settings] Failed to refresh Navidrome server profile:', cleanPrivateError(error));
+                console.warn('[Settings] Failed to refresh Navidrome server profile:', error);
                 setNavidromeServerProfile(null);
             });
     };

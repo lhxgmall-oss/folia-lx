@@ -21,7 +21,7 @@ import { getProviderSongMetadata } from './onlineMusic/songMetadata';
 import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { saveLyricCacheSongMetadata } from './lyricExport/lyricCacheMetadata';
-import { cleanPrivateError } from '../utils/privateText/privateText';
+import { errorFields } from '../utils/errorText';
 
 // How long playback waits for a stored copy's header to give its play length (`wholeCopy`). Past
 // it the copy plays untested: the check must not hold up a song that starts from the cache.
@@ -66,7 +66,7 @@ export async function loadOnlineSongAudioSource(
         try {
             return await getCachedSongAudioBlob(song, atLevel);
         } catch (error) {
-            console.warn('[OnlinePlayback] Failed to read the cached audio; asking the provider instead', cleanPrivateError(error));
+            console.warn('[OnlinePlayback] Failed to read the cached audio; asking the provider instead', error);
             return null;
         }
     };
@@ -83,7 +83,7 @@ export async function loadOnlineSongAudioSource(
         try {
             outcome = await deleteCachedSongAudio(song, blob.size) ? 'deleted' : 'left, a newer file is there';
         } catch (error) {
-            outcome = `not deleted (${cleanPrivateError(error).name})`;
+            outcome = `not deleted (${errorFields(error).name})`;
         }
         console.log(`[Cache] Copy of "${song.name}" ${outcome}: it is ${notTheSongWhy(length)}`);
         return null;
@@ -333,7 +333,7 @@ export async function loadOnlineSongLyrics(
                 onStateChange?.(pureMusic);
             }
         } catch (error) {
-            console.warn('[OnlinePlayback] Failed to auto-match best lyric:', cleanPrivateError(error));
+            console.warn('[OnlinePlayback] Failed to auto-match best lyric:', error);
         }
     }
 

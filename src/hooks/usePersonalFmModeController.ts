@@ -11,7 +11,6 @@ import { usePersonalFmModeStore } from '../stores/usePersonalFmModeStore';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import type { SongResult, StatusMessage } from '../types';
 import { setStatusMessage as setStatusMsg } from '../stores/useStatusMessageStore';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 
 // src/hooks/usePersonalFmModeController.ts
 // Owns "apply a Personal FM mode": persist it, and when FM is on air jump straight to the first
@@ -73,7 +72,7 @@ export function usePersonalFmModeController({
             // stream, so keeping the old one's leftovers around would only muddy it.
             void playSong(songs[0], songs, true);
         } catch (error) {
-            console.error('[PersonalFm] Failed to refresh queue for mode', cleanPrivateError(error));
+            console.error('[PersonalFm] Failed to refresh queue for mode', error);
             setStatusMsg({ type: 'error', text: t('personalFmMode.statusFailed', 'Failed to switch the Personal FM mode') });
         }
     }, [currentSong, isFmMode, personalFmSelection, playSong, setSelection, setStatusMsg, t]);

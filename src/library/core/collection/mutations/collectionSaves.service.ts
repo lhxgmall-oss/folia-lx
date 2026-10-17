@@ -1,5 +1,4 @@
 import type { OmniCollection } from '../../../../types/onlineMusic';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 
 // src/library/core/collection/mutations/collectionSaves.service.ts
 // The star of an album or a playlist (the collection's "subscribe"): it shows what was asked for
@@ -62,7 +61,7 @@ const settle = async (key: string, asked: Asked, before: boolean): Promise<Colle
             try {
                 await asked.send(next);
             } catch (error) {
-                console.warn(`[CollectionSave] ${made ? 'Not taken out' : 'Not saved'}; the star is put back`, cleanPrivateError(error));
+                console.warn(`[CollectionSave] ${made ? 'Not taken out' : 'Not saved'}; the star is put back`, error);
                 // Nothing to say when the star was meanwhile pressed back to what the platform holds.
                 return asked.wanted !== made ? { failed: true, saved: made } : { failed: false };
             }

@@ -470,7 +470,7 @@ describe('a request for audio or for a collection\'s tracks that fails', () => {
         registerOnlineMusicProvider(failing(() => { throw new TypeError('bad'); }));
 
         await expect(omni.getAudioSource(song(providerId), 'high')).rejects.toBe(refused);
-        expect(warn).toHaveBeenCalledWith('[Omni] describeFailure threw; the error goes on without a note', { operation: 'audio', name: 'TypeError' });
+        expect(warn).toHaveBeenCalledWith('[Omni] describeFailure threw; the error goes on without a note', { operation: 'audio' }, expect.any(TypeError));
         warn.mockRestore();
     });
 

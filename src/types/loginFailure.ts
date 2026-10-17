@@ -19,8 +19,7 @@ export interface LoginCase {
 }
 
 // 一次登录失败的全部事实：provider 交出来的，加上是哪一步、是不是浏览器登录、扫没扫过码，
-// 和抛出的错的共用代码。抛出的错自己的那句话不在里面：它可能带着地址、路径、账号，按形状洗不干净。
-// 平台的原话（`message`）过 cleanPrivateText，状态码和代号过 cleanPrivateCode。
+// 和抛出的错的共用代码。抛出的错自己的那句话不在里面：它进登录时间线（describeLoginError）和日志。
 export interface LoginFailureFacts extends LoginFailureDetail {
     step: LoginStep;
     inBrowser: boolean;

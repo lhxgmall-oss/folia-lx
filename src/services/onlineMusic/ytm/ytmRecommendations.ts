@@ -5,7 +5,7 @@ import { forgetYtmMusicPage, ytmMusicPagePlaylists } from './ytmExplore';
 import { normalizeYtmSong } from './ytmNormalize';
 import { addYtmSeeds, noteYtmListened, ytmLikedSeeds, ytmListenedSeeds, ytmRadioSongs } from './ytmRadio';
 import type { YtmSeed } from './ytmRadio';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/ytm/ytmRecommendations.ts
 // The radio tab for YouTube Music:
@@ -55,7 +55,7 @@ export const resetYtmRecommendations = (): void => {
     forgetYtmMusicPage();
 };
 
-const wordsOf = (error: unknown) => cleanPrivateError(error).message;
+const wordsOf = (error: unknown) => errorMessage(error);
 const isOffline = (error: unknown) => error instanceof OnlineProviderError && error.code === 'network';
 
 // The songs to ask with. The ones played here join as the explore page hands them over. The liked

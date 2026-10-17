@@ -139,9 +139,8 @@ describe('sorting facts no platform named a case for', () => {
 
 describe('what a fact may hold', () => {
     // The facts are shown in the sign-in window and copied into a report. A thrown error's own
-    // sentence may hold an address, a path with the user's name or an account, and no list of
-    // shapes finds them all: so it reaches no fact, whatever it says. (test/unit/privateText/privateText.test.ts has the
-    // cleaner the platform's own words pass.)
+    // sentence is Folia's or a library's, not the platform's words: it reaches no fact, whatever it
+    // says, and goes into the timeline instead (describeLoginError).
     it('takes nothing of the sentence of a thrown error, nor of the sentence of an error state', () => {
         const sentences = [
             "KuGou request failed (operation=login_qr_check): EPERM: operation not permitted, open 'C:\\Users\\Zhang San\\AppData\\Roaming\\folia\\config.json'",
@@ -158,21 +157,24 @@ describe('what a fact may hold', () => {
         }
     });
 
-    it('cleans the words a platform said and drops a code that is not a short word', () => {
+    it('keeps the words a platform said and every code it gave as they are', () => {
         expect(facts('check', { message: '当前登录环境异常，请稍后再试' }).message).toBe('当前登录环境异常，请稍后再试');
-        expect(facts('check', { message: 'uin 2873651094 at 203.0.113.7' }).message).toBe('uin <number> at <ip>');
-        const coded = facts('check', { code: '800', upstreamCode: 'MUSIC_U=00A1B2C3; __csrf=9f8e', mainCode: 'exited token=abc' });
-        expect(coded).toEqual({ step: 'check', inBrowser: false, scanned: false, code: '800' });
+        expect(facts('check', { message: 'uin 2873651094 at 203.0.113.7' }).message).toBe('uin 2873651094 at 203.0.113.7');
+        expect(facts('check', { message: '' }).message).toBeUndefined();
+        const coded = facts('check', { code: '800', upstreamCode: '50006', mainCode: 'exited 1' });
+        expect(coded).toEqual({ step: 'check', inBrowser: false, scanned: false, code: '800', upstreamCode: '50006', mainCode: 'exited 1' });
+        // A mod may hand a number where a string belongs.
+        expect(facts('check', { code: 800 as never }).code).toBe('800');
     });
 
     // The shared code of a thrown error is one of a few fixed words. An error a mod built may hold
-    // anything there: it is kept only when it has the shape of a code.
-    it('keeps the shared code of a thrown error only when it is a code', () => {
-        const withCode = (code: string) => facts('check', undefined, { error: new OnlineProviderError(code as 'network', 'x') }).errorCode;
+    // anything there: a string or a number is kept, anything else is not.
+    it('keeps the shared code of a thrown error when it is a string or a number', () => {
+        const withCode = (code: unknown) => facts('check', undefined, { error: new OnlineProviderError(code as 'network', 'x') }).errorCode;
         expect(withCode('auth-required')).toBe('auth-required');
-        expect(withCode('invalid-response')).toBe('invalid-response');
-        expect(withCode('uin 2873651094 refused')).toBeUndefined();
-        expect(withCode('MUSIC_U=00A1B2C3D4E5F607')).toBeUndefined();
+        expect(withCode('a code a mod made up')).toBe('a code a mod made up');
+        expect(withCode(42)).toBe('42');
+        expect(withCode({ code: 'x' })).toBeUndefined();
     });
 });
 
@@ -183,7 +185,7 @@ describe('the shared files know no platform', () => {
         const ids = listOnlineMusicProviders().map(provider => provider.id);
         expect(ids.length).toBeGreaterThanOrEqual(6);
         const imports: string[] = [];
-        for (const file of ['src/services/onlineMusic/login/loginFailureCase.ts', 'src/services/onlineMusic/login/loginRequestLimit.ts', 'src/utils/privateText/privateText.ts']) {
+        for (const file of ['src/services/onlineMusic/login/loginFailureCase.ts', 'src/services/onlineMusic/login/loginRequestLimit.ts', 'src/utils/errorText.ts']) {
             const source = await readFile(file, 'utf8');
             const named = ids.filter(id => new RegExp(`(?<![A-Za-z])${id}(?![a-z])`, 'i').test(source));
             expect(named, file).toEqual([]);

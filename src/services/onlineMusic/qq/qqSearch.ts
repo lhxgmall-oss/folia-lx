@@ -4,7 +4,6 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import { searchQQSongs } from './qqLyricProvider';
 import { normalizeQqSong } from './qqNormalize';
 import { hasQqSession, requestQq } from './qqTransport';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 // src/services/onlineMusic/qq/qqSearch.ts
 //
@@ -82,7 +81,7 @@ export const searchQqSongs = async (query: string, limit: number, offset: number
             return await searchWithSession(keyword, page, pageSize);
         } catch (error) {
             if (isSearchRejected(error)) throw error;
-            console.warn('[QQProvider] session search unavailable, falling back to anonymous search', cleanPrivateError(error));
+            console.warn('[QQProvider] session search unavailable, falling back to anonymous search', error);
         }
     }
     return searchAnonymously(keyword, page, pageSize);

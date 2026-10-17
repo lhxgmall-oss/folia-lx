@@ -55,10 +55,11 @@ describe('the rules, in their order', () => {
 });
 
 describe('the facts', () => {
-    it('cleans the words a platform said, drops a code that is not a code and a status that is not a whole number', () => {
-        expect(audio({ message: 'uin 2873651094 at 203.0.113.7' }).facts.message).toBe('uin <number> at <ip>');
-        expect(audio({ code: '800', upstreamCode: 'MUSIC_U=00A1B2C3; __csrf=9f8e', httpStatus: 50.5, retryAfterMs: -1 }).facts).toEqual({ code: '800' });
-        expect(audio(undefined, new OnlineProviderError('uin 2873651094 refused' as 'network', 'x')).facts).toEqual({});
+    it('keeps the words a platform said and its codes, and drops a status that is not a whole number', () => {
+        expect(audio({ message: 'uin 2873651094 at 203.0.113.7' }).facts.message).toBe('uin 2873651094 at 203.0.113.7');
+        expect(audio({ code: '800', upstreamCode: '50006', httpStatus: 50.5, retryAfterMs: -1 }).facts).toEqual({ code: '800', upstreamCode: '50006' });
+        expect(audio(undefined, new OnlineProviderError('a code a mod made up' as 'network', 'x')).facts).toEqual({ errorCode: 'a code a mod made up' });
+        expect(audio(undefined, new OnlineProviderError({} as never, 'x')).facts).toEqual({});
     });
 
     it('reads a provider\'s note only from the error it was noted on', () => {
@@ -81,8 +82,8 @@ describe('a media element that cannot play an online song', () => {
         expect(mediaFailureOf(null)).toEqual({ case: 'audio-unplayable', operation: 'media', facts: {} });
     });
 
-    it('cleans the browser\'s own words', () => {
-        expect(mediaFailureOf({ code: 4, message: 'Format error at https://cdn.example.com/a.mp3?token=abc' }).facts.message).not.toContain('token');
+    it('keeps the browser\'s own words', () => {
+        expect(mediaFailureOf({ code: 4, message: 'Format error at https://cdn.example.com/a.mp3' }).facts.message).toBe('Format error at https://cdn.example.com/a.mp3');
     });
 });
 
@@ -114,14 +115,18 @@ describe('the table', () => {
 describe('the line for maintainers', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it('holds the case, the platform, the cleaned facts and the cleaned thrown error', () => {
+    it('holds the case, the platform, the facts, and after them the thrown error itself', () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        logOnlineFailure(audio({ code: '-462', message: 'risk 203.0.113.7', httpStatus: 200 }), new Error('GET https://music.example.com/song/url?MUSIC_U=abcdef0123456789'));
+        const thrown = new Error('GET https://music.example.com/song/url failed');
+        logOnlineFailure(audio({ code: '-462', message: 'risk 203.0.113.7', httpStatus: 200 }), thrown);
         expect(warn).toHaveBeenCalledOnce();
-        const [head, fields] = warn.mock.calls[0];
+        const [head, fields, error] = warn.mock.calls[0];
         expect(head).toBe('[OnlineFailure] audio netease refused');
-        expect(fields).toMatchObject({ operation: 'audio', provider: 'netease', case: 'refused', code: '-462', message: 'risk <ip>', httpStatus: 200 });
-        expect(JSON.stringify(fields)).not.toContain('abcdef0123456789');
+        expect(fields).toMatchObject({ operation: 'audio', provider: 'netease', case: 'refused', code: '-462', message: 'risk 203.0.113.7', httpStatus: 200 });
+        // The error goes on whole: the session log records its stack.
+        expect(error).toBe(thrown);
+        logOnlineFailure(audio({ code: '-462' }));
+        expect(warn.mock.calls[1]).toHaveLength(2);
     });
 });
 

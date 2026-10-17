@@ -62,7 +62,7 @@ import { useSearchNavigationStore } from '../../../../stores/useSearchNavigation
 import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../../../../stores/usePlaybackEntryViewStore';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { hasBeforePlayHook, notifyPlaybackFailed, runBeforePlayHook } from '../../../../services/hostExtensionHooks';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
+import { errorMessage } from '../../../../utils/errorText';
 
 // src/components/app/playback/start/usePlaybackQueueController.ts
 
@@ -624,7 +624,7 @@ export function usePlaybackQueueController({
             try {
                 replacement = await omni.getSongReplacement(song);
             } catch (error) {
-                console.error('[App] Failed to load replacement song before dialog:', cleanPrivateError(error));
+                console.error('[App] Failed to load replacement song before dialog:', error);
                 lookupFailure = onlineFailureOf({ operation: 'audio', providerId }, { error });
             }
             if (!isLatestPlaybackRequest()) return;
@@ -747,7 +747,7 @@ export function usePlaybackQueueController({
             }
         } catch (error) {
             if (!isLatestPlaybackRequest()) return;
-            console.error('[App] Failed to fetch song URL:', cleanPrivateError(error));
+            console.error('[App] Failed to fetch song URL:', error);
             presentOnlineFailure(onlineFailureOf({ operation: 'audio', providerId }, { error }));
             return;
         }
@@ -860,7 +860,7 @@ export function usePlaybackQueueController({
             // The load has ended; a song still asked for that it left without lyrics may get some from a mod.
             if (askedSongKeyRef.current === songKey) supplyLyricsAfterEmptyLoad();
         } catch (error) {
-            console.warn('[App] Lyric fetch failed', cleanPrivateError(error));
+            console.warn('[App] Lyric fetch failed', error);
             setLyrics(null);
             setIsLyricsLoading(false);
             if (askedSongKeyRef.current === songKey) supplyLyricsAfterEmptyLoad();
@@ -870,7 +870,7 @@ export function usePlaybackQueueController({
             await restoreCachedThemeForSong(song);
             if (askedSongKeyRef.current !== songKey) return;
         } catch (error) {
-            console.warn('Theme load error', cleanPrivateError(error));
+            console.warn('Theme load error', error);
         }
 
         if (newQueue.length > 1) {
@@ -1016,7 +1016,7 @@ export function usePlaybackQueueController({
         } catch (error) {
             // Overtaken: dropped like any late result, not said over the new song, nor told.
             if (replacementCallId !== null && playSongCallIdRef.current !== replacementCallId) return;
-            console.error('[App] Failed to load replacement song:', cleanPrivateError(error));
+            console.error('[App] Failed to load replacement song:', error);
             setStatusMsg({ type: 'error', text: t('status.playbackError') });
             // playSong shows and tells the failures it knows of itself; this is a throw it did not catch
             // (the desktop cache, a cache entry moved). The listener sees the other version fail: told once.
@@ -1091,7 +1091,7 @@ export function usePlaybackQueueController({
                     return;
                 }
             } catch (error) {
-                console.error('Failed to fetch FM tracks', cleanPrivateError(error));
+                console.error('Failed to fetch FM tracks', error);
             }
         }
 
@@ -1322,11 +1322,11 @@ export function usePlaybackQueueController({
                 snapshot,
             });
         } catch (error) {
-            console.warn('[Stage] Failed to handle external play request', cleanPrivateError(error));
+            console.warn('[Stage] Failed to handle external play request', error);
             await window.electron?.completeStageExternalPlayRequest?.({
                 requestId: request.requestId,
                 ok: false,
-                error: cleanPrivateError(error).message,
+                error: errorMessage(error),
             });
         }
     }, [appendOnlineSongsToMainQueue, buildStageQueueAddDiffDraft, buildStageQueueOperationSnapshot, currentSong, playQueue, playSong]);
@@ -1376,7 +1376,7 @@ export function usePlaybackQueueController({
             await window.electron?.completeStagePlayerQueueRequest?.({
                 requestId: request.requestId,
                 ok,
-                error: ok ? null : cleanPrivateError(error).message,
+                error: ok ? null : errorMessage(error),
                 result,
                 snapshot,
             });
@@ -1477,7 +1477,7 @@ export function usePlaybackQueueController({
                 buildStageQueueOperationSnapshot(currentSong, nextQueue),
             );
         } catch (error) {
-            console.warn('[Stage] Failed to handle player queue request', cleanPrivateError(error));
+            console.warn('[Stage] Failed to handle player queue request', error);
             await complete(false, error);
         }
     }, [activePlaybackContext, audioQuality, buildStageQueueOperationSnapshot, currentSong, isFmMode, isNowPlayingStageActive, loadStageQueueSongs, persistLastPlaybackCache, playQueue, playSong, resolveStageQueueIndex, setPlayQueue, setStatusMsg, t, userId]);

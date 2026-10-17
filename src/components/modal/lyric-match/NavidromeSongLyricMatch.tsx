@@ -11,7 +11,6 @@ import { formatSongName } from '../../../utils/songNameFormatter';
 import { LyricMatchWindow } from './LyricMatchWindow';
 import { pickNavidromeResult, saveNavidromeLyricMatch, saveNavidromeNoMatch } from './navidromeSongMatch';
 import { useLyricMatchSearch } from './useLyricMatchSearch';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 // src/components/modal/lyric-match/NavidromeSongLyricMatch.tsx
 // The lyric match window for a song of a Navidrome server. Such a song has lyrics of its own on
@@ -72,7 +71,7 @@ const NavidromeSongLyricMatch: React.FC<NavidromeSongLyricMatchProps> = ({ song,
             }
             onMatch();
         } catch (error) {
-            console.error('Failed to save Navidrome match:', cleanPrivateError(error));
+            console.error('Failed to save Navidrome match:', error);
             setStatusMessage({ type: 'error', text: t('localMusic.matchFailed') });
         }
     };
@@ -82,7 +81,7 @@ const NavidromeSongLyricMatch: React.FC<NavidromeSongLyricMatchProps> = ({ song,
             await saveNavidromeNoMatch(song);
             onMatch();
         } catch (error) {
-            console.error('Failed to save no match preference:', cleanPrivateError(error));
+            console.error('Failed to save no match preference:', error);
         }
     };
 

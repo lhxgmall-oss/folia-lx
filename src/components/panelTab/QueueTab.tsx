@@ -12,7 +12,6 @@ import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { queueIndexOfKey } from '../../utils/playbackNeighbors';
 import { EmptyState } from './shell/EmptyState';
 import { PanelIconButton } from './shell/PanelIconButton';
-import { cleanPrivateError } from '../../utils/privateText/privateText';
 
 // src/components/panelTab/QueueTab.tsx
 // The panel's queue tab: a line with the number of songs and the queue's own buttons, then the
@@ -291,7 +290,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
                     try {
                         await onSaveCurrentQueueAsPlaylist?.(playlistName);
                     } catch (error) {
-                        console.error('Failed to save local playlist', cleanPrivateError(error));
+                        console.error('Failed to save local playlist', error);
                     }
                 }}
             />

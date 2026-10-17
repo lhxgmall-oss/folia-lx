@@ -29,7 +29,7 @@ import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
 import { describeQqLoginFailure, qqCheckFailure } from './qqLoginFailure';
 import { describeQqFailure } from './qqFailure';
 import { OnlineRequestTimeout } from '../failure/onlineRequestLimit';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorFields, errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/qq/qqProvider.ts
 
@@ -351,7 +351,7 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
             console.warn('[QQProvider] playback:quality-failed', {
                 requestedQuality: quality,
                 candidateQuality: candidate.resolvedQuality,
-                ...cleanPrivateError(error),
+                ...errorFields(error),
             });
             const said = describeQqFailure('audio', error);
             if (said?.case === 'local-service-stopped' || said?.case === 'not-configured' || said?.httpStatus === 429
@@ -390,7 +390,7 @@ const getLyrics = async (song: SongResult): Promise<ProviderLyricsResult> => {
 
 // 最近一次登录态检查的结论。扫码确认后账户没加载出来（account-refresh-failed）时，报告靠它说明卡在哪：
 // 没存下 session、后端不认这个 session、还是请求本身失败。
-// 结论是这里写死的话，记下时就写成一行：报告只洗放进行里的文字（抛出的错的那句话）。
+// 结论是这里写死的话，记下时就写成一行。
 let lastLoginStatusCheck: LoginDiagnosticLine | null = null;
 const noteLoginStatusCheck = (summary: LoginDiagnosticLine): void => {
     lastLoginStatusCheck = diagnosticLine`${formatDiagnosticClock(Date.now())} ${summary}`;
@@ -420,13 +420,13 @@ const getLoginStatus = async (): Promise<ProviderUser | null> => {
         });
         return user;
     } catch (error) {
-        noteLoginStatusCheck(diagnosticLine`login_status failed: ${cleanPrivateError(error).message}`);
+        noteLoginStatusCheck(diagnosticLine`login_status failed: ${errorMessage(error)}`);
         // Missing, expired, rejected, or non-persisted backend sessions all arrive as 401.
         if (error instanceof OnlineProviderError && error.code === 'auth-required') {
             console.info('[QQProvider] login-status:auth-required');
             return null;
         }
-        console.warn('[QQProvider] login-status:error', cleanPrivateError(error));
+        console.warn('[QQProvider] login-status:error', error);
         throw error;
     }
 };
@@ -436,7 +436,7 @@ const getLoginStatus = async (): Promise<ProviderUser | null> => {
 const logout = async (): Promise<void> => {
     const told = hasQqSession()
         ? requestQq('logout').catch(error => {
-            console.warn('[QQProvider] logout:error', cleanPrivateError(error));
+            console.warn('[QQProvider] logout:error', error);
         })
         : undefined;
     clearQqSession();
@@ -944,7 +944,7 @@ export const qqProvider: OnlineMusicProvider = {
             // 后端对未知 key 也回 200，所以失败只可能是网络层。调用方在关窗时 fire-and-forget，
             // 抛出去只会让 UI 卡在一个用户无从处理的错误上，而残留会话最迟 3 分钟后自己过期。
             await requestQq('login_qr_cancel', { key }).catch(error => {
-                console.warn('[QQProvider] qr-cancel:failed', cleanPrivateError(error));
+                console.warn('[QQProvider] qr-cancel:failed', error);
             });
         },
     },

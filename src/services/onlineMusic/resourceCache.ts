@@ -6,7 +6,6 @@ import { getCachedAudioBlob, hasCachedAudio, removeAudioBlob, saveAudioBlob } fr
 import { getCachedCoverUrl, hasCachedCover, saveCoverBlob } from '../coverCache';
 import { getFromCache, removeFromCache, saveToCache } from '../db';
 import { getLegacySongResourceCacheKeys, getSongResourceCacheKey, type SongResourceKind } from './resourceKeys';
-import { cleanPrivateError } from '../../utils/privateText/privateText';
 
 // src/services/onlineMusic/resourceCache.ts
 
@@ -164,7 +163,7 @@ export const getCachedSongCoverUrl = async (song: SongResult): Promise<string | 
             const legacyBlob = await (await fetch(legacyUrl)).blob();
             await saveCoverBlob(cacheKey, legacyBlob);
         } catch (error) {
-            console.warn('[ResourceCache] Failed to write back legacy cover cache', cleanPrivateError(error));
+            console.warn('[ResourceCache] Failed to write back legacy cover cache', error);
         }
         return legacyUrl;
     }

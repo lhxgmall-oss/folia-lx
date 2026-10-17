@@ -1,6 +1,5 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { ProviderErrorCode } from '../../../types/onlineMusic';
-import { cleanPrivateText } from '../../../utils/privateText/privateText';
 
 // src/services/onlineMusic/ytm/ytmTransport.ts
 // The IPC boundary to electron/ytm/ytmApiBridge.cjs. Google credentials stay in the main process;
@@ -87,7 +86,7 @@ export async function requestYtm<T = unknown>(operation: YtmOperation, params: Y
         throw new OnlineProviderError('network', 'YouTube Music desktop request failed', 'ytm');
     }
     if (!result.ok) {
-        console.warn(`[Ytm] ${operation} failed after ${Date.now() - startedAt}ms: ${result.error.code} (${cleanPrivateText(result.error.message) ?? ''})`);
+        console.warn(`[Ytm] ${operation} failed after ${Date.now() - startedAt}ms: ${result.error.code} (${result.error.message ?? ''})`);
         // The reason goes with the error as its cause (ytmLoginFailure.ts reads it there).
         throw new OnlineProviderError(result.error.code, result.error.message, 'ytm', result.error.reason);
     }

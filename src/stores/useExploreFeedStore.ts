@@ -3,7 +3,7 @@ import { omni } from '../services/onlineMusic/omni';
 import { inKeptOrder, noteCollectionSaved, withoutTakenOut } from '../components/app/home/explore/exploreFeedMemory';
 import type { UnifiedSong } from '../types';
 import type { OmniCollection, OmniExploreItem, OmniExploreSection } from '../types/onlineMusic';
-import { cleanPrivateError } from '../utils/privateText/privateText';
+import { errorMessage } from '../utils/errorText';
 
 // src/stores/useExploreFeedStore.ts
 // The active provider's recommendation page behind the explore tab: its sections, the further
@@ -122,7 +122,7 @@ const forgetScroll = () => {
 
 const overtaken = () => new DOMException('The read was overtaken', 'AbortError');
 const isOvertaken = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
-const wordsOf = (error: unknown) => cleanPrivateError(error).message;
+const wordsOf = (error: unknown) => errorMessage(error);
 const blank = (status: ExploreFeed['status'], read: number): ExploreFeed => ({
     read, sections: [], kept: {}, pages: 0, status, refreshing: false, refreshFailed: false, loadingMore: false, moreFailed: false, loadingSectionIds: [],
 });

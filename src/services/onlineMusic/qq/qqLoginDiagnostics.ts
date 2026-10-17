@@ -1,6 +1,6 @@
 import type { LoginDiagnosticLine } from '../../../types/onlineMusic';
 import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
-import { formatBackendApp, formatBackendStartup, formatFields, formatRecentConnections, readBackendSnapshot } from '../login/loginBackendDiagnostics';
+import { formatBackendApp, formatBackendStartup, formatFields, formatListen, formatRecentConnections, formatValue, readBackendSnapshot } from '../login/loginBackendDiagnostics';
 
 // src/services/onlineMusic/qq/qqLoginDiagnostics.ts
 // QQ 扫码登录诊断报告里的 provider 专属部分：渲染进程这边的会话状态，和桌面版主进程里内嵌 qq-music-api 的
@@ -11,9 +11,6 @@ type QqLoginSession = {
     channels: readonly string[] | null;
     lastAccountCheck: LoginDiagnosticLine | null;
 };
-
-// QQ 自己的上游域名：连接记录里只印这些，别的（代理、别人的服务器）印 <host>。
-const isQqHost = (host: string): boolean => /(?:^|\.)(?:qq\.com|tencentmusic\.com|gtimg\.cn|qpic\.cn|qlogo\.cn)$/i.test(host);
 
 // 包内一次失败：时刻、类别、停在哪一步，下面是错误的调用栈（主进程只留了前几行）。
 const formatFailure = (failure: ElectronQqLoginDiagnostics['failures'][number]): LoginDiagnosticLine[] => {
@@ -33,7 +30,7 @@ const formatAuthEvent = (event: ElectronQqLoginDiagnostics['authEvents'][number]
 };
 
 // 报告里 QQ 这一边的行：会话存没存下、后端声明的扫码通道、最近一次读账号的结论；桌面版在前面加上内嵌后端
-// 的状态与拉起步骤，后面加上包内的失败、qq-auth 事件和上游连接。从外面来的文字都经 diagnosticLine 洗过。
+// 的状态与拉起步骤，后面加上包内的失败、qq-auth 事件和上游连接。每一行都由 diagnosticLine 写。
 export const formatQqLoginDiagnostics = (
     state: QqLoginSession,
     snapshot: ElectronQqLoginDiagnostics | null = null,
@@ -52,7 +49,7 @@ export const formatQqLoginDiagnostics = (
         diagnosticLine`runtime: electron (local API)`,
         ...formatBackendApp(snapshot.app),
         backend
-            ? diagnosticLine`local api: ${backend.status}${backend.port ? diagnosticLine` port=${backend.port}` : ''}${backend.error ? diagnosticLine` error="${backend.error}"` : ''}`
+            ? diagnosticLine`local api: ${backend.status}${formatListen(backend.port)}${backend.error ? ` error=${formatValue(backend.error)}` : ''}${backend.updatedAt ? ` (since ${formatDiagnosticClock(backend.updatedAt)})` : ''}`
             : diagnosticLine`local api: unknown`,
         diagnosticLine`qq-music-api: ${snapshot.version ?? 'unknown'}, hooks: ${hooks?.installed?.join(', ') || 'none'}${hooks?.error ? diagnosticLine` (error "${hooks?.error}")` : ''}`,
         ...formatBackendStartup(snapshot.startup),
@@ -61,7 +58,7 @@ export const formatQqLoginDiagnostics = (
         ...(failures.length > 0 ? failures.flatMap(formatFailure) : [diagnosticLine`  (none)`]),
         diagnosticLine`auth events (${authEvents.length}, oldest first, UTC):`,
         ...(authEvents.length > 0 ? authEvents.map(formatAuthEvent) : [diagnosticLine`  (none)`]),
-        ...formatRecentConnections('upstream connections', snapshot.connections, isQqHost),
+        ...formatRecentConnections('upstream connections', snapshot.connections),
     ];
 };
 

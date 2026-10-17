@@ -11,7 +11,6 @@ import type {
 } from './homeModel.contract';
 import { isPersonalFmCard, onlineCardCollection } from './homeCards';
 import { isHomeImportBusy, resolveLocalUnavailableReason } from './homeSources';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 // src/library/core/home/libraryHomeActions.service.ts
 // 首页动作层（原样搬自 Grid3D）：本地的导入文件夹、刷新全部、导入歌单文件，私人 FM 直接播放，打开卡片。
@@ -54,7 +53,7 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
             if (songs.length > 0) port.playPersonalFm(songs[0], songs);
             return OK;
         } catch (error) {
-            console.error('[LibraryHome] Failed to fetch and play Personal FM:', cleanPrivateError(error));
+            console.error('[LibraryHome] Failed to fetch and play Personal FM:', error);
             return FAILED;
         }
     };
@@ -86,7 +85,7 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
                 if (imported > 0) void port.refreshLocalSongs();
                 return OK;
             } catch (error) {
-                console.error('[LibraryHome] Failed to import local folder:', cleanPrivateError(error));
+                console.error('[LibraryHome] Failed to import local folder:', error);
                 port.notify({ kind: 'alert', message: { key: 'localMusic.importNotSupported' } });
                 return FAILED;
             } finally {
@@ -102,7 +101,7 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
                 if (imported > 0) void port.refreshLocalSongs();
                 return OK;
             } catch (error) {
-                console.error('[LibraryHome] Failed to resync local folders:', cleanPrivateError(error));
+                console.error('[LibraryHome] Failed to resync local folders:', error);
                 return FAILED;
             } finally {
                 patch({ refreshingFolders: false });
@@ -125,7 +124,7 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
                     : { kind: 'status', type: 'success', message: { key: 'localMusic.playlistImportSuccess', values } });
                 return OK;
             } catch (error) {
-                console.error('[LibraryHome] Failed to import local playlist:', cleanPrivateError(error));
+                console.error('[LibraryHome] Failed to import local playlist:', error);
                 port.notify({ kind: 'status', type: 'error', message: { key: 'localMusic.playlistImportFailed' } });
                 return FAILED;
             } finally {

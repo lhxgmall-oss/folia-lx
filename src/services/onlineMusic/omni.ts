@@ -55,7 +55,7 @@ import type { LikePress, LikePresses } from '../../utils/likePresses';
 import { noteLoginFailure } from './login/loginFailureCase';
 import { noteOnlineFailure } from './failure/onlineFailureCase';
 import { diagnosticLine } from './login/loginDiagnosticReport';
-import { cleanPrivateError } from '../../utils/privateText/privateText';
+import { errorFields, errorMessage } from '../../utils/errorText';
 import { keptAfterRead } from './account/keptAfterRead';
 import type { AccountRead } from './account/keptAfterRead';
 import { createLikedChecks } from './account/likedChecks';
@@ -148,10 +148,7 @@ const runLoginStep = async <T>(auth: OnlineAuthProvider, step: LoginStep, run: (
         try {
             noteLoginFailure(error, auth.describeLoginFailure?.(step, error));
         } catch (describeError) {
-            console.warn('[Omni] describeLoginFailure threw; the sign-in error goes on without a note', {
-                step,
-                name: cleanPrivateError(describeError).name,
-            });
+            console.warn('[Omni] describeLoginFailure threw; the sign-in error goes on without a note', { step }, describeError);
         }
         throw error;
     }
@@ -167,10 +164,7 @@ const runRequest = async <T>(provider: OnlineMusicProvider, operation: OnlineFai
         try {
             noteOnlineFailure(error, provider.describeFailure?.(operation, error));
         } catch (describeError) {
-            console.warn('[Omni] describeFailure threw; the error goes on without a note', {
-                operation,
-                name: cleanPrivateError(describeError).name,
-            });
+            console.warn('[Omni] describeFailure threw; the error goes on without a note', { operation }, describeError);
         }
         throw error;
     }
@@ -191,10 +185,7 @@ const persistProviderLikedSongIds = async (providerId: OmniProviderId): Promise<
         });
     } catch (error) {
         // 落盘失败不能把一次成功的 mutation 变成失败，下一次刷新会补上。
-        console.warn('[Omni] Failed to persist liked songs after a like mutation', {
-            providerId,
-            name: cleanPrivateError(error).name,
-        });
+        console.warn('[Omni] Failed to persist liked songs after a like mutation', { providerId }, error);
     }
 };
 
@@ -577,7 +568,7 @@ export const omni = {
         try {
             return await requireOnlineMusicProvider(providerId).auth?.getLoginDiagnostics?.() ?? [];
         } catch (error) {
-            return [diagnosticLine`provider diagnostics unavailable: ${cleanPrivateError(error).message}`];
+            return [diagnosticLine`provider diagnostics unavailable: ${errorMessage(error)}`];
         }
     },
 
@@ -749,7 +740,7 @@ export const omni = {
             if (failures.length === settled.length) throw failures[0].reason;
             failures.forEach(failure => console.warn('[Omni] Home feed section failed', {
                 providerId: provider.id,
-                ...cleanPrivateError(failure.reason),
+                ...errorFields(failure.reason),
             }));
             const valueOf = <T>(result: PromiseSettledResult<T[]>): T[] => (result.status === 'fulfilled' ? result.value : []);
             return {
@@ -1021,18 +1012,12 @@ export const omni = {
                 if (userId !== undefined && userId !== null) {
                     // A full liked list may be large: success does not wait for it.
                     void readLikedSongIds(playlist.providerId, userId).catch(error => {
-                        console.warn('[Omni] Failed to refresh liked songs after playlist mutation', {
-                            providerId: playlist.providerId,
-                            name: cleanPrivateError(error).name,
-                        });
+                        console.warn('[Omni] Failed to refresh liked songs after playlist mutation', { providerId: playlist.providerId }, error);
                     });
                 }
             }
         } catch (error) {
-            console.warn('[Omni] Failed to refresh provider playlists after mutation', {
-                providerId: playlist.providerId,
-                name: cleanPrivateError(error).name,
-            });
+            console.warn('[Omni] Failed to refresh provider playlists after mutation', { providerId: playlist.providerId }, error);
         }
     },
 

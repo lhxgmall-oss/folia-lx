@@ -229,11 +229,11 @@ visualizer 颜色混合和 alpha 已有 helper：
 - 带标题、说明和自己内容的弹窗：`ThemedDialog`，底部按钮用 `SheetButton`。
 - 不要用浏览器自带的 `confirm()` / `alert()` / `prompt()`；只是告知结果用 `setStatusMessage`。
 
-### Outside Links, Clipboard And Private Text
+### Outside Links, Clipboard And Error Text
 
 - 到应用外面打开一个地址：`openOutsideLink`（`src/utils/system/outsideLink.ts`）。桌面端交给系统浏览器，网页版开新标签页；不要自己写 `window.electron?.openExternalUrl` 或 `window.open`。打不开时要说点什么，就等它或者接住它。
 - 把文字放上剪贴板：`copyText`（`src/utils/system/clipboard.ts`），浏览器不给剪贴板接口时走隐藏输入框；不要直接写 `navigator.clipboard`。成功和失败的提示各处自己管。
-- 不是自己写的文字（平台或服务器的原话、抛出的错）要进日志、给人看、或者交给应用外面的程序之前，先过 `cleanPrivateError` / `cleanPrivateText`（`src/utils/privateText/privateText.ts`）。`test/unit/privateText/privateTextLogLines.test.ts` 读源码找没洗过的；它管哪些文件写在那个测试的开头。
+- 抛出的错要拆成字段或者一句话（放进一个对象、一条记录、界面上的一行字）：`errorFields` / `errorMessage`（`src/utils/errorText.ts`），都是原文。打日志能直接交 Error 本身就直接交，会话日志会记下它的调用栈。
 - 「这是不是 Mac / Windows」：`src/utils/platform.ts`。
 
 ### i18n

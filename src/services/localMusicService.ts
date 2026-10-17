@@ -30,7 +30,6 @@ import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
 import { getLocalLyricFilePriority, isSameLocalLyricFormatOrder, normalizeLocalLyricFormatOrder, type LocalLyricFileFormat } from '../utils/lyrics/localLyricFormatOrder';
 import { readLyricFile } from '../utils/lyrics/lyricFileDecoding';
 import { isLocalFolderIgnored, normalizeLocalFolderPath, runLocalFolderMutation, setLocalFolderIgnored } from './localLibraryFolderIgnore';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 
 
 type EmbeddedMetadata = EmbeddedMetadataResult;
@@ -201,7 +200,7 @@ async function findImportedRootForHandle(dirHandle: FileSystemDirectoryHandle): 
                 return rootFolderName;
             }
         } catch (error) {
-            console.warn(`[LocalMusic][Import] Failed to compare imported directory with "${rootFolderName}":`, cleanPrivateError(error));
+            console.warn(`[LocalMusic][Import] Failed to compare imported directory with "${rootFolderName}":`, error);
         }
     }
 
@@ -462,7 +461,7 @@ async function buildSnapshotTree(
             childEntries.push(entry);
         }
     } catch (error) {
-        console.warn(`[LocalMusic][Import] Skip unreadable directory "${currentPath}":`, cleanPrivateError(error));
+        console.warn(`[LocalMusic][Import] Skip unreadable directory "${currentPath}":`, error);
 
         return {
             tree: {
@@ -520,7 +519,7 @@ async function buildSnapshotTree(
                 children.push(childResult.tree);
                 relevantFileCount += childResult.relevantFileCount;
             } catch (error) {
-                console.warn(`[LocalMusic][Import] Skip failed child directory "${childPath}":`, cleanPrivateError(error));
+                console.warn(`[LocalMusic][Import] Skip failed child directory "${childPath}":`, error);
             }
 
             continue;
@@ -549,7 +548,7 @@ async function buildSnapshotTree(
             filesByPath.set(relativePath, { handle: fileHandle, file });
             relevantFileCount += 1;
         } catch (error) {
-            console.warn(`[LocalMusic][Import] Skip unreadable file "${currentPath}/${entry.name}":`, cleanPrivateError(error));
+            console.warn(`[LocalMusic][Import] Skip unreadable file "${currentPath}/${entry.name}":`, error);
         }
     }
 
@@ -579,7 +578,7 @@ async function loadFoliaIgnoreMatcher(
         console.log(`[LocalMusic][Import] Loaded ${matcher.ruleCount} .foliaignore rules from "${directoryName}".`);
         return matcher;
     } catch (error) {
-        console.warn(`[LocalMusic][Import] Failed to read .foliaignore from "${directoryName}":`, cleanPrivateError(error));
+        console.warn(`[LocalMusic][Import] Failed to read .foliaignore from "${directoryName}":`, error);
         return createFoliaIgnoreMatcher('', baseDirectory);
     }
 }
@@ -832,7 +831,7 @@ async function buildImportedSong(
             localLyricsContent = await readLyricFile(lyricCandidate.file);
             localLyricsFormat = lyricCandidate.format;
         } catch (e) {
-            console.error(`[LocalMusic] Failed to read local lyric for ${file.name}`, cleanPrivateError(e));
+            console.error(`[LocalMusic] Failed to read local lyric for ${file.name}`, e);
         }
     }
 
@@ -842,7 +841,7 @@ async function buildImportedSong(
         try {
             localTranslationLyricsContent = await readLyricFile(tlrcMap.get(baseName)!);
         } catch (e) {
-            console.error(`[LocalMusic] Failed to read local translation lyric for ${file.name}`, cleanPrivateError(e));
+            console.error(`[LocalMusic] Failed to read local translation lyric for ${file.name}`, e);
         }
     }
     const lyricReadMs = performance.now() - lyricReadStartedAt;
@@ -855,7 +854,7 @@ async function buildImportedSong(
                 try {
                     return (await prepareLocalCoverBlob(coverMap.get(entry.folderName)!)) || undefined;
                 } catch (error) {
-                    console.warn(`[LocalMusic] Failed to read folder cover for ${entry.folderName}:`, cleanPrivateError(error));
+                    console.warn(`[LocalMusic] Failed to read folder cover for ${entry.folderName}:`, error);
                     return undefined;
                 }
             })());
@@ -872,7 +871,7 @@ async function buildImportedSong(
         try {
             embeddedMetadata = await extractEmbeddedMetadata(file, false);
         } catch (e) {
-            console.warn(`[LocalMusic] Failed to parse metadata for ${file.name}:`, cleanPrivateError(e));
+            console.warn(`[LocalMusic] Failed to parse metadata for ${file.name}:`, e);
         }
         parseMetadataMs = performance.now() - parseMetadataStartedAt;
     }
@@ -981,7 +980,7 @@ async function hydrateSongMetadata(song: LocalSong): Promise<LocalSong> {
         } catch (coverError) {
             if (!includeCover) throw coverError;
             coverHydrationFailed = true;
-            console.warn(`[LocalMusic][Import] Cover-aware metadata parsing failed for ${song.fileName}; retrying without covers.`, cleanPrivateError(coverError));
+            console.warn(`[LocalMusic][Import] Cover-aware metadata parsing failed for ${song.fileName}; retrying without covers.`, coverError);
             embeddedMetadata = await extractEmbeddedMetadata(file, false);
         }
 
@@ -1022,7 +1021,7 @@ async function hydrateSongMetadata(song: LocalSong): Promise<LocalSong> {
             song.localCoverNeedsAssetMigration = coverHydrationFailed ? true : undefined;
         }
     } catch (error) {
-        console.warn(`[LocalMusic][Import] Failed to hydrate metadata for ${song.fileName}:`, cleanPrivateError(error));
+        console.warn(`[LocalMusic][Import] Failed to hydrate metadata for ${song.fileName}:`, error);
     }
 
     return song;
@@ -1194,7 +1193,7 @@ async function importFolderContents(dirHandle: FileSystemDirectoryHandle, expect
             await saveDirHandles(dirHandles);
             console.log(`[LocalMusic] Saved directory handle for ${rootFolderName}`);
         } catch (e) {
-            console.error('[LocalMusic] Failed to save directory handle:', cleanPrivateError(e));
+            console.error('[LocalMusic] Failed to save directory handle:', e);
         }
 
         const lyricIndexStartedAt = performance.now();
@@ -1217,7 +1216,7 @@ async function importFolderContents(dirHandle: FileSystemDirectoryHandle, expect
                     existingSongsByPath.get(entry.relativePath)
                 );
             } catch (error) {
-                console.error(`Failed to import file ${entry.relativePath}:`, cleanPrivateError(error));
+                console.error(`Failed to import file ${entry.relativePath}:`, error);
                 return {
                     song: null,
                     metrics: {
@@ -1276,7 +1275,7 @@ async function importFolderContents(dirHandle: FileSystemDirectoryHandle, expect
             console.log(`[LocalMusic][Import] Persisted ${songsToPersist.length} changed songs in ${formatImportDuration(performance.now() - persistStartedAt)}.`);
             importedSongs.push(...songsToPersist);
         } catch (saveError) {
-            console.error('Failed to save imported songs:', cleanPrivateError(saveError));
+            console.error('Failed to save imported songs:', saveError);
             songsToPersist.forEach(song => fileHandleMap.delete(song.id));
             throw saveError;
         }
@@ -1284,7 +1283,7 @@ async function importFolderContents(dirHandle: FileSystemDirectoryHandle, expect
         console.log(`[LocalMusic][Import] Finished importing "${rootFolderName}" with ${importedSongs.length}/${diffPlan.totalAudioFiles} available songs in ${formatImportDuration(performance.now() - importStartedAt)}.`);
         notifyLocalMusicUpdated();
         void hydrateImportedSongsInBackground(rootFolderName, songsToPersist).catch(error => {
-            console.error(`[LocalMusic][Import] Background metadata hydration failed for "${rootFolderName}":`, cleanPrivateError(error));
+            console.error(`[LocalMusic][Import] Background metadata hydration failed for "${rootFolderName}":`, error);
         });
 
         return importedSongs;
@@ -1494,7 +1493,7 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         });
         return processed.lyrics;
     } catch (error) {
-        console.error('[LocalMusic] Failed to match lyrics:', cleanPrivateError(error));
+        console.error('[LocalMusic] Failed to match lyrics:', error);
         return null;
     }
 }
@@ -1568,7 +1567,7 @@ async function recoverFileHandleFromPersistedDirectory(song: LocalSong): Promise
         await saveLocalSong(song);
         return recoveredHandle;
     } catch (error) {
-        console.warn(`[LocalMusic] Failed to recover file handle for ${song.filePath}:`, cleanPrivateError(error));
+        console.warn(`[LocalMusic] Failed to recover file handle for ${song.filePath}:`, error);
         return null;
     }
 }
@@ -1613,7 +1612,7 @@ export async function getAudioFromLocalSong(song: LocalSong): Promise<string | n
             const file = await fileHandle.getFile();
             return await getAudioFromFile(file);
         } catch (error) {
-            console.error('[LocalMusic] Failed to get file from handle:', cleanPrivateError(error));
+            console.error('[LocalMusic] Failed to get file from handle:', error);
             // File may have been moved or the stored handle may have become stale.
             fileHandleMap.delete(song.id);
         }
@@ -1625,7 +1624,7 @@ export async function getAudioFromLocalSong(song: LocalSong): Promise<string | n
             const file = await recoveredHandle.getFile();
             return await getAudioFromFile(file);
         } catch (error) {
-            console.error('[LocalMusic] Failed to get file from recovered directory handle:', cleanPrivateError(error));
+            console.error('[LocalMusic] Failed to get file from recovered directory handle:', error);
             fileHandleMap.delete(song.id);
         }
     }
@@ -1642,7 +1641,7 @@ export async function getFileFromLocalSong(song: LocalSong): Promise<File | null
         try {
             return await fileHandle.getFile();
         } catch (error) {
-            console.warn(`[LocalMusic] Failed to read local recovery input for ${song.id}:`, cleanPrivateError(error));
+            console.warn(`[LocalMusic] Failed to read local recovery input for ${song.id}:`, error);
             fileHandleMap.delete(song.id);
         }
     }
@@ -1652,7 +1651,7 @@ export async function getFileFromLocalSong(song: LocalSong): Promise<File | null
     try {
         return await recoveredHandle.getFile();
     } catch (error) {
-        console.warn(`[LocalMusic] Failed to read recovered local input for ${song.id}:`, cleanPrivateError(error));
+        console.warn(`[LocalMusic] Failed to read recovered local input for ${song.id}:`, error);
         fileHandleMap.delete(song.id);
         return null;
     }
@@ -1675,7 +1674,7 @@ export async function getLocalSongArrayBuffer(song: LocalSong): Promise<ArrayBuf
     try {
         return await (await fileHandle.getFile()).arrayBuffer();
     } catch (error) {
-        console.error('[LocalMusic] Failed to read local bytes:', cleanPrivateError(error));
+        console.error('[LocalMusic] Failed to read local bytes:', error);
         fileHandleMap.delete(song.id);
         return null;
     }
@@ -1722,7 +1721,7 @@ export async function ensureLocalSongCoverAsset(song: LocalSong): Promise<LocalS
             try {
                 return await extractAndPersistSongCover(song, fileHandle);
             } catch (error) {
-                console.warn(`[LocalMusic] Failed to ensure embedded cover for ${song.fileName}:`, cleanPrivateError(error));
+                console.warn(`[LocalMusic] Failed to ensure embedded cover for ${song.fileName}:`, error);
                 fileHandleMap.delete(song.id);
 
                 try {
@@ -1733,7 +1732,7 @@ export async function ensureLocalSongCoverAsset(song: LocalSong): Promise<LocalS
 
                     return await extractAndPersistSongCover(song, recoveredHandle);
                 } catch (recoveryError) {
-                    console.warn(`[LocalMusic] Failed to recover embedded cover for ${song.fileName}:`, cleanPrivateError(recoveryError));
+                    console.warn(`[LocalMusic] Failed to recover embedded cover for ${song.fileName}:`, recoveryError);
                     return song;
                 }
             } finally {

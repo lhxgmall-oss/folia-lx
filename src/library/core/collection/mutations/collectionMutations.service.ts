@@ -23,7 +23,7 @@ import {
 } from './collectionMutationCapabilities';
 import { getProviderCacheKey } from '../../../../services/onlineMusic/providerStorage';
 import { isCloudDriveCollection } from '../collectionIdentity';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
+import { errorMessage } from '../../../../utils/errorText';
 import {
     askCollectionSaved,
     collectionSaveKey,
@@ -74,7 +74,7 @@ const OK: LibraryMutationResult = { ok: true };
 const fail = (reason: LibraryMutationFailureReason, message?: string): LibraryMutationResult => (
     message === undefined ? { ok: false, reason } : { ok: false, reason, message }
 );
-const failed = (error: unknown) => fail('failed', cleanPrivateError(error).message);
+const failed = (error: unknown) => fail('failed', errorMessage(error));
 
 /** 资源当前曲目里这个条目的原始下标（重复序号按 collectionEntries 的规则）；不在了返回 -1。 */
 const resolveRawIndex = (tracks: readonly SongResult[], entryKey: string): number => (
@@ -87,9 +87,9 @@ const entryKeyAtRawIndex = (tracks: readonly SongResult[], index: number): strin
 /** 跟随的善后（刷新曲库、刷新账户、作废缓存）失败不影响结果：上游已经改了。 */
 const followUp = (label: string, run: () => Promise<void> | void) => {
     try {
-        void Promise.resolve(run()).catch(error => console.warn(`[LibraryUi] ${label} failed:`, cleanPrivateError(error)));
+        void Promise.resolve(run()).catch(error => console.warn(`[LibraryUi] ${label} failed:`, error));
     } catch (error) {
-        console.warn(`[LibraryUi] ${label} failed:`, cleanPrivateError(error));
+        console.warn(`[LibraryUi] ${label} failed:`, error);
     }
 };
 
@@ -225,7 +225,7 @@ export const createCollectionMutationController = (
                     subscribed = status;
                     emit();
                 })
-                .catch(error => console.warn('[LibraryUi] Failed to fetch collection subscription status:', cleanPrivateError(error)));
+                .catch(error => console.warn('[LibraryUi] Failed to fetch collection subscription status:', error));
         }
         if (!historyRequested && snapshot.branches.isDailyRecommendationsCollection && historyAvailable()) {
             historyRequested = true;
@@ -235,7 +235,7 @@ export const createCollectionMutationController = (
                     dailyHistoryDates = dates || [];
                     emit();
                 })
-                .catch(error => console.error('[LibraryUi] Failed to load daily recommendation history dates:', cleanPrivateError(error)));
+                .catch(error => console.error('[LibraryUi] Failed to load daily recommendation history dates:', error));
         }
     };
 
@@ -274,7 +274,7 @@ export const createCollectionMutationController = (
         try {
             await inputs.resource?.removeTracks(track => localPlaylistSongIdOf(track) === songId);
         } catch (error) {
-            console.warn('[LibraryUi] Failed to commit local playlist removal:', cleanPrivateError(error));
+            console.warn('[LibraryUi] Failed to commit local playlist removal:', error);
         }
         followUp('Refreshing local library', () => inputs.port.local?.refresh?.());
         return OK;
@@ -310,12 +310,12 @@ export const createCollectionMutationController = (
             await inputs.resource?.removeTracks(track => getPlaybackSongKey(track) === playbackKey
                 && (rowId === undefined || (track as UnifiedSong).collectionRowId === rowId));
         } catch (error) {
-            console.warn('[LibraryUi] Failed to invalidate collection tracks cache:', cleanPrivateError(error));
+            console.warn('[LibraryUi] Failed to invalidate collection tracks cache:', error);
         }
         try {
             await removeCacheEntry(getProviderCacheKey(descriptor.providerId, `playlist_detail_${descriptor.id}`));
         } catch (error) {
-            console.warn('[LibraryUi] Failed to remove playlist detail cache:', cleanPrivateError(error));
+            console.warn('[LibraryUi] Failed to remove playlist detail cache:', error);
         }
         followUp('Refreshing collections after removal', () => inputs.port.onCollectionMutated?.());
         return OK;
@@ -365,7 +365,7 @@ export const createCollectionMutationController = (
         try {
             return await run();
         } catch (error) {
-            console.error('[LibraryUi] Failed to remove collection entry:', cleanPrivateError(error));
+            console.error('[LibraryUi] Failed to remove collection entry:', error);
             return failed(error);
         } finally {
             pendingRemovals.delete(entry.entryKey);
@@ -425,7 +425,7 @@ export const createCollectionMutationController = (
                 await run();
                 return OK;
             } catch (error) {
-                console.error(`[LibraryUi] Collection action ${capability} failed:`, cleanPrivateError(error));
+                console.error(`[LibraryUi] Collection action ${capability} failed:`, error);
                 return failed(error);
             }
         }
@@ -436,7 +436,7 @@ export const createCollectionMutationController = (
             await run();
             return OK;
         } catch (error) {
-            console.error(`[LibraryUi] Collection action ${capability} failed:`, cleanPrivateError(error));
+            console.error(`[LibraryUi] Collection action ${capability} failed:`, error);
             return failed(error);
         } finally {
             sourceActionPending = false;

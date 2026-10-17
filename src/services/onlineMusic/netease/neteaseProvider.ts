@@ -28,7 +28,6 @@ import { neteaseLocalService, watchNeteaseLocalService } from './neteaseLocalSer
 import { createNeteaseExplore } from './neteaseExplore';
 import { canRunLoginSelfCheck, runLoginSelfCheck } from '../loginSelfCheck';
 import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 // src/services/onlineMusic/netease/neteaseProvider.ts
 
@@ -168,7 +167,7 @@ const getNeteaseChorusRanges = async (songId: MediaId): Promise<Array<{ startTim
     const request = Promise.resolve(neteaseApi.getChorus(parsedId))
         .then(parseNeteaseChorusRanges)
         .catch(error => {
-            console.warn(`[NeteaseProvider] Failed to fetch chorus ranges for song ${songId}:`, cleanPrivateError(error));
+            console.warn(`[NeteaseProvider] Failed to fetch chorus ranges for song ${songId}:`, error);
             return [];
         });
     neteaseChorusRangesCache.set(cacheKey, request);

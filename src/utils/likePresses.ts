@@ -1,4 +1,4 @@
-import { cleanPrivateError } from './privateText/privateText';
+import { errorMessage } from './errorText';
 
 // src/utils/likePresses.ts
 //
@@ -101,7 +101,7 @@ export const createLikePresses = ({ name, onChange, now = () => Date.now() }: Li
             } while (runs.get(key) === run && run.wanted !== sent);
             outcome = { ok: true, liked: sent };
         } catch (error) {
-            console.warn(`[Like] ${name}:${key} request failed: ${cleanPrivateError(error).message}`);
+            console.warn(`[Like] ${name}:${key} request failed: ${errorMessage(error)}`);
             outcome = run.confirmed === undefined ? { ok: false, error } : { ok: false, error, confirmed: run.confirmed };
         }
         // A run that was forgotten is no longer the song's: a press after it may have begun another.

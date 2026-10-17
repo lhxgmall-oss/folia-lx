@@ -35,7 +35,6 @@ import { resolveSongCatalogRef } from '../../services/onlineMusic/catalogRefs';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
 import { useAppViewStore } from '../../stores/useAppViewStore';
-import { cleanPrivateError } from '../../utils/privateText/privateText';
 import { countRender } from '../../dev/renderCount';
 import { useLibraryBackdrop } from './useLibraryBackdrop';
 import { useLibrarySuiteStore } from '../core/suite/useLibrarySuiteStore';
@@ -405,7 +404,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     }
                     resolvedAlbumId = ref.id;
                 } catch (error) {
-                    console.warn('[CatalogNavigation] Failed to resolve nested album:', cleanPrivateError(error));
+                    console.warn('[CatalogNavigation] Failed to resolve nested album:', error);
                     showCatalogUnavailable();
                     return;
                 }
@@ -493,7 +492,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     }
                     resolvedArtistId = ref.id;
                 } catch (error) {
-                    console.warn('[CatalogNavigation] Failed to resolve nested artist:', cleanPrivateError(error));
+                    console.warn('[CatalogNavigation] Failed to resolve nested artist:', error);
                     showCatalogUnavailable();
                     return;
                 }

@@ -16,7 +16,7 @@ import { setIsPanelOpen, useAppViewStore } from '../../../../stores/useAppViewSt
 import { setIsDevDebugOverlayVisible, setIsMemoryMonitorVisible } from '../../../../stores/useAppChromeStore';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { currentTime } from '../../../../stores/motionSignals';
-import { cleanPrivateError, cleanPrivateText } from '../../../../utils/privateText/privateText';
+import { errorFields } from '../../../../utils/errorText';
 
 // src/components/app/playback/bridges/usePlaybackInteractionBridge.ts
 
@@ -116,8 +116,8 @@ export function usePlaybackInteractionBridge({
         void resumePlayback().catch(error => {
             const audioElement = audioRef.current;
             console.error('[Playback] Resume from interaction failed', {
-                ...cleanPrivateError(error),
-                audioSrc: cleanPrivateText(audioSrc) ?? null,
+                ...errorFields(error),
+                audioSrc: audioSrc ?? null,
                 songId: currentSong?.id ?? null,
                 playerState,
                 paused: audioElement?.paused ?? null,
@@ -127,7 +127,7 @@ export function usePlaybackInteractionBridge({
                 readyState: audioElement?.readyState ?? null,
                 networkState: audioElement?.networkState ?? null,
                 mediaErrorCode: audioElement?.error?.code ?? null,
-                mediaErrorMessage: cleanPrivateText(audioElement?.error?.message) ?? null,
+                mediaErrorMessage: audioElement?.error?.message ?? null,
             });
         });
     }, [audioRef, audioSrc, currentSong, playerState, resumePlayback]);

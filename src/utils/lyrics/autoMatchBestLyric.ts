@@ -14,7 +14,6 @@ import { getLyricSourceAccess, isLyricMatchSourceOffered } from './lyricMatchSou
 import { getLyricSource } from './lyricSources';
 import type { PlatformLyricSource } from './lyricSources';
 import type { LocalSongMetadataLyricCandidate } from './localSongMatchContext';
-import { cleanPrivateError } from '../privateText/privateText';
 
 // src/utils/lyrics/autoMatchBestLyric.ts
 // Utility module for preferring word-by-word lyrics while retaining a usable line-by-line fallback.
@@ -415,7 +414,7 @@ async function matchUnderArtist(
                 : source === 'amll' ? await tryAmllDb() : null;
             if (settled) return settled;
         } catch (error) {
-            console.error(`[autoMatchBestLyric] ${source} search/fetch failed:`, cleanPrivateError(error));
+            console.error(`[autoMatchBestLyric] ${source} search/fetch failed:`, error);
         }
     }
 

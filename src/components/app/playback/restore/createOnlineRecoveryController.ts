@@ -14,7 +14,6 @@ import {
 import { setAudioSrc, setCurrentSong, setPlayQueue, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { askedSongKeyRef, startOfAskedSong } from '../currentSong';
 import { loadOnlineSongAudio } from '../source/songAudioSource';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 
 // src/components/app/playback/restore/createOnlineRecoveryController.ts
@@ -195,7 +194,7 @@ export const createOnlineRecoveryController = ({
                 setAudioSrc(audioResult.audioSrc);
                 return { recovered: true };
             } catch (error) {
-                console.error('[App] Failed to recover online playback source', cleanPrivateError(error));
+                console.error('[App] Failed to recover online playback source', error);
                 const providerId = getOnlineProviderIdForSong(song) ?? undefined;
                 return { recovered: false, failure: onlineFailureOf({ operation: 'audio', providerId }, { error }) };
             } finally {

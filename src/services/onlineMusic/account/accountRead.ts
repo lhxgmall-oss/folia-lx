@@ -16,7 +16,7 @@ import {
 } from '../providerAccountCache';
 import type { ProviderAccountSnapshot } from '../providerAccountCache';
 import { answeredWithin } from './answeredWithin';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/account/accountRead.ts
 // The one function that reads a signed-in account from its platform: who is signed in, their
@@ -125,7 +125,7 @@ const PLAYLIST_PAGE_SIZE = 50;
 const PLAYLIST_OFFSET_LIMIT = 1000;
 
 const isAuthRequired = (error: unknown): boolean => error instanceof OnlineProviderError && error.code === 'auth-required';
-const messageOf = (error: unknown): string => cleanPrivateError(error).message;
+const messageOf = (error: unknown): string => errorMessage(error);
 
 // Every page of the account's playlists, as the adapter gives them. `goOn` is asked before each
 // request: a read that was given up asks for no further page.

@@ -1,6 +1,5 @@
 import { useNeteaseApiStatusStore } from './useNeteaseApiStatusStore';
 import type { LoginLocalService, LoginLocalServiceStatus, ProviderNotice } from '../../../types/onlineMusic';
-import { cleanPrivateError, cleanPrivateText } from '../../../utils/privateText/privateText';
 
 // src/services/onlineMusic/netease/neteaseLocalService.ts
 // 网易云的本地后端在登录窗口里的样子：它起没起来、它自己的错误原话、重启。它起不来时取二维码的请求
@@ -45,9 +44,8 @@ export const watchNeteaseLocalService = (tell: (notice: ProviderNotice) => void)
         if (status.status !== 'error' || lastToldFailureAt === status.updatedAt) return;
 
         lastToldFailureAt = status.updatedAt;
-        // The service's own sentence may hold a path with the user's folder in it: it is cleaned
-        // once, for the log line and for the message on screen.
-        const reason = cleanPrivateText(status.error) ?? '';
+        // The service's own sentence, for the log line and for the message on screen.
+        const reason = status.error?.trim() ?? '';
         console.warn('[Electron] Netease API failed to start', reason);
         // 断网时没起来，不说「接口启动失败」：要用它的请求会说连不上，网通了它会在下一次被用到时再启动。
         if (status.offline === true) return;
@@ -65,7 +63,7 @@ export const watchNeteaseLocalService = (tell: (notice: ProviderNotice) => void)
     void bridge.getNeteaseApiStatus()
         .then(reportStatus)
         .catch((error) => {
-            console.warn('[Electron] Failed to read Netease API status', cleanPrivateError(error));
+            console.warn('[Electron] Failed to read Netease API status', error);
         });
     const unsubscribe = bridge.onNeteaseApiStatusChanged?.(reportStatus);
 

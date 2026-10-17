@@ -6,7 +6,6 @@ import type {
     LibraryHomeFeedSnapshot,
     LibraryHomeRadioFeed,
 } from '../homeModel.contract';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 
 // src/library/core/home/online/onlineHomeFeeds.service.ts
 // 在线首页的两份数据：收藏专辑（翻完所有页）与电台 feed（私人 FM、每日推荐、推荐歌单）。原先是 Grid3D 里的
@@ -78,7 +77,7 @@ export const createHomeFeedResource = <TData>({
             commit({ owner, status: 'ready', loaded: isComplete ? isComplete(data) : true, data });
         } catch (error) {
             if (!isCurrent()) return;
-            if (!isAbortError(error)) console.error(`[LibraryHome] Failed to load ${label}`, cleanPrivateError(error));
+            if (!isAbortError(error)) console.error(`[LibraryHome] Failed to load ${label}`, error);
             commit({ ...snapshot, status: 'error' });
         }
     };

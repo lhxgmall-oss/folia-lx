@@ -1,6 +1,5 @@
 import type { LyricData, SongResult } from '../types';
 import type { OnlineFailureCaseId, ProviderAudioSource, ProviderLyricsResult } from '../types/onlineMusic';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 import { ensureLyricDataRenderHints } from '../utils/lyrics/renderHints';
 
 // src/services/hostExtensionHooks.ts
@@ -60,7 +59,7 @@ export const applyLyricsTransform = (lyrics: LyricData | null): LyricData | null
         if (next !== source) transformSources.set(next, source);
         return next;
     } catch (error) {
-        console.warn('[HostHooks] lyrics transform failed; using the original lyrics', cleanPrivateError(error));
+        console.warn('[HostHooks] lyrics transform failed; using the original lyrics', error);
         return source;
     }
 };
@@ -110,7 +109,7 @@ export const runBeforePlayHook = async (song: SongResult): Promise<SongResult | 
         if (!decision) return song;
         return decision.cancel ? null : decision.song;
     } catch (error) {
-        console.warn('[HostHooks] before-play hook failed; playing the original song', cleanPrivateError(error));
+        console.warn('[HostHooks] before-play hook failed; playing the original song', error);
         return song;
     }
 };
@@ -139,7 +138,7 @@ export const applyOmniLyricsHook = async (song: SongResult, result: ProviderLyri
     try {
         return await omniHooks.lyrics(song, result);
     } catch (error) {
-        console.warn('[HostHooks] omni lyrics hook failed; using the provider result', cleanPrivateError(error));
+        console.warn('[HostHooks] omni lyrics hook failed; using the provider result', error);
         return result;
     }
 };
@@ -149,7 +148,7 @@ export const applyOmniAudioHook = async (song: SongResult, source: ProviderAudio
     try {
         return await omniHooks.audio(song, source);
     } catch (error) {
-        console.warn('[HostHooks] omni audio hook failed; using the provider source', cleanPrivateError(error));
+        console.warn('[HostHooks] omni audio hook failed; using the provider source', error);
         return source;
     }
 };
@@ -186,6 +185,6 @@ export const notifyPlaybackFailed = (notice: PlaybackFailedNotice): void => {
     try {
         playbackFailedListener(notice);
     } catch (error) {
-        console.warn('[HostHooks] playback failed listener threw', cleanPrivateError(error));
+        console.warn('[HostHooks] playback failed listener threw', error);
     }
 };

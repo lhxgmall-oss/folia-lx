@@ -37,7 +37,6 @@ import { askedSongKeyRef, replaceShownSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 
 // src/components/app/playback/restore/restorePlaybackSource.ts
 // Rehydrates playable audio and lyrics for a remembered song without reusing stale blob URLs.
@@ -364,7 +363,7 @@ export const restorePlaybackSourceForSong = async (
         return 'restored';
     } catch (error) {
         if (overtaken()) return 'stale';
-        console.warn('[restorePlaybackSourceForSong] Lyrics could not be restored after the source landed', cleanPrivateError(error));
+        console.warn('[restorePlaybackSourceForSong] Lyrics could not be restored after the source landed', error);
         return 'restored';
     }
 };

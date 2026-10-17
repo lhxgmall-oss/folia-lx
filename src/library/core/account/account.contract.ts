@@ -400,7 +400,7 @@ export type LibraryLoginDiagnosticsEnvironment = {
     origin?: string | null;
 };
 
-/** 会话事件的日志出口（默认打到 console，前缀 [ProviderLogin]，同时进诊断时间线）。detail 里的文字已经洗过。 */
+/** 会话事件的日志出口（默认打到 console，前缀 [ProviderLogin]，同时进诊断时间线）。 */
 export type LibraryAccountLogger = (
     level: 'info' | 'warn',
     event: string,

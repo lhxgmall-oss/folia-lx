@@ -16,7 +16,6 @@ import {
     LOGIN_TIMELINE_LIMIT,
     type LoginTimelineEvent,
 } from '../../../services/onlineMusic/login/loginDiagnosticReport';
-import { cleanPrivateText } from '../../../utils/privateText/privateText';
 
 // src/library/core/account/providerLoginSession.service.ts
 // 一次登录（扫码，或者在浏览器里确认）从开始到结束，按固定的几步走，每一步都进时间线（同一条记录经日志端口打出）：
@@ -33,7 +32,7 @@ import { cleanPrivateText } from '../../../utils/privateText/privateText';
 //   6. 失败：停掉计时器，按事实分出是哪一种情况（services/onlineMusic/login/loginFailureCase），然后自动跑一次
 //      主动自检（没扫码就过期的除外），结论放进快照，界面据此说明卡在哪一层。
 // 代次：每次 start / stop / 到期都前进，每个 await 之后先验代次，晚到的结果作废。
-// 时间线与日志里从外面来的文字（平台的原话、抛出的错的那句话）都先洗过：报告会被原样贴进公开的 issue。
+// 时间线与日志里记平台的原话和抛出的错的那句话（原文）：报告会被原样贴进公开的 issue，界面已告知用户其中有哪些数据。
 // 无 React、无 window、不直接碰 omni：auth 端口、时钟、诊断环境与日志出口都由调用方注入。
 
 /** 两次轮询之间的间隔（上一个请求结算之后才开始计）。 */
@@ -181,9 +180,9 @@ const sameSnapshot = (a: ProviderLoginSessionSnapshot, b: ProviderLoginSessionSn
     && a.selfCheck === b.selfCheck
 );
 
-// 轮询报 error 时进时间线的字段：平台的原话（洗过）、是否瞬时、平台说的码与 HTTP 状态和要求的等待。
+// 轮询报 error 时进时间线的字段：平台的原话、是否瞬时、平台说的码与 HTTP 状态和要求的等待。
 const describeErrorState = (result: Extract<LoginState, { state: 'error' }>): Record<string, unknown> => ({
-    message: cleanPrivateText(result.message),
+    message: result.message,
     transient: result.transient,
     httpStatus: result.failure?.httpStatus,
     retryAfterMs: result.failure?.retryAfterMs,
@@ -247,7 +246,7 @@ export const createProviderLoginSession = (deps: ProviderLoginSessionDeps): Prov
 
     const isCurrent = (round: RoundState): boolean => round.sessionId === generation;
 
-    // 同一条记录既进时间线，也经日志端口打出（打包版可在开发者设置的日志面板里看到）。detail 里的文字已经洗过。
+    // 同一条记录既进时间线，也经日志端口打出（打包版可在开发者设置的日志面板里看到）。
     const note = (event: string, detail: Record<string, unknown> = {}, level: 'info' | 'warn' = 'info'): void => {
         const at = clock.now();
         const entry = { at, event, detail: { ...detail, elapsedMs: at - meta.startedAt } };
@@ -312,7 +311,7 @@ export const createProviderLoginSession = (deps: ProviderLoginSessionDeps): Prov
                     selfCheck = { status: 'done', result, verdict };
                     note('self-check', {
                         verdict: verdict.kind,
-                        detail: cleanPrivateText(verdict.detail ?? undefined),
+                        detail: verdict.detail ?? undefined,
                         proxy: verdict.proxy ?? undefined,
                         durationMs: result.durationMs,
                     }, verdict.kind === 'network-ok' ? 'info' : 'warn');

@@ -13,7 +13,6 @@ import { applyDetectedChorusEffects, applyChorusRangesByTime } from '../../../ut
 import type { ChorusRange } from '../../../utils/lyrics/chorusEffects';
 import { getOriginalCoverUrl } from '../../../utils/coverUrl';
 import { lyricProxyWebUrl } from '../../lyricProxy';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
 
 const isElectron = typeof window !== 'undefined' && (window as any).electron;
 
@@ -150,7 +149,7 @@ export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): 
   try {
     return await searchQQSongs(keyword, page, pageSize);
   } catch (error) {
-    console.error('[QQMusic] Search failed:', cleanPrivateError(error));
+    console.error('[QQMusic] Search failed:', error);
     return [];
   }
 }
@@ -214,7 +213,7 @@ export async function fetchQQLyrics(
     }
     return applyDetectedChorusEffects(parsed, decryptedLyric);
   } catch (error) {
-    console.error('[QQMusic] Fetch lyrics failed:', cleanPrivateError(error));
+    console.error('[QQMusic] Fetch lyrics failed:', error);
     return null;
   }
 }

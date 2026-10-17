@@ -537,7 +537,7 @@ export interface OnlineAuthProvider {
 declare const builtDiagnosticLine: unique symbol;
 
 // 诊断报告里 provider 自己的一行。写它只有一条路：services/onlineMusic/login/loginDiagnosticReport.ts 的
-// diagnosticLine，放进去的每一段文字它都先洗过。不是它写出来的行，报告整行当成一句没洗过的话去洗。
+// diagnosticLine。不是它写出来的行（一个 mod 交来的字符串，或者随便什么），报告整行转成字符串再印。
 export interface LoginDiagnosticLine {
     readonly text: string;
     readonly [builtDiagnosticLine]: true;

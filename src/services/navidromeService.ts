@@ -30,7 +30,6 @@ import {
     NavidromeServerProfile,
 } from '../types/navidrome';
 import md5 from 'blueimp-md5';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 
 // LocalStorage key for config
 const CONFIG_KEY = 'navidrome_config';
@@ -62,7 +61,7 @@ export const getNavidromeConfig = (): NavidromeConfig | null => {
             return JSON.parse(stored);
         }
     } catch (e) {
-        console.error('[Navidrome] Failed to parse config:', cleanPrivateError(e));
+        console.error('[Navidrome] Failed to parse config:', e);
     }
     return null;
 };
@@ -107,7 +106,7 @@ export const getCachedNavidromeServerProfile = (): NavidromeServerProfile | null
         const stored = localStorage.getItem(SERVER_PROFILE_KEY);
         return stored ? JSON.parse(stored) : null;
     } catch (e) {
-        console.error('[Navidrome] Failed to parse server profile:', cleanPrivateError(e));
+        console.error('[Navidrome] Failed to parse server profile:', e);
         return null;
     }
 };
@@ -254,7 +253,7 @@ export const navidromeApi = {
             const res = await fetchSubsonic<PingResponse>(config, 'ping');
             return res['subsonic-response'].status === 'ok';
         } catch (e) {
-            console.error('[Navidrome] Ping failed:', cleanPrivateError(e));
+            console.error('[Navidrome] Ping failed:', e);
             return false;
         }
     },
@@ -266,7 +265,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].openSubsonicExtensions || [];
             }
         } catch (e) {
-            console.warn('[Navidrome] getOpenSubsonicExtensions failed:', cleanPrivateError(e));
+            console.warn('[Navidrome] getOpenSubsonicExtensions failed:', e);
         }
         return [];
     },
@@ -280,7 +279,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].user || null;
             }
         } catch (e) {
-            console.warn('[Navidrome] getUser failed:', cleanPrivateError(e));
+            console.warn('[Navidrome] getUser failed:', e);
         }
         return null;
     },
@@ -292,7 +291,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].musicFolders?.musicFolder || [];
             }
         } catch (e) {
-            console.warn('[Navidrome] getMusicFolders failed:', cleanPrivateError(e));
+            console.warn('[Navidrome] getMusicFolders failed:', e);
         }
         return [];
     },
@@ -304,7 +303,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].license || null;
             }
         } catch (e) {
-            console.warn('[Navidrome] getLicense failed:', cleanPrivateError(e));
+            console.warn('[Navidrome] getLicense failed:', e);
         }
         return null;
     },
@@ -312,7 +311,7 @@ export const navidromeApi = {
     getServerProfile: async (config: NavidromeConfig): Promise<NavidromeServerProfile> => {
         const [pingResult, extensions, user, musicFolders, license] = await Promise.all([
             fetchSubsonic<PingResponse>(config, 'ping').catch((error) => {
-                console.warn('[Navidrome] profile ping failed:', cleanPrivateError(error));
+                console.warn('[Navidrome] profile ping failed:', error);
                 return null;
             }),
             navidromeApi.getOpenSubsonicExtensions(config),
@@ -354,7 +353,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].albumList2?.album || [];
             }
         } catch (e) {
-            console.error('[Navidrome] getAlbumList2 failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getAlbumList2 failed:', e);
         }
         return [];
     },
@@ -367,7 +366,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].album;
             }
         } catch (e) {
-            console.error('[Navidrome] getAlbum failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getAlbum failed:', e);
         }
         return null;
     },
@@ -379,7 +378,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].playlists?.playlist || [];
             }
         } catch (e) {
-            console.error('[Navidrome] getPlaylists failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getPlaylists failed:', e);
         }
         return [];
     },
@@ -391,7 +390,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].playlist;
             }
         } catch (e) {
-            console.error('[Navidrome] getPlaylist failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getPlaylist failed:', e);
         }
         return null;
     },
@@ -410,7 +409,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].playlist || null;
             }
         } catch (e) {
-            console.error('[Navidrome] createPlaylist failed:', cleanPrivateError(e));
+            console.error('[Navidrome] createPlaylist failed:', e);
         }
         return null;
     },
@@ -422,7 +421,7 @@ export const navidromeApi = {
             });
             return res['subsonic-response'].status === 'ok';
         } catch (e) {
-            console.error('[Navidrome] deletePlaylist failed:', cleanPrivateError(e));
+            console.error('[Navidrome] deletePlaylist failed:', e);
         }
         return false;
     },
@@ -449,7 +448,7 @@ export const navidromeApi = {
             });
             return res['subsonic-response'].status === 'ok';
         } catch (e) {
-            console.error('[Navidrome] updatePlaylist failed:', cleanPrivateError(e));
+            console.error('[Navidrome] updatePlaylist failed:', e);
         }
         return false;
     },
@@ -464,7 +463,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].randomSongs?.song || [];
             }
         } catch (e) {
-            console.error('[Navidrome] getRandomSongs failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getRandomSongs failed:', e);
         }
         return null;
     },
@@ -477,7 +476,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].starred2?.song || [];
             }
         } catch (e) {
-            console.error('[Navidrome] getStarred2 failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getStarred2 failed:', e);
         }
         return null;
     },
@@ -488,7 +487,7 @@ export const navidromeApi = {
             const res = await fetchSubsonic<Record<string, never>>(config, 'star', { id: songId });
             return res['subsonic-response'].status === 'ok';
         } catch (e) {
-            console.error('[Navidrome] star failed:', cleanPrivateError(e));
+            console.error('[Navidrome] star failed:', e);
         }
         return false;
     },
@@ -499,7 +498,7 @@ export const navidromeApi = {
             const res = await fetchSubsonic<Record<string, never>>(config, 'unstar', { id: songId });
             return res['subsonic-response'].status === 'ok';
         } catch (e) {
-            console.error('[Navidrome] unstar failed:', cleanPrivateError(e));
+            console.error('[Navidrome] unstar failed:', e);
         }
         return false;
     },
@@ -520,7 +519,7 @@ export const navidromeApi = {
             });
             return res['subsonic-response'].status === 'ok';
         } catch (e) {
-            console.warn('[Navidrome] scrobble failed:', cleanPrivateError(e));
+            console.warn('[Navidrome] scrobble failed:', e);
         }
         return false;
     },
@@ -533,7 +532,7 @@ export const navidromeApi = {
                 return indexes.flatMap(index => index.artist || []);
             }
         } catch (e) {
-            console.error('[Navidrome] getArtists failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getArtists failed:', e);
         }
         return [];
     },
@@ -545,7 +544,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].artist;
             }
         } catch (e) {
-            console.error('[Navidrome] getArtist failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getArtist failed:', e);
         }
         return null;
     },
@@ -558,7 +557,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].song || null;
             }
         } catch (e) {
-            console.warn('[Navidrome] getSong failed:', cleanPrivateError(e));
+            console.warn('[Navidrome] getSong failed:', e);
         }
         return null;
     },
@@ -612,7 +611,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].lyrics.value;
             }
         } catch (e) {
-            console.error('[Navidrome] getLyrics failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getLyrics failed:', e);
         }
         return null;
     },
@@ -631,7 +630,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].lyricsList.structuredLyrics;
             }
         } catch (e) {
-            console.error('[Navidrome] getLyricsBySongId failed:', cleanPrivateError(e));
+            console.error('[Navidrome] getLyricsBySongId failed:', e);
         }
         return null;
     },
@@ -655,7 +654,7 @@ export const navidromeApi = {
                 return res['subsonic-response'].searchResult3 || {};
             }
         } catch (e) {
-            console.error('[Navidrome] search failed:', cleanPrivateError(e));
+            console.error('[Navidrome] search failed:', e);
         }
         return {};
     },

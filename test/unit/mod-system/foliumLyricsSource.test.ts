@@ -122,7 +122,7 @@ describe('resolveFoliumLyricsResult', () => {
         }, 'p');
 
         expect(textLines(result.lyrics).map((line) => line.fullText)).toEqual(['你好', '世界']);
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('failed to parse'), { name: 'Error', message: 'worker crashed' });
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('failed to parse'), expect.objectContaining({ name: 'Error', message: 'worker crashed' }));
     });
 
     it('ignores a malformed track with a warning naming the provider', async () => {

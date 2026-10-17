@@ -65,7 +65,6 @@ import { currentTime } from '../../../../stores/motionSignals';
 import { resolveLocalSongLyrics } from '../../../../utils/lyrics/localSongLyrics';
 import { detectLyricFileIssues } from '../../../../utils/lyrics/lyricFileIssues';
 import { createLikePresses } from '../../../../utils/likePresses';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 
 // src/components/app/playback/start/useLibraryPlaybackController.ts
 
@@ -187,7 +186,7 @@ export function useLibraryPlaybackController({
             const songs = await getLocalSongs();
             return songs.find(localSong => localSong.id === songId) ?? resolveLocalSongRecord(song);
         } catch (error) {
-            console.error('Failed to reload local song record:', cleanPrivateError(error));
+            console.error('Failed to reload local song record:', error);
             return resolveLocalSongRecord(song);
         }
     }, [resolveLocalSongRecord]);
@@ -230,7 +229,7 @@ export function useLibraryPlaybackController({
             const songs = await getLocalSongs();
             setLocalSongs(songs);
         } catch (error) {
-            console.error('Failed to load local songs:', cleanPrivateError(error));
+            console.error('Failed to load local songs:', error);
         }
     }, []);
 
@@ -257,7 +256,7 @@ export function useLibraryPlaybackController({
             const playlists = await getLocalPlaylists();
             setLocalPlaylists(playlists);
         } catch (error) {
-            console.error('Failed to load local playlists:', cleanPrivateError(error));
+            console.error('Failed to load local playlists:', error);
         }
     }, []);
 
@@ -477,7 +476,7 @@ export function useLibraryPlaybackController({
                 const { matchLyrics } = await import('../../../../services/localMusicService');
                 await matchLyrics(localSong);
             } catch (error) {
-                console.warn('Auto-match failed:', cleanPrivateError(error));
+                console.warn('Auto-match failed:', error);
             }
             // 只把这一首的最新记录换进 localSongs。以前这里整表 loadLocalSongs，换掉了预热正在写的那批对象，
             // 预热结果因此到不了下一次切歌；整表替换还会让依赖 localSongs 的曲库视图跟着全量重算。
@@ -598,7 +597,7 @@ export function useLibraryPlaybackController({
                 const { matchLyrics } = await import('../../../../services/localMusicService');
                 await matchLyrics(localSong);
             } catch (error) {
-                console.warn('[LocalPrewarm] Failed to prewarm local song metadata:', cleanPrivateError(error));
+                console.warn('[LocalPrewarm] Failed to prewarm local song metadata:', error);
             }
             return true;
         }
@@ -723,7 +722,7 @@ export function useLibraryPlaybackController({
             setStatusMsg({ type: 'success', text: t('status.localMusicLoaded')});
         }
         void restoreCachedThemeForSong(initialMeta.unifiedSong).catch((error) => {
-            console.warn('Theme load error', cleanPrivateError(error));
+            console.warn('Theme load error', error);
         });
 
         // The work left running below asks this after each of its waits, and writes nothing more of
@@ -763,10 +762,10 @@ export function useLibraryPlaybackController({
                 }
 
                 void restoreCachedThemeForSong(updatedMeta.unifiedSong).catch((error) => {
-                    console.warn('Theme load error', cleanPrivateError(error));
+                    console.warn('Theme load error', error);
                 });
             } catch (error) {
-                console.warn('Local song match pipeline failed:', cleanPrivateError(error));
+                console.warn('Local song match pipeline failed:', error);
                 if (!overtaken()) {
                     setIsLyricsLoading(false);
                     supplyLyricsAfterEmptyLoad();
@@ -908,7 +907,7 @@ export function useLibraryPlaybackController({
                                         }
                                     }
                                 } catch (err) {
-                                    console.error('[NaviPlay] Failed to fetch NetEase song detail for metadata:', cleanPrivateError(err));
+                                    console.error('[NaviPlay] Failed to fetch NetEase song detail for metadata:', err);
                                 }
                             }
 
@@ -943,7 +942,7 @@ export function useLibraryPlaybackController({
                         }
                     }
                 } catch (error) {
-                    console.warn('[App] Failed to fetch Netease lyrics for Navidrome song:', cleanPrivateError(error));
+                    console.warn('[App] Failed to fetch Netease lyrics for Navidrome song:', error);
                 }
             }
 
@@ -1018,10 +1017,10 @@ export function useLibraryPlaybackController({
             startLoadingToPlay();
             setStatusMsg({ type: 'success', text: t('status.navidromeSongLoaded')});
             void restoreCachedThemeForSong(unifiedSong).catch((error) => {
-                console.warn('Theme load error', cleanPrivateError(error));
+                console.warn('Theme load error', error);
             });
         } catch (error) {
-            console.error('[App] Failed to play Navidrome song:', cleanPrivateError(error));
+            console.error('[App] Failed to play Navidrome song:', error);
             // No longer wanted: the failure is not said over the song that plays now, nor told.
             if (givesUp()) return;
             setStatusMsg({ type: 'error', text: t('status.playbackFailed')});
@@ -1069,7 +1068,7 @@ export function useLibraryPlaybackController({
             }
             setStatusMsg({ type: 'success', text: isTranslation ? 'Translation lyrics updated' : 'Lyrics updated' });
         } catch (error) {
-            console.error('Failed to save local lyrics', cleanPrivateError(error));
+            console.error('Failed to save local lyrics', error);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics' });
         }
     }, [currentSong, loadLocalSongs, localSongs, onPlayLocalSong, playQueue, resolveLatestLocalSongRecord, setStatusMsg]);
@@ -1104,7 +1103,7 @@ export function useLibraryPlaybackController({
             await loadLocalSongs();
             setStatusMsg({ type: 'success', text: t('status.lyricsSourceSwitched')});
         } catch (error) {
-            console.error('Failed to save lyrics source', cleanPrivateError(error));
+            console.error('Failed to save lyrics source', error);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics source' });
         }
     }, [currentSong, loadLocalSongs, resolveLatestLocalSongRecord, setCurrentLineIndex, setCurrentSong, setLyrics, setStatusMsg]);
@@ -1174,7 +1173,7 @@ export function useLibraryPlaybackController({
             setStatusMsg({ type: 'success', text: t(marked ? 'status.markedPureMusic' : 'status.unmarkedPureMusic') });
             return true;
         } catch (error) {
-            console.error('Failed to toggle the instrumental mark', cleanPrivateError(error));
+            console.error('Failed to toggle the instrumental mark', error);
             setStatusMsg({ type: 'error', text: t('localMusic.pureMusicMarkFailed') });
             return false;
         }
@@ -1233,7 +1232,7 @@ export function useLibraryPlaybackController({
             }
             setStatusMsg({ type: 'success', text: 'Lyrics updated' });
         } catch (error) {
-            console.error('Failed to import online lyrics', cleanPrivateError(error));
+            console.error('Failed to import online lyrics', error);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics' });
         }
     }, [currentSong, persistLastPlaybackCache, playQueue, setCurrentLineIndex, setCurrentSong, setLyrics, setStatusMsg]);
@@ -1273,7 +1272,7 @@ export function useLibraryPlaybackController({
             await persistLastPlaybackCache(updatedSong, playQueue);
             setStatusMsg({ type: 'success', text: t('status.lyricsSourceSwitched') || '' });
         } catch (error) {
-            console.error('Failed to switch online lyrics source', cleanPrivateError(error));
+            console.error('Failed to switch online lyrics source', error);
             setStatusMsg({ type: 'error', text: 'Failed to save lyrics source' });
         }
     }, [currentSong, loadBaseOnlineLyrics, lyrics, persistLastPlaybackCache, playQueue, setCurrentLineIndex, setCurrentSong, setLyrics, setStatusMsg]);
@@ -1327,7 +1326,7 @@ export function useLibraryPlaybackController({
             await persistLastPlaybackCache(updatedSong, playQueue);
             setStatusMsg({ type: 'success', text: t('status.clearedManualLyrics') || '' });
         } catch (error) {
-            console.error('Failed to clear online lyrics state', cleanPrivateError(error));
+            console.error('Failed to clear online lyrics state', error);
             setStatusMsg({ type: 'error', text: t('status.clearFailed') || '' });
         }
     }, [currentSong, persistLastPlaybackCache, playQueue, resolveOnlineSongLyricsState, setCurrentLineIndex, setCurrentSong, setLyrics, setStatusMsg]);
@@ -1350,7 +1349,7 @@ export function useLibraryPlaybackController({
                             const resolvedCoverUrl = await loadCachedOrFetchCover(`cover_local_${updatedSong.id}`, updatedSong.onlineMetadata.coverUrl);
                             setManagedCachedCoverUrl(resolvedCoverUrl || updatedSong.onlineMetadata.coverUrl);
                         } catch (error) {
-                            console.warn('Failed to cache updated cover:', cleanPrivateError(error));
+                            console.warn('Failed to cache updated cover:', error);
                             setManagedCachedCoverUrl(updatedSong.onlineMetadata.coverUrl);
                         }
                     } else {
@@ -1532,7 +1531,7 @@ export function useLibraryPlaybackController({
             setStatusMsg({ type: 'success', text: t('status.bestLyricsMatched') || '' });
             return true;
         } catch (error) {
-            console.error('[CommandPalette] Failed to auto-match best lyric:', cleanPrivateError(error));
+            console.error('[CommandPalette] Failed to auto-match best lyric:', error);
             setStatusMsg({ type: 'error', text: t('status.bestLyricsMatchFailed') || '' });
             return false;
         }
@@ -1566,7 +1565,7 @@ export function useLibraryPlaybackController({
                 await loadLocalPlaylists();
                 setStatusMsg({ type: 'success', text: nextLiked ? t('status.liked') : (t('status.unliked') || '') });
             } catch (error) {
-                console.error('Failed to update local favorite playlist', cleanPrivateError(error));
+                console.error('Failed to update local favorite playlist', error);
                 setStatusMsg({ type: 'error', text: t('status.likeFailed') });
             }
             return;
@@ -1645,11 +1644,11 @@ export function useLibraryPlaybackController({
             void press.settled.then(outcome => {
                 if (outcome.ok || failedLikeRunsSaid.has(press.settled)) return;
                 failedLikeRunsSaid.add(press.settled);
-                console.error('Like failed', cleanPrivateError(outcome.error));
+                console.error('Like failed', outcome.error);
                 setStatusMsg({ type: 'error', text: t('status.likeFailed') });
             });
         } catch (error) {
-            console.error('Like failed', cleanPrivateError(error));
+            console.error('Like failed', error);
             setStatusMsg({ type: 'error', text: t('status.likeFailed') });
         }
     }, [

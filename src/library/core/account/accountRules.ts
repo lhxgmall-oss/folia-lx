@@ -1,4 +1,4 @@
-import { DEFAULT_ONLINE_PROVIDER_ID } from '../../../types/onlineMusic';
+import { DEFAULT_ONLINE_PROVIDER_ID, OnlineProviderError } from '../../../types/onlineMusic';
 import type { LoginLocalServiceStatus, OnlineProviderId, ProviderAccountSummary } from '../../../types/onlineMusic';
 import type { LoginFailure } from '../../../types/loginFailure';
 import type {
@@ -9,7 +9,7 @@ import type {
     LibraryProviderUnavailableReason,
 } from './account.contract';
 import type { LibraryHomeMessage } from '../home/homeModel.contract';
-import { cleanPrivateError } from '../../../utils/privateText/privateText';
+import { errorMessage } from '../../../utils/errorText';
 import { canSwitchToProviderDirectly } from './onlineProviderAccountView';
 
 // src/library/core/account/accountRules.ts
@@ -181,17 +181,21 @@ export const LOGIN_REPORT_ELSEWHERE_COPY: Readonly<Record<Exclude<LibraryLoginRe
 // ─── 登录 / 账户错误的日志描述 ──────────────────────────────────────────
 
 /**
- * 写进日志与诊断时间线的错误描述（登录会话与账户 controller 共用，不分 provider）：错误名、洗过的原文与代号
- * （utils/privateText 的 cleanPrivateError，报告会被原样贴进公开的 issue），加上 OnlineProviderError 的 HTTP 状态、
- * 平台要求的等待时长和是否网络层的瞬时失败（都是数或是否，不带私人信息）。
+ * 写进日志与诊断时间线的错误描述（登录会话与账户 controller 共用，不分 provider）：错误名、原文与代号，
+ * OnlineProviderError 的 HTTP 状态、平台要求的等待时长和是否网络层的瞬时失败，以及它的 cause。
  */
 export const describeLoginError = (error: unknown): Record<string, unknown> => {
-    const record = (error && typeof error === 'object' ? error : {}) as Record<string, unknown>;
+    if (!(error instanceof Error)) return { name: 'Error', message: errorMessage(error) };
+    const record = error as Error & Record<string, unknown>;
+    const cause = error instanceof OnlineProviderError ? error.cause : record.cause;
     const detail: Record<string, unknown> = {
-        ...cleanPrivateError(error),
+        name: error.name,
+        message: error.message,
+        code: record.code,
         httpStatus: Number.isInteger(record.httpStatus) ? record.httpStatus : undefined,
         retryAfterMs: typeof record.retryAfterMs === 'number' && Number.isFinite(record.retryAfterMs) ? record.retryAfterMs : undefined,
         transient: typeof record.transient === 'boolean' ? record.transient : undefined,
+        cause: cause instanceof Error ? `${cause.name}: ${cause.message}` : cause,
     };
     return Object.fromEntries(Object.entries(detail).filter(([, value]) => value !== undefined && value !== null));
 };

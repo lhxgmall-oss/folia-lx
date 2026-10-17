@@ -3,7 +3,6 @@ import type { OmniPlaybackReport, OmniProviderId } from '../../types/onlineMusic
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
 import { omni } from './omni';
-import { cleanPrivateError } from '../../utils/privateText/privateText';
 
 // src/services/onlineMusic/playbackReportGate.ts
 // The last thing between a listening report and the user's account.
@@ -121,7 +120,7 @@ export const sendPlaybackReport = async (
         });
         return true;
     } catch (error) {
-        console.warn('[Scrobble] listening report failed', cleanPrivateError(error));
+        console.warn('[Scrobble] listening report failed', error);
         return false;
     } finally {
         clearTimeout(deadline);

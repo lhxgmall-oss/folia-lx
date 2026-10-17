@@ -232,19 +232,20 @@ describe('the local service of a sign-in', () => {
 });
 
 describe('login error descriptions', () => {
-    it('keeps the name, the cleaned sentence and the code, the same for every provider', () => {
+    it('keeps the name, the sentence and the code, the same for every provider', () => {
         expect(describeLoginError(new TypeError('Failed to fetch'))).toEqual({ name: 'TypeError', message: 'Failed to fetch' });
         expect(describeLoginError('plain text')).toMatchObject({ name: 'Error' });
     });
 
-    it('adds the HTTP status, the wait and whether it was transient, and nothing private', () => {
+    it('adds the HTTP status, the wait, whether it was transient and its cause, with the sentence whole', () => {
+        const said = "open 'C:\\Users\\Zhang San\\AppData\\token' failed";
         const error = Object.assign(
-            new OnlineProviderError('network', "open 'C:\\Users\\Zhang San\\AppData\\token' failed", 'qq'),
+            new OnlineProviderError('network', said, 'qq', new TypeError('fetch failed')),
             { httpStatus: 502, retryAfterMs: 4000, transient: true },
         );
-        const described = describeLoginError(error);
-        expect(described).toMatchObject({ name: 'OnlineProviderError', code: 'network', httpStatus: 502, retryAfterMs: 4000, transient: true });
-        expect(JSON.stringify(described)).not.toMatch(/Zhang|AppData/);
+        expect(describeLoginError(error)).toEqual({
+            name: 'OnlineProviderError', message: said, code: 'network', httpStatus: 502, retryAfterMs: 4000, transient: true, cause: 'TypeError: fetch failed',
+        });
     });
 });
 

@@ -768,17 +768,19 @@ describe('providerAccountController · dispose', () => {
 
 // ─── 日志 ───────────────────────────────────────────────────────────────
 
-describe('providerAccountController · failures are logged, cleaned', () => {
-    it('logs the read, switch-read and sign-out failures with what is safe to paste, for every provider', async () => {
-        const privateError = () => new Error("EPERM: open 'C:\\Users\\Zhang San\\AppData\\Roaming\\Folia\\token'");
-        refresh.mockRejectedValueOnce(privateError());
-        logoutPort.mockRejectedValueOnce(privateError());
+describe('providerAccountController · failures are logged', () => {
+    it('logs the read, switch-read and sign-out failures with the error in its own words, for every provider', async () => {
+        const said = "EPERM: open 'C:\\Users\\Zhang San\\AppData\\Roaming\\Folia\\token'";
+        refresh.mockRejectedValueOnce(new Error(said));
+        logoutPort.mockRejectedValueOnce(new Error(said));
         const controller = createController();
         await controller.startLogin('gamma');
         await confirmNextPoll();
         await controller.logout('beta');
         const warned = log.mock.calls.filter(([level]) => level === 'warn');
         expect(warned.map(([, event]) => event)).toEqual(expect.arrayContaining(['login:refresh-error', 'logout:error']));
-        for (const [, , detail] of warned) expect(JSON.stringify(detail)).not.toMatch(/Zhang|AppData/);
+        const failures = warned.filter(([, event]) => event === 'login:refresh-error' || event === 'logout:error');
+        expect(failures.length).toBeGreaterThanOrEqual(2);
+        for (const [, , detail] of failures) expect(detail).toMatchObject({ name: 'Error', message: said });
     });
 });

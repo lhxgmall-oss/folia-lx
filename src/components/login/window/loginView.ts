@@ -1,6 +1,5 @@
 import type { LibraryLoginPhase } from '../../../library/core/account/account.contract';
 import type { LoginFailure } from '../../../types/loginFailure';
-import { cleanPrivateText } from '../../../utils/privateText/privateText';
 import type { LoginTexts, ProviderAccountSummary } from '../../../types/onlineMusic';
 import type { RowStatus } from '../platformRows';
 import { LOGIN_CASE_TEXTS } from './loginCaseTexts';
@@ -102,13 +101,13 @@ export const failureNoteKey = (failure: LoginFailure, caseNotes: LoginTexts['cas
 
 /**
  * 安静的框里引的话：平台的原话，带着它的码；只有码就引码。平台什么都没说、而这一种情况要重启本地服务时，
- * 引那个服务自己的错误原话，洗过。都没有就不引。
+ * 引那个服务自己的错误原话。都没有就不引。
  */
 export const failureQuote = (failure: LoginFailure, serviceError: string | null): { text: string; code?: string } | undefined => {
     const { message, code } = failure.facts;
     if (message) return { text: message, code };
     if (code) return { text: code };
-    const serviceSaid = failure.case.action === 'restart-service' ? cleanPrivateText(serviceError) : undefined;
+    const serviceSaid = failure.case.action === 'restart-service' ? serviceError || undefined : undefined;
     return serviceSaid ? { text: serviceSaid } : undefined;
 };
 

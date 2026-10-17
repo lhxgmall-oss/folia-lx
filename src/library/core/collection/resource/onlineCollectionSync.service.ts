@@ -1,5 +1,4 @@
 import { appendUniqueByKey } from '../collectionPaging';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 
 // src/library/core/collection/resource/onlineCollectionSync.service.ts
 // Background paging for large online collections (GridView fills the rest after the first page).
@@ -66,7 +65,7 @@ const fetchPageWithRetry = async <T>(
         } catch (error) {
             if (options.isCancelled()) throw new SyncCancelled();
             if (attempt >= retryDelays.length) throw error;
-            console.warn(`Collection sync page at offset ${offset} failed, retrying (${attempt + 1}/${retryDelays.length})`, cleanPrivateError(error));
+            console.warn(`Collection sync page at offset ${offset} failed, retrying (${attempt + 1}/${retryDelays.length})`, error);
             await wait(retryDelays[attempt]);
             if (options.isCancelled()) throw new SyncCancelled();
         }

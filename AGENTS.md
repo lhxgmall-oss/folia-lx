@@ -61,7 +61,7 @@
 项目内置了开发者日志系统，需要打日志时直接用它，不要另造：`console.log` / `info` / `warn` / `error`，行首写 `[模块名]`。
 渲染进程和主进程的行都在应用内“设置 → 开发者”的面板里可见（“运行日志”开关）；再打开其下的“写入本地文件”，还会写入 `logs/runtime/`。
 写法与取舍（成功也要记，记决定而不是记经过）见 `docs/client-logging.md`。
-日志行和屏幕上的错误信息不带私人内容（错误原文、平台的回答、昵称、地址）：先交给 `src/utils/privateText/privateText.ts` 的 `cleanPrivateError` / `cleanPrivateText`。`test/unit/privateText/privateTextLogLines.test.ts` 读平台层和登录模块的源码检查这一条。
+日志里直接交抛出的错本身（`console.warn('[模块] ...', error)`），不要只交它的 message：会话日志和 DevTools 靠它记下调用栈，排查要的是完整的原文。要把错放进一个对象或者拆成一句话时，用 `src/utils/errorText.ts` 的 `errorFields` / `errorMessage`。凭据（cookie、token、密码）的值不写进日志行。
 
 ### 测试放哪
 

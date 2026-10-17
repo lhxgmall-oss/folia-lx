@@ -54,7 +54,6 @@ import { audioBands, audioPower, currentTime } from '../stores/motionSignals';
 import { useVisualizerTunings } from '../components/visualizer/useVisualizerTunings';
 import { useVisualizerBackgroundConfig } from '../components/visualizer/useVisualizerBackgroundConfig';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
-import { cleanPrivateError } from '../utils/privateText/privateText';
 
 // src/hooks/useObsBrowserSourcePublisher.ts
 // Publishes the single playback surface to the local OBS browser source.
@@ -209,7 +208,7 @@ export const useObsBrowserSourcePublisher = ({
                 setObsCoverUrl(nextCoverUrl);
             }
         }).catch(error => {
-            console.warn('[OBS] Failed to resolve blob cover for browser source', cleanPrivateError(error));
+            console.warn('[OBS] Failed to resolve blob cover for browser source', error);
             if (!cancelled) {
                 setObsCoverUrl(null);
             }
@@ -236,7 +235,7 @@ export const useObsBrowserSourcePublisher = ({
                 setObsCustomImages({ cappellaEmoji, cappellaAvatar, monetBackground, monetPortrait, temperaLayer });
             }
         }).catch(error => {
-            console.warn('[OBS] Failed to resolve custom images for browser source', cleanPrivateError(error));
+            console.warn('[OBS] Failed to resolve custom images for browser source', error);
             if (!cancelled) {
                 setObsCustomImages({
                     cappellaEmoji: [], cappellaAvatar: [], monetBackground: null, monetPortrait: null, temperaLayer: [],
@@ -349,7 +348,7 @@ export const useObsBrowserSourcePublisher = ({
         lastPublishedClockRef.current = nextClock;
         lastClockPublishMsRef.current = nextClock.sentAtMs;
         void window.electron.publishObsBrowserSourceClock(nextClock).catch(error => {
-            console.warn('[OBS] Failed to publish browser source clock', cleanPrivateError(error));
+            console.warn('[OBS] Failed to publish browser source clock', error);
         });
     }, [buildClock]);
 
@@ -370,7 +369,7 @@ export const useObsBrowserSourcePublisher = ({
             .then(() => tracker.markPublished(publication.signature))
             .catch(error => {
                 tracker.markFailed(publication.signature);
-                console.warn('[OBS] Failed to publish browser source config', cleanPrivateError(error));
+                console.warn('[OBS] Failed to publish browser source config', error);
             });
     }, [config, status.enabled]);
 
@@ -415,7 +414,7 @@ export const useObsBrowserSourcePublisher = ({
 
         const publishAudio = () => {
             void window.electron?.publishObsBrowserSourceAudio(buildAudio()).catch(error => {
-                console.warn('[OBS] Failed to publish browser source audio', cleanPrivateError(error));
+                console.warn('[OBS] Failed to publish browser source audio', error);
             });
         };
 

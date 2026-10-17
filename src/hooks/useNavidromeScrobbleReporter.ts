@@ -5,7 +5,7 @@ import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
 import { NavidromeScrobbleSessionTracker } from '../utils/navidromeScrobble';
 import { getProviderSongMetadata } from '../services/onlineMusic/songMetadata';
-import { cleanPrivateError } from '../utils/privateText/privateText';
+import { errorFields } from '../utils/errorText';
 
 // src/hooks/useNavidromeScrobbleReporter.ts
 // Bridges audio playback events to Navidrome scrobble/now-playing reports.
@@ -42,7 +42,7 @@ export const useNavidromeScrobbleReporter = ({
                     console.warn('[Navidrome] scrobble report was rejected', { kind, songId });
                 }
             }).catch((error) => {
-                console.warn('[Navidrome] scrobble report failed', { kind, songId, ...cleanPrivateError(error) });
+                console.warn('[Navidrome] scrobble report failed', { kind, songId, ...errorFields(error) });
             });
         });
     }

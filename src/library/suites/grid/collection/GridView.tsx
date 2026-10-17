@@ -9,7 +9,6 @@ import { formatSongName } from '../../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
 import { colorWithAlpha } from '../../../../components/visualizer/colorMix';
-import { cleanPrivateError } from '../../../../utils/privateText/privateText';
 import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { onlineFailureMessage } from '../../../../services/onlineMusic/failure/onlineFailureTexts';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
@@ -681,7 +680,7 @@ export const GridView: React.FC<GridViewProps> = ({
         try {
             result = await mutations.removeEntry({ entryKey, track });
         } catch (error) {
-            console.error('Failed to remove track in GridView', cleanPrivateError(error));
+            console.error('Failed to remove track in GridView', error);
             result = { ok: false, reason: 'failed' };
         }
         if (!isMountedRef.current) return;
