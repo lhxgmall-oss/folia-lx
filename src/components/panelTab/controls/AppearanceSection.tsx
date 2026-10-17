@@ -257,7 +257,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             </div>
 
             {/* The switch takes its name from the label it sits in; a press anywhere on the row turns it. */}
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 px-1 py-1.5">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 py-1.5">
                 <span className="min-w-0 flex-1 text-sm leading-5">{t('options.transparentPlayerBackground')}</span>
                 <Toggle checked={transparentPlayerBackground} onChange={onToggleTransparentPlayerBackground} />
             </label>

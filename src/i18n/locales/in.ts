@@ -4987,7 +4987,7 @@ export default {
         "coverTab": "Tab Sampul adalah lagu itu sendiri: sampul besar, judul, artis, dan album di bawahnya, lalu sebaris tindakan. Tidak ada isi lain di tab ini.",
         "coverTabDetail": "Artis dan album keduanya tautan ke koleksinya. Mengklik judul menyalin \u201cjudul - artis - album\u201d beserta tautan halaman sumbernya; Ctrl+klik malah membuka halaman lagu ini di platform sumbernya.",
         "controlsTab": "Tab Kontrol diawali baris volume; tiga petak di bawahnya adalah ulang, Transisi pintar, dan Efek audio: dua yang pertama beralih dengan sekali klik, yang ketiga membuka jendela.",
-        "controlsTabDetail": "Di bawahnya ada baris Gaya Lirik dan Jenis Latar Belakang serta sakelar “Latar belakang pemutar transparan”; dua baris terakhir adalah tema: sumbernya, tema saat ini, membuat tema AI, dan terang atau gelap. Penguatan audio dan offset lirik ada di tab sumber.",
+        "controlsTabDetail": "Di bawahnya ada baris Gaya Lirik dan Jenis Latar Belakang serta sakelar “Latar belakang pemutar transparan”; dua baris terakhir adalah tema: sumbernya, tema saat ini, terang atau gelap, dan membuat tema AI. Penguatan audio dan offset lirik ada di tab sumber.",
         "queueTab": "Tab Playlist adalah seluruh antrean putar saat ini; baris di atas menyebutkan berapa lagu di dalamnya.",
         "queueTabDetail": "Klik satu baris untuk memutar dari lagu itu; arahkan penunjuk ke baris dan putar berikutnya, pindah ke akhir serta hapus muncul di kanannya. Dua tombol di kepala membentangkan antrean sebagai dinding Lattice dan mengacaknya. Barisnya tidak bisa diseret.",
         "accountTab": "Tab Kualitas mengurus sisi sumber musik yang sedang dipakai.",
