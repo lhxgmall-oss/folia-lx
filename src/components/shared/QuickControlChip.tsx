@@ -7,24 +7,33 @@ import { Tooltip } from '../modal/settings/kit/Tooltip';
 // 两种都画成控制页那几格的样子（QuickTile）：平时是一层淡底，开着的开关抬起一层、图标用强调色；
 // 颜色全取面板的 --st-* 变量，亮暗跟着面板走，不用调用方再传。
 
-const BASE = 'st-t-fast st-focus-inside inline-flex h-7 shrink-0 items-center justify-center rounded-lg transition-[background-color,color,box-shadow,scale] active:scale-[0.96]';
+const BASE = 'st-t-fast st-focus-inside inline-flex h-7 shrink-0 items-center justify-center rounded-lg transition-[background-color,color,box-shadow,scale,opacity] enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40';
+
+/** The value after `current` in `values`, from the first again after the last: what a chip that cycles shows next. */
+export const cycleValue = <T,>(values: readonly T[], current: T): T => (
+    values[(values.indexOf(current) + 1) % values.length]
+);
 
 interface QuickControlChipProps {
     onClick: () => void;
     label: string;
     title: string;
+    /** Nothing to change to now (an uploaded picture is the other choice, and there is none): the chip only says what is set. */
+    disabled?: boolean;
 }
 
 export const QuickControlChip: React.FC<QuickControlChipProps> = ({
     onClick,
     label,
     title,
+    disabled,
 }) => (
     <Tooltip text={title} className="flex">
         <button
             type="button"
             onClick={onClick}
-            className={`${BASE} whitespace-nowrap bg-[var(--st-fill)] px-2.5 text-xs text-[color:var(--st-t2)] hover:bg-[var(--st-fill2)] hover:text-[color:var(--st-t1)]`}
+            disabled={disabled}
+            className={`${BASE} whitespace-nowrap bg-[var(--st-fill)] px-2.5 text-xs text-[color:var(--st-t2)] enabled:hover:bg-[var(--st-fill2)] enabled:hover:text-[color:var(--st-t1)]`}
             aria-label={title}
         >
             {label}

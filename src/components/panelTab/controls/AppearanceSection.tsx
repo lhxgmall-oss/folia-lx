@@ -21,7 +21,8 @@ import BackgroundPicture from '../../visualizer/preview/BackgroundPicture';
 import { LyricPreviewProvider, type LyricPreviewLook } from '../../visualizer/preview/LyricPreviewContext';
 import LyricStylePicture from '../../visualizer/preview/LyricStylePicture';
 import { usePreviewClock } from '../../visualizer/preview/usePreviewClock';
-import { backgroundTuningActions } from '../../visualizer/tuningRegistry';
+import { backgroundTuningActions, getVisualizerTuning } from '../../visualizer/tuningRegistry';
+import type { VisualizerTuningSettings } from '../../visualizer/tuningDefinition';
 import { useVisualizerBackgroundConfig } from '../../visualizer/useVisualizerBackgroundConfig';
 import { useVisualizerTunings } from '../../visualizer/useVisualizerTunings';
 import { useTypographySettingsStore } from '../../../stores/useTypographySettingsStore';
@@ -145,11 +146,32 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
         });
     };
 
+    // The style's own quick controls get its tuning as it is saved, and a change that is saved at once
+    // through the store action its tuning.ts names (an action needs no subscription).
+    const styleTuning = getVisualizerTuning(visualizerMode);
+    const styleQuickControls = getVisualizerRegistryEntry(visualizerMode).renderQuickControls?.({
+        t,
+        isDaylight,
+        theme,
+        tuning: styleTuning?.read(visualizerTunings),
+        onTuningChange: (patch) => {
+            const save = styleTuning && (useVisualizerSettingsStore.getState() as unknown as Record<string, unknown>)[styleTuning.settingsSetterKey];
+            if (typeof save === 'function') {
+                save(patch);
+            }
+        },
+        settings: useVisualizerSettingsStore.getState() as unknown as VisualizerTuningSettings,
+    });
+    const hasStyleQuickControls = styleQuickControls !== null && styleQuickControls !== undefined && styleQuickControls !== false;
+
     const backgroundQuickControls = getVisualizerBackgroundRegistryEntry(resolvedBackgroundMode).renderQuickControls?.({
         // The backgrounds' tunings as they are saved, and the store's actions for them (an action needs no subscription).
         config: { ...pictureBackground, common: { ...pictureBackground.common, useCoverColorBg } },
         actions: {
-            common: { onCoverColorChange: onToggleCoverColorBg },
+            common: {
+                onCoverColorChange: onToggleCoverColorBg,
+                onDisableVignetteChange: useVisualizerSettingsStore.getState().handleToggleDisableVisualizerVignette,
+            },
             ...backgroundTuningActions(useVisualizerSettingsStore.getState() as unknown as Record<string, unknown>),
         },
         t,
@@ -188,17 +210,22 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                                 onClick={cycleAnimationIntensity}
                             />
                         )}
-                        params={usesWordSegmentation && (
-                            <QuickControlToggle
-                                active={hasSavedSegmentation}
-                                label={t('commandPalette.commands.lyric-segmentation.title')}
-                                onToggle={() => {
-                                    openCommandPaletteCommand(LYRIC_SEGMENTATION_COMMAND_ID);
-                                    onClosePanel?.();
-                                }}
-                            >
-                                <WholeWord size={14} />
-                            </QuickControlToggle>
+                        params={(usesWordSegmentation || hasStyleQuickControls) && (
+                            <>
+                                {usesWordSegmentation && (
+                                    <QuickControlToggle
+                                        active={hasSavedSegmentation}
+                                        label={t('commandPalette.commands.lyric-segmentation.title')}
+                                        onToggle={() => {
+                                            openCommandPaletteCommand(LYRIC_SEGMENTATION_COMMAND_ID);
+                                            onClosePanel?.();
+                                        }}
+                                    >
+                                        <WholeWord size={14} />
+                                    </QuickControlToggle>
+                                )}
+                                {styleQuickControls}
+                            </>
                         )}
                     />
 

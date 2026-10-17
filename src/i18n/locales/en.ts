@@ -2126,6 +2126,7 @@ export default {
     "stageTrackPillOnHomeDesc": "Off keeps the card on the player and play queue. On also shows it on home, including after launch or a track change there. With the Bravais library it is always on the wall.",
     "stageTrackPillTimeout": "Visible duration",
     "disableVisualizerVignette": "Disable vignette",
+    "visualizerVignette": "Vignette",
     "disableVisualizerVignetteDesc": "Only removes the geometric background edge vignette. Transparent background and geometric shapes stay separate.",
     "latticeSettings": "Tile wall appearance",
     "latticeVignette": "Edge vignette",

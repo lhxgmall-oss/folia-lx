@@ -2119,6 +2119,7 @@ export default {
     "stageTrackPillOnHomeDesc": "Saat nonaktif, kartu tetap tampil di pemutar dan antrean putar. Aktifkan untuk menampilkannya juga di halaman utama. Dengan pustaka Bravais, kartu selalu tampil di dinding.",
     "stageTrackPillTimeout": "Durasi tampil",
     "disableVisualizerVignette": "Nonaktifkan vignette",
+    "visualizerVignette": "Vignette",
     "disableVisualizerVignetteDesc": "Hanya menghapus vignette tepi latar belakang geometris. Latar belakang transparan dan bentuk geometris tetap terpisah.",
     "latticeSettings": "Tampilan dinding kolase",
     "latticeVignette": "Vignette tepi",
