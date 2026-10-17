@@ -282,6 +282,9 @@ const aiCredentials = createAiCredentialStore({ store, safeStorage });
 // Settings keys follow the existing electron-store key/value chain; values are normalized here in
 // the main process so stale or dirty stored values never reach the windowtolayer CLI.
 const WALLPAPER_MODE_SETTING_KEY = 'wallpaper_mode';
+// Renderer-recorded: the one-time "entering wallpaper mode" warning has been accepted. The tray
+// reads it to skip asking the renderer for a confirmation dialog that would not be shown anyway.
+const WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY = 'wallpaper_entry_confirmed';
 // Windows-only helper switches; both default to on (missing = enabled).
 const WALLPAPER_FORWARD_MOUSE_SETTING_KEY = 'wallpaper_forward_mouse';
 const WALLPAPER_ZGUARD_SETTING_KEY = 'wallpaper_zguard';
@@ -2336,6 +2339,7 @@ function getPublicSettings() {
     'enable_player_page_native_blur': store.get('enable_player_page_native_blur') === true,
     'wallpaper_attach_mode': process.platform === 'win32' ? wallpaperWindowsAttachMode : null,
     [WALLPAPER_MODE_SETTING_KEY]: isWallpaperModeEnabled(),
+    [WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY]: readStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY, false),
     [WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY]: readStoredBoolean(WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY, true),
   };
 }
@@ -3004,9 +3008,15 @@ function refreshTrayMenu() {
       checked: isWallpaperModeEnabled(),
       click: () => {
         const nextEnabled = !isWallpaperModeEnabled();
-        // Entering is a user-initiated switch, so the renderer asks for confirmation first and
-        // then enters through save-settings. Leaving never needs one.
-        if (nextEnabled && requestWallpaperEntryConfirmation({ mainWindow, focusMainWindow, isClickThroughActive: () => mainWindowClickThroughEnabled })) {
+        // Entering is a user-initiated switch, so the first entry asks for confirmation through the
+        // renderer and then enters through save-settings. Once the renderer has recorded that first
+        // entry, there is no dialog left to show: enter directly instead of bringing the window
+        // forward for nothing. Leaving never needs a confirmation.
+        if (
+          nextEnabled &&
+          !readStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY, false) &&
+          requestWallpaperEntryConfirmation({ mainWindow, focusMainWindow, isClickThroughActive: () => mainWindowClickThroughEnabled })
+        ) {
           // The click already flipped the checkbox; nothing is entered until the user confirms.
           refreshTrayMenu();
           return;
@@ -3017,6 +3027,12 @@ function refreshTrayMenu() {
         // empty menu-bar strip above the wallpaper). The wallpaper entry asserts click-
         // through and the always-on-top state itself (state-only flip + level sink).
         store.set(WALLPAPER_MODE_SETTING_KEY, nextEnabled);
+        if (nextEnabled) {
+          // Either the renderer already accepted the warning, or it could not answer (destroyed,
+          // loading, crashed, click-through) and the click wins over the dialog. Entering counts
+          // as the first use either way, so the next tray click must not ask again.
+          store.set(WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY, true);
+        }
         refreshTrayMenu();
         scheduleWallpaperModeRelaunch(nextEnabled);
       },
@@ -5973,6 +5989,7 @@ ipcMain.handle('save-settings', (event, key, value) => {
     key === PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY ||
     key === MOD_SYSTEM_ENABLED_SETTING_KEY ||
     key === WALLPAPER_MODE_SETTING_KEY ||
+    key === WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY ||
     key === WALLPAPER_FORWARD_MOUSE_SETTING_KEY ||
     key === WALLPAPER_ZGUARD_SETTING_KEY ||
     key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY

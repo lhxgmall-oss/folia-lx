@@ -21,12 +21,13 @@ store 中平台共享的持久化键：
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
 | `wallpaper_mode` | — | 壁纸模式开关；renderer 据此隐藏自绘标题栏等 |
+| `wallpaper_entry_confirmed` | 关 | 第一次进入前确认是否已确认过。首次进入或托盘直进的首次记录后不再提示；renderer 与主进程各存一份，主进程据它决定托盘是否还要请求渲染端弹窗 |
 | `wallpaper_forward_mouse` | 开 | 是否转发桌面鼠标输入（无 UI，变更即时生效） |
 | `wallpaper_display` | `null` | 壁纸用哪一块显示器：`null`（或没有这个键）是自动，否则是 `{ id, bounds: { x, y, width, height }, label }`。Wayland 不读它 |
 
 平台专属键见各自章节。启动开关入口三平台一致：托盘「Wallpaper Mode」、设置里「桌面」页的那一行（`src/components/modal/settings/pages/DesktopPage.tsx`）与命令面板 `settings-wallpaper-mode` / `desktop-toggle-wallpaper-mode`，统一由 `isWallpaperModeSupportedPlatform()` 门控（darwin / win32 / linux）。
 
-**进入前确认**：用户主动的进入（设置卡片、命令面板、托盘）都会先弹一次确认（`useDesktopSettingsStore.handleToggleWallpaperMode` → `wallpaperEntryConfirmOpen` → `AppDialogs` 里的 `ConfirmDialog`），文案写明进入后的限制与托盘退出方式；托盘在主进程里，经 `wallpaper-entry-requested`（`electron/wallpaper/wallpaperEntryRequest.cjs`）请求渲染端弹同一个对话框，渲染端不可用时才直接进入。退出不确认。启动恢复、崩溃重载、降级等程序性路径不经过确认（渲染端走 `setDesktopPreferenceSnapshot`，主进程直接读 `wallpaper_mode`）。
+**进入前确认（仅首次）**：用户第一次进入壁纸模式时（设置卡片、命令面板、托盘）先弹一次确认（`useDesktopSettingsStore.handleToggleWallpaperMode` → `wallpaperEntryConfirmOpen` → `AppDialogs` 里的 `ConfirmDialog`），文案写明进入后的限制与托盘退出方式。确认进入（或托盘在渲染端不可用时直接进入）会写下 `wallpaper_entry_confirmed`，之后的进入直接生效、不再弹窗；托盘在主进程里读同一个键，已确认后不再经 `wallpaper-entry-requested`（`electron/wallpaper/wallpaperEntryRequest.cjs`）请求渲染端，也不为一次不会出现的对话框把窗口提到前面。取消不进入、不记已确认，下次仍会提示。退出不确认。启动恢复、崩溃重载、降级等程序性路径不经过确认（渲染端走 `setDesktopPreferenceSnapshot`，主进程直接读 `wallpaper_mode`）。
 
 **选显示器**（Windows、macOS、Linux X11；规则在 `electron/wallpaper/wallpaperDisplay.cjs`，纯函数，不引 Electron）：
 
