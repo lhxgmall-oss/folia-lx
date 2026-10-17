@@ -156,6 +156,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleWallpaperMode: vi.fn(),
             toggleCloseToTray: vi.fn(),
             toggleHideRemoteControlTitlebar: vi.fn(),
+            toggleRemoteControlExpandCover: vi.fn(),
             unlockRemoteControl: vi.fn(),
             toggleObsKeepMainWindowAnimation: vi.fn(),
             toggleWallpaperMacAutohideDock: vi.fn(),
