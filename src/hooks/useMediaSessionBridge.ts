@@ -8,6 +8,7 @@ import {
     isMediaSessionSourceReady,
     publishMediaSessionTrack,
 } from '../utils/mediaSessionSync';
+import { cleanPrivateError } from '../utils/privateText/privateText';
 
 // Bridges Folia playback state to the browser Media Session API.
 type UseMediaSessionBridgeOptions = {
@@ -63,7 +64,7 @@ export const useMediaSessionBridge = ({
             try {
                 mediaSession.setActionHandler(action, handler);
             } catch (e) {
-                console.warn(`[MediaSession] Failed to bind ${action} handler`, e);
+                console.warn(`[MediaSession] Failed to bind ${action} handler`, cleanPrivateError(e));
             }
         };
 
@@ -75,7 +76,7 @@ export const useMediaSessionBridge = ({
             try {
                 await mediaSessionPlayRef.current();
             } catch (e) {
-                console.error('MediaSession play failed', e);
+                console.error('MediaSession play failed', cleanPrivateError(e));
             }
         });
         setActionHandlerSafely('pause', () => {
@@ -116,7 +117,7 @@ export const useMediaSessionBridge = ({
                 navigator.mediaSession.setPositionState();
                 navigator.mediaSession.metadata = null;
             } catch (e) {
-                console.warn('[MediaSession] Failed to clear metadata', e);
+                console.warn('[MediaSession] Failed to clear metadata', cleanPrivateError(e));
             }
             return;
         }
@@ -145,7 +146,7 @@ export const useMediaSessionBridge = ({
                     artworkUrl,
                 });
             } catch (e) {
-                console.warn('[MediaSession] Failed to update metadata', e);
+                console.warn('[MediaSession] Failed to update metadata', cleanPrivateError(e));
             }
         };
 
@@ -171,7 +172,7 @@ export const useMediaSessionBridge = ({
                 artworkUrl = objectUrl;
                 publish();
             } catch (e) {
-                if (!disposed) console.warn('[MediaSession] Failed to prepare artwork', e);
+                if (!disposed) console.warn('[MediaSession] Failed to prepare artwork', cleanPrivateError(e));
             }
         };
 
@@ -203,7 +204,7 @@ export const useMediaSessionBridge = ({
                     ? (playerState === PlayerState.PLAYING ? 'playing' : 'paused')
                     : 'none';
         } catch (e) {
-            console.warn('[MediaSession] Failed to update playback state', e);
+            console.warn('[MediaSession] Failed to update playback state', cleanPrivateError(e));
         }
     }, [currentSong, isNowPlayingStageActive, playerState]);
 };

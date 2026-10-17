@@ -5,6 +5,7 @@ import { omni } from '../onlineMusic/omni';
 import { saveLyricCacheSongMetadataBySongKey, songToExportMetadata, type LyricCacheSongMetadata } from './lyricCacheMetadata';
 import type { FoliaLyricDocumentSong } from '../../utils/lyrics/foliaLyricDocument';
 import { mapWithConcurrency, type ExportableLyric, type LyricExportRunContext } from './types';
+import { cleanPrivateError } from '../../utils/privateText/privateText';
 
 // src/services/lyricExport/resolveExportMetadata.ts
 // Fills in title / artist for export entries so files get readable names.
@@ -139,7 +140,7 @@ const lookUpOnline = async (
                 await saveLyricCacheSongMetadataBySongKey(entry.songKey, { ...metadata, songId: detail.id });
             }
         } catch (error) {
-            console.warn('[lyricExport] Song detail lookup failed', entry.songKey, error);
+            console.warn('[lyricExport] Song detail lookup failed', entry.songKey, cleanPrivateError(error));
         }
         done += 1;
         onProgress?.({ phase: 'metadata', done, total: missing.length });

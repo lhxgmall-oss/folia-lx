@@ -9,6 +9,7 @@ import {
     isNavidromeStructuredLyricCollection,
     selectPreferredNavidromeStructuredLyric,
 } from './lyrics/navidromeStructuredLyrics';
+import { cleanPrivateError } from './privateText/privateText';
 
 // Navidrome lyric selection and hydration helpers kept outside App.tsx.
 export const selectPreferredStructuredLyric = (items: StructuredLyric[] | null | undefined): StructuredLyric | null => {
@@ -90,7 +91,7 @@ export const hydrateNavidromeLyricPayload = async (config: NavidromeConfig, navi
                 }
             }
         } catch (e) {
-            console.warn('[App] Failed to fetch Navidrome lyrics:', e);
+            console.warn('[App] Failed to fetch Navidrome lyrics:', cleanPrivateError(e));
         }
     }
 };

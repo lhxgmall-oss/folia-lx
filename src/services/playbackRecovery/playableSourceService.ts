@@ -4,6 +4,7 @@ import { getFileFromLocalSong } from '../localMusicService';
 import { getPlaybackSongKey, isLocalPlaybackSong, isNavidromePlaybackSong, resolveNavidromePlaybackCarrier } from '../../utils/appPlaybackGuards';
 import { buildLocalSourceRevision, buildNavidromeSourceRevision } from './sourceRevision';
 import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
+import { cleanPrivateError } from '../../utils/privateText/privateText';
 
 // Resolves renderer-owned sources into the narrow, validated Electron transcode IPC contract.
 
@@ -100,7 +101,7 @@ export const startPlayableTranscode = (
             return {
                 ok: false,
                 errorCode: cancelled ? 'CANCELLED' : (error as { code?: string }).code || 'SOURCE_UNAVAILABLE',
-                message: String((error as Error)?.message || error),
+                message: cleanPrivateError(error).message,
             };
         } finally {
             if (rendererRequests.get(requestId) === controller) rendererRequests.delete(requestId);

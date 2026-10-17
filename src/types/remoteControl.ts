@@ -1,4 +1,4 @@
-import type { PlayerState, LyricData } from '../types';
+import type { PlayerState, LyricData, SubtitleContentMode } from '../types';
 import type { VideoExportPreset, VideoExportStartMode, VideoExportState } from './videoExport';
 import type { FoliumRemoteActionDef } from '../mods/folium/contract';
 
@@ -51,6 +51,7 @@ export type RemoteControlCommand =
     | { type: 'set-transparent-mode-enabled'; enabled: boolean }
     | { type: 'disable-transparent-mode' }
     | { type: 'cycle-player-chrome-visibility-mode' }
+    | { type: 'set-player-chrome-visibility-mode'; mode: PlayerChromeVisibilityMode }
     | { type: 'open-export' }
     | { type: 'start-export'; preset: VideoExportPreset; startMode: VideoExportStartMode }
     | { type: 'stop-export' }
@@ -93,6 +94,8 @@ export interface RemoteControlSnapshot {
     isDaylight?: boolean;
     lyrics?: LyricData | null;
     lyricOffsetMs?: number;
+    /** The main window's setting for what sits under a lyric line; the remote's second line follows it. */
+    subtitleContentMode: SubtitleContentMode;
     isLiked?: boolean;
     canLike?: boolean;
     likeUnavailableProvider?: string;
