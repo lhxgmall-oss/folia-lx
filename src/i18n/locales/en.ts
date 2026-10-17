@@ -734,7 +734,7 @@ export default {
       "panel-cover": { "title": "Panel: cover", "description": "Open the cover panel tab" },
       "panel-controls": { "title": "Panel: controls", "description": "Open the controls panel tab" },
       "panel-queue": { "title": "Panel: queue", "description": "Open the queue panel tab" },
-      "panel-account": { "title": "Panel: account", "description": "Open the account panel tab" },
+      "panel-account": { "title": "Panel: quality", "description": "Open the quality panel tab (account, default quality, sync)" },
       "panel-local": { "title": "Panel: local", "description": "Open the local panel tab" },
       "panel-navi": { "title": "Panel: Navidrome", "description": "Open the Navidrome panel tab" },
       "panel-onlineLyrics": { "title": "Panel: lyrics", "description": "Open the online lyrics panel tab" },
@@ -959,7 +959,7 @@ export default {
     "controls": "Controls",
     "visualizer": "Lyrics Animation",
     "playlist": "Playlist",
-    "account": "Account"
+    "account": "Quality"
   },
   "lyricExport": {
     "exported": "Lyrics exported",
@@ -4519,7 +4519,7 @@ export default {
       "lyricExport": "Lyric export",
       "panelControlsTab": "Panel \u00b7 Controls tab",
       "panelQueueTab": "Panel · Playlist tab",
-      "panelAccountTab": "Panel \u00b7 Account tab",
+      "panelAccountTab": "Panel \u00b7 Quality tab",
       "latticePage": "Lattice page",
       "bravaisWall": "Bravais wall",
       "helpPage": "Getting to know Folia",
@@ -4604,7 +4604,7 @@ export default {
       "sidePanelCoverTab": "Artwork tab",
       "sidePanelControlsTab": "Controls tab",
       "sidePanelQueueTab": "Playlist tab",
-      "sidePanelAccountTab": "Account tab",
+      "sidePanelAccountTab": "Quality tab",
       "lyricsAnimationEntry": "Where lyric animation is chosen",
       "themeSettingsPresets": "Presets and custom",
       "themeSettingsSource": "Where the colours come from",
@@ -4866,7 +4866,7 @@ export default {
         "playerLyrics": "The middle is lyrics and the visualizer. It is not a control: clicking it is clicking the background, which only shows or hides the control bar. It does not pause.",
         "playerBarWhere": "The control bar floats at the bottom centre, not flush with the edge. Play/pause is at its left end, the title and progress bar in the middle, and the two places on the right hold whatever you choose.",
         "playerToggleWhere": "The side handle sits against the right edge of the screen, its bottom aligned with the control bar. It is a round button; press it and the side control panel opens.",
-        "playerPanelWhere": "The panel opens above the handle, against the right edge. It opens on the song’s Cover tab, and the row at the bottom holds the tabs: Cover, Controls, Playlist, Account and more.",
+        "playerPanelWhere": "The panel opens above the handle, against the right edge. It opens on the song’s Cover tab, and the row at the bottom holds the tabs: Cover, Controls, Playlist, Quality and more.",
         "playerPaletteSlide": "There is also a track hidden behind the handle. Hold the handle, drag it left past the trigger line and let go: that opens the command window, not the panel.",
         "playerPaletteOpened": "The command window drops in from the top, horizontally centred. Everything to do with finding a feature lives in here.",
         "playerPaletteOtherWays": "You do not have to drag: {{mod}} + K opens the same window from anywhere, and on the player page a bare S does the same whenever focus is not in a text box. On a touch screen, a tap near the right edge brings the handle out first.",
@@ -4965,7 +4965,7 @@ export default {
         "queueRadioMode": "The button at the top names the radio mode you are in; clicking it opens the mode picker in the command window, the same one the palette offers.",
         "queueRadioActions": "The two ends of this line are discard and like. A discarded song will not be played by the service again, and the radio moves on to the next one.",
         "cover": "The panel opens on the Cover tab: the song’s large cover, under it the title, artists and album, and under those a row of actions for this song.",
-        "tabs": "The row at the bottom is the tabs: Cover, Controls, Playlist, Account; when the song has source information, a source tab appears right after Cover — the second cell here. A mod that brings a page adds its tab at the end.",
+        "tabs": "The row at the bottom is the tabs: Cover, Controls, Playlist, Quality; when the song has source information, a source tab appears right after Cover — the second cell here. A mod that brings a page adds its tab at the end.",
         "body": "On any other tab the song folds into one line at the top, and clicking it goes back to Cover; the middle is that tab’s content. The panel is as tall as the content needs, and the row of tabs stays at the bottom edge.",
         "cycle": "You do not have to click that row of little cells. With the panel open, Tab moves one tab forward.",
         "cycleReverse": "Shift + Tab moves one back. The cycle only visits the tabs that actually exist right now \u2014 different sources bring different ones.",
@@ -4983,8 +4983,8 @@ export default {
         "controlsTabDetail": "Below are the Lyrics Style and Background Type rows and the “Transparent player background” switch; the last two rows are the theme: its source, the current theme, generating an AI theme, and light or dark. Audio gain and the lyric offset are on the source tab.",
         "queueTab": "The Playlist tab is the whole of the current play queue; the line at the top says how many songs are in it.",
         "queueTabDetail": "Click a row to play from that song; hover one and play next, move to the end and remove appear at its right. The header buttons lay the queue out as the Lattice wall and shuffle it. Rows cannot be dragged to reorder.",
-        "accountTab": "The Account tab is about the side of the current music source.",
-        "accountTabDetail": "The Account tab shows the sign-in state, the Default Quality and “Sync Data”. Signed out, it shows a “Login on Home” button instead."
+        "accountTab": "The Quality tab is about the side of the current music source.",
+        "accountTabDetail": "The Quality tab shows the sign-in state, the Default Quality and “Sync Data”. Signed out, it shows a “Login on Home” button instead."
       },
       "transition": {
         "enable": "This group is about how one song joins the next. The switch at the top is the same value as the “Smart transition” tile in the Controls tab — two places, one setting.",

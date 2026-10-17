@@ -53,13 +53,12 @@ export default defineVisualizerBackground({
             isLoadingMonetBackgroundImage={actions?.customImage?.isLoading}
         />
     ),
-    renderQuickControls: ({ config, actions, t, theme }) => {
+    renderQuickControls: ({ config, actions, t }) => {
         const tuning = config?.nomand?.tuning ?? DEFAULT_NOMAND_BACKGROUND_TUNING;
 
         return (
             <QuickControlToggle
                 active={tuning.overlayEnabled}
-                theme={theme}
                 label={t('options.nomandBackgroundOverlay')}
                 onToggle={() => actions?.nomand?.onTuningChange?.({ overlayEnabled: !tuning.overlayEnabled })}
             >

@@ -55,14 +55,13 @@ export default defineVisualizerBackground({
             onSliderCommit={onSliderCommit}
         />
     ),
-    renderQuickControls: ({ config, actions, t, isDaylight }) => {
+    renderQuickControls: ({ config, actions, t }) => {
         const tuning = config?.monet?.tuning ?? DEFAULT_MONET_BACKGROUND_TUNING;
         const isFullOverlay = tuning.backgroundLayout === 'full-overlay';
         const layoutLabel = t(isFullOverlay ? 'options.monetLayoutFullOverlay' : 'options.monetLayoutHalfPane');
 
         return (
             <QuickControlChip
-                isDaylight={isDaylight}
                 label={layoutLabel}
                 title={`${t('options.monetBackgroundLayout')}: ${layoutLabel}`}
                 onClick={() => actions?.monet?.onTuningChange?.({

@@ -78,13 +78,12 @@ export default defineVisualizerBackground({
         );
     },
     renderSettingsPanel: props => <CommonBackgroundSettingsCard {...props} />,
-    renderQuickControls: ({ config, actions, t, theme }) => {
+    renderQuickControls: ({ config, actions, t }) => {
         const useCoverColorBg = config?.common?.useCoverColorBg ?? false;
 
         return (
             <QuickControlToggle
                 active={useCoverColorBg}
-                theme={theme}
                 label={t(useCoverColorBg ? 'theme.addCoverColor' : 'theme.useDefaultColor')}
                 onToggle={() => actions?.common?.onCoverColorChange?.(!useCoverColorBg)}
             >

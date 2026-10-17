@@ -734,7 +734,7 @@ export default {
       "panel-cover": { "title": "面板：封面", "description": "打开封面面板 tab" },
       "panel-controls": { "title": "面板：控制", "description": "打开控制面板 tab" },
       "panel-queue": { "title": "面板：队列", "description": "打开队列面板 tab" },
-      "panel-account": { "title": "面板：账号", "description": "打开账号面板 tab" },
+      "panel-account": { "title": "面板：音质", "description": "打开音质面板 tab（账号、默认音质、同步数据）" },
       "panel-local": { "title": "面板：本地", "description": "打开本地面板 tab" },
       "panel-navi": { "title": "面板：Navidrome", "description": "打开 Navidrome 面板 tab" },
       "panel-onlineLyrics": { "title": "面板：歌词", "description": "打开在线歌词面板 tab" },
@@ -959,7 +959,7 @@ export default {
     "controls": "控制",
     "visualizer": "歌词动画",
     "playlist": "播放列表",
-    "account": "账户"
+    "account": "音质"
   },
   "lyricExport": {
     "exported": "歌词已导出",
@@ -4518,7 +4518,7 @@ export default {
       "lyricExport": "歌词导出",
       "panelControlsTab": "面板 · 控制页",
       "panelQueueTab": "面板 · 播放列表页",
-      "panelAccountTab": "面板 · 账户页",
+      "panelAccountTab": "面板 · 音质页",
       "latticePage": "Lattice 页面",
       "bravaisWall": "Bravais 墙",
       "helpPage": "认识 Folia",
@@ -4603,7 +4603,7 @@ export default {
       "sidePanelCoverTab": "封面页",
       "sidePanelControlsTab": "控制页",
       "sidePanelQueueTab": "播放列表页",
-      "sidePanelAccountTab": "账户页",
+      "sidePanelAccountTab": "音质页",
       "lyricsAnimationEntry": "换歌词动画在哪儿换",
       "themeSettingsPresets": "预设与自定义",
       "themeSettingsSource": "配色从哪来",
@@ -4865,7 +4865,7 @@ export default {
         "playerLyrics": "中间这块是歌词与可视化。它不是控件：点它等于点背景，只切换控制条的显隐，不会暂停。",
         "playerBarWhere": "控制条浮在屏幕底部正中，不贴边。左端是播放/暂停，中间是歌名和进度条，右端两个位置放什么由你决定。",
         "playerToggleWhere": "侧边手柄贴在屏幕右缘，底边和控制条对齐。它是一颗圆按钮，按一下展开右侧控制面板。",
-        "playerPanelWhere": "面板从手柄上方展开，贴着右侧。打开时是这首歌的封面页，最底下一排是封面、控制、播放列表、账户等标签页。",
+        "playerPanelWhere": "面板从手柄上方展开，贴着右侧。打开时是这首歌的封面页，最底下一排是封面、控制、播放列表、音质等标签页。",
         "playerPaletteSlide": "手柄背后还藏着一条向左的滑轨。按住手柄往左拖，越过判定线再松手，打开的是命令窗口，不是面板。",
         "playerPaletteOpened": "命令窗口从屏幕上方落下，水平居中。Folia 把「找功能」这件事全部收在这里。",
         "playerPaletteOtherWays": "{{mod}} + K 可随时打开命令窗口。播放页焦点不在输入框时，按 S 也可以；触屏先点右缘唤出手柄。",
@@ -4964,7 +4964,7 @@ export default {
         "queueRadioMode": "顶上那颗按钮写的是你现在在哪个电台模式；点它打开的是命令窗口里的模式选择器，和命令面板给的是同一个。",
         "queueRadioActions": "这一行两端是丢弃和喜欢。丢弃后服务不会再播放这首，电台会继续下一首。",
         "cover": "面板打开时是封面页：这首歌的大封面，下面是歌名、歌手和专辑，再下面一行是它的几个动作。",
-        "tabs": "最底下一排是标签页：封面、控制、播放列表、账户；这首歌有来源信息时，封面后面多一个来源页，就是这里的第二格。装了带页面的模组，后面还会多出它的页。",
+        "tabs": "最底下一排是标签页：封面、控制、播放列表、音质；这首歌有来源信息时，封面后面多一个来源页，就是这里的第二格。装了带页面的模组，后面还会多出它的页。",
         "body": "换到别的页，顶上那首歌收成一行，点它回到封面页；中间是这一页的内容。内容有多高面板就有多高，标签那一排一直在底边。",
         "cycle": "不必去点那一排小格子。面板开着时按 Tab，就在标签页之间往后循环一格。",
         "cycleReverse": "Shift + Tab 往回一格。循环只在当前真的有的那几页之间走 —— 来源不同，页数也不同。",
@@ -4982,8 +4982,8 @@ export default {
         "controlsTabDetail": "再往下是歌词样式、背景类型两行和「播放页透明背景」开关，最下面两行是主题：来源、当前主题、生成 AI 主题和明暗。音频增益与歌词偏移在来源页。",
         "queueTab": "播放列表页是当前播放队列的完整列表，顶上一行写着队列里有多少首。",
         "queueTabDetail": "点击歌曲即可播放；悬停后可移到下一首、移到队尾或移除。顶部按钮可打开 Lattice 或打乱队列。这里不能拖动排序。",
-        "accountTab": "账户页管的是当前音乐来源那一侧的事。",
-        "accountTabDetail": "账户页显示登录状态、默认音质和「同步数据」。没登录时，这里是一颗「去主页登录」。"
+        "accountTab": "音质页管的是当前音乐来源那一侧的事。",
+        "accountTabDetail": "音质页显示登录状态、默认音质和「同步数据」。没登录时，这里是一颗「去主页登录」。"
       },
       "transition": {
         "enable": "这一组管的是两首歌之间怎么接上。最上面是总开关 —— 它和控制页里「智能过渡」那一格是同一个值，两处改的是同一件事。",

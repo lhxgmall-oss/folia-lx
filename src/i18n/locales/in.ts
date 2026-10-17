@@ -732,7 +732,7 @@ export default {
       "panel-cover": { "title": "Panel: sampul", "description": "Buka tab panel sampul" },
       "panel-controls": { "title": "Panel: kontrol", "description": "Buka tab panel kontrol" },
       "panel-queue": { "title": "Panel: antrean", "description": "Buka tab panel antrean" },
-      "panel-account": { "title": "Panel: akun", "description": "Buka tab panel akun" },
+      "panel-account": { "title": "Panel: kualitas", "description": "Buka tab panel kualitas (akun, kualitas default, sinkronisasi)" },
       "panel-local": { "title": "Panel: lokal", "description": "Buka tab panel lokal" },
       "panel-navi": { "title": "Panel: Navidrome", "description": "Buka tab panel Navidrome" },
       "panel-onlineLyrics": { "title": "Panel: lirik", "description": "Buka tab panel lirik online" },
@@ -954,7 +954,7 @@ export default {
     "controls": "Kontrol",
     "visualizer": "Animasi Lirik",
     "playlist": "Playlist",
-    "account": "Akun"
+    "account": "Kualitas"
   },
   "lyricExport": {
     "exported": "Lirik diekspor",
@@ -4418,7 +4418,7 @@ export default {
       "lyricExport": "Ekspor lirik",
       "panelControlsTab": "Panel \u00b7 Tab kontrol",
       "panelQueueTab": "Panel · tab Playlist",
-      "panelAccountTab": "Panel · tab Akun",
+      "panelAccountTab": "Panel · tab Kualitas",
       "latticePage": "Halaman Lattice",
       "bravaisWall": "Dinding Bravais",
       "helpPage": "Mengenal Folia",
@@ -4503,7 +4503,7 @@ export default {
       "sidePanelCoverTab": "Tab sampul",
       "sidePanelControlsTab": "Tab kontrol",
       "sidePanelQueueTab": "Tab Playlist",
-      "sidePanelAccountTab": "Tab Akun",
+      "sidePanelAccountTab": "Tab Kualitas",
       "lyricsAnimationEntry": "Tempat mengganti animasi lirik",
       "themeSettingsPresets": "Preset dan kustom",
       "themeSettingsSource": "Dari mana warnanya",
@@ -4765,7 +4765,7 @@ export default {
         "playerLyrics": "Bagian tengah adalah lirik dan visualizer. Itu bukan kontrol: mengkliknya sama dengan mengklik latar, hanya menampilkan atau menyembunyikan bilah kontrol, bukan menjeda.",
         "playerBarWhere": "Bilah kontrol melayang di tengah bawah, tidak menempel tepi. Putar/jeda di ujung kiri, judul dan bilah kemajuan di tengah, dan dua posisi kanan berisi apa pun pilihanmu.",
         "playerToggleWhere": "Pegangan samping menempel di tepi kanan layar, dasarnya sejajar dengan bilah kontrol. Bentuknya bulat; tekan sekali dan panel kontrol kanan terbuka.",
-        "playerPanelWhere": "Panel terbuka di atas pegangan, menempel di tepi kanan. Ia terbuka di tab Sampul lagu ini, dan baris paling bawah memuat tab: Sampul, Kontrol, Playlist, Akun, dan lainnya.",
+        "playerPanelWhere": "Panel terbuka di atas pegangan, menempel di tepi kanan. Ia terbuka di tab Sampul lagu ini, dan baris paling bawah memuat tab: Sampul, Kontrol, Playlist, Kualitas, dan lainnya.",
         "playerPaletteSlide": "Ada juga rel yang tersembunyi di belakang pegangan. Tahan pegangan, seret ke kiri melewati garis pemicu, lalu lepaskan: itu membuka jendela perintah, bukan panel.",
         "playerPaletteOpened": "Jendela perintah turun dari atas layar, rata tengah. Semua urusan \u201cmencari fitur\u201d ada di sini.",
         "playerPaletteOtherWays": "Tidak perlu menyeret: {{mod}} + K membuka jendela yang sama dari mana saja, dan di halaman pemutar tombol S polos melakukan hal yang sama selama fokus tidak berada di kotak teks. Di layar sentuh, ketuk dekat tepi kanan untuk memunculkan pegangannya lebih dulu.",
@@ -4864,7 +4864,7 @@ export default {
         "queueRadioMode": "Tombol di atas menyebutkan mode radio yang sedang dipakai; mengkliknya membuka pemilih mode di jendela perintah, sama dengan yang ditawarkan palet.",
         "queueRadioActions": "Dua ujung baris ini adalah buang dan suka. Lagu yang dibuang tidak akan diputar lagi oleh layanan, dan radio lanjut ke lagu berikutnya.",
         "cover": "Panel terbuka di tab Sampul: sampul besar lagu ini, di bawahnya judul, artis, dan album, lalu sebaris tindakan untuk lagu ini.",
-        "tabs": "Baris paling bawah adalah tab: Sampul, Kontrol, Playlist, Akun; bila lagu punya informasi sumber, tab sumber muncul tepat setelah Sampul — sel kedua di sini. Mod yang membawa halaman menambahkan tabnya di ujung.",
+        "tabs": "Baris paling bawah adalah tab: Sampul, Kontrol, Playlist, Kualitas; bila lagu punya informasi sumber, tab sumber muncul tepat setelah Sampul — sel kedua di sini. Mod yang membawa halaman menambahkan tabnya di ujung.",
         "body": "Di tab lain, lagu itu terlipat menjadi satu baris di atas, dan mengkliknya kembali ke Sampul; bagian tengah adalah isi tab itu. Tinggi panel mengikuti isinya, dan baris tab tetap di tepi bawah.",
         "cycle": "Kamu tidak perlu mengklik barisan kotak kecil itu. Saat panel terbuka, Tab memindahkan satu tab ke depan.",
         "cycleReverse": "Shift + Tab mundur satu. Siklusnya hanya melewati tab yang memang ada saat ini \u2014 sumber berbeda membawa tab berbeda.",
@@ -4882,8 +4882,8 @@ export default {
         "controlsTabDetail": "Di bawahnya ada baris Gaya Lirik dan Jenis Latar Belakang serta sakelar “Latar belakang pemutar transparan”; dua baris terakhir adalah tema: sumbernya, tema saat ini, membuat tema AI, dan terang atau gelap. Penguatan audio dan offset lirik ada di tab sumber.",
         "queueTab": "Tab Playlist adalah seluruh antrean putar saat ini; baris di atas menyebutkan berapa lagu di dalamnya.",
         "queueTabDetail": "Klik satu baris untuk memutar dari lagu itu; arahkan penunjuk ke baris dan putar berikutnya, pindah ke akhir serta hapus muncul di kanannya. Dua tombol di kepala membentangkan antrean sebagai dinding Lattice dan mengacaknya. Barisnya tidak bisa diseret.",
-        "accountTab": "Tab Akun mengurus sisi sumber musik yang sedang dipakai.",
-        "accountTabDetail": "Tab Akun menampilkan status masuk, Kualitas Default, dan “Sinkronkan Data”. Saat belum masuk, yang tampil adalah tombol “Login di Beranda”."
+        "accountTab": "Tab Kualitas mengurus sisi sumber musik yang sedang dipakai.",
+        "accountTabDetail": "Tab Kualitas menampilkan status masuk, Kualitas Default, dan “Sinkronkan Data”. Saat belum masuk, yang tampil adalah tombol “Login di Beranda”."
       },
       "transition": {
         "enable": "Grup ini tentang bagaimana satu lagu menyambung ke lagu berikutnya. Sakelar di atas adalah nilai yang sama dengan petak “Transisi pintar” di tab Kontrol — dua tempat, satu pengaturan.",

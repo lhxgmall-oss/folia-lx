@@ -16,7 +16,7 @@ import { useLyricSegmentationStore } from '../../../stores/useLyricSegmentationS
 import { LYRIC_SEGMENTATION_COMMAND_ID } from '../../command-palette/commands/lyricSegmentationCommand';
 import ModeStepperRow from './ModeStepperRow';
 import { BackgroundModeGlyph, VisualizerModeGlyph } from '../../visualizer/modeGlyphs';
-import { panelMakesImages, panelPictureTheme } from './panelPictures';
+import { PANEL_PICTURE_DAYLIGHT, PANEL_PICTURE_THEME, panelMakesImages } from './panelPictures';
 import BackgroundPicture from '../../visualizer/preview/BackgroundPicture';
 import { LyricPreviewProvider, type LyricPreviewLook } from '../../visualizer/preview/LyricPreviewContext';
 import LyricStylePicture from '../../visualizer/preview/LyricStylePicture';
@@ -35,9 +35,9 @@ import { Toggle, type PictureState } from '../../modal/settings/kit';
 // 外观区：歌词样式、背景、播放页透明背景三件事放在一起。
 // 前两行是「‹ 字形 当前模式 参数 ›」取景器；背景的模式专属参数由背景注册表自己提供，
 // 面板不再按模式写 if 链，新增背景模式会自带快捷控件。
-// 行里只有字形；点开后的一格一格小图画的是真的样式和背景，用的是当前主题和已保存的设置；
+// 行里只有字形；点开后的一格一格小图画的是真的样式和背景，用的是小图自己那套固定配色和已保存的设置；
 // 它们共用这里的一个预览时钟，只有某一行的选择器开着时时钟才走。
-// 歌在放的时候，只有选择器开着才做小图，换歌带来的新主题也要等下一次打开选择器才用上（panelPictures.ts）。
+// 歌在放的时候，只有选择器开着才做小图；小图不跟页面主题走，换歌、换主题都不会让它们重做（panelPictures.ts）。
 
 interface AppearanceSectionProps {
     theme: Theme;
@@ -58,8 +58,6 @@ const drawStyle = (mode: VisualizerMode, state: PictureState) => <LyricStylePict
 const drawBackground = (mode: VisualizerBackgroundMode, state: PictureState) => <BackgroundPicture mode={mode} {...state} />;
 const drawStyleGlyph = (mode: VisualizerMode) => <VisualizerModeGlyph mode={mode} size={18} />;
 const drawBackgroundGlyph = (mode: VisualizerBackgroundMode) => <BackgroundModeGlyph mode={mode} size={18} />;
-
-type PictureTheme = { theme: Theme; isDaylight: boolean };
 
 const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     theme,
@@ -105,17 +103,9 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     // while the pointer rests on it in an open picker.
     const [openPicker, setOpenPicker] = useState<'style' | 'background' | null>(null);
     const isPlaying = usePlaybackStore(state => selectDisplayPlayerState(state) === PlayerState.PLAYING);
-    const pageTheme = useMemo<PictureTheme>(() => ({ theme, isDaylight }), [theme, isDaylight]);
-    // No picture is drawn before a picker opens, and opening one takes the page's theme.
-    const [pictureTheme, setPictureTheme] = useState(pageTheme);
-    const followedTheme = panelPictureTheme(pictureTheme, pageTheme, { playing: isPlaying, pickerOpens: false });
-    if (followedTheme !== pictureTheme) {
-        setPictureTheme(followedTheme);
-    }
     const changeOpenPicker = (next: 'style' | 'background' | null) => {
         setOpenPicker(next);
         if (next !== null) {
-            setPictureTheme(held => panelPictureTheme(held, pageTheme, { playing: isPlaying, pickerOpens: true }));
             // The rows' Ponder hint, if it is showing, would lie over the picker (lyricStyle.target.ts keeps it away while one is open).
             usePonderStore.getState().setHoveredTargetId(null);
         }
@@ -172,8 +162,8 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             <div data-ponder="lyric-style">
                 <LyricPreviewProvider
                     clock={previewClock}
-                    theme={pictureTheme.theme}
-                    isDaylight={pictureTheme.isDaylight}
+                    theme={PANEL_PICTURE_THEME}
+                    isDaylight={PANEL_PICTURE_DAYLIGHT}
                     look={pictureLook}
                     background={pictureBackground}
                     making={panelMakesImages({ playing: isPlaying, pickerOpen: openPicker !== null })}
@@ -193,7 +183,6 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                         trailing={(
                             <>
                                 <QuickControlChip
-                                    isDaylight={isDaylight}
                                     label={t(`animation.${theme.animationIntensity}`)}
                                     title={`${t('ui.animationIntensity')}: ${t(`animation.${theme.animationIntensity}`)}`}
                                     onClick={cycleAnimationIntensity}
@@ -201,7 +190,6 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                                 {usesWordSegmentation && (
                                     <QuickControlToggle
                                         active={hasSavedSegmentation}
-                                        theme={theme}
                                         label={t('commandPalette.commands.lyric-segmentation.title')}
                                         onToggle={() => {
                                             openCommandPaletteCommand(LYRIC_SEGMENTATION_COMMAND_ID);

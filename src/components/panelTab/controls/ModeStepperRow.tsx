@@ -6,13 +6,19 @@ import type { PictureState } from '../../modal/settings/kit';
 import { kitTransition, useKitReducedMotion } from '../../modal/settings/kit/motion';
 
 // src/components/panelTab/controls/ModeStepperRow.tsx
-// 「‹ 字形 说明/当前模式 参数 ›」行。箭头直接换到相邻模式，点中间那一块才展开全部模式的小图。
+// 「‹ 字形 说明/当前模式⌄ ›」一行，参数放在下面一行、和字形块左对齐。箭头直接换到相邻模式，
+// 点中间那一块才展开全部模式的小图；下拉箭头跟在模式名后面，右端只有步进箭头，两种箭头不挨在一起。
 // 行里只画当前模式的字形，不画小图：小图要把样式在窗口大小的舞台上再画一份，只在选择器开着时才值得。
-// 参数槽宽度固定，模式切换时整行不会跳变。
+// 参数行横向能放下好几枚，放不下就换行；没有参数的模式也留着这一行的高度，模式切换时面板不会跳变。
 // 切换时字形和模式名按步进方向滑入。这里刻意不做退场动画：连点箭头时退场元素会和新元素抢布局，
 // 只让新内容重新挂载入场，快速连点也不会抖。从小图里直接选则没有方向，退化成淡入。
 
 const STEP_ENTER_OFFSET_PX = 10;
+/**
+ * 参数行左缩进，对齐字形块的左边：步进箭头 28 + 间距 4 + 按钮左内边距 6。
+ * 这几个尺寸在下面的 className 里，改其中一个要一起改这里。
+ */
+const PARAMS_INSET_PX = 38;
 
 interface ModeStepperRowProps<Value extends string> {
     value: Value;
@@ -25,7 +31,7 @@ interface ModeStepperRowProps<Value extends string> {
     renderPicture: (value: Value, state: PictureState) => React.ReactNode;
     /** What the row chooses: the small line over the mode's name, and the row's name for assistive tech. */
     caption: string;
-    /** 该模式专属的参数控件，没有时槽位保留占位。 */
+    /** 该模式专属的参数控件，放在模式名下面一行；没有时这一行照样占位。 */
     trailing?: React.ReactNode;
     moreLabel: string;
     onOpenMore: () => void;
@@ -80,47 +86,53 @@ const ModeStepperRow = <Value extends string>({
     );
 
     return (
-        <div className="flex min-h-14 items-center gap-1">
-            {renderStepButton(-1)}
+        <div className="pb-1.5">
+            <div className="flex items-center gap-1">
+                {renderStepButton(-1)}
 
-            <button
-                ref={triggerRef}
-                type="button"
-                onClick={() => onOpenChange(!open)}
-                className={`st-t-fast flex h-12 min-w-0 flex-1 items-center gap-1.5 rounded-[10px] pl-1.5 pr-2 text-left transition-colors hover:bg-[var(--st-fill)] ${open ? 'bg-[var(--st-fill)]' : ''}`}
-                aria-label={caption}
-                aria-haspopup="true"
-                aria-expanded={open}
-            >
-                <motion.span
-                    key={value}
-                    initial={{ opacity: 0, x: enterOffset }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={kitTransition('move', reduced)}
-                    className="flex min-w-0 flex-1 items-center gap-2.5"
+                <button
+                    ref={triggerRef}
+                    type="button"
+                    onClick={() => onOpenChange(!open)}
+                    className={`st-t-fast flex h-12 min-w-0 flex-1 items-center rounded-[10px] pl-1.5 pr-2 text-left transition-colors hover:bg-[var(--st-fill)] ${open ? 'bg-[var(--st-fill)]' : ''}`}
+                    aria-label={caption}
+                    aria-haspopup="true"
+                    aria-expanded={open}
                 >
-                    <span className="grid h-[30px] w-12 shrink-0 place-items-center rounded-md bg-[var(--st-fill)] text-[color:var(--st-t2)] shadow-[inset_0_0_0_1px_var(--st-line)]">
-                        {renderGlyph(value)}
-                    </span>
-                    <span className="min-w-0">
-                        <span className="block text-[11.5px] leading-[15px] text-[color:var(--st-t3)]">{caption}</span>
-                        <span className="block truncate text-sm leading-[19px]">{selectedLabel}</span>
-                    </span>
-                </motion.span>
-                <ChevronDown size={14} className={`st-t-move shrink-0 text-[color:var(--st-t3)] transition-transform ${open ? 'rotate-180' : ''}`} />
-            </button>
+                    <motion.span
+                        key={value}
+                        initial={{ opacity: 0, x: enterOffset }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={kitTransition('move', reduced)}
+                        className="flex min-w-0 flex-1 items-center gap-2.5"
+                    >
+                        <span className="grid h-[30px] w-12 shrink-0 place-items-center rounded-md bg-[var(--st-fill)] text-[color:var(--st-t2)] shadow-[inset_0_0_0_1px_var(--st-line)]">
+                            {renderGlyph(value)}
+                        </span>
+                        <span className="min-w-0">
+                            <span className="block text-[11.5px] leading-[15px] text-[color:var(--st-t3)]">{caption}</span>
+                            {/* 下拉箭头跟着模式名走：名字太长时名字截断，箭头留着。 */}
+                            <span className="flex min-w-0 items-center gap-1">
+                                <span className="truncate text-sm leading-[19px]">{selectedLabel}</span>
+                                <ChevronDown size={13} className={`st-t-move shrink-0 text-[color:var(--st-t3)] transition-transform ${open ? 'rotate-180' : ''}`} />
+                            </span>
+                        </span>
+                    </motion.span>
+                </button>
+
+                {renderStepButton(1)}
+            </div>
 
             <motion.div
                 key={`${value}-trailing`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={kitTransition('move', reduced)}
-                className="flex shrink-0 items-center justify-end gap-1"
+                className="-mt-0.5 flex min-h-7 flex-wrap items-center gap-1.5"
+                style={{ marginLeft: PARAMS_INSET_PX }}
             >
                 {trailing}
             </motion.div>
-
-            {renderStepButton(1)}
 
             <QuickEffectPicker<Value>
                 anchorRef={triggerRef}

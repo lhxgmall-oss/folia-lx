@@ -12,7 +12,7 @@ import type { PonderRelativeRect } from '../../../../types/ponder';
  * 封面页上「这首歌」就是整块面板：大封面、歌名歌手专辑、一行动作，没有别的内容；
  * 换到别的页，它收成顶上 48 高的一行，中间才是那一页的内容。
  *
- * 真实面板的高度跟着内容走（封面页 512，控制页 535）；这里画成一个固定的 360 × 540
+ * 真实面板的高度跟着内容走（封面页 512，控制页 583）；这里画成一个固定的 360 × 540
  * （见 sidePanelAnchor 的 aspect），下面的数是把真实尺寸按这个框换算来的：内边距 12。
  */
 export const SIDE_PANEL_GEOMETRY = {
@@ -80,25 +80,29 @@ export const SIDE_PANEL_SOURCE_PAGE = {
  * 一格可选的图，而两端那对箭头只换到相邻的一个。所以骨架里它必须是一块能被指住的区域。
  */
 export const SIDE_PANEL_CONTROLS_PAGE = {
-    volume: { left: 0, right: 0, top: 0.015, height: 0.07 },
+    volume: { left: 0, right: 0, top: 0.014, height: 0.063 },
     /** 三格：循环、智能过渡、音频效果器。 */
-    soundTiles: { left: 0, right: 0, top: 0.12, height: 0.16 },
-    modeRowVisualizer: { left: 0, right: 0, top: 0.34, height: 0.10 },
-    modeRowBackground: { left: 0, right: 0, top: 0.48, height: 0.10 },
-    transparent: { left: 0, right: 0, top: 0.624, height: 0.07 },
+    soundTiles: { left: 0, right: 0, top: 0.107, height: 0.143 },
+    /** 一整行：上面是箭头和中间那颗按钮，下面是这个模式的那几个小控件。 */
+    modeRowVisualizer: { left: 0, right: 0, top: 0.294, height: 0.176 },
+    modeRowBackground: { left: 0, right: 0, top: 0.475, height: 0.176 },
+    transparent: { left: 0, right: 0, top: 0.665, height: 0.062 },
     /** 主题来源那一行，以及最底下写着当前主题名的那一行。 */
-    themeSource: { left: 0, right: 0, top: 0.777, height: 0.08 },
-    themeName: { left: 0, right: 0, top: 0.897, height: 0.07 },
-    /** 中间那颗按钮的范围：左边让开箭头，右边让开那几个小控件和另一个箭头。 */
-    modeName: { left: 0.107, right: 0.30, top: 0.34, height: 0.10 },
-    modeNameBackground: { left: 0.107, right: 0.30, top: 0.48, height: 0.10 },
+    themeSource: { left: 0, right: 0, top: 0.801, height: 0.071 },
+    themeName: { left: 0, right: 0, top: 0.907, height: 0.062 },
+    /** 中间那颗按钮的范围：左右各让开一个箭头。下拉的小箭头跟在模式名后面，在它里面。 */
+    modeName: { left: 0.095, right: 0.095, top: 0.296, height: 0.10 },
+    modeNameBackground: { left: 0.095, right: 0.095, top: 0.477, height: 0.10 },
+    /** 那几个小控件（动画强度、莫奈的布局、取色开关……）在按钮下面一行，和按钮里的小图左对齐。 */
+    modeParams: { left: 0.113, right: 0.095, top: 0.396, height: 0.063 },
+    modeParamsBackground: { left: 0.113, right: 0.095, top: 0.577, height: 0.063 },
     /**
      * 点开之后弹出来的那一格图，底部一条通往完整设置的出口。
      *
-     * 起点压在那一行**下面**：盖住被点开的那颗按钮的话，「点的是这里、掉下来的是它」
-     * 就没了 —— 高亮也会落在一块看不见的元素上。
+     * 起点压在那颗按钮**下面**：盖住被点开的那颗按钮的话，「点的是这里、掉下来的是它」
+     * 就没了 —— 高亮也会落在一块看不见的元素上。真实界面里它也正好盖住按钮下面那行小控件。
      */
-    modeList: { left: 0.02, right: 0.02, top: 0.45, bottom: 0.02 },
+    modeList: { left: 0.02, right: 0.02, top: 0.41, bottom: 0.02 },
     modeListFooter: { left: 0.05, right: 0.05, bottom: 0.04, height: 0.085 },
 } satisfies Record<string, PonderRelativeRect>;
 

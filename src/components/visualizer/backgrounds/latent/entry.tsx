@@ -54,7 +54,7 @@ export default defineVisualizerBackground({
             onTuningChange={actions?.latent?.onTuningChange}
         />
     ),
-    renderQuickControls: ({ config, actions, t, isDaylight, theme }) => {
+    renderQuickControls: ({ config, actions, t }) => {
         const tuning = config?.latent?.tuning ?? DEFAULT_LATENT_BACKGROUND_TUNING;
         const displayLabel = t(LATENT_DISPLAY_LABEL_KEYS[tuning.displayMode]);
         const cycleDisplayMode = () => {
@@ -67,14 +67,12 @@ export default defineVisualizerBackground({
         return (
             <>
                 <QuickControlChip
-                    isDaylight={isDaylight}
                     label={displayLabel}
                     title={`${t('options.latentDisplayMode')}: ${displayLabel}`}
                     onClick={cycleDisplayMode}
                 />
                 <QuickControlToggle
                     active={tuning.overlayEnabled}
-                    theme={theme}
                     label={t('options.nomandBackgroundOverlay')}
                     onToggle={() => actions?.latent?.onTuningChange?.({ overlayEnabled: !tuning.overlayEnabled })}
                 >
