@@ -236,6 +236,8 @@ const getPlaylistTracks = async (
 const QQ_LIKED_DIR_ID = 201;
 
 const playCountOf = (value: unknown): number | undefined => {
+    // `Number(null)`、`Number('')` 都是 0：上游没给数时不能显示成播放 0 次。
+    if (value === null || value === undefined || value === '') return undefined;
     const count = Number(value);
     return Number.isSafeInteger(count) && count >= 0 ? count : undefined;
 };

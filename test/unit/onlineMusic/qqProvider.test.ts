@@ -1672,6 +1672,12 @@ describe('qqProvider (3.3.3 library)', () => {
             await expect(qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist)).resolves.toBe(ownPlaylist);
         });
 
+        it('leaves the play count out where the upstream gives null', async () => {
+            requestMock.mockResolvedValueOnce({ code: 200, songs: [], total: 3, more: true, play_cnt: null });
+            const detail = await qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist);
+            expect(detail).not.toHaveProperty('playCount');
+        });
+
         it('keeps reading own playlists with credentials after the anonymous detail answers 404', async () => {
             const favourite = normalizeQqCollection({ tid: 80001, dirId: 36, name: '收藏的歌单', songnum: 9 });
             requestMock.mockRejectedValueOnce(new OnlineProviderError('unsupported', 'QQMusicApi has no route', 'qq'));
