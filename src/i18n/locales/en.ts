@@ -1362,6 +1362,9 @@ export default {
     "noteRetryLater": "Try again later",
     "noteSignIn": "Sign in again",
     "noteUnknown": "Unknown error",
+    "noteMaybeSignIn": "Signing in may make it playable",
+    "noteMaybeSubscription": "May need a membership to play",
+    "noteMaybeRegion": "May be restricted in your region",
     "skipCountdown": "Skipping to the next song in {{seconds}}s",
     "signIn": "Sign in"
   },

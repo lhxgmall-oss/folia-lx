@@ -1357,6 +1357,9 @@ export default {
     "noteRetryLater": "Coba lagi nanti",
     "noteSignIn": "Masuk lagi",
     "noteUnknown": "Kesalahan tidak diketahui",
+    "noteMaybeSignIn": "Mungkin bisa diputar setelah masuk",
+    "noteMaybeSubscription": "Mungkin perlu keanggotaan untuk memutar",
+    "noteMaybeRegion": "Mungkin dibatasi di wilayah Anda",
     "skipCountdown": "Lanjut ke lagu berikutnya dalam {{seconds}} detik",
     "signIn": "Masuk"
   },

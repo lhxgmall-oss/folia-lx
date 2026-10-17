@@ -1361,6 +1361,9 @@ export default {
     "noteRetryLater": "请稍后重试",
     "noteSignIn": "请重新登录",
     "noteUnknown": "未知错误",
+    "noteMaybeSignIn": "登录后或许可以播放",
+    "noteMaybeSubscription": "可能需要会员才能播放",
+    "noteMaybeRegion": "可能受地区限制",
     "skipCountdown": "{{seconds}} 秒后跳到下一首",
     "signIn": "登录"
   },
