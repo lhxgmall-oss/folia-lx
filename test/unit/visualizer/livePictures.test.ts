@@ -3,7 +3,7 @@ import { panelMakesImages, panelPictureTheme } from '../../../src/components/pan
 import { imageOf, keepImage, pictureKey, stylePictureKey, themeForPictures } from '../../../src/components/visualizer/preview/pictureImages';
 import { afterTry, FIRST_IMAGE_REST_MS, IMAGE_TRIES, imageRest, NEW_IMAGE_REST_MS, pictureWants } from '../../../src/components/visualizer/preview/pictureRule';
 import { claimRun, holdTurns, runningPicture, takeTurn, whenFree } from '../../../src/components/visualizer/preview/pictureTurns';
-import { coverStage, fitStage } from '../../../src/components/visualizer/preview/previewScale';
+import { coverStage, fitStage, frameStage } from '../../../src/components/visualizer/preview/previewScale';
 import type { Theme } from '../../../src/types';
 
 // test/unit/visualizer/livePictures.test.ts
@@ -61,6 +61,42 @@ describe('the stage fitted into the big sample', () => {
 
     it('gives nothing while the box has no size', () => {
         expect(fitStage({ width: 1440, height: 900 }, { width: 0, height: 300 })).toBeNull();
+    });
+});
+
+describe('the frame that cuts the big sample', () => {
+    // Under the scale the stage's edges fall between device pixels, where a style's canvas and the
+    // dim painted over it were cut differently: a bright line along the sample's right edge.
+    it('cuts the empty sides an edge inside the stage, and reaches an edge past the box where the stage fills it', () => {
+        const stage = { width: 1093, height: 1021 };
+        const box = { width: 585, height: 484 };
+        const { frame, place } = frameStage(stage, box, 1)!;
+        // The height decides: the stage is fitted two edges past the box at the top and bottom.
+        expect(place.scale).toBeCloseTo((484 + 4) / 1021);
+        const scaledWidth = stage.width * place.scale;
+        // Top and bottom: one edge past the box, which cuts the stage there.
+        expect(frame.top).toBeCloseTo(-1);
+        expect(frame.top + frame.height).toBeCloseTo(box.height + 1);
+        // Left and right: one edge inside the stage, centred in the box.
+        const stageLeft = frame.left + place.left;
+        expect(stageLeft).toBeCloseTo((box.width - scaledWidth) / 2);
+        expect(frame.left).toBeCloseTo(stageLeft + 1);
+        expect(frame.left + frame.width).toBeCloseTo(stageLeft + scaledWidth - 1);
+    });
+
+    it('places the stage from the frame\'s corner, one edge up and left of it', () => {
+        const { frame, place } = frameStage({ width: 1024, height: 768 }, { width: 516, height: 445 }, 1)!;
+        expect(place.left).toBe(-1);
+        expect(place.top).toBe(-1);
+        // The width decides here: the sides reach past the box, the top and bottom are cut inside the stage.
+        expect(frame.left).toBeCloseTo(-1);
+        expect(frame.left + frame.width).toBeCloseTo(516 + 1);
+        expect(frame.top).toBeGreaterThan(0);
+    });
+
+    it('gives nothing while either has no size', () => {
+        expect(frameStage({ width: 1440, height: 900 }, { width: 0, height: 300 }, 1)).toBeNull();
+        expect(frameStage({ width: 0, height: 900 }, { width: 400, height: 300 }, 1)).toBeNull();
     });
 });
 

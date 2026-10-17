@@ -34,3 +34,37 @@ export const coverStage = (stage: Size, box: Size): StagePlace | null => placeSt
  * centred, so the box is left empty evenly at two sides. Null while either has no size.
  */
 export const fitStage = (stage: Size, box: Size): StagePlace | null => placeStage(stage, box, Math.min);
+
+/** A rectangle in a box, from the box's top left corner. */
+export type BoxRect = { left: number; top: number; width: number; height: number };
+
+/**
+ * Fits a stage into a box (fitStage) and gives the unscaled frame that cuts what of it shows.
+ * Under the scale the stage's edges fall between device pixels, and there a layer the compositor
+ * draws apart (a style's canvas) is cut at the whole pixel past the edge, while what is painted
+ * over it (the dim over a background) fades out inside that pixel: the last column shows the
+ * canvas undimmed, a bright line along the edge. The frame lies `edge` inside the stage's edges
+ * where the box is left empty, and `edge` past the box's where the stage fills it, so the box cuts
+ * it there; an unscaled frame is cut at the same whole pixel for every layer. The stage's place is
+ * from the frame's top left corner. Null while either has no size.
+ */
+export const frameStage = (stage: Size, box: Size, edge: number): { frame: BoxRect; place: StagePlace } | null => {
+    if (!(box.width > 0 && box.height > 0)) {
+        return null;
+    }
+    // Fitted into the box grown by two edges at each side: along the side it fills, the stage
+    // reaches two edges past the box, and the frame one edge inside the stage, one past the box.
+    const fitted = fitStage(stage, { width: box.width + 4 * edge, height: box.height + 4 * edge });
+    if (!fitted) {
+        return null;
+    }
+    return {
+        frame: {
+            left: fitted.left - edge,
+            top: fitted.top - edge,
+            width: stage.width * fitted.scale - 2 * edge,
+            height: stage.height * fitted.scale - 2 * edge,
+        },
+        place: { scale: fitted.scale, left: -edge, top: -edge },
+    };
+};
