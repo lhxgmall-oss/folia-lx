@@ -185,6 +185,60 @@ describe('QQ login channels declared by the backend', () => {
         expect(probes).toHaveLength(2);
     });
 
+    it('offers the QQ Music app scan only when the backend declares it', async () => {
+        declare(['qq', 'wechat', 'qqmusic']);
+
+        const methods = await omni.resolveLoginMethods('qq');
+
+        expect(methods).toEqual([
+            { id: 'qq', labelKey: 'home.qqLoginMethodMobile', iconKey: 'qq' },
+            { id: 'wechat', labelKey: 'home.qqLoginMethodWechat', iconKey: 'wechat' },
+            { id: 'qqmusic', labelKey: 'home.qqLoginMethodQqMusic', iconKey: 'qqmusic' },
+        ]);
+    });
+
+    it('leaves the QQ Music app scan out where the backend does not declare it', async () => {
+        // Serverless 没配中继：后端只有手机 QQ 与微信。
+        declare(['qq', 'wechat']);
+        await expect(omni.resolveLoginMethods('qq')).resolves.not.toContainEqual(expect.objectContaining({ id: 'qqmusic' }));
+
+        // 旧后端没有 /login/channels：照旧只有两种，没宣告的通道不显示。
+        resetQqLoginChannelCache();
+        requestMock.mockReset();
+        requestMock.mockRejectedValue(new Error('404'));
+        expect(omni.getLoginMethods('qq').map(method => method.id)).toEqual(['qq', 'wechat']);
+    });
+
+    it('asks for a QQ Music app code with the qqmusic channel', async () => {
+        requestMock.mockImplementation(async (operation: string) => {
+            if (operation === 'login_channels') {
+                return { code: 200, data: { channels: ['qq', 'wechat', 'qqmusic'], sessionMode: 'stored', configured: true } };
+            }
+            return { code: 200, data: { unikey: 'qr-key', qrimg: 'data:image/png;base64,fixture' } };
+        });
+
+        await omni.startLogin('qq', 'qqmusic');
+
+        expect(requestMock).toHaveBeenCalledWith('login_qr_key', { channel: 'qqmusic' });
+    });
+
+    it('has an icon file and a label in every language for each method', async () => {
+        declare(['qq', 'wechat', 'qqmusic']);
+        const methods = await omni.resolveLoginMethods('qq');
+        const { existsSync } = await import('node:fs');
+        const { resolve } = await import('node:path');
+        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
+
+        for (const method of methods) {
+            expect(existsSync(resolve(process.cwd(), 'src/assets/providers', `${method.iconKey}.svg`))).toBe(true);
+            const [group, key] = method.labelKey.split('.');
+            for (const locale of locales) {
+                const table = locale.default ?? Object.values(locale)[0];
+                expect(table?.[group]?.[key]).toEqual(expect.any(String));
+            }
+        }
+    });
+
     it('probes the backend only once however often the methods are read', async () => {
         declare(['qq', 'wechat']);
 

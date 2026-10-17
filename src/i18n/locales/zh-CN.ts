@@ -1430,6 +1430,7 @@ export default {
     "loginMethodPending": "选择登录方式后生成二维码",
     "qqLoginMethodMobile": "QQ 扫码",
     "qqLoginMethodWechat": "微信扫码",
+    "qqLoginMethodQqMusic": "QQ 音乐 App 扫码",
     "switchOnlineProvider": "切换在线音乐平台",
     "confirmOnlineProviderSwitch": "切换到 {{provider}}？当前在线播放与队列将被清空。",
     "onlineProvider": "在线音乐平台",

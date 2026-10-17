@@ -1431,6 +1431,7 @@ export default {
     "loginMethodPending": "Pick a sign-in method to generate the QR code",
     "qqLoginMethodMobile": "QQ scan",
     "qqLoginMethodWechat": "WeChat scan",
+    "qqLoginMethodQqMusic": "QQ Music app scan",
     "switchOnlineProvider": "Switch online music provider",
     "confirmOnlineProviderSwitch": "Switch to {{provider}}? Current online playback and queue will be cleared.",
     "onlineProvider": "Online music provider",

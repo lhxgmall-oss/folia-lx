@@ -1426,6 +1426,7 @@ export default {
     "loginMethodPending": "Pilih metode masuk untuk menghasilkan kode QR",
     "qqLoginMethodMobile": "Pindai QQ",
     "qqLoginMethodWechat": "Pindai WeChat",
+    "qqLoginMethodQqMusic": "Pindai aplikasi QQ Music",
     "switchOnlineProvider": "Ganti penyedia musik online",
     "confirmOnlineProviderSwitch": "Ganti ke {{provider}}? Pemutaran online dan antrean saat ini akan dihapus.",
     "onlineProvider": "Penyedia musik online",

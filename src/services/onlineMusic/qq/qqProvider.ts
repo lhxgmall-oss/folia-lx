@@ -447,10 +447,16 @@ const logout = async (): Promise<void> => {
 // services 层不 import 任何 .svg：iconKey 是图标的名字，UI 层按它取 src/assets/providers/ 里同名的文件。
 // `qq` 是 QQ 扫码登录通道的 canonical 名字（旧名 `mobile`，后端仍在入口归一，
 // 所以新版 Folia 配旧后端也不会断）。协议本身没变：仍送 tmeLoginType 6、收回 loginType 2。
+// `qqmusic` 是用 QQ 音乐 App 扫码（App 登的是 QQ 还是微信账号都行），后端在 /login/channels 里说有才显示：
+// Serverless 没配中继时就没有它。
 const QQ_LOGIN_METHODS: LoginMethod[] = [
     { id: 'qq', labelKey: 'home.qqLoginMethodMobile', iconKey: 'qq' },
     { id: 'wechat', labelKey: 'home.qqLoginMethodWechat', iconKey: 'wechat' },
+    { id: 'qqmusic', labelKey: 'home.qqLoginMethodQqMusic', iconKey: 'qqmusic' },
 ];
+
+// 还没问到后端（或旧后端没有 /login/channels）时显示的方式：和以前一样只有这两种，没宣告的通道不显示。
+const QQ_UNDECLARED_LOGIN_METHOD_IDS: readonly string[] = ['qq', 'wechat'];
 
 const DEFAULT_QQ_LOGIN_METHOD_ID = QQ_LOGIN_METHODS[0].id;
 
@@ -491,7 +497,7 @@ const refreshDeclaredChannels = (forceRetry = false): Promise<void> => {
 // serverless 用户连选择器都看不到，比多一次无意义的点击更好。
 const getLoginMethods = (): LoginMethod[] => {
     void refreshDeclaredChannels();
-    if (!declaredChannels) return QQ_LOGIN_METHODS;
+    if (!declaredChannels) return QQ_LOGIN_METHODS.filter(method => QQ_UNDECLARED_LOGIN_METHOD_IDS.includes(method.id));
     const supported = QQ_LOGIN_METHODS.filter(method => declaredChannels?.includes(method.id));
     return supported.length > 1 ? supported : [];
 };
