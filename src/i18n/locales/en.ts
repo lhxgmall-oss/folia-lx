@@ -1571,6 +1571,10 @@ export default {
     "neteaseNewSongs": "New songs",
     "neteaseNewAlbums": "New albums",
     "neteaseHotPlaylists": "Popular playlists",
+    "qqRadar": "Song radar",
+    "qqNewSongs": "New songs",
+    "qqNewAlbums": "New albums",
+    "qqCharts": "Charts",
     "personalFm": "Personal FM",
     "dailyRecommendations": "Daily Recommendations",
     "dailyRecommendationsDescription": "A daily mix made for you",
@@ -3644,6 +3648,7 @@ export default {
     "restoreServerPresetFailed": "Could not reach the server preset. Try again later.",
     "cloudDrive": "Cloud Drive",
     "cloudDriveDesc": "NetEase Cloud Music Drive",
+    "qqCloudDriveDesc": "Weiyun Music Drive",
   },
   "unifiedPanel": {
     "nowPlayingStageDescription": "Now Playing is being controlled by an external player. Folia is only responsible for displaying lyrics and visual effects.",

@@ -1571,6 +1571,10 @@ export default {
     "neteaseNewSongs": "新歌速递",
     "neteaseNewAlbums": "新碟上架",
     "neteaseHotPlaylists": "热门歌单",
+    "qqRadar": "刷歌模式",
+    "qqNewSongs": "新歌速递",
+    "qqNewAlbums": "新碟上架",
+    "qqCharts": "排行榜",
     "personalFm": "私人FM",
     "dailyRecommendations": "每日推荐",
     "dailyRecommendationsDescription": "为你定制的每日歌曲",
@@ -3644,6 +3648,7 @@ export default {
     "restoreServerPresetFailed": "无法获取服务器预置，请稍后再试。",
     "cloudDrive": "云盘",
     "cloudDriveDesc": "网易云音乐云盘",
+    "qqCloudDriveDesc": "微云音乐网盘",
   },
   "unifiedPanel": {
     "nowPlayingStageDescription": "Now Playing 正由外部播放器控制，Folia 只负责展示歌词和视觉效果。",
