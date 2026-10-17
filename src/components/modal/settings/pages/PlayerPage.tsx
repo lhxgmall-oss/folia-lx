@@ -177,6 +177,7 @@ const PlayerPage: React.FC = () => {
                         options={[
                             { value: 'player', label: t('playbackEntryView.player.title'), picture: <EntryViewPicture view="player" /> },
                             { value: 'lattice', label: t('playbackEntryView.lattice.title'), picture: <EntryViewPicture view="lattice" /> },
+                            { value: 'stay', label: t('playbackEntryView.stay.title'), picture: <EntryViewPicture view="stay" /> },
                         ]}
                         onChange={setPlaybackEntryView}
                     />
