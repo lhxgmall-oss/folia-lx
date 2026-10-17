@@ -239,6 +239,30 @@ describe('QQ login channels declared by the backend', () => {
         }
     });
 
+    it('tells a person who scanned with the wrong app what to do here, by the channels the backend has', async () => {
+        // 登录文字在通道问到之前就被拿走了：显示时才按通道说。
+        const texts = omni.getLoginTexts('qq');
+        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('home.loginCaseQqWrongScanAppMobileOnly');
+
+        declare(['qq', 'wechat', 'qqmusic']);
+        await omni.resolveLoginMethods('qq');
+        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('home.loginCaseQqWrongScanApp');
+
+        resetQqLoginChannelCache();
+        declare(['qq', 'wechat']);
+        await omni.resolveLoginMethods('qq');
+        expect(texts?.caseNotes?.['wrong-scan-app']).toBe('home.loginCaseQqWrongScanAppMobileOnly');
+
+        // 两句在三种语言里都有。
+        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
+        for (const locale of locales) {
+            expect(locale.default.home.loginCaseQqWrongScanApp).toEqual(expect.any(String));
+            expect(locale.default.home.loginCaseQqWrongScanAppMobileOnly).toEqual(expect.any(String));
+            expect(locale.default.login.caseWrongScanApp).toEqual(expect.any(String));
+            expect(locale.default.login.noteWrongScanApp).toEqual(expect.any(String));
+        }
+    });
+
     it('probes the backend only once however often the methods are read', async () => {
         declare(['qq', 'wechat']);
 

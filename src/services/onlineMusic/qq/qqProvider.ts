@@ -26,7 +26,7 @@ import { getQqSongDetail, requestQqSongDetail } from './qqSongDetail';
 import { qqRecommendations } from './qqRecommendations';
 import { searchQqSongs } from './qqSearch';
 import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
-import { describeQqLoginFailure, qqCheckFailure } from './qqLoginFailure';
+import { describeQqLoginFailure, qqCheckFailure, qqHintFailure } from './qqLoginFailure';
 import { describeQqFailure } from './qqFailure';
 import { noteQqBackendDeclaration, resetQqBackendDeclaration } from './qqBackendDeclaration';
 import { keepQqSessionFresh, resetQqSessionRefresh, stopQqSessionRefresh } from './qqSessionRefresh';
@@ -548,9 +548,13 @@ const QQ_DEVICE_LIMIT_UPSTREAM_CODE = 20279;
 // 3.3.0 给同一种失败登记的错误键；上游码与通道、步骤都对得上时才给。
 const QQ_DEVICE_LIMIT_ERROR_KEY = 'auth.device-limit';
 
+// 3.3.3 起后端另给 `failureHint.key`，设备已满是 `login.device-limit`（从同样的码推出来，多认一处只为保险）。
+const QQ_DEVICE_LIMIT_HINT_KEY = 'login.device-limit';
+
 const reportsDeviceLimit = (failure: any): boolean => (
     Number(failure?.upstreamCode) === QQ_DEVICE_LIMIT_UPSTREAM_CODE
     || failure?.upstreamErrorKey === QQ_DEVICE_LIMIT_ERROR_KEY
+    || failure?.failureHint?.key === QQ_DEVICE_LIMIT_HINT_KEY
 );
 
 // 最近一次要码的时刻：只认这之后的凭据交换记录，主进程环形记录里上一轮的结果不算。
@@ -616,6 +620,9 @@ const checkLogin = async (key: string): Promise<LoginState> => {
         if (await isQqDeviceLimit(response)) {
             return { state: 'error', message: describeCheckAnswer(response), failure: { ...qqCheckFailure(response), case: 'device-limit' } };
         }
+        // 后端认得出的原因（failureHint）比下面按字段猜的准：太频繁是稍后再试，账号被拒是平台拒绝。
+        const hinted = qqHintFailure(response);
+        if (hinted) return { state: 'error', message: describeCheckAnswer(response), failure: hinted };
         if (response?.upstreamCode !== undefined) {
             console.warn('[QQProvider] qr-check:upstream-rejected', {
                 upstreamCode: response?.upstreamCode,
@@ -917,7 +924,16 @@ export const qqProvider: OnlineMusicProvider = {
         getLoginTexts: () => ({
             title: 'home.loginTitleQq',
             note: 'home.loginNoteQq',
-            caseNotes: { 'local-service-unavailable': 'home.loginCaseQqRestart' },
+            caseNotes: {
+                'local-service-unavailable': 'home.loginCaseQqRestart',
+                // 扫错 App 时说怎么改：后端提供 QQ 音乐 App 扫码就请用的人改选它，没有就只能用手机 QQ 扫。
+                // 文字在登录开始、通道还没问到时就拿走了，所以到窗口真的要显示时才看通道。
+                get 'wrong-scan-app'() {
+                    return declaredChannels?.includes('qqmusic')
+                        ? 'home.loginCaseQqWrongScanApp'
+                        : 'home.loginCaseQqWrongScanAppMobileOnly';
+                },
+            },
         }),
         getLoginStatus,
         logout,
