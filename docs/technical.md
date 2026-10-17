@@ -51,7 +51,13 @@ https://omarchyplugins.com/plugin.html?id=lia.folia-lyrics
 
 ### Hyprland / Wayland 遥控窗
 
-桌面端的外部遥控窗会作为主窗口的伴随窗口打开，并使用稳定窗口标题 `Folia Remote`。在 Hyprland 下，如果希望它以悬浮小窗方式出现，可以在 `hyprland.conf` 中添加类似规则：
+桌面端的外部遥控窗会作为主窗口的伴随窗口打开，并使用稳定窗口标题 `Folia Remote`。
+
+纯 Wayland 下 Folia 没法自己把窗口置顶：Chromium 的 Wayland 后端收到置顶请求后只记下这个值，不发给合成器（标准 xdg-shell 也没有"置顶"这个请求）。所以这时遥控窗右上角的图钉、遥控窗"更多"里主窗口的"置顶"、托盘菜单的"窗口置顶"都是灰的，命令面板里也没有"切换主窗口置顶"。要置顶，交给合成器的窗口规则，做法见下面 Hyprland 和 KDE 两节；也可以改用 XWayland 运行（见 KDE 一节最后），那样这几个开关照常可用。
+
+#### Hyprland
+
+如果希望遥控窗以悬浮小窗方式出现并保持置顶，可以在 `hyprland.conf` 中添加类似规则：
 
 ```ini
 windowrule {
@@ -70,6 +76,22 @@ windowrule {
 ```
 
 不同打包方式下窗口 `class` 可能不同；如果规则没有生效，可以用 `hyprctl clients` 查看实际 `class` / `title` 后再调整匹配条件。
+
+#### KDE Plasma（KWin）
+
+长期生效的做法是加一条 KWin 窗口规则（括号里是英文界面的名字，中文翻译随版本可能略有不同）：
+
+1. 打开"系统设置"里的"窗口规则"（Window Rules），新建一条规则。
+2. "窗口类（应用程序）"（Window class (application)）填 `folia-major`，"窗口标题"（Window title）填 `Folia Remote`，都选"完全匹配"（Exact Match）。也可以在遥控窗开着时点"检测窗口属性"（Detect Window Properties），再点一下遥控窗，自动填入。
+3. 点"添加属性"（Add Property），选"保持在其他窗口之上"（Keep above other windows），设为"强制"（Force）和"是"（Yes），然后应用。
+
+主窗口（例如桌面歌词）也想置顶的话，把"窗口标题"那一项去掉、只按窗口类匹配：这条规则会同时作用于主窗口和遥控窗。
+
+只想临时置顶一次：选中窗口后按 `Alt+F3` 打开窗口菜单，在"更多操作"（More Actions）里勾选"保持在其他窗口之上"（Keep Above Others）。遥控窗没有系统标题栏，所以用快捷键打开这个菜单；关掉窗口后这个设置不会保留。
+
+和 Hyprland 一样，不同打包方式下窗口类可能不同，以"检测窗口属性"看到的为准。
+
+也可以让 Folia 走 XWayland：启动时加上 `--ozone-platform=x11`（例如 `folia-major --ozone-platform=x11`，或者写进 `.desktop` 文件的 `Exec` 行）。这时置顶由 Folia 自己完成，上面几个开关照常可用；代价是窗口改走 X11 兼容层，缩放、输入法等方面的表现可能与原生 Wayland 不同，壁纸模式在这种运行方式下也不保证可用。
 
 ## 部署与开发
 

@@ -174,6 +174,7 @@ const RemoteControlApp: React.FC = () => {
                                 key="sheet"
                                 tab={sheet.tab}
                                 snapshot={snapshot}
+                                alwaysOnTopSupported={presentation.alwaysOnTopSupported}
                                 choices={choices}
                                 primaryDisabled={primaryDisabled}
                                 reduceMotion={reduceMotion}
@@ -185,6 +186,7 @@ const RemoteControlApp: React.FC = () => {
 
                     <RemoteWindowTools
                         backgroundMode={backgroundMode}
+                        alwaysOnTopSupported={presentation.alwaysOnTopSupported}
                         onCycleBackgroundMode={() => setBackgroundMode(previous => (
                             previous === 'default' ? 'cover' : previous === 'cover' ? 'transparent' : 'default'
                         ))}

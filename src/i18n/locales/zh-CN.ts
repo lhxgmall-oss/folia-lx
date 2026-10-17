@@ -3846,6 +3846,7 @@ export default {
     "enableClickThrough": "点击穿透",
     "through": "穿透",
     "pin": "置顶",
+    "pinUnavailable": "Wayland 下无法置顶，可改用桌面环境的窗口规则（如 KDE 的“保持在其他窗口之上”）",
     "portrait": "竖屏",
     "landscape": "横屏",
     "square": "方屏",

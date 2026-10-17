@@ -3746,6 +3746,7 @@ export default {
     "enableClickThrough": "Klik-Tembus",
     "through": "Tembus",
     "pin": "Sematkan",
+    "pinUnavailable": "Tidak bisa selalu di atas di Wayland. Gunakan aturan jendela desktop Anda (mis. \"Keep Above Others\" di KDE)",
     "portrait": "Potret",
     "landscape": "Lanskap",
     "square": "Persegi",

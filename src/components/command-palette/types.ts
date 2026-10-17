@@ -210,6 +210,8 @@ export type CommandPaletteNavigationContext = {
     toggleMainWindowAlwaysOnTop: () => Promise<boolean>;
     /** Window-level toggles (fullscreen, always-on-top) are meaningless in wallpaper mode. */
     isWallpaperMode: boolean;
+    /** False on native Wayland, where Electron's always-on-top is silently ignored. */
+    isWindowAlwaysOnTopSupported: boolean;
 };
 
 export type CommandPalettePanelContext = {

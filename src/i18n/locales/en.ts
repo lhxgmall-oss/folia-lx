@@ -3847,6 +3847,7 @@ export default {
     "enableClickThrough": "Click-Through",
     "through": "Through",
     "pin": "Pin",
+    "pinUnavailable": "Can't stay on top under Wayland. Use your desktop's window rules instead (e.g. KDE's \"Keep Above Others\")",
     "portrait": "Portrait",
     "landscape": "Landscape",
     "square": "Square",
