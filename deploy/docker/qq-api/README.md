@@ -16,7 +16,7 @@
 | 启动入口 | `dist/src/app.js`（包的 `main`），Koa 服务 |
 | Node 要求 | `>=20`；镜像用 `node:24-alpine` |
 
-该包是上游的 fork，相对上游增加了微信扫码和 QQ 扫码登录、二维码会话的取消与抢占、账号歌单 / 我喜欢 / 收藏的专辑等接口，并把编译产物发布成可直接 `require()` 的 npm 包。完整差异见包自带 README 的「关于本 fork」一节。
+该包是上游的 fork，相对上游增加了微信扫码、手机 QQ 扫码和 QQ 音乐 App 扫码登录、二维码会话的取消与抢占、账号歌单 / 我喜欢 / 收藏的专辑等接口，并把编译产物发布成可直接 `require()` 的 npm 包。完整差异见包自带 README 的「关于本 fork」一节。
 
 后端改动应先在 `qq-music-api` 仓库完成并发布新版本，再回到本目录升级版本号并重新生成 lockfile。
 
@@ -140,9 +140,9 @@ docker compose up -d --wait
 
 两个变量都是服务端密钥，**不加 `VITE_` 前缀**——加了会被编进前端资产。改动其中任何一个都要重新部署才生效。
 
-### QQ 扫码登录（Cloudflare，可选）
+### QQ 音乐 App 扫码（Cloudflare，可选）
 
-默认的 serverless 部署只有微信扫码登录方式。QQ 扫码走 MQTT over WebSocket，CONNECT 请求的是 clean session、订阅是 unicast，断连期间上游既不保留也不补送，一次 request-scoped 的调用握不住这条连接。
+默认的 serverless 部署有微信扫码和手机 QQ 扫码：3.3.3 起手机 QQ 扫码走 QQ 互联的网页登录，全是普通的 HTTP 请求。QQ 音乐 App 扫码走 MQTT over WebSocket，CONNECT 请求的是 clean session、订阅是 unicast，断连期间上游既不保留也不补送，一次 request-scoped 的调用握不住这条连接。
 
 Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那条连接。**这是可选的，要自己加绑定**：仓库里的 `wrangler.jsonc` 刻意不带它，因为那个文件是 README 上「Deploy to Cloudflare」按钮消费的，DO migration 一旦入库就会套用到每一个点按钮的人，而且 migration 有黏性（日后想去掉还得再写一条 delete migration）。
 
@@ -155,7 +155,7 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["QqQrChannel"] }]
 ```
 
-绑定名必须是 `QQ_QR_CHANNEL`，类名必须是 `QqQrChannel`（`worker/index.ts` 导出的就是它）。加完之后 `GET /login/channels` 会宣告 `["qq", "wechat"]`，前端自动显示通道选择器；没加就还是只有微信——**这是能力声明，不是错误**，两种情况都不会报错。
+绑定名必须是 `QQ_QR_CHANNEL`，类名必须是 `QqQrChannel`（`worker/index.ts` 导出的就是它）。加完之后 `GET /login/channels` 会宣告 `["qq", "wechat", "qqmusic"]`，手机 QQ 扫码也改走这条长连接；没加就是微信扫码和网页登录的手机 QQ 扫码——**这是能力声明，不是错误**，两种情况都不会报错，前端照这份声明显示登录方式。
 
 几件需要知道的事：
 
@@ -168,9 +168,10 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
 
 | | 常驻 Node / Docker / Electron | Serverless |
 | --- | --- | --- |
-| 登录方式 | QQ 扫码、微信扫码 | 微信扫码；Cloudflare 绑定 DO 后增加 QQ 扫码 |
+| 登录方式 | 手机 QQ 扫码、微信扫码、QQ 音乐 App 扫码 | 微信扫码、手机 QQ 扫码（3.3.3 起走网页登录）；Cloudflare 绑定 DO 后多 QQ 音乐 App 扫码 |
 | 登录态 | 服务端进程内持有，token 只是查找键 | 加密封装在 token 里，服务端不存 |
 | 登出 | 服务端真正删除会话 | 只能由客户端丢弃 token，旧 token 在到期前仍有效 |
+| 续期 | 进程在凭证到期前自己续，token 不变 | 3.3.3 起调 `POST /login/refresh` 换新 token，从第一次扫码算起最多 30 天 |
 | 未登录播放 | 回退到匿名链接 | `/getMusicPlay` 直接回 `401` |
 | 未设 secret | 不影响 | 登录路由回 `501`，曲库路由照常 |
 
