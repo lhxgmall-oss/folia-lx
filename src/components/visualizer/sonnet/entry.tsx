@@ -1,6 +1,8 @@
 import React from 'react';
-import { DEFAULT_SONNET_TUNING } from '../../../types';
-import { defineVisualizer } from '../definition';
+import { WandSparkles } from 'lucide-react';
+import type { SonnetOuterFrameMode, SonnetTuning } from '../../../types';
+import { cycleValue, QuickControlChip, QuickControlToggle } from '../../shared/QuickControlChip';
+import { defineVisualizer, type VisualizerQuickControlsProps } from '../definition';
 import SonnetSettingsPanel from './SonnetSettingsPanel';
 
 const VisualizerSonnet = React.lazy(() => import('./VisualizerSonnet'));
@@ -10,6 +12,13 @@ const SONNET_TUNABLE = { min: 0, max: 3, identity: 1 } as const;
 
 // src/components/visualizer/sonnet/entry.tsx
 // Registers 商籁, the deterministic Japanese MG lyric-PV director.
+const OUTER_FRAME_MODES: SonnetOuterFrameMode[] = ['none', 'frame', 'full'];
+const OUTER_FRAME_LABEL_KEYS: Record<SonnetOuterFrameMode, string> = {
+    none: 'options.sonnetOuterFrameNone',
+    frame: 'options.sonnetOuterFrameFrame',
+    full: 'options.sonnetOuterFrameFull',
+};
+
 export default defineVisualizer({
     mode: 'sonnet',
     order: 10,
@@ -17,7 +26,18 @@ export default defineVisualizer({
     labelFallback: '商籁',
     previewSeed: 'sonnet',
     previewStartOffset: 0,
-    tuningKind: 'sonnet',
+    // 商籁：海报式边框与角标
+    glyph: (
+        <>
+            <path d="M4 7V4.5h2.5M17.5 4.5H20V7M20 17v2.5h-2.5M6.5 19.5H4V17" />
+            <path d="M8.5 12h7" opacity="0.6" />
+        </>
+    ),
+    command: {
+        title: 'Visualizer: Sonnet',
+        description: 'Switch to Sonnet visualizer',
+        keywords: ['sonnet', '商籁', '文字 pv', 'mg pv', 'vocaloid'],
+    },
     usesWordSegmentation: true,
     // Folium tunables read by createSonnetPixiRuntime's mod(key). Names are public API.
     foliumTunables: {
@@ -38,8 +58,24 @@ export default defineVisualizer({
     // context away mid-transition and leave the frame empty for the whole rebuild.
     render: props => <VisualizerSonnet {...props} />,
     renderSettingsPanel: props => <SonnetSettingsPanel {...props} />,
-    resetSettings: ({ resetSonnetTuning, setDraftSonnetTuning }) => {
-        setDraftSonnetTuning?.(DEFAULT_SONNET_TUNING);
-        resetSonnetTuning?.();
+    renderQuickControls: ({ tuning, onTuningChange, t }: VisualizerQuickControlsProps<SonnetTuning>) => {
+        const frameLabel = t(OUTER_FRAME_LABEL_KEYS[tuning.outerFrameMode]);
+        return (
+            <>
+                <QuickControlChip
+                    label={frameLabel}
+                    title={`${t('options.sonnetOuterFrameMode')}: ${frameLabel}`}
+                    onClick={() => onTuningChange({ outerFrameMode: cycleValue(OUTER_FRAME_MODES, tuning.outerFrameMode) })}
+                />
+                <QuickControlToggle
+                    active={tuning.postProcessEnabled}
+                    label={t('options.sonnetPostProcessEnabled')}
+                    onToggle={() => onTuningChange({ postProcessEnabled: !tuning.postProcessEnabled })}
+                >
+                    <WandSparkles size={14} />
+                </QuickControlToggle>
+            </>
+        );
     },
+    ownFontSizeNoticeKey: 'options.sonnetFontSizeAutoNotice',
 });
