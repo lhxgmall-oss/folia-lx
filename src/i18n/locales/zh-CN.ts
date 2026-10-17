@@ -1430,6 +1430,8 @@ export default {
     "spotifyLikedSongs": "已点赞的歌曲",
     "spotifyNewReleases": "关注歌手的新发行",
     "loginNoteQq": "请选择与账号一致的登录方式：QQ 扫码或微信扫码",
+    "loginTitleQqAppScan": "使用 QQ、微信、QQ 音乐三种 App 择一扫码",
+    "loginNoteQqAppScan": "支持 QQ、微信、QQ 音乐 3 种扫码登录方式",
     "loginMethodTitle": "选择登录方式",
     "loginMethodPending": "选择登录方式后生成二维码",
     "qqLoginMethodMobile": "QQ 扫码",

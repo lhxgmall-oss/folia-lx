@@ -45,12 +45,14 @@ const QQ_REFUSED_HINT_KEYS: ReadonlySet<string> = new Set([
  * 登录太频繁是稍后再试；平台拒绝的几种是 refused，引后端的原话；用 QQ 音乐 App 扫了手机 QQ 的码是 wrong-scan-app，
  * 该怎么做由登录窗口按 QQ 的 caseNotes 说（qqProvider.ts）。认不出的 key 和没有 hint 的回 null，照旧按别的字段分。
  * 登录设备已满不在这里：它在 qqProvider.ts 里先认出来。
+ * `channel` 是这张码走的通道：后端认扫错 App 时不看通道，可 `qqmusic` 的码三种 App 都能扫，那里说扫错了不成立，
+ * 回 null 照一般的拒绝处理。不知道通道时照旧。
  */
-export const qqHintFailure = (response: any): LoginFailureDetail | null => {
+export const qqHintFailure = (response: any, channel?: string): LoginFailureDetail | null => {
     const hint = response?.failureHint;
     const key = typeof hint?.key === 'string' ? hint.key : '';
     if (key === 'login.rate-limited') return qqCheckFailure(response, true);
-    if (key === 'login.wrong-scan-app') return { ...qqCheckFailure(response), case: 'wrong-scan-app' };
+    if (key === 'login.wrong-scan-app') return channel === 'qqmusic' ? null : { ...qqCheckFailure(response), case: 'wrong-scan-app' };
     if (!QQ_REFUSED_HINT_KEYS.has(key)) return null;
     const said = typeof hint?.message === 'string' ? hint.message.trim() : '';
     return { ...qqCheckFailure(response), case: 'refused', ...(said ? { message: said } : {}) };

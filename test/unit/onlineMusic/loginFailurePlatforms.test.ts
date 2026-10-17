@@ -306,6 +306,26 @@ describe('QQ Music', () => {
         expect(loginCaseOf(failed)).toMatchObject({ kind: 'C', action: 'refresh-code' });
     });
 
+    // Any of the three apps may scan a code of the QQ Music app channel, so there a wrong app is not
+    // what went wrong: the same answer reads as a refusal with no name, as it did before the hint.
+    it('no wrong-scan-app for a code asked for on the QQ Music app channel', async () => {
+        desktop(3300);
+        const wrongApp = {
+            code: 800, message: 'QR login failed', failureStage: 'credential-validation', upstreamCode: 1000,
+            primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 50006 }, fallbackAttempted: true,
+            failureHint: { key: 'login.wrong-scan-app', message: 'If you scanned with the QQ Music app, choose QQ Music app login instead.' },
+        };
+        vi.stubGlobal('fetch', vi.fn(async (url: unknown) => Response.json(
+            String(url).includes('/login/qr/key') ? { code: 200, data: { unikey: 'app-key' } }
+                : String(url).includes('/login/qr/create') ? { code: 200, data: { qrimg: 'data:image/png;base64,fixture' } }
+                    : wrongApp,
+        )));
+        await omni.startLogin('qq', 'qqmusic');
+        expect(await answered(() => omni.checkLogin('qq', 'app-key'))).toMatchObject({ id: 'retry-later', code: '800', upstreamCode: '1000' });
+        // Another code than the one asked for on that channel keeps the hint.
+        expect((await answered(() => omni.checkLogin('qq', 'qr-key'))).id).toBe('wrong-scan-app');
+    });
+
     // The shapes qq-music-api gives for a full device list, by channel and by how the code was read.
     const hint = { key: 'login.device-limit', message: 'This account has reached its login device limit.' };
     const DEVICE_LIMITS: Array<[string, Record<string, unknown>]> = [

@@ -275,3 +275,95 @@ describe('QQ login channels declared by the backend', () => {
         expect(probes).toHaveLength(1);
     });
 });
+
+describe('QQ Music app scan only, where the backend keeps the session', () => {
+    beforeEach(() => {
+        requestMock.mockReset();
+        resetQqLoginChannelCache();
+    });
+
+    // 桌面版、Docker、Node 的后端（3.3.2 起）宣告三个通道、会话存在后端。
+    const declare = (channels: string[], sessionMode?: string) => {
+        requestMock.mockImplementation(async (operation: string) => {
+            if (operation === 'login_channels') {
+                return { code: 200, data: { channels, ...(sessionMode ? { sessionMode } : {}), configured: true } };
+            }
+            if (operation === 'login_qr_key') return { code: 200, data: { unikey: 'qr-key' } };
+            return { code: 200, data: { qrimg: 'data:image/png;base64,fixture' } };
+        });
+    };
+
+    it('shows no picker and asks for a QQ Music app code straight away', async () => {
+        declare(['qq', 'wechat', 'qqmusic'], 'stored');
+
+        await expect(omni.resolveLoginMethods('qq')).resolves.toEqual([]);
+        expect(omni.getLoginMethods('qq')).toEqual([]);
+        await omni.startLogin('qq');
+
+        expect(requestMock).toHaveBeenCalledWith('login_qr_key', { channel: 'qqmusic' });
+    });
+
+    it('treats a backend that does not say how it keeps the session like one that keeps it', async () => {
+        declare(['qq', 'wechat', 'qqmusic']);
+
+        await expect(omni.resolveLoginMethods('qq')).resolves.toEqual([]);
+    });
+
+    it('keeps the choice on a serverless backend, with or without the QQ Music app scan', async () => {
+        declare(['qq', 'wechat', 'qqmusic'], 'sealed');
+        await expect(omni.resolveLoginMethods('qq')).resolves.toHaveLength(3);
+
+        resetQqLoginChannelCache();
+        declare(['qq', 'wechat'], 'sealed');
+        await expect(omni.resolveLoginMethods('qq')).resolves.toHaveLength(2);
+    });
+
+    it('keeps mobile QQ and WeChat where the backend has no QQ Music app scan, or has not answered', async () => {
+        // 3.3.1：会话存在后端，但只有这两个通道。
+        declare(['qq', 'wechat'], 'stored');
+        expect((await omni.resolveLoginMethods('qq')).map(method => method.id)).toEqual(['qq', 'wechat']);
+        await omni.startLogin('qq', 'wechat');
+        expect(requestMock).toHaveBeenCalledWith('login_qr_key', { channel: 'wechat' });
+
+        resetQqLoginChannelCache();
+        requestMock.mockReset();
+        requestMock.mockRejectedValue(new Error('404'));
+        expect((await omni.resolveLoginMethods('qq')).map(method => method.id)).toEqual(['qq', 'wechat']);
+    });
+
+    it('says the three apps can scan the code, and goes back to the usual words elsewhere', async () => {
+        const texts = omni.getLoginTexts('qq');
+        expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQq' });
+
+        // 文字在通道问到之前就被拿走了：显示时才按通道说。
+        declare(['qq', 'wechat', 'qqmusic'], 'stored');
+        await omni.resolveLoginMethods('qq');
+        expect(texts).toMatchObject({ title: 'home.loginTitleQqAppScan', note: 'home.loginNoteQqAppScan' });
+
+        resetQqLoginChannelCache();
+        declare(['qq', 'wechat', 'qqmusic'], 'sealed');
+        await omni.resolveLoginMethods('qq');
+        expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQq' });
+
+        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
+        for (const locale of locales) {
+            expect(locale.default.home.loginTitleQqAppScan).toEqual(expect.any(String));
+            expect(locale.default.home.loginNoteQqAppScan).toEqual(expect.any(String));
+        }
+    });
+
+    it('names the method the window offers in the report', async () => {
+        const shown = async () => (await omni.getLoginDiagnostics('qq'))
+            .map(line => line.text)
+            .find(text => text.startsWith('login methods shown:'));
+
+        declare(['qq', 'wechat', 'qqmusic'], 'stored');
+        await omni.resolveLoginMethods('qq');
+        expect(await shown()).toBe('login methods shown: qqmusic (no picker)');
+
+        resetQqLoginChannelCache();
+        declare(['qq', 'wechat', 'qqmusic'], 'sealed');
+        await omni.resolveLoginMethods('qq');
+        expect(await shown()).toBe('login methods shown: qq, wechat, qqmusic');
+    });
+});

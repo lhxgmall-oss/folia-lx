@@ -1426,6 +1426,8 @@ export default {
     "spotifyLikedSongs": "Lagu yang Disukai",
     "spotifyNewReleases": "Rilis baru dari artis yang Anda ikuti",
     "loginNoteQq": "Pilih metode masuk yang sesuai: pindai QQ atau pindai WeChat",
+    "loginTitleQqAppScan": "Pindai dengan QQ, WeChat, atau QQ Music",
+    "loginNoteQqAppScan": "Mendukung 3 cara pindai: QQ, WeChat, dan QQ Music",
     "loginMethodTitle": "Pilih metode masuk",
     "loginMethodPending": "Pilih metode masuk untuk menghasilkan kode QR",
     "qqLoginMethodMobile": "Pindai QQ",

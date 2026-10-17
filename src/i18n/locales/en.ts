@@ -1431,6 +1431,8 @@ export default {
     "spotifyLikedSongs": "Liked Songs",
     "spotifyNewReleases": "New from artists you follow",
     "loginNoteQq": "Choose the sign-in method matching your account: QQ scan or WeChat scan",
+    "loginTitleQqAppScan": "Scan with QQ, WeChat, or QQ Music",
+    "loginNoteQqAppScan": "Supports 3 ways to scan: QQ, WeChat, and QQ Music",
     "loginMethodTitle": "Choose sign-in method",
     "loginMethodPending": "Pick a sign-in method to generate the QR code",
     "qqLoginMethodMobile": "QQ scan",
