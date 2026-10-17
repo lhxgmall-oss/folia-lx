@@ -1,6 +1,5 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { readProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
-import { errorFields } from '../../../utils/errorText';
 import { qqBackendSessionMode } from './qqBackendDeclaration';
 import { hasQqSession, requestQq } from './qqTransport';
 
@@ -41,7 +40,7 @@ const refreshOnce = async (): Promise<void> => {
             return;
         }
         // 旧 token 照原来的到期时间还能用，这次没续上只是等下一次。401 时 transport 已经清掉了会话。
-        console.warn('[QQProvider] session-refresh:failed', errorFields(error));
+        console.warn('[QQProvider] session-refresh:failed', error);
     }
 };
 
@@ -52,10 +51,14 @@ export const refreshQqSession = (): Promise<void> => {
 };
 
 /**
- * 确认登录还在之后调用：距上次问超过一个间隔就马上问一次，并开始每个间隔问一次；会话没了就停。
+ * 确认登录还在、通道探测也有了结果之后调用：后端是 Serverless（sealed）时，距上次问超过一个间隔就马上问一次，
+ * 并开始每个间隔问一次；会话没了就停。别的后端自己续期，不起定时器。
+ * 探测失败、存法还不知道时也起定时器：每次到点由 refreshOnce 再看存法，不是 sealed 就不问。
  * 读账号的时机（启动、回到窗口）会反复调用它，重复调用不会多发请求。
  */
 export const keepQqSessionFresh = (): void => {
+    const mode = qqBackendSessionMode();
+    if (mode !== null && mode !== 'sealed') return;
     if (!timer) {
         timer = setInterval(() => {
             if (!hasQqSession()) {

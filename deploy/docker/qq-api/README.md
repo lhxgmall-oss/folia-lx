@@ -171,7 +171,7 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
 | 登录方式 | 手机 QQ 扫码、微信扫码、QQ 音乐 App 扫码 | 微信扫码、手机 QQ 扫码（3.3.3 起走网页登录）；Cloudflare 绑定 DO 后多 QQ 音乐 App 扫码 |
 | 登录态 | 服务端进程内持有，token 只是查找键 | 加密封装在 token 里，服务端不存 |
 | 登出 | 服务端真正删除会话 | 只能由客户端丢弃 token，旧 token 在到期前仍有效 |
-| 续期 | 进程在凭证到期前自己续，token 不变 | 3.3.3 起调 `POST /login/refresh` 换新 token，从第一次扫码算起最多 30 天 |
+| 续期 | 进程在凭证到期前自己续，token 不变 | 3.3.2 起调 `POST /login/refresh` 换新 token，从第一次扫码算起最多 30 天 |
 | 未登录播放 | 回退到匿名链接 | `/getMusicPlay` 直接回 `401` |
 | 未设 secret | 不影响 | 登录路由回 `501`，曲库路由照常 |
 

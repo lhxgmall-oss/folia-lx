@@ -348,7 +348,13 @@ describe('QQ Music app scan only, where the backend keeps the session', () => {
         expect(texts).toMatchObject({ title: 'home.loginTitleQqAppScan', note: 'home.loginNoteQqAppScan' });
 
         resetQqLoginChannelCache();
+        // Serverless 带 QQ 音乐 App 扫码：选择器有三种，说明也说三种。
         declare(['qq', 'wechat', 'qqmusic'], 'sealed');
+        await omni.resolveLoginMethods('qq');
+        expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQqWithApp' });
+
+        resetQqLoginChannelCache();
+        declare(['qq', 'wechat'], 'sealed');
         await omni.resolveLoginMethods('qq');
         expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQq' });
 
@@ -356,6 +362,7 @@ describe('QQ Music app scan only, where the backend keeps the session', () => {
         for (const locale of locales) {
             expect(locale.default.home.loginTitleQqAppScan).toEqual(expect.any(String));
             expect(locale.default.home.loginNoteQqAppScan).toEqual(expect.any(String));
+            expect(locale.default.home.loginNoteQqWithApp).toEqual(expect.any(String));
         }
     });
 
@@ -372,5 +379,27 @@ describe('QQ Music app scan only, where the backend keeps the session', () => {
         declare(['qq', 'wechat', 'qqmusic'], 'sealed');
         await omni.resolveLoginMethods('qq');
         expect(await shown()).toBe('login methods shown: qq, wechat, qqmusic');
+    });
+
+    it('keeps the window texts on the methods this login resolved when a later probe finds more', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        try {
+            // 打开窗口时探测失败：窗口给的是回落的 QQ 扫码与微信扫码。
+            requestMock.mockRejectedValue(new Error('temporary network failure'));
+            const texts = omni.getLoginTexts('qq');
+            expect((await omni.resolveLoginMethods('qq')).map(method => method.id)).toEqual(['qq', 'wechat']);
+
+            // 30 秒后别处的读取重新探测，这次后端宣告了 QQ 音乐 App 扫码。
+            declare(['qq', 'wechat', 'qqmusic'], 'stored');
+            vi.advanceTimersByTime(31_000);
+            omni.getLoginMethods('qq');
+            await vi.waitFor(() => expect(omni.getLoginMethods('qq')).toEqual([]));
+
+            // 窗口上还是那个选择器给的码：文字照这一次登录解析出的方式说。
+            expect(texts).toMatchObject({ title: 'home.loginTitleQq', note: 'home.loginNoteQq' });
+            expect(texts?.caseNotes?.['wrong-scan-app']).toBe('home.loginCaseQqWrongScanAppMobileOnly');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

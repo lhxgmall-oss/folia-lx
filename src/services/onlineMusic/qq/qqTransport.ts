@@ -40,7 +40,7 @@ const ENDPOINTS: Record<QqOperation, string> = {
     logout: '/logout',
     // 只有 3.0.0 之后的后端有这条路由，旧后端回 404，调用方要把它当成「没有声明」而不是错误。
     login_channels: '/login/channels',
-    // 3.3.3 的主动续期：Serverless 在快到期时换新 token。旧后端照例 404 → `unsupported`（qqSessionRefresh.ts）。
+    // 3.3.2 起的主动续期：Serverless 在快到期时换新 token。旧后端照例 404 → `unsupported`（qqSessionRefresh.ts）。
     login_refresh: '/login/refresh',
     user_detail: '/user/detail',
     user_playlist: '/user/playlist',
