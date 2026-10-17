@@ -8,6 +8,7 @@ import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry'
 import { requestQq, resetQqTransportRuntimeCache } from '@/services/onlineMusic/qq/qqTransport';
 import type { LoginStep, LoginState } from '@/types/onlineMusic';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
+import { failureNoteKey } from '@/components/login/window/loginView';
 
 // test/unit/onlineMusic/loginFailurePlatforms.test.ts
 // Which case each platform's own failure sorts to, through the real facade, adapter and
@@ -263,15 +264,38 @@ describe('QQ Music', () => {
         expect((await answered(() => omni.checkLogin('qq', 'qr-key'))).id).toBe('retry-later');
     });
 
-    it('refused: 800 whose hint says QQ would not let this account in, quoting the backend\'s words', async () => {
+    it('refused: 800 whose hint says QQ rejected the sign-in, quoting the backend\'s words', async () => {
         desktop(3300);
-        for (const key of ['login.account-restricted', 'login.account-banned', 'login.account-binding', 'login.rejected']) {
-            const message = `words for ${key}`;
-            vi.stubGlobal('fetch', answers({ code: 800, message: 'QR login failed', upstreamCode: 1000, failureHint: { key, message }, retryAfterMs: 30000 }));
+        const message = 'words for login.rejected';
+        vi.stubGlobal('fetch', answers({ code: 800, message: 'QR login failed', upstreamCode: 1000, failureHint: { key: 'login.rejected', message }, retryAfterMs: 30000 }));
+        const failed = await answered(() => omni.checkLogin('qq', 'qr-key'));
+        expect(failed).toMatchObject({ id: 'refused', code: '800', message, upstreamCode: '1000' });
+        expect(loginCaseOf(failed).action).toBe('wait-then-retry');
+        expect(failureNoteKey({ case: loginCaseOf(failed), facts: failed, at: 0 }, omni.getLoginTexts('qq')?.caseNotes)).toBe('login.noteRetryLater');
+    });
+
+    // The backend's words for these are English defaults it says a front end may replace by key
+    // (qq-music-api 3.3.3 loginHints.ts): the window says in Folia's words what is wrong with the
+    // account, never that trying again later helps, and quotes the answer's own message.
+    it('refused: 800 whose hint names a problem with the account itself, said in Folia\'s words', async () => {
+        desktop(3300);
+        const NOTES: Record<string, string> = {
+            'login.account-banned': 'home.loginCaseQqAccountBanned',
+            'login.account-restricted': 'home.loginCaseQqAccountRestricted',
+            'login.account-binding': 'home.loginCaseQqAccountBinding',
+        };
+        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
+        for (const [key, note] of Object.entries(NOTES)) {
+            vi.stubGlobal('fetch', answers({ code: 800, message: 'QR login failed', upstreamCode: 1000, failureHint: { key, message: `words for ${key}` }, retryAfterMs: 30000 }));
             const failed = await answered(() => omni.checkLogin('qq', 'qr-key'));
-            expect(failed).toMatchObject({ id: 'refused', code: '800', message, upstreamCode: '1000' });
-            expect(loginCaseOf(failed).action).toBe('wait-then-retry');
+            expect(failed, key).toMatchObject({ id: 'refused', code: '800', message: 'QR login failed', upstreamCode: '1000' });
+            expect(failureNoteKey({ case: loginCaseOf(failed), facts: failed, at: 0 }, omni.getLoginTexts('qq')?.caseNotes), key).toBe(note);
+            for (const locale of locales) expect(locale.default.home[note.split('.')[1]], note).toEqual(expect.any(String));
         }
+        // A new code clears it: a refusal at another step does not carry the account's words.
+        vi.stubGlobal('fetch', answers({ code: 200, data: { unikey: 'next-key', qrimg: 'data:image/png;base64,fixture' } }));
+        await omni.startLogin('qq', 'qq');
+        expect(omni.getLoginTexts('qq')?.caseNotes?.refused).toBeUndefined();
     });
 
     // Where Folia reaches the backend: the desktop app's embedded one, a same-origin serverless entry

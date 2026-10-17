@@ -26,11 +26,11 @@ import { getQqSongDetail, requestQqSongDetail } from './qqSongDetail';
 import { qqRecommendations } from './qqRecommendations';
 import { searchQqSongs } from './qqSearch';
 import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
-import { describeQqLoginFailure, qqCheckFailure, qqHintFailure } from './qqLoginFailure';
+import { describeQqLoginFailure, qqAccountHintNote, qqCheckFailure, qqHintFailure } from './qqLoginFailure';
 import { describeQqFailure } from './qqFailure';
 import { getQqCloudCollection, getQqCloudTracks, getQqListTracks, qqListKindOf } from './qqLists';
 import { qqExplore } from './qqExplore';
-import { areQqSongsLiked, withQqVipType } from './qqAccount';
+import { areQqSongsLiked, resetQqVipMemory, withQqVipType } from './qqAccount';
 import { requestQqPreviewSource } from './qqPreview';
 import { noteQqBackendDeclaration, qqBackendSessionMode, resetQqBackendDeclaration } from './qqBackendDeclaration';
 import { keepQqSessionFresh, resetQqSessionRefresh, stopQqSessionRefresh } from './qqSessionRefresh';
@@ -119,6 +119,7 @@ export const resetQqProviderRuntimeCache = (): void => {
     ownedPlaylistRouteMissing = false;
     lastLoginStatusCheck = null;
     playlistRound = null;
+    resetQqVipMemory();
     resetQqSessionRefresh();
 };
 
@@ -586,9 +587,25 @@ const shownLoginMethodIds = (): string[] => {
     return QQ_LOGIN_METHODS.filter(method => declaredChannels?.includes(method.id)).map(method => method.id);
 };
 
+// 登录窗口的标题、说明和扫错 App 那一句要照的样子：是不是只给 QQ 音乐 App 扫码、选择器里有没有它。
+type QqLoginShape = { appOnly: boolean; offersQqMusic: boolean };
+
+const currentLoginShape = (): QqLoginShape => ({
+    appOnly: scansWithAppOnly(),
+    offersQqMusic: Boolean(declaredChannels?.includes('qqmusic')),
+});
+
+// 这一次登录解析出方式时（resolveLoginMethods）记下的样子：之后后台再探测改了通道，窗口上的码和选择器
+// 还是这一次的，文字也照它说。还没解析完时是 null，照此刻的通道说。
+let resolvedLoginShape: QqLoginShape | null = null;
+
+const loginShape = (): QqLoginShape => resolvedLoginShape ?? currentLoginShape();
+
 /** 登录动作必须等能力发现完成，避免启动的二维码通道与弹窗显示的选项来自两个时刻。 */
 const resolveLoginMethods = async (): Promise<LoginMethod[]> => {
+    resolvedLoginShape = null;
     await refreshDeclaredChannels(true);
+    resolvedLoginShape = currentLoginShape();
     return getLoginMethods();
 };
 
@@ -607,6 +624,8 @@ export const resetQqLoginChannelCache = (): void => {
     channelProbe = null;
     channelProbeRetryAt = 0;
     lastQrLogin = null;
+    lastAccountHintKey = null;
+    resolvedLoginShape = null;
     resetQqBackendDeclaration();
 };
 
@@ -641,6 +660,10 @@ let qrKeyRequestedAt = 0;
 
 // 最近一次要到的码走的是哪个通道：后端认出的原因有的只在某个通道上说得通（qqLoginFailure.ts 的 qqHintFailure）。
 let lastQrLogin: { key: string; channel: string } | null = null;
+
+// 这一轮登录最后一次检查失败时后端给的 hint key：账号本身的问题（被封、受限、绑定）由 caseNotes 照它说。
+// 要码时清掉，所以别的步骤的拒绝不会带上上一轮的话。
+let lastAccountHintKey: string | null = null;
 
 // 登录设备超限的判定。微信通道的凭据交换没有回退，20279 直接出现在响应的 upstreamCode 上。QQ 通道交换失败后
 // 后端会拿 MQTT 凭据再验一次，验证也被拒（code 1000）才失败在 credential-validation，顶层只剩后一次的码；
@@ -704,7 +727,10 @@ const checkLogin = async (key: string): Promise<LoginState> => {
         }
         // 后端认得出的原因（failureHint）比下面按字段猜的准：太频繁是稍后再试，账号被拒是平台拒绝。
         const hinted = qqHintFailure(response, lastQrLogin?.key === key ? lastQrLogin.channel : undefined);
-        if (hinted) return { state: 'error', message: describeCheckAnswer(response), failure: hinted };
+        if (hinted) {
+            lastAccountHintKey = hinted.case === 'refused' ? response?.failureHint?.key ?? null : null;
+            return { state: 'error', message: describeCheckAnswer(response), failure: hinted };
+        }
         if (response?.upstreamCode !== undefined) {
             console.warn('[QQProvider] qr-check:upstream-rejected', {
                 upstreamCode: response?.upstreamCode,
@@ -742,20 +768,21 @@ const checkLogin = async (key: string): Promise<LoginState> => {
 
 // 这一轮读到的整份歌单。账号层每 50 张要一页（account/accountRead.ts），而后端一次就给整份：
 // 只在第一页（offset 0）请求，后面的页从这份里切，不再每页重读一遍。
-let playlistRound: { response: any; playlists: unknown[] } | null = null;
+// 记下是为哪个账号读的：换了账号（或退出后换号登录）时，后面的页不会切到上一个账号的那份。
+let playlistRound: { userId: MediaId; response: any; playlists: unknown[] } | null = null;
 
 // `/user/playlist` returns the whole GetPlaylistByUin list and takes no upstream paging parameters,
 // so the Omni page window is applied locally instead of being forwarded.
 const getUserPlaylists = async (
-    _userId: MediaId,
+    userId: MediaId,
     limit: number,
     offset: number,
 ): Promise<ProviderPage<ProviderCollection>> => {
-    if (offset === 0 || !playlistRound) {
+    if (offset === 0 || !playlistRound || String(playlistRound.userId) !== String(userId)) {
         // 不传 `uid`：会话账号是这条 route 唯一读得到的账号，而后端从凭据里挑出来的账号 ID 比前端
         // 手上这个展示用的可靠 —— 微信凭据的 `musicid` 是占位的 0，回传它只会让自建歌单整段消失。
         const response = await requestQq<any>('user_playlist', {});
-        playlistRound = { response, playlists: Array.isArray(response?.playlist) ? response.playlist : [] };
+        playlistRound = { userId, response, playlists: Array.isArray(response?.playlist) ? response.playlist : [] };
     }
     const { response, playlists } = playlistRound;
     const items = playlists
@@ -1014,24 +1041,31 @@ export const qqProvider: OnlineMusicProvider = {
     lyrics: { getLyrics },
     auth: {
         getLoginTexts: () => ({
-            // 和 caseNotes 一样，到窗口真的要显示时才看通道：只给 QQ 音乐 App 扫码时说三种 App 都能扫。
+            // 和 caseNotes 一样，到窗口真的要显示时才看这一次登录解析出的方式：只给 QQ 音乐 App 扫码时说三种 App 都能扫，
+            // 选择器里有三种方式时说明也说三种。
             get title() {
-                return scansWithAppOnly() ? 'home.loginTitleQqAppScan' : 'home.loginTitleQq';
+                return loginShape().appOnly ? 'home.loginTitleQqAppScan' : 'home.loginTitleQq';
             },
             get note() {
-                return scansWithAppOnly() ? 'home.loginNoteQqAppScan' : 'home.loginNoteQq';
+                const shape = loginShape();
+                if (shape.appOnly) return 'home.loginNoteQqAppScan';
+                return shape.offersQqMusic ? 'home.loginNoteQqWithApp' : 'home.loginNoteQq';
             },
-            caseNotes: {
-                'local-service-unavailable': 'home.loginCaseQqRestart',
-                // 登录设备满了要去哪里清：QQ 音乐 App 的设置最下面「设备管理」。共用那一句只说在手机上退出。
-                'device-limit': 'home.loginCaseQqDeviceLimit',
-                // 扫错 App 时说怎么改：后端提供 QQ 音乐 App 扫码就请用的人改选它，没有就只能用手机 QQ 扫。
-                // 文字在登录开始、通道还没问到时就拿走了，所以到窗口真的要显示时才看通道。
-                get 'wrong-scan-app'() {
-                    return declaredChannels?.includes('qqmusic')
+            // 窗口每次画失败时都来读：扫错 App 那一句照这一次登录解析出的方式说，账号本身的问题照最后一次检查失败说。
+            get caseNotes() {
+                const accountNote = qqAccountHintNote(lastAccountHintKey);
+                return {
+                    'local-service-unavailable': 'home.loginCaseQqRestart',
+                    // 登录设备满了要去哪里清：QQ 音乐 App 的设置最下面「设备管理」。共用那一句只说在手机上退出。
+                    'device-limit': 'home.loginCaseQqDeviceLimit',
+                    // 扫错 App 时说怎么改：后端提供 QQ 音乐 App 扫码就请用的人改选它，没有就只能用手机 QQ 扫。
+                    // 文字在登录开始、通道还没问到时就拿走了，所以到窗口真的要显示时才看。
+                    'wrong-scan-app': loginShape().offersQqMusic
                         ? 'home.loginCaseQqWrongScanApp'
-                        : 'home.loginCaseQqWrongScanAppMobileOnly';
-                },
+                        : 'home.loginCaseQqWrongScanAppMobileOnly',
+                    // 账号被封、受限、绑定有问题时说怎么回事、该做什么（qqLoginFailure.ts）；别的拒绝用共用那一句。
+                    ...(accountNote ? { refused: accountNote } : {}),
+                };
             },
         }),
         getLoginStatus,
@@ -1044,6 +1078,7 @@ export const qqProvider: OnlineMusicProvider = {
         // 没拿到 key 或图片就在那一步失败：空 key 只会换来后端的 400，空图片会让登录窗口一直转圈。
         async startLogin(methodId) {
             qrKeyRequestedAt = Date.now();
+            lastAccountHintKey = null;
             const channel = resolveQrLoginMethodId(methodId);
             const response = await requestQq<any>('login_qr_key', { channel });
             const key = String(response?.data?.unikey || '');
