@@ -330,6 +330,8 @@ export type CommandPaletteSettingsContext = {
     toggleCloseToTray: () => void;
     /** Remote control window: hide the top floating window-control bar. */
     toggleHideRemoteControlTitlebar: () => void;
+    /** Remote control window: when idle, expand the cover into the large sleeve. */
+    toggleRemoteControlExpandCover: () => void;
     /** Turns remote control click-through off (the way back into a click-through window). */
     unlockRemoteControl: () => void;
     /** OBS browser source: keep the main window's heavy animation while an OBS client is connected. */

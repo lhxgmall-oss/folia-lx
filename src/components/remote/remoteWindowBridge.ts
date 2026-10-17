@@ -93,6 +93,8 @@ export interface RemoteWindowPresentation {
     hideTitlebar: boolean;
     /** The window ignores the mouse: it is a display, and the key row is not drawn. */
     clickThrough: boolean;
+    /** The settings switch "expand cover": when idle, the cover opens into the large sleeve. On by default. */
+    expandCover: boolean;
     /** False on native Wayland, where Electron cannot keep a window on top: both pin switches grey out. */
     alwaysOnTopSupported: boolean;
 }
@@ -100,6 +102,7 @@ export interface RemoteWindowPresentation {
 const DEFAULT_REMOTE_WINDOW_PRESENTATION: RemoteWindowPresentation = {
     hideTitlebar: false,
     clickThrough: false,
+    expandCover: true,
     alwaysOnTopSupported: true,
 };
 
@@ -112,11 +115,13 @@ export const useRemoteWindowPresentation = (): RemoteWindowPresentation => {
             const next: RemoteWindowPresentation = {
                 hideTitlebar: Boolean(settings.hideTitlebar),
                 clickThrough: Boolean(settings.clickThrough),
+                expandCover: settings.expandCover !== false,
                 alwaysOnTopSupported: settings.alwaysOnTopSupported !== false,
             };
             setPresentation(previous => (
                 previous.hideTitlebar === next.hideTitlebar
                     && previous.clickThrough === next.clickThrough
+                    && previous.expandCover === next.expandCover
                     && previous.alwaysOnTopSupported === next.alwaysOnTopSupported
                     ? previous
                     : next

@@ -372,6 +372,15 @@ export const settingsCommands: CommandPaletteCommand[] = [
         context => context.settings.toggleHideRemoteControlTitlebar(),
         { platform: ['electron'] },
     ),
+    createToggleCommand(
+        'desktop-toggle-remote-control-expand-cover',
+        'settings',
+        'Remote control: expand cover',
+        'Toggle whether the remote control window expands the cover into a large image when idle',
+        ['remote control cover', 'remote window cover', 'expand cover', 'album sleeve', 'large cover', '遥控窗口封面', '展开封面', '封面大图'],
+        context => context.settings.toggleRemoteControlExpandCover(),
+        { platform: ['electron'] },
+    ),
     {
         // Pairs with the remote control click-through switch: while the window ignores the mouse this is the way back in.
         id: 'desktop-unlock-remote-control',
@@ -473,7 +482,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         'bottomUiSettings',
     ),
     createSettingsCommand('settings-visualizer', 'Visualizer settings', 'Open lyrics animation workbench', ['visualizer workbench', '可视化', '歌词动画', 'donghua'], 'options', 'visualizer'),
-    createSettingsCommand('settings-theme-park', 'Color', 'Open theme editor', ['theme park', 'theme', '配色', '主题', '主题公园'], 'options', 'themePark', { executeShortcut: 't' }),
+    createSettingsCommand('settings-theme-park', 'Color', 'Open theme editor', ['theme park', 'theme', '配色', '主题', '主题公园', '主题乐园'], 'options', 'themePark', { executeShortcut: 't' }),
     createSettingsCommand('settings-global-lyric-offset', 'Global timing offset', 'Calibrate lyric timing against Bluetooth or device audio latency', ['lyric delay', 'audio latency', 'bluetooth delay', 'sync lyrics', '全局时间偏移', '歌词延迟', '音画同步', '蓝牙延迟'], 'options', 'globalLyricOffset'),
     createSettingsCommand('settings-lyric-filter', 'Lyric filter', 'Open lyric filter settings', ['lyrics filter', '歌词过滤', '过滤'], 'options', 'lyricFilter'),
     {
