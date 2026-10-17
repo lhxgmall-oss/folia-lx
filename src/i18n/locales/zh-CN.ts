@@ -1305,6 +1305,7 @@ export default {
     "noPlatformMatch": "没有匹配的平台",
     "rowSignedIn": "已登录",
     "rowRanOut": "登录已过期",
+    "rowSignedOut": "未登录",
     "signInRanOut": "登录已过期",
     "readingAccount": "正在读取账号…",
     "openBrowser": "打开浏览器",

@@ -1305,6 +1305,7 @@ export default {
     "noPlatformMatch": "No matching platform",
     "rowSignedIn": "Signed in",
     "rowRanOut": "Sign-in expired",
+    "rowSignedOut": "Not signed in",
     "signInRanOut": "Sign-in expired",
     "readingAccount": "Reading your account…",
     "openBrowser": "Open the browser",
