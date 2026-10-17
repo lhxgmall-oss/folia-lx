@@ -1671,5 +1671,15 @@ describe('qqProvider (3.3.3 library)', () => {
             requestMock.mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi request failed: 502', 'qq', undefined, 502));
             await expect(qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist)).resolves.toBe(ownPlaylist);
         });
+
+        it('keeps reading own playlists with credentials after the anonymous detail answers 404', async () => {
+            const favourite = normalizeQqCollection({ tid: 80001, dirId: 36, name: '收藏的歌单', songnum: 9 });
+            requestMock.mockRejectedValueOnce(new OnlineProviderError('unsupported', 'QQMusicApi has no route', 'qq'));
+            await expect(qqProvider.catalog!.getPlaylistDetail!(favourite.id, favourite)).resolves.toBe(favourite);
+
+            requestMock.mockResolvedValueOnce({ code: 200, songs: [], total: 3, more: true, play_cnt: 42 });
+            await expect(qqProvider.catalog!.getPlaylistDetail!(ownPlaylist.id, ownPlaylist)).resolves.toMatchObject({ playCount: 42 });
+            expect(requestMock).toHaveBeenLastCalledWith('user_playlist_detail', expect.objectContaining({ tid: '70001', dirid: 5 }));
+        });
     });
 });

@@ -250,8 +250,9 @@ const getPlaylistDetail = async (id: MediaId, collection?: ProviderCollection): 
     const dirId = Number(collection.providerData?.dirId);
     const owned = collection.providerData?.owned === true;
     if (qqListKindOf(collection) || collection.isLiked || (owned && dirId === QQ_LIKED_DIR_ID)) return collection;
+    const ownedRoute = owned && Number.isFinite(dirId) && dirId > 0;
     try {
-        if (owned && Number.isFinite(dirId) && dirId > 0) {
+        if (ownedRoute) {
             if (ownedPlaylistRouteMissing) return collection;
             const response = await requestQq<any>('user_playlist_detail', {
                 tid: String(collection.providerData?.tid ?? id),
@@ -274,7 +275,8 @@ const getPlaylistDetail = async (id: MediaId, collection?: ProviderCollection): 
             ...(!collection.description && description ? { description } : {}),
         };
     } catch (error) {
-        if (error instanceof OnlineProviderError && error.code === 'unsupported') ownedPlaylistRouteMissing = true;
+        // 只有 `/user/playlist-detail` 的 404 说明后端没有这条路由；匿名歌单详情的 404 不能连带关掉自建歌单的读取。
+        if (ownedRoute && error instanceof OnlineProviderError && error.code === 'unsupported') ownedPlaylistRouteMissing = true;
         console.warn('[QQProvider] playlist-detail:failed', error);
         return collection;
     }
