@@ -640,9 +640,13 @@
   transition: background-color 140ms ease-out, color 140ms ease-out;
 }
 
-.remote-tool:hover {
+.remote-tool:hover:not(:disabled) {
   background: rgba(var(--remote-ink), 0.12);
   color: rgb(var(--remote-ink));
+}
+
+.remote-tool:disabled {
+  opacity: 0.45;
 }
 
 /* ---- the line: divider and progress in one, y 125..127 ---- */

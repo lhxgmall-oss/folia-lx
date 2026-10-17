@@ -6,19 +6,15 @@ import type { PictureState } from '../../modal/settings/kit';
 import { kitTransition, useKitReducedMotion } from '../../modal/settings/kit/motion';
 
 // src/components/panelTab/controls/ModeStepperRow.tsx
-// 「‹ 字形 说明/当前模式⌄ 主参数 ›」一行，其余参数放在下面一行、和字形块左对齐。箭头直接换到相邻模式，
+// 「‹ 字形 说明/当前模式⌄ 主参数 ›」一行，其余参数放在下面一行、靠右和右端箭头对齐。箭头直接换到相邻模式，
 // 点中间那一块才展开全部模式的小图；下拉箭头跟在模式名后面，不和右端的步进箭头挨在一起。
+// 两端的步进箭头贴着内容区左右边，和上面的磁贴、下面各行对齐成同一条线。
 // 行里只画当前模式的字形，不画小图：小图要把样式在窗口大小的舞台上再画一份，只在选择器开着时才值得。
 // 下面那行横向能放下好几枚，放不下就换行；这个模式没有其余参数时整行收起，收放走高度动画，面板不会一下跳开。
 // 切换时字形和模式名按步进方向滑入。这里刻意不做退场动画：连点箭头时退场元素会和新元素抢布局，
 // 只让新内容重新挂载入场，快速连点也不会抖。从小图里直接选则没有方向，退化成淡入。
 
 const STEP_ENTER_OFFSET_PX = 10;
-/**
- * 参数行左缩进，对齐字形块的左边：步进箭头 28 + 间距 4 + 按钮左内边距 6。
- * 这几个尺寸在下面的 className 里，改其中一个要一起改这里。
- */
-const PARAMS_INSET_PX = 38;
 
 interface ModeStepperRowProps<Value extends string> {
     value: Value;
@@ -157,8 +153,7 @@ const ModeStepperRow = <Value extends string>({
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={kitTransition('move', reduced)}
-                            className="flex min-h-7 flex-wrap items-center gap-1.5 pt-1"
-                            style={{ marginLeft: PARAMS_INSET_PX }}
+                            className="flex min-h-7 flex-wrap items-center justify-end gap-1.5 pt-1"
                         >
                             {params}
                         </motion.div>

@@ -12,6 +12,10 @@ export const QQ_OPERATIONS = [
     'user_guess_you_like', 'user_daily_songs', 'recommend_playlists',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
     'user_song_like', 'user_album_subscribe',
+    'user_vip', 'user_cloud', 'user_playlist_create',
+    'recommend_new_songs', 'recommend_new_albums', 'recommend_toplists', 'recommend_toplist',
+    'recommend_categories', 'recommend_category_playlists', 'recommend_radar',
+    'radio_list', 'radio_tracks', 'song_similar',
     'music_play', 'song_list_detail', 'song_info',
     'album_info', 'artist_albums', 'artist_songs',
     'search',
@@ -24,6 +28,7 @@ export type QqParams = Record<string, string | number | boolean | undefined>;
 const POST_OPERATIONS: ReadonlySet<QqOperation> = new Set<QqOperation>([
     'login_refresh',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_song_like', 'user_album_subscribe',
+    'user_playlist_create',
 ]);
 
 const ENDPOINTS: Record<QqOperation, string> = {
@@ -55,6 +60,22 @@ const ENDPOINTS: Record<QqOperation, string> = {
     // 3.3.1 的红心与收藏专辑：写一次、读回确认后才回成功，结果不明回 502。
     user_song_like: '/user/song/like',
     user_album_subscribe: '/user/album/subscribe',
+    // 3.3.3：会员等级、音乐云盘、建自己的歌单，都要登录。
+    user_vip: '/user/vip',
+    user_cloud: '/user/cloud',
+    user_playlist_create: '/user/playlist/create',
+    // 3.3.3 探索页用的路由。新歌、新碟、排行榜、歌单分类读的是公开内容，刷歌模式没登录也能读；
+    // 电台和相似歌曲要登录。没有数据回 422，旧后端没有这些路由回 404。
+    recommend_new_songs: '/recommend/new-songs',
+    recommend_new_albums: '/recommend/new-albums',
+    recommend_toplists: '/recommend/toplists',
+    recommend_toplist: '/recommend/toplist',
+    recommend_categories: '/recommend/categories',
+    recommend_category_playlists: '/recommend/category-playlists',
+    recommend_radar: '/recommend/radar',
+    radio_list: '/radio/list',
+    radio_tracks: '/radio/tracks',
+    song_similar: '/song/similar',
     music_play: '/getMusicPlay',
     song_list_detail: '/getSongListDetail',
     song_info: '/getSongInfo',
@@ -74,6 +95,7 @@ const LOGIN_REQUESTS: ReadonlySet<QqOperation> = new Set(['login_qr_key', 'login
 // request has a limit.
 const ONLINE_REQUESTS: ReadonlySet<QqOperation> = new Set([
     'music_play', 'song_list_detail', 'user_playlist_detail', 'user_liked_songs', 'album_info',
+    'user_cloud', 'recommend_toplist', 'radio_tracks',
 ]);
 // Their limit, above the backend's own slowest answer. A signed-in play link is at worst four steps in a
 // row (qq-music-api, services/auth/qrLogin.js): GetVkey, a 5 s CDN probe, GetCdnDispatch and a second

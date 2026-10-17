@@ -74,6 +74,7 @@ const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
 const { createCrashLog, installCrashHandlers } = require('./debug/crashLog.cjs');
 const { createModelStore } = require('./analysis/modelStore.cjs');
 const { resolveLinuxPasswordStore } = require('./linuxPasswordStore.cjs');
+const { isWindowAlwaysOnTopSupported } = require('./windowAlwaysOnTopSupport.cjs');
 const { createTranscodeService } = require('./transcode/service.cjs');
 const { TRANSCODE_PROTOCOL_SCHEME } = require('./transcode/protocol.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
@@ -1827,6 +1828,14 @@ function sendMacWallpaperMouseEvent(event) {
 // windowtolayer; the wrapped child uses FOLIA_RELAUNCH to retry after the jumpboard exits.
 const wallpaperMode = isWallpaperModeEnabled();
 const onWayland = Boolean(process.env.WAYLAND_DISPLAY);
+// False on the native Wayland backend: setAlwaysOnTop there is silently ignored (issue #657), so every
+// always-on-top switch is greyed out instead of showing a state the compositor never received.
+const windowAlwaysOnTopSupported = isWindowAlwaysOnTopSupported({
+  ozonePlatform: app.commandLine.getSwitchValue('ozone-platform'),
+});
+if (!windowAlwaysOnTopSupported) {
+  console.info('[Window] always-on-top unavailable: running on the native Wayland backend');
+}
 
 // Serializes ownership, wrapper launch, and crash-loop accounting.
 async function prepareMainProcessStartup() {
@@ -1880,6 +1889,7 @@ const mainLocale = {
     trayTransparentBackground: '透明背景',
     trayToggleClickThrough: '点击穿透',
     trayAlwaysOnTop: '窗口置顶',
+    trayAlwaysOnTopUnavailable: '窗口置顶（Wayland 下不可用）',
     trayHideTaskbar: '隐藏任务栏图标',
     trayDesktopLyricMode: '桌面歌词',
     trayToggleWallpaperMode: '壁纸模式',
@@ -1905,6 +1915,7 @@ const mainLocale = {
     trayTransparentBackground: '透明背景',
     trayToggleClickThrough: '點選穿透',
     trayAlwaysOnTop: '視窗置頂',
+    trayAlwaysOnTopUnavailable: '視窗置頂（Wayland 下不可用）',
     trayHideTaskbar: '隱藏工作列圖示',
     trayDesktopLyricMode: '桌面歌詞',
     trayToggleWallpaperMode: '桌布模式',
@@ -1930,6 +1941,7 @@ const mainLocale = {
     trayTransparentBackground: 'Transparent Background',
     trayToggleClickThrough: 'Click-Through',
     trayAlwaysOnTop: 'Always on Top',
+    trayAlwaysOnTopUnavailable: 'Always on Top (unavailable on Wayland)',
     trayHideTaskbar: 'Hide Taskbar Icon',
     trayDesktopLyricMode: 'Desktop Lyrics',
     trayToggleWallpaperMode: 'Wallpaper Mode',
@@ -1955,6 +1967,7 @@ const mainLocale = {
     trayTransparentBackground: 'Latar Belakang Transparan',
     trayToggleClickThrough: 'Click-Through',
     trayAlwaysOnTop: 'Selalu di Atas',
+    trayAlwaysOnTopUnavailable: 'Selalu di Atas (tidak tersedia di Wayland)',
     trayHideTaskbar: 'Sembunyikan Ikon Taskbar',
     trayDesktopLyricMode: 'Lirik Desktop',
     trayToggleWallpaperMode: 'Mode Wallpaper',
@@ -2371,6 +2384,8 @@ function getPublicSettings() {
     [WALLPAPER_MODE_SETTING_KEY]: isWallpaperModeEnabled(),
     [WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY]: readStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY, false),
     [WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY]: readStoredBoolean(WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY, true),
+    // Not a stored setting: whether always-on-top can take effect in this process at all.
+    'window_always_on_top_supported': windowAlwaysOnTopSupported,
   };
 }
 
@@ -2849,6 +2864,7 @@ function buildRemoteControlWindowSettings() {
   return {
     hideTitlebar: remoteControlHideTitlebarEnabled,
     clickThrough: remoteControlClickThroughEnabled,
+    alwaysOnTopSupported: windowAlwaysOnTopSupported,
   };
 }
 
@@ -3092,10 +3108,11 @@ function refreshTrayMenu() {
       },
     },
     {
-      label: locale.trayAlwaysOnTop,
+      // Native Wayland ignores the request; the label says so, since a tray menu has no tooltip on Linux.
+      label: windowAlwaysOnTopSupported ? locale.trayAlwaysOnTop : locale.trayAlwaysOnTopUnavailable,
       type: 'checkbox',
-      checked: mainWindowAlwaysOnTop,
-      enabled: hasMainWindow && !wallpaperOn,
+      checked: windowAlwaysOnTopSupported && mainWindowAlwaysOnTop,
+      enabled: hasMainWindow && !wallpaperOn && windowAlwaysOnTopSupported,
       click: () => {
         setMainWindowAlwaysOnTop(!mainWindowAlwaysOnTop);
       },
@@ -6657,6 +6674,11 @@ ipcMain.handle('window-get-always-on-top', (event) => {
     return false;
   }
 
+  // On native Wayland isAlwaysOnTop() only echoes the last request, never the compositor's state.
+  if (!windowAlwaysOnTopSupported) {
+    return false;
+  }
+
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindowAlwaysOnTop = mainWindow.isAlwaysOnTop();
   }
@@ -6895,6 +6917,11 @@ ipcMain.handle('remote-control-get-always-on-top', (event) => {
     throw new Error('Untrusted renderer attempted to read remote control always-on-top state.');
   }
 
+  // On native Wayland isAlwaysOnTop() only echoes the last request, never the compositor's state.
+  if (!windowAlwaysOnTopSupported) {
+    return false;
+  }
+
   if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
     remoteControlAlwaysOnTop = remoteControlWindow.isAlwaysOnTop();
   }
@@ -6905,6 +6932,10 @@ ipcMain.handle('remote-control-get-always-on-top', (event) => {
 ipcMain.handle('remote-control-set-always-on-top', (event, nextAlwaysOnTop) => {
   if (!isTrustedRemoteControlContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to update remote control always-on-top state.');
+  }
+
+  if (!windowAlwaysOnTopSupported) {
+    return false;
   }
 
   remoteControlAlwaysOnTop = Boolean(nextAlwaysOnTop);
