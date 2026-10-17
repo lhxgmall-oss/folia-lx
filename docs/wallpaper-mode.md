@@ -83,11 +83,11 @@ Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
 ### 2. helper 协议（`packaging/windows/wallpaper-helper/`）
 
 - CLI：`attach --hwnd <n> [--forward-mouse] [--zguard]`（常驻）、`move --hwnd <n>`、`detach --hwnd <n>`、`refresh`（一次性，重应用当前壁纸）。stdin 收到 `detach`（或 EOF，防孤儿壁纸）先还原窗口再退出。未知选项直接报错退出，避免主进程拼错参数被静默忽略。
-- stdout JSONL 事件（主进程 `parseHelperEventLine` 解析）：`attached{mode:"classic"|"raised"}` / `heartbeat`(5s) / `workerw-destroyed` / `explorer-restarted` / `reasserted` / `moved` / `detached` / `error{message, kind?}`。`kind:"window-destroyed"` 是结构化契约（Folia 窗口随 WorkerW 一并销毁、主进程必须重建），`message` 只给人读、主进程不得解析其文本。鼠标事件坐标为**物理屏幕像素**（helper 进程级 per-monitor DPI 感知，无坐标虚拟化）：`mousemove{x,y}`（16ms 合并 ~60Hz）/ `mousedown` / `mouseup` / `mousewheel{x,y,deltaX,deltaY}`。
+- stdout JSONL 事件（主进程 `parseHelperEventLine` 解析）：`attached{mode:"classic"|"raised"}` / `heartbeat`(5s) / `workerw-destroyed` / `explorer-restarted` / `reasserted` / `moved` / `detached` / `error{message, kind?}`。`kind:"window-destroyed"` 是结构化契约（Folia 窗口随 WorkerW 一并销毁、主进程必须重建），`message` 只给人读、主进程不得解析其文本。鼠标事件坐标为**物理屏幕像素**（helper 进程级 per-monitor DPI 感知，无坐标虚拟化）：`mousemove{x,y}`（WM_INPUT 直发，两条至少隔 4ms，被间隔或前台过滤压下的末位置由 16ms 定时器补发；Win11 上后台 RIDEV_INPUTSINK 收到的 Raw Input 实测被限在 125Hz，这就是壁纸模式 move 的上限）/ `mousedown` / `mouseup` / `mousewheel{x,y,deltaX,deltaY}`。
 - 实现约束（来自上游踩坑）：
   - **`EnumWindows` 的 windows-rs `Result` 语义是反的**——回调返回 0 提前停止枚举会让 raw API 返回 FALSE、映射为 `Err`；探测结果必须以回调写入的指针为准，不得用 `is_ok()` 判定成败。Win10 classic 路径曾因此永远探测失败，且每次失败多发一次 0x052C，在桌面上堆积废弃 WorkerW。
   - **0x052C 只在 WorkerW 缺失时发送**——对已存在的 raised WorkerW 重发会让 Explorer 重建整个层级并连带销毁已挂入窗口（Seelen UI 陷阱修复）。classic 重探带 10×100ms 重试：WorkerW 创建在 Explorer 侧是异步的，单次立即重探在全新桌面上会竞态失败。
-  - **鼠标注入必须走主进程 `sendInputEvent`**（见「交互边界」）；前台过滤（Lively `IsDesktop()`）：仅当 `GetForegroundWindow()` 是 Progman、持有 `SHELLDLL_DefView` 的图标层 WorkerW（classic 桌面点击落点）或壁纸 WorkerW 才上报；按住左键拖拽期间（含补发的 mouseup）豁免，避免渲染端卡在按下状态。
+  - **鼠标注入必须走主进程 `sendInputEvent`**（见「交互边界」）；前台过滤（Lively `IsDesktop()`）：仅当 `GetForegroundWindow()` 是 Progman、持有 `SHELLDLL_DefView` 的图标层 WorkerW（classic 桌面点击落点）或壁纸 WorkerW 才上报；mousedown 与滚轮另要求光标下的顶层窗口是桌面（`WindowFromPoint` → `GA_ROOT`）——Raw Input 先于点击激活到达，从桌面点进别的窗口时前台仍是桌面，只看前台会把这次点击漏给壁纸。move 一律受前台过滤（别的窗口里拖拽不再平移壁纸）；只有补发的 mouseup 豁免，避免渲染端卡在按下状态。
   - **`SetParent` 不改变子窗口的父客户区坐标**——重挂后窗口的屏幕位置会平移到宿主 WorkerW 的原点，所以「窗口现在在哪块屏」在重挂后失去意义。目标屏必须在 `SetParent` 之前取，宿主也按该屏挑选（见主进程接入节）；这是多屏下壁纸只铺一块屏的根因。
   - **explorer 重启** = `TaskbarCreated` 广播 + `Shell_TrayWnd` PID 变化（DPI 变化也广播该消息，只有 PID 变化才算重启）。
   - **z 序守卫**：WinEvent `EVENT_OBJECT_REORDER` + 10s 低频重申，可关。
