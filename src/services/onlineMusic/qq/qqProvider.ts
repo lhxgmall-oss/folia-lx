@@ -28,6 +28,10 @@ import { searchQqSongs } from './qqSearch';
 import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
 import { describeQqLoginFailure, qqCheckFailure } from './qqLoginFailure';
 import { describeQqFailure } from './qqFailure';
+import { getQqCloudCollection, getQqCloudTracks, getQqListTracks, qqListKindOf } from './qqLists';
+import { qqExplore } from './qqExplore';
+import { areQqSongsLiked, withQqVipType } from './qqAccount';
+import { requestQqPreviewSource } from './qqPreview';
 import { OnlineRequestTimeout } from '../failure/onlineRequestLimit';
 import { errorFields, errorMessage } from '../../../utils/errorText';
 
@@ -112,6 +116,7 @@ let ownedPlaylistRouteMissing = false;
 export const resetQqProviderRuntimeCache = (): void => {
     ownedPlaylistRouteMissing = false;
     lastLoginStatusCheck = null;
+    playlistRound = null;
 };
 
 /**
@@ -174,6 +179,8 @@ const getPlaylistTracks = async (
     offset: number,
     collection?: ProviderCollection,
 ): Promise<ProviderPage<ReturnType<typeof normalizeQqSong>>> => {
+    // 排行榜和电台的卡片（探索页）不是歌单，改走它们自己的路由。
+    if (collection && qqListKindOf(collection)) return getQqListTracks(collection, limit, offset);
     const safeLimit = Math.max(1, limit);
     const safeOffset = Math.max(0, offset);
     const dirId = Number(collection?.providerData?.dirId);
@@ -224,6 +231,53 @@ const getPlaylistTracks = async (
         hasMore: nextOffset < tracks.length,
         nextOffset,
     };
+};
+
+const QQ_LIKED_DIR_ID = 201;
+
+const playCountOf = (value: unknown): number | undefined => {
+    const count = Number(value);
+    return Number.isSafeInteger(count) && count >= 0 ? count : undefined;
+};
+
+/**
+ * 歌单页上方的资料（播放数）。自建歌单带 `playCount=1` 读一首歌，播放数和这次回包一起来；收藏的、推荐的歌单
+ * 已经带着播放数就不再请求，没带才读一次匿名的歌单详情。「我喜欢」、排行榜和电台没有播放数可补。
+ * 读不到时照原样交回集合：这只是补资料，不该挡住歌单本身。
+ */
+const getPlaylistDetail = async (id: MediaId, collection?: ProviderCollection): Promise<ProviderCollection | null> => {
+    if (!collection) return null;
+    const dirId = Number(collection.providerData?.dirId);
+    const owned = collection.providerData?.owned === true;
+    if (qqListKindOf(collection) || collection.isLiked || (owned && dirId === QQ_LIKED_DIR_ID)) return collection;
+    try {
+        if (owned && Number.isFinite(dirId) && dirId > 0) {
+            if (ownedPlaylistRouteMissing) return collection;
+            const response = await requestQq<any>('user_playlist_detail', {
+                tid: String(collection.providerData?.tid ?? id),
+                dirid: dirId,
+                offset: 0,
+                limit: 1,
+                playCount: 1,
+            });
+            const playCount = playCountOf(response?.play_cnt);
+            return playCount === undefined ? collection : { ...collection, playCount };
+        }
+        if (collection.playCount !== undefined) return collection;
+        const response = await requestQq<any>('song_list_detail', { disstid: String(id) });
+        const detail = Array.isArray(response?.response?.cdlist) ? response.response.cdlist[0] : undefined;
+        const playCount = playCountOf(detail?.visitnum);
+        const description = typeof detail?.desc === 'string' ? detail.desc.trim() : '';
+        return {
+            ...collection,
+            ...(playCount === undefined ? {} : { playCount }),
+            ...(!collection.description && description ? { description } : {}),
+        };
+    } catch (error) {
+        if (error instanceof OnlineProviderError && error.code === 'unsupported') ownedPlaylistRouteMissing = true;
+        console.warn('[QQProvider] playlist-detail:failed', error);
+        return collection;
+    }
 };
 
 const hasQqCatalogRefs = (song: UnifiedSong): boolean => Boolean(
@@ -366,6 +420,11 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
         upstreamRefusedPlayLink: sawEmptyPlayLink,
     });
     if (firstFailure !== undefined && !sawEmptyPlayLink) throw firstFailure;
+    // 有会话、所有音质都没给链接：这个账号可能只能听试听片段，不限后端说的可能原因。没会话时后端不给试听。
+    if (sawEmptyPlayLink && hasQqSession()) {
+        const preview = await requestQqPreviewSource(songmid, mediaId);
+        if (preview) return preview;
+    }
     // 没有会话、而后端只是没给链接：登录后可能能放（只是可能，不能当成登录失效）。形态坏掉的回答不是没给链接。
     throw new OnlineProviderError('not-playable', 'QQMusicApi gave no play link for this song', 'qq', {
         likelyCause: likelyCause ?? (sawEmptyPlayLink && !hasQqSession() ? 'sign-in' : undefined),
@@ -411,7 +470,7 @@ const getLoginStatus = async (): Promise<ProviderUser | null> => {
             console.info('[QQProvider] login-status:anonymous');
             return null;
         }
-        const user = normalizeQqUser(profile);
+        const user = await withQqVipType(normalizeQqUser(profile));
         // The acceptance test account returned a profile without a display name, so the profile itself is the signal.
         noteLoginStatusCheck(diagnosticLine`signed in (user id ${user.id ? 'present' : 'missing'}, nickname ${user.nickname ? 'present' : 'missing'})`);
         console.info('[QQProvider] login-status:profile', {
@@ -637,6 +696,10 @@ const checkLogin = async (key: string): Promise<LoginState> => {
     return { state: 'error', message: describeCheckAnswer(response), failure: qqCheckFailure(response) };
 };
 
+// 这一轮读到的整份歌单。账号层每 50 张要一页（account/accountRead.ts），而后端一次就给整份：
+// 只在第一页（offset 0）请求，后面的页从这份里切，不再每页重读一遍。
+let playlistRound: { response: any; playlists: unknown[] } | null = null;
+
 // `/user/playlist` returns the whole GetPlaylistByUin list and takes no upstream paging parameters,
 // so the Omni page window is applied locally instead of being forwarded.
 const getUserPlaylists = async (
@@ -644,10 +707,13 @@ const getUserPlaylists = async (
     limit: number,
     offset: number,
 ): Promise<ProviderPage<ProviderCollection>> => {
-    // 不传 `uid`：会话账号是这条 route 唯一读得到的账号，而后端从凭据里挑出来的账号 ID 比前端
-    // 手上这个展示用的可靠 —— 微信凭据的 `musicid` 是占位的 0，回传它只会让自建歌单整段消失。
-    const response = await requestQq<any>('user_playlist', {});
-    const playlists = Array.isArray(response?.playlist) ? response.playlist : [];
+    if (offset === 0 || !playlistRound) {
+        // 不传 `uid`：会话账号是这条 route 唯一读得到的账号，而后端从凭据里挑出来的账号 ID 比前端
+        // 手上这个展示用的可靠 —— 微信凭据的 `musicid` 是占位的 0，回传它只会让自建歌单整段消失。
+        const response = await requestQq<any>('user_playlist', {});
+        playlistRound = { response, playlists: Array.isArray(response?.playlist) ? response.playlist : [] };
+    }
+    const { response, playlists } = playlistRound;
     const items = playlists
         .slice(offset, offset + Math.max(0, limit))
         .map((item: unknown) => normalizeQqCollection(item));
@@ -881,6 +947,9 @@ export const qqProvider: OnlineMusicProvider = {
         wordByWordLyrics: true,
         likes: true,
         userAlbums: true,
+        // 音乐云盘与探索页是 qq-music-api 3.3.3 的路由。
+        userCloud: true,
+        explore: true,
     },
     normalizeSong: normalizeQqSong,
     normalizeUser: normalizeQqUser,
@@ -948,12 +1017,21 @@ export const qqProvider: OnlineMusicProvider = {
             });
         },
     },
-    library: { getUserPlaylists, getUserAlbums, getLikedSongIds, getLikedSongCount },
+    library: {
+        getUserPlaylists,
+        getUserAlbums,
+        getLikedSongIds,
+        getLikedSongCount,
+        areSongsLiked: areQqSongsLiked,
+        getCloudCollection: getQqCloudCollection,
+    },
     catalog: {
         // 只要拿得到 songmid 就补得回 mid，所以能否导航等同于这首歌是不是 QQ 的歌。
         canResolveSongCatalogRefs: song => Boolean(getQqSongMid(song)),
         resolveSongCatalogRefs: resolveQqSongCatalogRefs,
         getPlaylistTracks,
+        getPlaylistDetail,
+        getCloudTracks: (limit, offset) => getQqCloudTracks(limit, offset),
         getAlbumDetail,
         getAlbumTracks,
         getArtistDetail,
@@ -962,5 +1040,6 @@ export const qqProvider: OnlineMusicProvider = {
         getSubscriptionStatus: getQqSubscriptionStatus,
     },
     recommendations: qqRecommendations,
+    explore: qqExplore,
     mutations: qqMutations,
 };

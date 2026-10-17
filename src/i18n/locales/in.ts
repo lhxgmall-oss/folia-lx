@@ -1564,6 +1564,10 @@ export default {
     "neteaseNewSongs": "Lagu baru",
     "neteaseNewAlbums": "Album baru",
     "neteaseHotPlaylists": "Playlist populer",
+    "qqRadar": "Radar lagu",
+    "qqNewSongs": "Lagu baru",
+    "qqNewAlbums": "Album baru",
+    "qqCharts": "Tangga lagu",
     "personalFm": "FM Pribadi",
     "dailyRecommendations": "Rekomendasi Harian",
     "dailyRecommendationsDescription": "Campuran harian yang dibuat khusus untuk Anda",
@@ -3542,7 +3546,8 @@ export default {
     "restoreServerPreset": "Gunakan preset server",
     "restoreServerPresetFailed": "Tidak dapat mengambil preset server. Coba lagi nanti.",
     "cloudDrive": "Cloud Drive",
-    "cloudDriveDesc": "NetEase Cloud Music Drive"
+    "cloudDriveDesc": "NetEase Cloud Music Drive",
+    "qqCloudDriveDesc": "Weiyun Music Drive"
   },
   "unifiedPanel": {
     "nowPlayingStageDescription": "Now Playing dikendalikan oleh pemutar eksternal. Folia hanya bertanggung jawab menampilkan lirik dan efek visual.",
