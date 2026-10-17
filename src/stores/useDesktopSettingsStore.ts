@@ -30,6 +30,8 @@ export const REMOTE_CONTROL_CLICK_THROUGH_STORAGE_KEY = 'remote_control_click_th
 
 export const WALLPAPER_MODE_STORAGE_KEY = 'wallpaper_mode';
 
+export const WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY = 'wallpaper_entry_confirmed';
+
 // macOS-only: auto-hide the Dock while a wallpaper session is active. On by default (a bottom Dock
 // is hidden automatically; the switch is the explicit override the main process honours).
 export const WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY = 'wallpaper_mac_autohide_dock';
@@ -55,13 +57,15 @@ export type DesktopSettingsState = {
     /** Remote control window ignores the mouse (main process owns it; unlock from tray / palette). */
     remoteControlClickThrough: boolean;
     wallpaperMode: boolean;
+    /** Persisted: the one-time entry explanation has been accepted, so later entries go straight in. */
+    wallpaperEntryConfirmed: boolean;
     /** Transient (never persisted): the "enter wallpaper mode?" confirmation is on screen. */
     wallpaperEntryConfirmOpen: boolean;
     /** macOS-only: auto-hide the Dock while wallpaper mode is active. On by default — a bottom Dock
      *  is hidden automatically; switching it off overrides the automatic rule. */
     wallpaperMacAutohideDock: boolean;
     openPlayerOnLaunch: boolean;
-    setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; CLOSE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; REMOTE_CONTROL_HIDE_TITLEBAR?: unknown; REMOTE_CONTROL_CLICK_THROUGH?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK?: unknown; MOD_SYSTEM_ENABLED?: unknown; wallpaper_mode?: unknown; wallpaper_mac_autohide_dock?: unknown; }) => void;
+    setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; CLOSE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; REMOTE_CONTROL_HIDE_TITLEBAR?: unknown; REMOTE_CONTROL_CLICK_THROUGH?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK?: unknown; MOD_SYSTEM_ENABLED?: unknown; wallpaper_mode?: unknown; wallpaper_entry_confirmed?: unknown; wallpaper_mac_autohide_dock?: unknown; }) => void;
     handleToggleMinimizeToTray: (enable: boolean) => void;
     handleToggleCloseToTray: (enable: boolean) => void;
     handleToggleVoiceInputPause: (enable: boolean) => void;
@@ -73,7 +77,8 @@ export type DesktopSettingsState = {
     handleToggleRemoteControlClickThrough: (enable: boolean) => void;
     /**
      * The user-facing wallpaper switch (settings card, command palette, tray request). Leaving
-     * applies at once; entering only opens the confirmation and waits for confirmWallpaperEntry.
+     * applies at once; the first-ever entry opens the confirmation and waits for
+     * confirmWallpaperEntry, later entries apply directly.
      */
     handleToggleWallpaperMode: (enable: boolean) => void;
     /** Unconfirmed apply. Only the confirmation and programmatic callers may use it. */
@@ -95,6 +100,7 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     hideRemoteControlTitlebar: getStoredBoolean(REMOTE_CONTROL_HIDE_TITLEBAR_STORAGE_KEY, false),
     remoteControlClickThrough: getStoredBoolean(REMOTE_CONTROL_CLICK_THROUGH_STORAGE_KEY, false),
     wallpaperMode: getStoredBoolean(WALLPAPER_MODE_STORAGE_KEY, false),
+    wallpaperEntryConfirmed: getStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY, false),
     wallpaperEntryConfirmOpen: false,
     wallpaperMacAutohideDock: getStoredBoolean(WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY, true),
     openPlayerOnLaunch: getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false),
@@ -139,6 +145,11 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
         if (typeof settings.wallpaper_mode === 'boolean') {
             patch.wallpaperMode = settings.wallpaper_mode;
             setStoredBoolean(WALLPAPER_MODE_STORAGE_KEY, settings.wallpaper_mode);
+        }
+        if (typeof settings.wallpaper_entry_confirmed === 'boolean') {
+            const confirmed = get().wallpaperEntryConfirmed || settings.wallpaper_entry_confirmed;
+            patch.wallpaperEntryConfirmed = confirmed;
+            setStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY, confirmed);
         }
         if (typeof settings.wallpaper_mac_autohide_dock === 'boolean') {
             patch.wallpaperMacAutohideDock = settings.wallpaper_mac_autohide_dock;
@@ -232,9 +243,10 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
         }
     },
     handleToggleWallpaperMode: (enable) => {
-        // Entering sinks the window under the desktop and takes the keyboard away, so it asks
-        // first. Startup restore never lands here: it arrives through setDesktopPreferenceSnapshot.
-        if (enable && !get().wallpaperMode) {
+        // Entering sinks the window under the desktop and takes the keyboard away, so the first
+        // entry asks first. Startup restore never lands here: it arrives through
+        // setDesktopPreferenceSnapshot. Cancelling does not consume the warning.
+        if (enable && !get().wallpaperMode && !get().wallpaperEntryConfirmed) {
             set({ wallpaperEntryConfirmOpen: true });
             return;
         }
@@ -255,6 +267,13 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     applyWallpaperMode: (enable) => {
         setStoredBoolean(WALLPAPER_MODE_STORAGE_KEY, enable);
         set({ wallpaperMode: enable });
+        if (enable) {
+            setStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY, true);
+            set({ wallpaperEntryConfirmed: true });
+            if (window.electron?.saveSettings) {
+                void window.electron.saveSettings('wallpaper_entry_confirmed', true);
+            }
+        }
         if (window.electron?.saveSettings) {
             // The main process schedules a full relaunch after this IPC returns.
             void window.electron.saveSettings('wallpaper_mode', enable);
