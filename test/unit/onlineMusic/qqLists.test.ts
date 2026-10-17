@@ -59,6 +59,17 @@ describe('QQ charts and radio stations as collections', () => {
         expect(page).toMatchObject({ total: 100, hasMore: true, nextOffset: 2 });
     });
 
+    it('pages a chart by what the backend gave, not by the songs left after dropping ones without a mid', async () => {
+        const chart = qqToplistCollection({ id: 26, title: '示例榜' })!;
+        requestMock.mockResolvedValueOnce({ code: 200, songs: [track('mid-a', 1), track('', 2), track('mid-c', 3)], total: 100, more: true });
+
+        const page = await getQqListTracks(chart, 3, 0);
+
+        expect(page.items.map(song => song.qqMid)).toEqual(['mid-a', 'mid-c']);
+        // 下一页从第 4 条起，不和这一页的第 3 条重叠。
+        expect(page).toMatchObject({ hasMore: true, nextOffset: 3 });
+    });
+
     it('takes a chart with no songs for an empty page, not a failure', async () => {
         const chart = qqToplistCollection({ id: 26, title: '示例榜' })!;
         requestMock.mockRejectedValueOnce(emptyAnswer());

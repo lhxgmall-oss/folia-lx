@@ -78,12 +78,13 @@ const getToplistTracks = async (collection: ProviderCollection, limit: number, o
         });
         const items = songsOf(response);
         const total = Number(response?.total);
-        const nextOffset = offset + items.length;
+        // 后端按它给过的条数翻页：下一页从这一页给了几条算起，不从滤掉没有 mid 的歌后剩几条算。
+        const given = Array.isArray(response?.songs) ? response.songs.length : 0;
         return {
             items,
             ...(Number.isFinite(total) && total >= 0 ? { total } : {}),
-            hasMore: response?.more === true && items.length > 0,
-            nextOffset,
+            hasMore: response?.more === true && given > 0,
+            nextOffset: offset + given,
         };
     } catch (error) {
         if (isEmptyAnswer(error)) return emptyPage(offset);

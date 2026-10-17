@@ -164,11 +164,13 @@ export const createQqExplore = (): OnlineExploreProvider => {
         }
         if (key === NEW_ALBUMS) {
             const answer = await orEmpty(requestQq<any>('recommend_new_albums', { offset: from, limit: BATCH }), null);
-            const items = listOf(answer?.albums)
+            const albums = listOf(answer?.albums);
+            const items = albums
                 .map(album => normalizeQqCollection(album, 'album'))
                 .filter(album => album.id !== '' && album.name)
                 .map((collection): ProviderExploreItem => ({ kind: 'collection', collection }));
-            return { items, hasMore: answer?.more === true, next: from + items.length };
+            // 下一批从后端给了几条算起，不从滤掉坏条目后剩几条算：否则下一批会和这一批重叠。
+            return { items, hasMore: answer?.more === true, next: from + albums.length };
         }
         if (key.startsWith(CATEGORY)) {
             // 分类歌单按页码读：一页一批。
@@ -185,7 +187,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
         }
         const answer = await orEmpty(requestQq<any>('recommend_toplist', { id: Number(key.slice(CHART.length)), offset: from, limit: BATCH }), null);
         const items = songsIn(answer).map(songItem);
-        return { items, hasMore: answer?.more === true, next: from + items.length };
+        return { items, hasMore: answer?.more === true, next: from + listOf(answer?.songs).length };
     };
 
     /**
