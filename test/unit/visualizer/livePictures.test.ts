@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PANEL_PICTURE_DAYLIGHT, PANEL_PICTURE_THEME, panelMakesImages } from '../../../src/components/panelTab/controls/panelPictures';
+import { panelMakesImages, panelPictureTheme } from '../../../src/components/panelTab/controls/panelPictures';
 import { imageOf, keepImage, pictureKey, stylePictureKey, themeForPictures } from '../../../src/components/visualizer/preview/pictureImages';
 import { afterTry, FIRST_IMAGE_REST_MS, IMAGE_TRIES, imageRest, NEW_IMAGE_REST_MS, pictureWants } from '../../../src/components/visualizer/preview/pictureRule';
 import { claimRun, holdTurns, runningPicture, takeTurn, whenFree } from '../../../src/components/visualizer/preview/pictureTurns';
@@ -283,16 +283,13 @@ describe('the player panel\'s pictures over a playing song', () => {
         expect(panelMakesImages({ playing: false, pickerOpen: true })).toBe(true);
     });
 
-    it('draws the pictures in a theme of their own that nothing changes, so a song change makes none again', () => {
-        // A theme the page could hand them is filed under another text, so it would make every picture anew.
-        const shows = (theme: Theme) => ({
-            mode: 'classic', stage: { width: 1440, height: 900 }, theme: themeForPictures(theme), isDaylight: PANEL_PICTURE_DAYLIGHT,
-            sample: 'default', fontScale: 1, tuning: undefined, modSettings: null, modTunings: {},
-        });
-        expect(stylePictureKey(shows({ ...PANEL_PICTURE_THEME, accentColor: '#7aa2ff' }))).not.toBe(stylePictureKey(shows(PANEL_PICTURE_THEME)));
-        expect(Object.isFrozen(PANEL_PICTURE_THEME)).toBe(true);
-        // Nothing in it stands for one song: words coloured for a song would make its pictures that song's.
-        expect(PANEL_PICTURE_THEME.wordColors).toBeUndefined();
-        expect(PANEL_PICTURE_THEME.lyricsIcons).toBeUndefined();
+    it('keeps the pictures\' theme over a song change, also under an open picker, until a picker opens', () => {
+        const [first, second] = ['theme of the first song', 'theme of the second song'];
+        // The song changes while one plays: the pictures stay as they are, so none is made again.
+        expect(panelPictureTheme(first, second, { playing: true, pickerOpens: false })).toBe(first);
+        // A picker opens: the pictures take the playing theme.
+        expect(panelPictureTheme(first, second, { playing: true, pickerOpens: true })).toBe(second);
+        // Nothing plays: they follow the page.
+        expect(panelPictureTheme(first, second, { playing: false, pickerOpens: false })).toBe(second);
     });
 });
