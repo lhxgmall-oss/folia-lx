@@ -7,7 +7,7 @@ import { Tooltip } from '../modal/settings/kit/Tooltip';
 // 两种都画成控制页那几格的样子（QuickTile）：平时是一层淡底，开着的开关抬起一层、图标用强调色；
 // 颜色全取面板的 --st-* 变量，亮暗跟着面板走，不用调用方再传。
 
-const BASE = 'st-t-fast inline-flex h-7 shrink-0 items-center justify-center rounded-lg transition-[background-color,color,box-shadow,scale] active:scale-[0.96]';
+const BASE = 'st-t-fast st-focus-inside inline-flex h-7 shrink-0 items-center justify-center rounded-lg transition-[background-color,color,box-shadow,scale] active:scale-[0.96]';
 
 interface QuickControlChipProps {
     onClick: () => void;

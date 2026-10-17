@@ -33,7 +33,8 @@ import { Toggle, type PictureState } from '../../modal/settings/kit';
 
 // src/components/panelTab/controls/AppearanceSection.tsx
 // 外观区：歌词样式、背景、播放页透明背景三件事放在一起。
-// 前两行是「‹ 字形 当前模式 参数 ›」取景器；背景的模式专属参数由背景注册表自己提供，
+// 前两行是「‹ 字形 当前模式 ›」取景器：歌词样式的动画强度在按钮右侧，分词开关和背景参数在按钮下面一行，
+// 没有就收起；背景的模式专属参数由背景注册表自己提供，
 // 面板不再按模式写 if 链，新增背景模式会自带快捷控件。
 // 行里只有字形；点开后的一格一格小图画的是真的样式和背景，用的是小图自己那套固定配色和已保存的设置；
 // 它们共用这里的一个预览时钟，只有某一行的选择器开着时时钟才走。
@@ -180,26 +181,24 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                         onOpenMore={openVisualizerSettings}
                         open={openPicker === 'style'}
                         onOpenChange={open => changeOpenPicker(open ? 'style' : null)}
-                        trailing={(
-                            <>
-                                <QuickControlChip
-                                    label={t(`animation.${theme.animationIntensity}`)}
-                                    title={`${t('ui.animationIntensity')}: ${t(`animation.${theme.animationIntensity}`)}`}
-                                    onClick={cycleAnimationIntensity}
-                                />
-                                {usesWordSegmentation && (
-                                    <QuickControlToggle
-                                        active={hasSavedSegmentation}
-                                        label={t('commandPalette.commands.lyric-segmentation.title')}
-                                        onToggle={() => {
-                                            openCommandPaletteCommand(LYRIC_SEGMENTATION_COMMAND_ID);
-                                            onClosePanel?.();
-                                        }}
-                                    >
-                                        <WholeWord size={14} />
-                                    </QuickControlToggle>
-                                )}
-                            </>
+                        aside={(
+                            <QuickControlChip
+                                label={t(`animation.${theme.animationIntensity}`)}
+                                title={`${t('ui.animationIntensity')}: ${t(`animation.${theme.animationIntensity}`)}`}
+                                onClick={cycleAnimationIntensity}
+                            />
+                        )}
+                        params={usesWordSegmentation && (
+                            <QuickControlToggle
+                                active={hasSavedSegmentation}
+                                label={t('commandPalette.commands.lyric-segmentation.title')}
+                                onToggle={() => {
+                                    openCommandPaletteCommand(LYRIC_SEGMENTATION_COMMAND_ID);
+                                    onClosePanel?.();
+                                }}
+                            >
+                                <WholeWord size={14} />
+                            </QuickControlToggle>
                         )}
                     />
 
@@ -215,7 +214,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                         onOpenMore={openBackgroundSettings}
                         open={openPicker === 'background'}
                         onOpenChange={open => changeOpenPicker(open ? 'background' : null)}
-                        trailing={backgroundQuickControls}
+                        params={backgroundQuickControls}
                     />
                 </LyricPreviewProvider>
             </div>
