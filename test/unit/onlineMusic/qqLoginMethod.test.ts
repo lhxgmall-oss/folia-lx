@@ -263,6 +263,13 @@ describe('QQ login channels declared by the backend', () => {
         }
     });
 
+    it('tells a person whose account has no device left where to remove one in the QQ Music app', async () => {
+        // 共用那一句只说「在手机上退出不用的设备」；QQ 的设备是在 QQ 音乐 App 的设置最下面「设备管理」里移除。
+        expect(omni.getLoginTexts('qq')?.caseNotes?.['device-limit']).toBe('home.loginCaseQqDeviceLimit');
+        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
+        for (const locale of locales) expect(locale.default.home.loginCaseQqDeviceLimit).toEqual(expect.any(String));
+    });
+
     it('probes the backend only once however often the methods are read', async () => {
         declare(['qq', 'wechat']);
 

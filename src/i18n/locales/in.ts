@@ -1420,6 +1420,7 @@ export default {
     "loginCaseQqRestart": "Mulai ulang Folia, lalu coba lagi",
     "loginCaseQqWrongScanApp": "Untuk memindai dengan aplikasi QQ Music, pilih “Pindai aplikasi QQ Music”, atau pindai kode ini dengan QQ di ponsel",
     "loginCaseQqWrongScanAppMobileOnly": "Pindai QQ di sini hanya bisa dengan QQ di ponsel: pindai kode ini dengan QQ di ponsel",
+    "loginCaseQqDeviceLimit": "Buka aplikasi QQ Music, masuk ke Pengaturan, gulir ke paling bawah, ketuk Manajemen Perangkat dan hapus perangkat yang tidak dipakai, lalu pindai lagi",
     "loginBrowserOpen": "Buka browser lagi",
     "loginBrowserLoading": "Membuka browser...",
     "loginBrowserRetry": "Masuk lagi",

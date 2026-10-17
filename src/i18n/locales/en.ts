@@ -1425,6 +1425,7 @@ export default {
     "loginCaseQqRestart": "Restart Folia, then try again",
     "loginCaseQqWrongScanApp": "To scan with the QQ Music app, choose “QQ Music app scan” instead, or scan this code with mobile QQ",
     "loginCaseQqWrongScanAppMobileOnly": "QQ scan here works with mobile QQ only: scan this code with mobile QQ",
+    "loginCaseQqDeviceLimit": "Open the QQ Music app, go to Settings, scroll to the bottom, tap Device Management and remove devices you no longer use, then scan again",
     "loginBrowserOpen": "Open the browser again",
     "loginBrowserLoading": "Opening your browser...",
     "loginBrowserRetry": "Sign in again",

@@ -1424,6 +1424,7 @@ export default {
     "loginCaseQqRestart": "请重启 Folia 后重试",
     "loginCaseQqWrongScanApp": "用 QQ 音乐 App 扫码的话，请改选「QQ 音乐 App 扫码」；也可以用手机 QQ 扫这个二维码",
     "loginCaseQqWrongScanAppMobileOnly": "这里的 QQ 扫码只能用手机 QQ 扫，请用手机 QQ 扫这个二维码",
+    "loginCaseQqDeviceLimit": "请打开 QQ 音乐 App，进入「设置」，滑到最下面点「设备管理」，移除不用的设备后再扫码",
     "loginBrowserOpen": "重新打开浏览器",
     "loginBrowserLoading": "正在打开浏览器…",
     "loginBrowserRetry": "重新登录",

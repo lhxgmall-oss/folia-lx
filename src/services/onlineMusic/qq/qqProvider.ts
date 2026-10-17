@@ -950,6 +950,8 @@ export const qqProvider: OnlineMusicProvider = {
             },
             caseNotes: {
                 'local-service-unavailable': 'home.loginCaseQqRestart',
+                // 登录设备满了要去哪里清：QQ 音乐 App 的设置最下面「设备管理」。共用那一句只说在手机上退出。
+                'device-limit': 'home.loginCaseQqDeviceLimit',
                 // 扫错 App 时说怎么改：后端提供 QQ 音乐 App 扫码就请用的人改选它，没有就只能用手机 QQ 扫。
                 // 文字在登录开始、通道还没问到时就拿走了，所以到窗口真的要显示时才看通道。
                 get 'wrong-scan-app'() {
