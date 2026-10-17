@@ -112,13 +112,18 @@ describe('QQ Music Web transport', () => {
     });
 
     // 3.2.0 起网关码与凭证拒绝码同时出现时改回 502，正文是同一个协议模板（GatewayCredentialConflictError）：
-    // 仍是上游应答过的拒绝；新路由的 502 带 errorKey，照旧按服务失败处理。
-    it('reads the gateway/credential conflict 502 as an upstream refusal, but not a new-route 502', async () => {
+    // 仍是上游应答过的拒绝。新路由的 502 带 errorKey，不按这个模板认：连不上 QQ 的（`network.*`、`upstream.http`）
+    // 照旧按服务失败处理，QQ 答了却拒绝或答得不对的（其余的键）算平台拒绝。
+    it('reads the gateway/credential conflict 502 as an upstream refusal, and a new-route 502 by its errorKey', async () => {
         const backendText = 'get-music-play failed (HTTP 200, global=2000, code=1000)';
         vi.stubGlobal('fetch', vi.fn()
             .mockResolvedValueOnce(Response.json({ error: backendText }, { status: 502 }))
             .mockResolvedValueOnce(Response.json(
                 { code: 502, kind: 'upstream-business', errorKey: 'upstream.unknown', message: backendText, retryable: false },
+                { status: 502 },
+            ))
+            .mockResolvedValueOnce(Response.json(
+                { code: 502, kind: 'network', errorKey: 'network.timeout', message: 'Upstream request timed out', retryable: true },
                 { status: 502 },
             )));
         const { requestQq } = await import('@/services/onlineMusic/qq/qqTransport');
@@ -129,7 +134,10 @@ describe('QQ Music Web transport', () => {
 
         const newRoute = await requestQq('user_daily_songs').catch((thrown: unknown) => thrown);
         expect(newRoute).toMatchObject({ code: 'network', httpStatus: 502 });
-        expect(describeQqFailure('collection', newRoute)).not.toHaveProperty('case');
+        expect(describeQqFailure('collection', newRoute)).toMatchObject({ case: 'refused', httpStatus: 502 });
+
+        const unreachable = await requestQq('user_daily_songs').catch((thrown: unknown) => thrown);
+        expect(describeQqFailure('collection', unreachable)).not.toHaveProperty('case');
     });
 
     it.each([
@@ -687,7 +695,7 @@ describe('QQ Music Web transport', () => {
 
         expect(error).toMatchObject({ code: 'network', httpStatus: 502 });
         expect(describeQqFailure('collection', error)).toEqual({
-            httpStatus: 502, message: 'playlist.already-applied upstream 80092: Upstream rejected the request',
+            case: 'refused', httpStatus: 502, upstreamCode: '80092', message: 'playlist.already-applied upstream 80092: Upstream rejected the request',
         });
     });
 

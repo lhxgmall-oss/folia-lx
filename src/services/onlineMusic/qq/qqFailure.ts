@@ -27,6 +27,11 @@ export const qqStatusFailure = (error: OnlineProviderError): { httpStatus: numbe
 // 后端对没配好的能力回 501（serverless 入口缺少配置）：再试也一样。
 const HTTP_NOT_IMPLEMENTED = 501;
 
+// 新路由的 502 带固定的 errorKey（qq-music-api docs/errors.md）。连不上 QQ（`network.*`）和 QQ 回了非 200
+// （`upstream.http`）照共用的规则按 5xx 算连不上；其余是 QQ 答了话、只是拒绝或答得不对，算平台拒绝，
+// 不自动重来。上游的数字码一并交出。
+const isUnreachableKey = (errorKey: string): boolean => errorKey.startsWith('network.') || errorKey === 'upstream.http';
+
 // 后端说话的那一处的码，是一个数时。
 const codeOf = (value: unknown): string | undefined => (
     value === undefined || value === null || !Number.isFinite(Number(value)) ? undefined : String(Number(value))
@@ -53,6 +58,10 @@ export const describeQqFailure = (_operation: OnlineFailureOperation, error: unk
         const shell = status.httpStatus === 500 || (status.httpStatus === 502 && typeof errorKey !== 'string');
         const refusal = shell ? readUpstreamRefusalCode(status.message ?? '') : undefined;
         if (refusal !== undefined) return { case: 'refused', ...status, ...(typeof refusal === 'number' ? { code: String(refusal) } : {}) };
+        if (status.httpStatus === 502 && typeof errorKey === 'string' && !isUnreachableKey(errorKey)) {
+            const upstreamCode = codeOf((error.cause as { upstreamCode?: unknown } | null | undefined)?.upstreamCode);
+            return { case: 'refused', ...status, ...(upstreamCode ? { upstreamCode } : {}) };
+        }
         return status;
     }
     // 后端答了 200，QQ 音乐在回答的某一处拒绝了（qqTransport.ts 的 assertUpstreamAccepted）：那一处就是 cause。
