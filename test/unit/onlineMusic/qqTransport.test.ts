@@ -112,9 +112,9 @@ describe('QQ Music Web transport', () => {
     });
 
     // 3.2.0 起网关码与凭证拒绝码同时出现时改回 502，正文是同一个协议模板（GatewayCredentialConflictError）：
-    // 仍是上游应答过的拒绝。新路由的 502 带 errorKey，不按这个模板认：连不上 QQ 的（`network.*`、`upstream.http`）
-    // 照旧按服务失败处理，QQ 答了却拒绝或答得不对的（其余的键）算平台拒绝。
-    it('reads the gateway/credential conflict 502 as an upstream refusal, and a new-route 502 by its errorKey', async () => {
+    // 仍是上游应答过的拒绝。新路由的 502 带 errorKey，不按这个模板认，按后端分的 kind：QQ 答了却拒绝的
+    // （`upstream-business` 等）算平台拒绝；连不上 QQ 的（`network`、`upstream-http`）和没有 kind 的照旧按服务失败处理。
+    it('reads the gateway/credential conflict 502 as an upstream refusal, and a new-route 502 by its kind', async () => {
         const backendText = 'get-music-play failed (HTTP 200, global=2000, code=1000)';
         vi.stubGlobal('fetch', vi.fn()
             .mockResolvedValueOnce(Response.json({ error: backendText }, { status: 502 }))
@@ -124,6 +124,10 @@ describe('QQ Music Web transport', () => {
             ))
             .mockResolvedValueOnce(Response.json(
                 { code: 502, kind: 'network', errorKey: 'network.timeout', message: 'Upstream request timed out', retryable: true },
+                { status: 502 },
+            ))
+            .mockResolvedValueOnce(Response.json(
+                { code: 502, errorKey: 'upstream.unknown', message: 'Upstream rejected the request' },
                 { status: 502 },
             )));
         const { requestQq } = await import('@/services/onlineMusic/qq/qqTransport');
@@ -138,6 +142,9 @@ describe('QQ Music Web transport', () => {
 
         const unreachable = await requestQq('user_daily_songs').catch((thrown: unknown) => thrown);
         expect(describeQqFailure('collection', unreachable)).not.toHaveProperty('case');
+
+        const noKind = await requestQq('user_daily_songs').catch((thrown: unknown) => thrown);
+        expect(describeQqFailure('collection', noKind)).not.toHaveProperty('case');
     });
 
     it.each([
@@ -683,6 +690,7 @@ describe('QQ Music Web transport', () => {
     });
 
     // 新路由的 message 是通用英文，真正说明失败类别的是 errorKey，上游数字码另放；两样都要交出去。
+    // 应用里写入的失败不经过 describeQqFailure（omni 只为播放和读集合调用它），这里只看一个错怎么读。
     it('names the errorKey and upstream code of a new-route failure', async () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(
             { code: 502, kind: 'upstream-business', errorKey: 'playlist.already-applied', message: 'Upstream rejected the request', retryable: false, upstreamCode: 80092 },

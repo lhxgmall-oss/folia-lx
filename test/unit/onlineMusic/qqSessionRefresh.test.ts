@@ -90,6 +90,7 @@ describe('QQ session refresh on a serverless backend', () => {
     });
 
     it('never asks a backend that keeps its sessions itself (desktop, Docker)', async () => {
+        vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
         const fetchMock = serve({ sessionMode: 'stored', refresh: () => Response.json({ code: 200, data: { rotated: false } }) });
         const qq = await load();
 
@@ -98,6 +99,8 @@ describe('QQ session refresh on a serverless backend', () => {
         await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(refreshCalls(fetchMock)).toHaveLength(0);
+        // 也不起每小时一次的定时器。
+        expect(vi.getTimerCount()).toBe(0);
     });
 
     it('does not put a token back over a session that changed while it was asked', async () => {
@@ -124,17 +127,37 @@ describe('QQ session refresh on a serverless backend', () => {
 
         await qq.signedIn();
         await vi.waitFor(() => expect(refreshCalls(fetchMock)).toHaveLength(1));
-        // 回到窗口又读一次账号：一小时内不再问。
+        // 回到窗口又读一次账号：一小时内不再问。读账号之后续期是在后台接着走的（探测 → keepQqSessionFresh → 请求），
+        // 等它走完再数。
         await qq.signedIn();
-        await Promise.resolve();
+        await new Promise(resolve => setTimeout(resolve, 0));
         expect(refreshCalls(fetchMock)).toHaveLength(1);
 
         await vi.advanceTimersByTimeAsync(HOUR);
         await vi.waitFor(() => expect(refreshCalls(fetchMock)).toHaveLength(2));
 
         await qq.logout();
+        // 退出时就停掉定时器，不等下一次到点时自己发现会话没了。
+        expect(vi.getTimerCount()).toBe(0);
         await vi.advanceTimersByTimeAsync(3 * HOUR);
         expect(refreshCalls(fetchMock)).toHaveLength(2);
+    });
+
+    it('starts the timer while the session mode is not known yet and asks once it turns out sealed', async () => {
+        vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+        const fetchMock = serve({ refresh: () => Response.json({ code: 200, data: { token: 'old-token', rotated: false } }) });
+        await load();
+        const { keepQqSessionFresh } = await import('@/services/onlineMusic/qq/qqSessionRefresh');
+        const { noteQqBackendDeclaration } = await import('@/services/onlineMusic/qq/qqBackendDeclaration');
+
+        // 通道探测失败了，会话存法还不知道：定时器照样起，这一次不问。
+        keepQqSessionFresh();
+        expect(vi.getTimerCount()).toBe(1);
+        expect(refreshCalls(fetchMock)).toHaveLength(0);
+
+        noteQqBackendDeclaration({ sessionMode: 'sealed' });
+        await vi.advanceTimersByTimeAsync(HOUR);
+        await vi.waitFor(() => expect(refreshCalls(fetchMock)).toHaveLength(1));
     });
 
     it('stops asking an older backend without the route', async () => {

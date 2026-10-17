@@ -838,6 +838,19 @@ describe('qqProvider', () => {
             });
         });
 
+        // 后端没在这一条上标 `preview`：那是整首的链接，不当成试听。
+        it('does not mark a link as a preview where the backend did not', async () => {
+            requestMock
+                .mockResolvedValueOnce(EMPTY_PLAY_LINK)
+                .mockResolvedValueOnce(EMPTY_PLAY_LINK)
+                .mockResolvedValueOnce(EMPTY_PLAY_LINK)
+                .mockResolvedValueOnce({ data: { playUrl: { '003rJSwm3TechU': { url: 'https://audio.example.test/full.mp3', error: false } } } });
+
+            const source = await qqProvider.playback!.getAudioSource(SONG, 'lossless');
+            expect(source).toMatchObject({ url: 'https://audio.example.test/full.mp3', quality: 'standard' });
+            expect(source).not.toHaveProperty('preview');
+        });
+
         // 试听那一次失败只是没有试听：照原来的说法说没有音频，不把试听的错交出去。
         it('says no audio where the preview request itself failed', async () => {
             requestMock
@@ -1579,13 +1592,13 @@ describe('qqProvider (3.3.3 library)', () => {
         expect(requestMock.mock.calls.map(call => call[0])).toEqual(['login_status', 'user_vip']);
     });
 
-    // 判断不出来不当成免费；会员等级读不到也不影响登录。
+    // 判断不出来不当成免费；会员等级读不到也不影响登录。等级一个账号只读一次，所以读不到的那次换一个账号。
     it('leaves vipType out where the level is unknown or could not be read', async () => {
-        const profile = { code: 200, data: { profile: { str_musicid: '10001', nick: '示例用户' } } };
+        const profileOf = (id: string) => ({ code: 200, data: { profile: { str_musicid: id, nick: '示例用户' } } });
         requestMock
-            .mockResolvedValueOnce(profile)
+            .mockResolvedValueOnce(profileOf('10001'))
             .mockResolvedValueOnce({ code: 200, isVip: false, vipLevel: 'unknown' })
-            .mockResolvedValueOnce(profile)
+            .mockResolvedValueOnce(profileOf('10002'))
             .mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi request failed: 502', 'qq', { errorKey: 'upstream.unknown' }, 502));
 
         const unknown = await qqProvider.auth!.getLoginStatus!();
@@ -1593,8 +1606,9 @@ describe('qqProvider (3.3.3 library)', () => {
 
         expect(unknown).toMatchObject({ id: '10001' });
         expect(unknown).not.toHaveProperty('vipType');
-        expect(failed).toMatchObject({ id: '10001' });
+        expect(failed).toMatchObject({ id: '10002' });
         expect(failed).not.toHaveProperty('vipType');
+        expect(requestMock.mock.calls.map(call => call[0])).toEqual(['login_status', 'user_vip', 'login_status', 'user_vip']);
     });
 
     it('keeps vipType through a round trip of the cached user', () => {
@@ -1617,6 +1631,20 @@ describe('qqProvider (3.3.3 library)', () => {
         requestMock.mockResolvedValueOnce({ code: 200, playlist: playlist.slice(0, 1), total: 1, more: false });
         await expect(qqProvider.library!.getUserPlaylists(123, 50, 0)).resolves.toMatchObject({ total: 1, hasMore: false });
         expect(requestMock).toHaveBeenCalledTimes(2);
+    });
+
+    // 一轮读到的整份歌单只给读它的那个账号切：换了账号，后面的页也重新读。
+    it('never pages one account\'s playlists out of another account\'s round', async () => {
+        const listOf = (prefix: number) => Array.from({ length: 60 }, (_, index) => ({ tid: prefix + index, dirId: index + 1, dirName: `歌单 ${index}` }));
+        requestMock
+            .mockResolvedValueOnce({ code: 200, playlist: listOf(1000), total: 60, more: false })
+            .mockResolvedValueOnce({ code: 200, playlist: listOf(5000), total: 60, more: false });
+
+        await qqProvider.library!.getUserPlaylists('10001', 50, 0);
+        const other = await qqProvider.library!.getUserPlaylists('20002', 50, 50);
+
+        expect(requestMock).toHaveBeenCalledTimes(2);
+        expect(other.items.map(item => item.id)).toEqual(Array.from({ length: 10 }, (_, index) => 5050 + index));
     });
 
     it('asks whether songs are liked by songmid and answers only what the backend is sure of', async () => {
