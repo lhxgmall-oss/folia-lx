@@ -6,16 +6,16 @@ const requestMock = vi.hoisted(() => vi.fn());
 const searchQQSongsMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qqTransport', () => ({
+vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
     hasQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({
+vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
     searchQQSongs: searchQQSongsMock,
 }));
 
-import { searchQqSongs } from '@/services/onlineMusic/qqSearch';
+import { searchQqSongs } from '@/services/onlineMusic/qq/qqSearch';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 // 后端 `/search` 原样交出的精简版搜索条目（字段按 qq-music-api 3.3.1 文档，标识符取公开曲目）。
@@ -109,10 +109,11 @@ describe('searchQqSongs', () => {
         expect(requestMock).not.toHaveBeenCalled();
         expect(searchQQSongsMock).toHaveBeenCalledWith('搁浅', 1, 20);
         expect(error).toBeInstanceOf(OnlineProviderError);
+        // QQ's code stays on the cause, with the error the anonymous search threw.
         expect(error).toMatchObject({
             code: 'network',
             providerId: 'qq',
-            details: { stage: 'upstream', upstreamCode: 2001, signInMayHelp: true },
+            cause: { upstreamCode: 2001, error: expect.any(Error) },
         });
     });
 
