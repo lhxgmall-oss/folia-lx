@@ -810,7 +810,8 @@ export default {
       "settings-cycle-subtitle-content-mode": { "title": "Cycle subtitle content mode", "description": "Cycle subtitle content between translation, romanization, and romanization plus translation" },
       "settings-toggle-subtitle-background": { "title": "Toggle subtitle background", "description": "Show or hide the readability background behind visualizer subtitles" },
       "settings-language-system": { "title": "Follow system language", "description": "Use the browser or system language" },
-      "settings-language-zh-CN": { "title": "Switch language to Chinese", "description": "Use Simplified Chinese in the interface" },
+      "settings-language-zh-CN": { "title": "Switch language to Simplified Chinese", "description": "Use Simplified Chinese in the interface" },
+      "settings-language-zh-TW": { "title": "Switch language to Traditional Chinese", "description": "Use Traditional Chinese in the interface" },
       "settings-language-en": { "title": "Switch language to English", "description": "Use English in the interface" },
       "settings-language-in": { "title": "Switch language to Indonesian", "description": "Use Bahasa Indonesia in the interface" }
     }
@@ -1858,6 +1859,7 @@ export default {
     "appLanguage": "Interface language",
     "appLanguageSystem": "Follow system",
     "appLanguageZhCN": "Simplified Chinese",
+    "appLanguageZhTW": "Traditional Chinese",
     "appLanguageEnUS": "English",
     "appLanguageInID": "Indonesian",
     "appLanguageSystemHint": "Current: {{language}}",

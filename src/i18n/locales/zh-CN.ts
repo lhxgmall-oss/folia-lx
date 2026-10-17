@@ -810,7 +810,8 @@ export default {
       "settings-cycle-subtitle-content-mode": { "title": "切换翻译字幕状态", "description": "在翻译、罗马音、罗马音加翻译之间切换副字幕内容" },
       "settings-toggle-subtitle-background": { "title": "切换字幕背景", "description": "显示或隐藏提升字幕可读性的背景" },
       "settings-language-system": { "title": "跟随系统语言", "description": "使用浏览器或系统语言" },
-      "settings-language-zh-CN": { "title": "切换为中文", "description": "界面使用简体中文" },
+      "settings-language-zh-CN": { "title": "切换为简体中文", "description": "界面使用简体中文" },
+      "settings-language-zh-TW": { "title": "切換為繁體中文", "description": "介面使用繁體中文" },
       "settings-language-en": { "title": "切换为英文", "description": "界面使用 English" },
       "settings-language-in": { "title": "切换为印尼语", "description": "界面使用 Bahasa Indonesia" }
     }
@@ -1857,6 +1858,7 @@ export default {
     "appLanguage": "界面语言",
     "appLanguageSystem": "跟随系统",
     "appLanguageZhCN": "简体中文",
+    "appLanguageZhTW": "繁体中文",
     "appLanguageEnUS": "English",
     "appLanguageInID": "Indonesian",
     "appLanguageSystemHint": "当前生效：{{language}}",

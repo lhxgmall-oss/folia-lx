@@ -1712,7 +1712,7 @@ type FoliumId = string
 
 ### FoliumLabel
 
-Localized text keyed by locale (`zh-CN`, `en`, `in`); the host falls back to `en`, then to any entry.
+Localized text keyed by locale (`zh-CN`, `zh-TW`, `en`, `in`); the host falls back to `en`, then to any entry.
 
 ```ts
 type FoliumLabel = Record<string, string | undefined>
