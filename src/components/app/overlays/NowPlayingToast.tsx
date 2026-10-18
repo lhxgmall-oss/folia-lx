@@ -8,6 +8,7 @@ import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBot
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
 import { playerControlBarHeight, playerControlBarLeft, resolveNowPlayingCardBottomPx } from '../../../stores/playerControlBarGeometry';
 import { safeAreaInsets } from '../../../stores/safeAreaInsets';
+import { IS_ANDROID_BUILD } from '../../../utils/androidApp';
 
 // src/components/app/overlays/NowPlayingToast.tsx
 // 播放器与 Lattice 左下角的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入）。
@@ -122,12 +123,22 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
     const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
     // 竖屏手机上卡片（左下）和中间的进度条胶囊落在同一条基线上，会叠在一起：
     // 横向上够到胶囊时，卡片抬到胶囊上方（stores/playerControlBarGeometry）。宽屏上碰不到，位置不变。
+    // 只在安卓 App 竖屏时这样做；电脑版和横屏保持原来的位置。
     const cardWidth = useMotionValue(0);
+    const liftAllowed = useMotionValue(0);
+    useEffect(() => {
+        if (!IS_ANDROID_BUILD || typeof window === 'undefined' || !window.matchMedia) return;
+        const query = window.matchMedia('(orientation: portrait)');
+        const sync = () => liftAllowed.set(query.matches ? 1 : 0);
+        sync();
+        query.addEventListener('change', sync);
+        return () => query.removeEventListener('change', sync);
+    }, [liftAllowed]);
     const cardBottomPx = useTransform(
-        [bottomBarBottomPx, playerControlBarLeft, playerControlBarHeight, safeAreaInsets.left, cardWidth],
-        ([bottom, barLeft, barHeight, safeLeft, width]: number[]) => resolveNowPlayingCardBottomPx(
+        [bottomBarBottomPx, playerControlBarLeft, playerControlBarHeight, safeAreaInsets.left, cardWidth, liftAllowed],
+        ([bottom, barLeft, barHeight, safeLeft, width, allowed]: number[]) => (allowed ? resolveNowPlayingCardBottomPx(
             bottom, CARD_LEFT_PX + safeLeft, width, barLeft, barHeight,
-        ),
+        ) : bottom),
     );
     useEffect(() => {
         const frame = frameRef.current;
