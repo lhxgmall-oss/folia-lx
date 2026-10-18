@@ -45,7 +45,7 @@ Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，
 > - **GitHub**：[Latest Release](https://github.com/chthollyphile/folia-major/releases/latest)，提供 Windows / macOS / Linux 全平台安装包。
 > - **网盘**：[夸克网盘](https://pan.quark.cn/s/6e4c6fa3bc6f) · [百度云](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia)（提取码 `flia`），适合国内网络，仅提供 Windows 与 Apple silicon 的正式版安装包。
 >
-> 更多获取方式（Web 部署、Docker、AUR、Flatpak）见下方 [获取方式](#获取方式)。
+> 更多获取方式（Web 部署、Docker、AUR、Flatpak、社区移动版）见下方 [获取方式](#获取方式)。
 
 ## 展示
 
@@ -156,6 +156,7 @@ Vercel 与 Cloudflare 上的 QQ 音乐不再需要额外部署一个常驻 API �
 - **Windows / macOS / Linux**: 最新版本的安装包请前往 [Releases 页面](https://github.com/chthollyphile/folia-major/releases/latest) 下载。
 - **Arch Linux**: 可通过 AUR 获取 [folia-major-bin](https://aur.archlinux.org/packages/folia-major-bin)。
 - **Flatpak**: 社区提供的第三方 flatpak，详情见 [Flatpark](https://flatpark.org/apps/top.izuna.foliamajor/)。
+- **Android**: 社区移植的安卓版见 [maimai993/folia-sonnet](https://github.com/maimai993/folia-sonnet)。该版本由社区自发维护，功能会与官方 PC 版存在差异，使用中遇到问题请反馈到该社区仓库。
 
 > [!IMPORTANT]
 > 如果国内网络从 GitHub Releases 下载较慢，可以使用 [夸克网盘](https://pan.quark.cn/s/6e4c6fa3bc6f) 或 [百度云](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia) 下载。网盘链接仅提供 Windows 与 Apple silicon 的正式版安装包.
