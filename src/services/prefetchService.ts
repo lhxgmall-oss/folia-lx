@@ -12,7 +12,7 @@ import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { getPlatformLyricSource } from '../utils/lyrics/lyricSources';
 import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
-import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
+import { getPlaybackSourceRef, resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
 import { nextTransitionSong, queueIndexOf } from '../utils/playbackNeighbors';
 import { omni } from './onlineMusic/omni';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
@@ -79,6 +79,14 @@ const analyseForAutomix = (song: SongResult, audioUrl: string | null | undefined
         wantGrid: modeNeedsBeatGrid(settingsAutomixSettings.transitionMode),
     });
 };
+
+/**
+ * Where the analyser may read a library song from: a Navidrome song's stream. A local file has no
+ * URL to give - the analyser reads it off its own handle (analysis/trackAudio.ts).
+ */
+const libraryAudioUrl = (song: SongResult): string | null => (
+    resolveNavidromePlaybackCarrier(song)?.navidromeData.streamUrl ?? null
+);
 
 export interface PrefetchedSongData {
     songKey: string;
@@ -223,6 +231,13 @@ const prefetchSong = async (
     if (signal.aborted) return;
 
     const sourceRef = getPlaybackSourceRef(song);
+    if (sourceRef.kind === 'local' || sourceRef.kind === 'navidrome') {
+        // Nothing light to fetch for a library song - its lyrics and cover come with the record - but
+        // the automix analysis is owed to it like to any track. Skipping it here left every library
+        // transition with no profile at either end, so each one came out a plain fade.
+        analyseForAutomix(song, libraryAudioUrl(song));
+        return;
+    }
     if (sourceRef.kind !== 'online') {
         console.log(`[Prefetch] Skipping non-online song: ${song.name}`);
         return;
@@ -469,7 +484,7 @@ export const prefetchNearbySongs = async (
     const currentIndex = queueIndexOf(queue, currentSong);
 
     // Told before anything is asked for, so the analyser can drop work it has queued for tracks that
-    // are no longer either half of the next transition. This function is called when an online track
+    // are no longer either half of the next transition. This function is called when a track
     // starts playing, when a session is restored and when the queue is shuffled - analysis is serial,
     // so a stale entry does not merely waste itself, it delays the track the listener just chose.
     // It is not called when the queue is edited or the repeat mode changes: the scope follows those
@@ -531,7 +546,7 @@ export const prefetchNearbySongs = async (
     // The track playing right now is the other half of every transition it is about to be in, and
     // it is not in the prefetch set, so it would otherwise only ever be analysed on a second
     // listen. Its own prefetch entry usually still holds the URL it was resolved from.
-    analyseForAutomix(currentSong, prefetchCache.get(currentSongKey)?.audioUrl);
+    analyseForAutomix(currentSong, prefetchCache.get(currentSongKey)?.audioUrl ?? libraryAudioUrl(currentSong));
 
     // Prefetch using requestIdleCallback for non-blocking execution
     const prefetchWithIdle = (songs: SongResult[], index: number) => {

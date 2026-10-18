@@ -252,7 +252,7 @@ const readBytes = async (
     }
 
     if (!audioUrl) {
-        // A local track with no URL in hand (the next-up head: prefetch skips local files) is read
+        // A local track with no URL in hand (the prefetcher has none to give for a local file) is read
         // off its own file handle (analysis/trackAudio.ts).
         const file = await readLocalTrackFile(song);
         if (file) return { bytes: file, partial: false };
