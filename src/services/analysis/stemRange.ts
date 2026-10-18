@@ -90,7 +90,23 @@ const separating = new Map<string, Promise<StemChannels[] | null>>();
 const wanted = new Map<string, Array<{ from: number; to: number; total: number }>>();
 
 const segmentKey = (key: string, index: number) => `${key}#${index}`;
-const bytesOf = (stems: StemChannels[]) => stems.reduce((sum, stem) => sum + stem.left.byteLength + stem.right.byteLength, 0);
+// What a segment holds is its buffers, not its views: the four stems are views of one readback, so
+// each buffer is counted once and whole (a view counted by its own length undercounted 4x, below).
+const bytesOf = (stems: StemChannels[]) => {
+    const buffers = new Set<ArrayBufferLike>();
+    stems.forEach((stem) => {
+        buffers.add(stem.left.buffer);
+        buffers.add(stem.right.buffer);
+    });
+    let bytes = 0;
+    buffers.forEach((buffer) => { bytes += buffer.byteLength; });
+    return bytes;
+};
+/**
+ * The drums alone, in buffers of their own. A view of the readback kept the other three stems alive
+ * with it: found in the app (2026-10-18), 68 drums-only segments counted as 94 MB held 374 MB.
+ */
+const drumsOnly = (stems: StemChannels[]): StemChannels[] => [{ left: stems[0].left.slice(), right: stems[0].right.slice() }];
 
 const keep = (id: string, stems: StemChannels[], total: number) => {
     const previous = kept.get(id);
@@ -155,7 +171,7 @@ export const forgetStemRange = (key: string, from: number, to: number, total: nu
     for (const index of segmentsOver(total, from, to)) {
         const id = segmentKey(key, index);
         const found = kept.get(id);
-        if (found && found.stems.length > 1 && !inWantedRange(key, index, total)) keep(id, [found.stems[0]], total);
+        if (found && found.stems.length > 1 && !inWantedRange(key, index, total)) keep(id, drumsOnly(found.stems), total);
     }
 };
 
@@ -201,7 +217,7 @@ export const separateStemSegment = async (
     if (!stems) return null;
     if (key && id) {
         if (inWantedRange(key, index, total, own) && stems.length === STEM_SOURCES.length) keep(id, stems, total);
-        else if (by === 'stems') keep(id, [stems[0]], total);
+        else if (by === 'stems') keep(id, drumsOnly(stems), total);
     }
     return stems;
 };

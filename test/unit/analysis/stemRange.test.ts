@@ -126,6 +126,30 @@ describe('stem ranges, from review', () => {
         expect(peekStemSegment('own', 3)).toHaveLength(1);
     });
 
+    it('keeps the drums alone in buffers of their own, not views that hold the other stems', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        // The stand-in returns four separate arrays; the GPU's are views of one readback.
+        runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
+            const out = await model(l, r);
+            const shared = new Float32Array(8 * l.length);
+            const stems = out.stems.map((stem, source) => {
+                shared.set(stem.left, 2 * source * l.length);
+                shared.set(stem.right, (2 * source + 1) * l.length);
+                return {
+                    left: shared.subarray(2 * source * l.length, (2 * source + 1) * l.length),
+                    right: shared.subarray((2 * source + 1) * l.length, (2 * source + 2) * l.length),
+                };
+            });
+            return { left: stems[0].left, right: stems[0].right, stems };
+        });
+        expect(await separateStemRange({ key: 'views', left, right, offset: 0, total, from: 30, to: 50, options })).not.toBeNull();
+        const drums = peekStemSegment('views', 3)!;
+        expect(drums).toHaveLength(1);
+        expect(drums[0].left.buffer.byteLength).toBe(drums[0].left.byteLength);
+        expect(drums[0].right.buffer.byteLength).toBe(drums[0].right.byteLength);
+    });
+
     it('joins a segment another caller is separating rather than running it twice', async () => {
         const total = 50;
         const { left, right } = track(total);
