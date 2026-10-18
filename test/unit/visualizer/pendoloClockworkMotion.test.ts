@@ -102,8 +102,15 @@ describe('Pendolo clockwork motion with beats (智能动感模式)', () => {
                 out.push([r.bass, r.bassOscillation, r.secondGearAngle, r.phase]);
             }
         }
-        expect(out).toEqual(golden);
-        const off = stepPendoloClockworkMotion(createPendoloClockworkMotionState(), 1 / 60, 0.5, false, resolvePendoloMotionProfile('normal'), null);
+        // To the last bits rather than bit for bit: the fixture was recorded on macOS arm64, and Math.sin
+        // and friends differ in the last place on CI's Linux x64 (seen 1 ulp). 1e-12 relative still
+        // catches any change to the motion itself.
+        expect(out.length).toBe(golden.length);
+        out.forEach((row, index) => row.forEach((value, column) => {
+            const want = golden[index][column];
+            expect(Math.abs(value - want)).toBeLessThanOrEqual(1e-12 * Math.max(1, Math.abs(want)));
+        }));
+        const off =stepPendoloClockworkMotion(createPendoloClockworkMotionState(), 1 / 60, 0.5, false, resolvePendoloMotionProfile('normal'), null);
         expect(off.transBeatAngle).toBe(0);
     });
 
