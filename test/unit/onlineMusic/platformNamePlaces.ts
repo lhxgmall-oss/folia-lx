@@ -63,7 +63,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/components/modal/settings/pages/HelpPage.tsx': { n: { qq: 5 }, kind: 'namesake', why: 'the QQ chat app\'s community group, not QQ Music: its number and its i18n key' },
     'src/components/modal/settings/pages/IntegrationPage.tsx': { n: { netease: 4, lx: 4 }, kind: 'stored', why: 'the stored setting neteaseScrobbleEnabled and its i18n keys' },
     'src/components/modal/settings/pages/LyricsPage.tsx': { n: { spotify: 1 }, kind: 'lyric', why: 'which of two hand-written descriptions of the lyric sources is shown' },
-    'src/components/modal/settings/pages/integration/options.ts': { n: { netease: 1, lx: 6 }, kind: 'stored', why: 'an i18n key' },
+    'src/components/modal/settings/pages/integration/options.ts': { n: { netease: 1, lx: 7 }, kind: 'stored', why: 'an i18n key; Folia-LX: the LX settings group and its option ids' },
     'src/components/panelTab/FmTab.tsx': { n: { qq: 1, bodian: 1 }, kind: 'doc' },
     'src/components/shared/CoverSizeAuditPanel.tsx': { n: { netease: 6 }, kind: 'question', why: 'a developer panel: a filter for the cover requests that go to one picture host' },
     'src/components/shared/qqCommunity.ts': { n: { qq: 3 }, kind: 'namesake', why: 'the number of the QQ chat app\'s community group, not QQ Music' },

@@ -1,4 +1,6 @@
 const { SUB_SOURCES, LX_QUALITIES } = require('./userApi/userApiManager.cjs');
+const { parseLxListFile } = require('./myLists/lxListFile.cjs');
+const { createLxCoverFill } = require('./myLists/lxCoverFill.cjs');
 
 // electron/lx/lxApiBridge.cjs
 // The one main-process entry for the LX provider: request(operation, params) answers
@@ -9,6 +11,7 @@ const { SUB_SOURCES, LX_QUALITIES } = require('./userApi/userApiManager.cjs');
 const LX_OPERATIONS = Object.freeze([
   'state', 'search', 'songlist_hot', 'songlist_detail', 'songlist_search', 'lyric', 'pic', 'music_url',
   'script_import_text', 'script_import_url', 'script_import_file', 'script_remove', 'script_activate', 'settings_set',
+  'mylists', 'mylist_tracks', 'mylist_import_file', 'mylist_remove', 'mylist_cover_status',
 ]);
 
 // Folia's levels, lowest first, and the LX quality each one asks for.
@@ -74,8 +77,28 @@ async function fillCovers(sdk, rows, { budgetMs = 2500, max = 40, concurrency = 
   return rows;
 }
 
-function createLxApiBridge({ sdk, request, manager, pickScriptFile = async () => null, log = console }) {
+function createLxApiBridge({ sdk, request, manager, myLists = null, pickScriptFile = async () => null, pickListFile = async () => null, log = console }) {
   sdk.setRequester(request);
+
+  // Covers of imported songs, asked of the sub-source's musicSdk getPic in the background.
+  const coverFill = myLists ? createLxCoverFill({
+    myLists,
+    getPic: row => {
+      // tx builds the URL from the album id alone: without one it would be a dead link.
+      if (row.source === 'tx' && !row.albumId) {
+        if (!row.albumMid) return null;
+        row = { ...row, albumId: row.albumMid };
+      }
+      return sdk.sources[row.source]?.getPic?.(row);
+    },
+    log,
+  }) : null;
+  let coverFillAsked = false;
+
+  const requireMyLists = () => {
+    if (!myLists) throw Object.assign(new Error('Imported LX lists are not available here'), { code: 'unsupported' });
+    return myLists;
+  };
 
   const sourceOf = value => {
     if (!isSubSource(value)) throw Object.assign(new Error(`Unknown LX sub-source: ${value}`), { code: 'unsupported' });
@@ -211,6 +234,30 @@ function createLxApiBridge({ sdk, request, manager, pickScriptFile = async () =>
     script_remove: ({ id }) => manager.remove(String(id)),
     script_activate: ({ id }) => manager.activate(id == null ? null : String(id)),
     settings_set: patch => manager.setSettings(patch),
+    // The lists imported from LX Music desktop's 「我的列表」 (./myLists).
+    mylists: () => {
+      const lists = requireMyLists().list();
+      // The first read in a run of the app goes on with covers an earlier run did not finish.
+      if (!coverFillAsked && lists.length) {
+        coverFillAsked = true;
+        void coverFill.start();
+      }
+      return lists;
+    },
+    mylist_cover_status: () => (coverFill ? coverFill.status() : { running: false, done: 0, total: 0, filled: 0 }),
+    mylist_tracks: ({ key, offset, limit }) => requireMyLists().tracks({ key: String(key || ''), offset, limit }),
+    async mylist_import_file() {
+      const store = requireMyLists();
+      const file = await pickListFile();
+      if (file == null) return null;
+      const parsed = parseLxListFile(file);
+      const result = store.importLists(parsed);
+      coverFillAsked = true;
+      void coverFill.start(); // not waited for: the import answers now
+      log.info?.(`[LX] my lists: imported ${result.lists} lists (${result.updated} replaced), ${result.songs} songs; left out ${result.skippedLocal} local and ${result.skippedOther} other songs, ${result.emptyLists} empty lists (${parsed.type})`);
+      return { ...result, type: parsed.type };
+    },
+    mylist_remove: ({ key }) => requireMyLists().remove(String(key || '')),
   };
 
   return {

@@ -5225,6 +5225,18 @@ export default {
       "flac24bit": "Hi-Res FLAC 24-bit"
     },
     "fallbackLabel": "Switch source on failure",
-    "fallbackDesc": "Where the script gives no URL, look for the same song on the other sub-sources it covers"
+    "fallbackDesc": "Where the script gives no URL, look for the same song on the other sub-sources it covers",
+    "myListsLabel": "LX playlists",
+    "myListsDesc": "Import the lists exported from LX Music desktop's \"My Lists\"; each list becomes a playlist on the home screen's Playlists tab",
+    "myListsNote": "In LX Music: Settings → Backup & Restore → Export lists (all lists), or right-click a list in My Lists → Export (one list). Importing the same list again replaces it instead of adding a copy. Local songs are not imported; songs play through the source script imported above.",
+    "myListsImport": "Import LX playlists (.lxmc / .json)",
+    "myListsImported": "Imported {{lists}} playlists, {{songs}} songs",
+    "myListsImportedSkipped": "Imported {{lists}} playlists, {{songs}} songs (skipped {{local}} local songs)",
+    "myListsReplaced": "{{count}} of them updated playlists imported before.",
+    "myListsEmpty": "{{count}} lists had no online songs and were not imported.",
+    "myListsSkippedOther": "{{count}} songs that could not be read were left out.",
+    "myListsCount": "{{count}} songs",
+    "coversFilling": "Filling in covers {{done}}/{{total}}",
+    "coversDone": "Covers filled in: {{filled}} of {{total}} songs found one"
   }
 } as const;

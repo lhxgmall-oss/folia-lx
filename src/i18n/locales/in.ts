@@ -5225,6 +5225,18 @@ export default {
       "flac24bit": "Hi-Res FLAC 24-bit"
     },
     "fallbackLabel": "Ganti sumber saat gagal",
-    "fallbackDesc": "Bila skrip tidak memberi alamat, cari lagu yang sama di sub-sumber lain yang didukungnya"
+    "fallbackDesc": "Bila skrip tidak memberi alamat, cari lagu yang sama di sub-sumber lain yang didukungnya",
+    "myListsLabel": "Playlist LX",
+    "myListsDesc": "Impor daftar yang diekspor dari \"My Lists\" LX Music desktop; setiap daftar menjadi playlist di tab Playlist beranda",
+    "myListsNote": "Di LX Music: Pengaturan → Cadangkan & Pulihkan → Ekspor daftar (semua daftar), atau klik kanan sebuah daftar di My Lists → Ekspor (satu daftar). Mengimpor daftar yang sama lagi akan menggantinya, bukan menduplikasi. Lagu lokal tidak diimpor; lagu diputar melalui skrip sumber yang diimpor di atas.",
+    "myListsImport": "Impor playlist LX (.lxmc / .json)",
+    "myListsImported": "Mengimpor {{lists}} playlist, {{songs}} lagu",
+    "myListsImportedSkipped": "Mengimpor {{lists}} playlist, {{songs}} lagu ({{local}} lagu lokal dilewati)",
+    "myListsReplaced": "{{count}} di antaranya memperbarui playlist yang sudah diimpor.",
+    "myListsEmpty": "{{count}} daftar tidak berisi lagu online dan tidak diimpor.",
+    "myListsSkippedOther": "{{count}} lagu yang tidak dapat dibaca dilewati.",
+    "myListsCount": "{{count}} lagu",
+    "coversFilling": "Melengkapi sampul {{done}}/{{total}}",
+    "coversDone": "Sampul selesai dilengkapi: {{filled}} dari {{total}} lagu mendapat sampul"
   }
 } as const;

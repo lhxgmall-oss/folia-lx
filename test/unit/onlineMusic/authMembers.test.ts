@@ -28,6 +28,8 @@ const AUTH_MEMBERS: Record<string, string[]> = {
         'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'getLoginTtlMs', 'logout', 'openLoginPage',
         'startLogin',
     ],
+    // Folia-LX: nobody signs in to LX; its one local account holds the lists imported from LX desktop.
+    lx: ['getLoginStatus', 'logout', 'showsKeptAccountAtStart'],
     ytm: [
         'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'getLoginTtlMs', 'logout', 'openLoginPage',
         'opensLoginPageItself', 'signInRanOut', 'startLogin',
@@ -39,9 +41,7 @@ describe('the sign-in members of each built-in platform', () => {
         expect(Object.keys(getOnlineMusicProvider(providerId)!.auth!).sort()).toEqual(members);
     });
 
-    // Folia-LX: LX Music is used without an account and has no `auth` at all.
     it('has a row for every built-in platform that signs in', () => {
         expect(listOnlineMusicProviders().filter(provider => provider.auth).map(provider => provider.id).sort()).toEqual(Object.keys(AUTH_MEMBERS).sort());
-        expect(getOnlineMusicProvider('lx')?.auth).toBeUndefined();
     });
 });

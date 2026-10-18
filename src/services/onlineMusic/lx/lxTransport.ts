@@ -6,7 +6,8 @@ import type { ProviderErrorCode } from '../../../types/onlineMusic';
 
 export type LxOperation =
     | 'state' | 'search' | 'songlist_hot' | 'songlist_detail' | 'songlist_search' | 'lyric' | 'pic' | 'music_url'
-    | 'script_import_text' | 'script_import_url' | 'script_import_file' | 'script_remove' | 'script_activate' | 'settings_set';
+    | 'script_import_text' | 'script_import_url' | 'script_import_file' | 'script_remove' | 'script_activate' | 'settings_set'
+    | 'mylists' | 'mylist_tracks' | 'mylist_import_file' | 'mylist_remove' | 'mylist_cover_status';
 
 export type LxBridgeResult =
     | { ok: true; data: unknown }

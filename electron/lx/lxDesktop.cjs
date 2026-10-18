@@ -6,6 +6,10 @@ const { lxRequest } = require('./lxHttp.cjs');
 const { createUserApiManager } = require('./userApi/userApiManager.cjs');
 const { createLxApiBridge } = require('./lxApiBridge.cjs');
 const { createLxMediaPolicy } = require('./mediaCors.cjs');
+const { createLxMyLists } = require('./myLists/lxMyLists.cjs');
+
+// An exported LX list file larger than this is not read (a full backup of a big library is a few MB).
+const MAX_LIST_FILE_BYTES = 200 * 1024 * 1024;
 
 // electron/lx/lxDesktop.cjs
 // Wires the LX provider into Electron: where scripts are kept (userData/lx-user-api), the process a
@@ -50,11 +54,26 @@ function createLxDesktop({ app, dialog, utilityProcess, getParentWindow = () => 
     fetchText: fetchScriptText,
     log,
   });
+  const myLists = createLxMyLists({ baseDir: () => path.join(app.getPath('userData'), 'lx-my-lists') });
   const bridge = createLxApiBridge({
     sdk,
     request: lxRequest,
     manager,
+    myLists,
     log,
+    async pickListFile() {
+      const result = await dialog.showOpenDialog(getParentWindow() || undefined, {
+        properties: ['openFile'],
+        filters: [
+          { name: 'LX Music list (.lxmc / .json)', extensions: ['lxmc', 'json'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      });
+      if (result.canceled || !result.filePaths?.[0]) return null;
+      const stat = await fs.promises.stat(result.filePaths[0]);
+      if (stat.size > MAX_LIST_FILE_BYTES) throw Object.assign(new Error('The file is too large'), { code: 'invalid-response' });
+      return fs.promises.readFile(result.filePaths[0]);
+    },
     async pickScriptFile() {
       const result = await dialog.showOpenDialog(getParentWindow() || undefined, {
         properties: ['openFile'],

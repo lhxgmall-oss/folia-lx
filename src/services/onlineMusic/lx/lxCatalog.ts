@@ -3,6 +3,7 @@ import type { OnlineCatalogProvider, ProviderCollection, ProviderPage } from '..
 import { lxCollectionTarget, lxPage, normalizeLxCollection, normalizeLxSong } from './lxNormalize';
 import type { LxMusicInfo, LxSubSource } from './lxNormalize';
 import { requestLx } from './lxTransport';
+import { clearLxMyListCache, getLxMyListDetail, getLxMyListTracks, lxMyListKey } from './lxMyLists';
 
 // src/services/onlineMusic/lx/lxCatalog.ts
 // Song lists of the five LX sub-sources. LX reads a list in pages of the platform's own size; Folia asks
@@ -43,6 +44,9 @@ const readPage = async (entry: ListCache, source: LxSubSource, listId: string) =
 };
 
 export async function getLxListTracks(id: unknown, limit: number, offset: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>> {
+    // A list imported from LX Music desktop is read from the lists kept on this computer.
+    const myKey = lxMyListKey(id, collection);
+    if (myKey) return getLxMyListTracks(myKey, limit, offset);
     const { source, listId } = lxCollectionTarget(id, collection);
     const entry = cacheFor(`${source}__${listId}`);
     let reads = 0;
@@ -59,6 +63,8 @@ export const lxCatalog: OnlineCatalogProvider = {
     resolveSongCatalogRefs: async song => song,
     getPlaylistTracks: (id, limit, offset, collection) => getLxListTracks(id, limit, offset, collection),
     async getPlaylistDetail(id, collection) {
+        const myKey = lxMyListKey(id, collection);
+        if (myKey) return getLxMyListDetail(myKey, collection);
         const { source, listId } = lxCollectionTarget(id, collection);
         const entry = cacheFor(`${source}__${listId}`);
         if (!entry.info && !entry.done) await readPage(entry, source, listId);
@@ -75,4 +81,7 @@ export const lxCatalog: OnlineCatalogProvider = {
 };
 
 /** Forgets the lists read so far (a fresh read of a list asks the platform again). */
-export const clearLxListCache = () => cache.clear();
+export const clearLxListCache = () => {
+    cache.clear();
+    clearLxMyListCache();
+};

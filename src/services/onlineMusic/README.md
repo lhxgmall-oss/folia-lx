@@ -47,6 +47,7 @@ Folia-LX 分支登记了 `lx` 平台（`lx/lxProvider.ts`，仅桌面端，不�
 - 聚合搜索：每个子源要 `ceil(limit / 5)` 条，交错合并；失败的子源略过，全部失败才报错。
 - 取地址失败且开着换源时，按歌名 + 歌手在脚本支持的其他子源搜索，用 LX `findMusic` 的匹配规则排序后依次再试。
 - 逐字歌词：LX 的 `lxlyric` 用 `parseAwlrc` 解析，没有时用 LRC。
+- 洛雪歌单导入（`lx/lxMyLists.ts`，主进程 `electron/lx/myLists/`）：设置 → 连接与集成 → LX Music 音源 →「导入洛雪歌单（.lxmc / .json）」读 LX 桌面版导出的文件（`playList(_v2)`、`playListPart(_v2)`、`allData(_v2)` 里的列表、旧的 `defautlList`；gzip 或明文 JSON，`lxListFile.cjs`）。v2 的 musicInfo 用 LX 自己的 `toOldMusicInfo` 换回旧形状（`songmid`、`img`、`types`/`_types`、kg 的 `hash`、tx 的 `strMediaMid`/`albumMid`/`songId`、mg 的 `copyrightId` 等），因为 `lxNormalize.ts` 和源脚本的 `musicUrl` 读的都是旧形状；`local` 歌曲计数后跳过。列表存在 `userData/lx-my-lists/`（`index.json` + `lists/<key>.json`，key 是 LX 列表 id 的 sha1 前 16 位），同一个 LX 列表 id 再导入时替换，不重复。Folia 自己的本地歌单（`LocalPlaylist.songIds`）只能放本地曲库的歌，所以这些歌单挂在 LX 的用户库上：LX 有一个总是在的本地账户（`LX_LOCAL_USER`，`auth.getLoginStatus` 直接回它，`capabilities.auth`/`userLibrary` 为 `true`），导入的列表就是它的歌单（集合 id `lxmy__<key>`，`providerData.lxMyList`），出现在首页「歌单」页签，歌曲走导入的源脚本播放。导入后主进程在后台补全缺的封面（`myLists/lxCoverFill.cjs`，4 首并发，musicSdk 的 `getPic`，15 秒没答复算失败；结果经 `applyCovers` 写回列表文件，列表封面取第一首有封面的歌；进度走 `mylist_cover_status`，导入本身不等它；每次启动后第一次读列表时把上次没补完的接着补）。副作用：首页的 LX 不再是「无账户」面板，「电台」页签显示各子源的热门歌单。
 
 ## 接入一个新平台
 

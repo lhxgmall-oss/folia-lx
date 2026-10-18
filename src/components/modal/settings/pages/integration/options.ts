@@ -35,4 +35,5 @@ export const O = {
     lxSubSource: option(LX_MUSIC, 'lxSubSource', 'lx.subSourceLabel'),
     lxQuality: option(LX_MUSIC, 'lxQuality', 'lx.qualityLabel'),
     lxFallback: option(LX_MUSIC, 'lxFallback', 'lx.fallbackLabel'),
+    lxMyLists: option(LX_MUSIC, 'lxMyLists', 'lx.myListsLabel'),
 };

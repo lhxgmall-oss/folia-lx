@@ -109,6 +109,38 @@ describe('lxProvider', () => {
         expect(lists.every(list => list.providerId === 'lx')).toBe(true);
     });
 
+    it('has one local account whose playlists are the lists imported from LX desktop', async () => {
+        const calls = stubBridge((operation, params) => {
+            if (operation === 'mylists') return [
+                { key: 'aaaaaaaaaaaaaaaa', lxId: 'love', name: '我的收藏', count: 3, cover: 'http://c', importedAt: 1, updatedAt: 2 },
+                { key: 'bbbbbbbbbbbbbbbb', lxId: 'userlist_1', name: '跑步', count: 1, cover: '', importedAt: 1, updatedAt: 2 },
+            ];
+            if (operation === 'mylist_tracks') {
+                const all = [row(1), row(2), { bad: true }, row(3, 'tx')];
+                return { list: all.slice(params.offset, params.offset + params.limit), total: all.length };
+            }
+            throw new Error(`unexpected ${operation}`);
+        });
+        expect(lxProvider.capabilities).toMatchObject({ auth: true, userLibrary: true, playlists: true });
+        const user = await lxProvider.auth!.getLoginStatus();
+        expect(user).toMatchObject({ id: 'lx-local' });
+        const page = await lxProvider.library!.getUserPlaylists(user!.id, 1, 0);
+        expect(page).toMatchObject({ total: 2, hasMore: true, nextOffset: 1 });
+        expect(page.items[0]).toMatchObject({
+            providerId: 'lx', id: 'lxmy__aaaaaaaaaaaaaaaa', type: 'playlist', name: '我的收藏', trackCount: 3, coverUrl: 'http://c',
+            providerData: { lxMyList: 'aaaaaaaaaaaaaaaa', lxId: 'love' },
+        });
+        const tracks = await lxProvider.catalog!.getPlaylistTracks!(page.items[0].id, 2, 0, page.items[0]);
+        expect(tracks.items.map(song => song.id)).toEqual(['kw_1', 'kw_2']);
+        expect(tracks.hasMore).toBe(true);
+        const rest = await getLxListTracks('lxmy__aaaaaaaaaaaaaaaa', 2, 2);
+        expect(rest.items.map(song => song.id)).toEqual(['tx_3']);
+        expect(rest.hasMore).toBe(false);
+        expect(calls.filter(([op]) => op === 'songlist_detail')).toHaveLength(0);
+        const detail = await lxProvider.catalog!.getPlaylistDetail!('lxmy__bbbbbbbbbbbbbbbb');
+        expect(detail).toMatchObject({ name: '跑步', trackCount: 1, isOwned: true });
+    });
+
     it('says the desktop app is needed', () => {
         expect(describeLxFailure('audio', new OnlineProviderError('unavailable', LX_NEEDS_DESKTOP, 'lx'))).toEqual({ case: 'not-configured' });
         expect(describeLxFailure('audio', new Error('x'))).toBeNull();

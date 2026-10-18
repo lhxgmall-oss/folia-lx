@@ -8,6 +8,7 @@ import { describeLxFailure } from './lxFailure';
 import { LX_SUB_SOURCES, lxSongTarget, normalizeLxCollection, normalizeLxSong } from './lxNormalize';
 import type { LxMusicInfo } from './lxNormalize';
 import { lxCatalog } from './lxCatalog';
+import { LX_LOCAL_USER, normalizeLxMyList, readLxMyLists } from './lxMyLists';
 
 // src/services/onlineMusic/lx/lxProvider.ts
 // LX Music (洛雪音乐) as an Omni provider, desktop only. Search, song lists, lyrics and covers come from
@@ -15,6 +16,10 @@ import { lxCatalog } from './lxCatalog';
 // the custom source script the listener imported in settings (no script ships with Folia-LX). Search is
 // over one sub-source (kw/kg/tx/wy/mg) or all of them, as set in settings; where the script fails for
 // a song, the bridge looks for the same song on another sub-source.
+//
+// Nobody signs in to LX. The provider still has one local "account" (LX_LOCAL_USER, always signed in)
+// so that the lists imported from LX Music desktop's 「我的列表」 (lxMyLists.ts) show as its library
+// on the home screen's 歌单 tab the way any platform's playlists do; the 电台 tab shows the hot lists.
 
 type SearchAnswer = { list: LxMusicInfo[]; total: number; hasMore: boolean };
 type MusicUrlAnswer = { url: string; quality: AudioQualityPreference; source: string; fallbackFrom?: string };
@@ -45,10 +50,23 @@ export const lxProvider: OnlineMusicProvider = {
     getAvailability: getLxTransportAvailability,
     describeFailure: describeLxFailure,
     capabilities: {
-        search: true, playback: true, lyrics: true, wordByWordLyrics: true, auth: false,
-        userLibrary: false, playlists: true, albums: false, artists: false, recommendations: true, mutations: false,
+        search: true, playback: true, lyrics: true, wordByWordLyrics: true, auth: true,
+        userLibrary: true, playlists: true, albums: false, artists: false, recommendations: true, mutations: false,
     },
     normalizeSong: normalizeLxSong,
+    // The local "account" of the imported lists: always there, nothing to sign in to or out of.
+    auth: {
+        getLoginStatus: async () => LX_LOCAL_USER,
+        logout: async () => {},
+        showsKeptAccountAtStart: true,
+    },
+    library: {
+        async getUserPlaylists(_userId, limit, offset) {
+            const lists = (await readLxMyLists()).map(normalizeLxMyList);
+            const items = lists.slice(offset, offset + limit);
+            return { items, total: lists.length, hasMore: offset + items.length < lists.length, nextOffset: offset + items.length };
+        },
+    },
     normalizeCollection: raw => normalizeLxCollection(raw),
     songMetadata: { getSongMetadata: createProviderSongMetadata },
     search: {

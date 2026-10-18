@@ -5225,6 +5225,18 @@ export default {
       "flac24bit": "Hi-Res FLAC 24bit"
     },
     "fallbackLabel": "失败时自动换源",
-    "fallbackDesc": "脚本取不到地址时，到脚本支持的其他子源找同一首歌"
+    "fallbackDesc": "脚本取不到地址时，到脚本支持的其他子源找同一首歌",
+    "myListsLabel": "洛雪歌单",
+    "myListsDesc": "导入洛雪音乐桌面版「我的列表」导出的文件，每个列表成为首页「歌单」里的一个歌单",
+    "myListsNote": "在洛雪音乐里：设置 → 备份与恢复 → 导出列表（全部列表），或在「我的列表」里右键某个列表 → 导出（单个列表）。再次导入同一个列表会替换原来的，不会重复。本地歌曲不会导入；播放用上面导入的音源脚本。",
+    "myListsImport": "导入洛雪歌单（.lxmc / .json）",
+    "myListsImported": "已导入 {{lists}} 个歌单、{{songs}} 首歌",
+    "myListsImportedSkipped": "已导入 {{lists}} 个歌单、{{songs}} 首歌（跳过 {{local}} 首本地歌曲）",
+    "myListsReplaced": "其中 {{count}} 个是更新已导入过的歌单。",
+    "myListsEmpty": "{{count}} 个列表没有在线歌曲，未导入。",
+    "myListsSkippedOther": "另有 {{count}} 首无法识别的歌曲被略过。",
+    "myListsCount": "{{count}} 首歌",
+    "coversFilling": "正在补全封面 {{done}}/{{total}}",
+    "coversDone": "封面补全完成：{{filled}}/{{total}} 首找到封面"
   }
 } as const;

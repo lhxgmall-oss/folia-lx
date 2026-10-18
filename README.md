@@ -13,7 +13,8 @@ Folia-LX 是 [Folia（chthollyphile/folia-major）](https://github.com/chthollyp
 ## 有什么
 
 - **聚合搜索**：一次搜索同时询问酷我（kw）、酷狗（kg）、QQ 音乐（tx）、网易云（wy）、咪咕（mg）五个子源，结果交错排列；也可以在设置里只搜其中一个子源。某个子源失败时只略过它。
-- **歌单**：首页“推荐歌单”显示所选子源（或全部子源轮流）的热门歌单，点开按页读取歌曲。
+- **歌单**：首页“电台”页签显示所选子源（或全部子源轮流）的热门歌单，点开按页读取歌曲。
+- **导入洛雪歌单**：把 LX Music 桌面版「我的列表」导出的 `.lxmc` / `.json` 文件导入，每个列表成为首页“歌单”页签里的一个歌单（见下文“导入洛雪歌单”）。
 - **歌词**：有逐字歌词的子源显示逐字歌词（LX 的 `lxlyric`，与 Folia 已支持的 awlrc 同一格式），否则显示普通 LRC，带翻译和罗马音。
 - **封面**：搜索结果里缺封面的（酷我、酷狗）会在短时间内补取。
 - **自定义源脚本**：兼容 LX Music 桌面版的自定义源 API（`globalThis.lx`，API 版本 2.0.0）：`lx.EVENT_NAMES`、`lx.on('request')`、`lx.send('inited' | 'updateAlert')`、`lx.request`、`lx.utils.crypto / buffer / zlib`，动作 `musicUrl`。
@@ -46,6 +47,23 @@ Folia-LX 是 [Folia（chthollyphile/folia-major）](https://github.com/chthollyp
 ```
 
 脚本加载失败时，状态行会显示脚本抛出的错误；脚本的 `console` 输出写进 Folia 的运行日志（设置 → 开发者 → 运行日志，行首 `[LX] script:`）。
+
+## 导入洛雪歌单
+
+在 LX Music 桌面版里导出：
+
+- 全部列表：**设置 → 备份与恢复 → 导出列表**，得到 `lx_list.lxmc`；
+- 单个列表：在 **我的列表** 里右键某个列表 → **导出**，得到 `lx_list_part_<列表名>.lxmc`；
+- “导出全部数据”（`lx_datas_v2.lxmc`）也可以，只取其中的列表，设置不导入。
+
+在 Folia-LX 里：**设置 → 连接与集成 → LX Music 音源 →“导入洛雪歌单（.lxmc / .json）”**，选上面导出的文件。提示条显示“已导入 N 个歌单、M 首歌（跳过 K 首本地歌曲）”。然后在首页平台切换里选 **“LX Music 聚合”**，打开 **“歌单”** 页签。
+
+- 支持 LX 2.x（`playList_v2` / `playListPart_v2` / `allData_v2`）和 1.x 及更早（`playList` / `playListPart` / `allData`）的文件，gzip 压缩的 `.lxmc` 和明文 `.json` 都可以。
+- 同一个列表（LX 里的列表 id 相同）再导入一次会替换原来的，不会多出一份；在同一设置页里每个已导入的列表后面有删除按钮。
+- 本地歌曲（LX 的“本地”来源）不导入；没有在线歌曲的列表（比如空的“试听列表”）不导入。
+- 歌曲用上面导入的自定义源脚本播放，所以要先导入并启用脚本。
+- 导出文件里很多歌没有封面（LX 常把 `picUrl` 留空）。导入后在后台补全：每次 3–4 首，按歌曲的子源用 musicSdk 的 `getPic` 取封面，取到的写回保存的歌曲；设置页这一行显示“正在补全封面 n/N”，完成后首页歌单刷新。取不到的留空，本次运行不再重试（下次启动打开列表时会再试一次）。歌单封面用第一首有封面的歌的封面。
+- 导入的列表保存在应用数据目录的 `lx-my-lists/` 里。
 
 ## 构建
 
@@ -87,7 +105,8 @@ npm run build:lx-sdk     # 生成 electron/lx/musicSdk/lxMusicSdk.cjs
 | `electron/lx/userApi/` | 自定义源运行时 `scriptRuntime.cjs`、脚本进程 `scriptHost.cjs`、脚本与设置管理 `userApiManager.cjs` |
 | `electron/lx/lxApiBridge.cjs` | 主进程入口：聚合搜索、歌单、歌词、封面、取地址与换源（IPC 通道 `lx-api-request`） |
 | `electron/lx/lxDesktop.cjs`、`mediaCors.cjs` | Electron 接线：utilityProcess、文件选择、音频地址的 CORS |
-| `src/services/onlineMusic/lx/` | 渲染进程的 Omni provider（`lxProvider.ts` 等），在 `providerRegistry.ts` 登记 |
+| `electron/lx/myLists/` | 洛雪歌单导入：读 LX 导出文件 `lxListFile.cjs`，保存导入的列表 `lxMyLists.cjs` |
+| `src/services/onlineMusic/lx/` | 渲染进程的 Omni provider（`lxProvider.ts` 等，导入的歌单在 `lxMyLists.ts`），在 `providerRegistry.ts` 登记 |
 | `src/components/modal/settings/pages/integration/lx/` | 设置页里的 LX 行 |
 | `test/unit/lx/` | 单元测试 |
 
