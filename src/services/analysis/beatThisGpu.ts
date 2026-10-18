@@ -115,6 +115,14 @@ const scheduler = createScheduler({
 /** Who asks for a GPU run and how urgently: the scheduler's fields bar the work itself. */
 export type GpuRunOptions = Omit<UnitRequest<unknown>, 'kind' | 'run'>;
 
+/**
+ * When `units` GPU units of `kind`, asked now at `urgency`, would be done (performance.now() ms): the
+ * scheduler's estimate, for choosing between the GPU and the CPU (scheduler.ts chooseExecutor).
+ */
+export const estimateGpuFinish = (kind: string, units: number, urgency: GpuRunOptions['urgency'], deadline?: number): number => (
+    scheduler.estimateFinish(kind, units, urgency, deadline)
+);
+
 /** Raises a track's queued runs: a caller on screen joined a run asked in the background. */
 export const raiseGpuUrgency = (key: string, urgency: GpuRunOptions['urgency']): void => scheduler.raise(key, urgency);
 const pending = new Map<number, (reply: Reply) => void>();

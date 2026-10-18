@@ -65,9 +65,15 @@ const THREADS = Math.max(1, Math.floor(os.cpus().length / 4));
  * runner's 3.7-4.1s; separation has minutes of lead time, it needs to be invisible, not fast.
  */
 const HTDEMUCS_THREADS = 4;
+// @note Since the analysis service's phase 3 a request may say how many threads (the renderer's
+// scheduler picks a level, analysis/scheduler.ts cpuThreads: quiet - a quarter of the cores, at most
+// four - or hurry, about half, for a transition that would otherwise be late). MNN fixes a model's
+// threads when it is built, so a different count rebuilds it (its load time is logged); four stays
+// the count for a request that does not say.
+const MAX_HTDEMUCS_THREADS = Math.max(1, os.cpus().length);
 
 /**
- * htdemucs, once loaded: `{ model, file }`, or null.
+ * htdemucs, once loaded: `{ model, file, threads }`, or null.
  *
  * Kept for as long as automix is switched on, however long the gap between tracks. A reload is a 92MB
  * read and the network built over it, asked for the moment a track starts; holding ~400MB while the
@@ -179,17 +185,18 @@ const release = () => {
     return true;
 };
 
-const loadStems = () => {
+const loadStems = (threads = HTDEMUCS_THREADS) => {
     const file = resolveModelFile(MODEL_DIRS, 'htdemucs_gpu');
     if (!file) return decline('htdemucs', `no weights in ${MODEL_DIRS.join(', ') || '(no directories)'}`);
-    if (stems?.file === file) return stems;
+    if (stems?.file === file && stems.threads === threads) return stems;
     // A different file than the one loaded: the directory is fixed for the process's life, so this is
-    // belt and braces rather than a path expected to run.
+    // belt and braces rather than a path expected to run. Or another thread count (see above).
+    if (stems?.file === file) console.log(`[htdemucs] rebuilding on the CPU for ${threads} threads (was ${stems.threads})`);
     release();
     try {
         const started = Date.now();
-        stems = { model: mnn.loadHtdemucs(file, { threads: HTDEMUCS_THREADS }), file };
-        console.log(`[htdemucs] loaded on the CPU (${HTDEMUCS_THREADS} threads, ${mnn.isa()}) in ${Date.now() - started}ms, rss ${rssMb()}MB`);
+        stems = { model: mnn.loadHtdemucs(file, { threads }), file, threads };
+        console.log(`[htdemucs] loaded on the CPU (${threads} threads, ${mnn.isa()}) in ${Date.now() - started}ms, rss ${rssMb()}MB`);
         return stems;
     } catch (error) {
         return decline('htdemucs', `could not load ${file}: ${error?.message || error}`);
@@ -207,7 +214,9 @@ const runHtdemucs = async (request) => {
     if (!left.length || left.length > MAX_SAMPLES) {
         return decline('htdemucs', `${left.length} samples, outside 1..${MAX_SAMPLES}`);
     }
-    const loaded = loadStems();
+    const asked = Number(request?.threads);
+    const threads = Number.isInteger(asked) && asked >= 1 ? Math.min(asked, MAX_HTDEMUCS_THREADS) : HTDEMUCS_THREADS;
+    const loaded = loadStems(threads);
     if (!loaded) return null;
     try {
         return await htdemucs.separate(loaded.model, Float32Array.from(left), Float32Array.from(right));

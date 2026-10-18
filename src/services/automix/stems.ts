@@ -10,6 +10,9 @@ import { decodeTrackAtRate, loadTrackBytes, type TrackBytesSource } from '../ana
 import { canRunBeatThis } from '../analysis/beatThis';
 import { modelCanRun, noteModelFailed } from '../analysis/modelAvailability';
 import { profilesSettled } from './profileService';
+import { estimateGpuFinish } from '../analysis/beatThisGpu';
+import { chooseCpuThreads, chooseExecutor, cpuThreads, type Executor } from '../analysis/scheduler';
+import { forgetStemRange, segmentsOver, separateStemRange, stemRangeSpan, wantStemRange } from '../analysis/stemRange';
 // The one edge back the other way is `import type`, so it is erased and this is not a cycle.
 import { envelopeOf, lastVocalMoment } from './stemGesture';
 
@@ -31,6 +34,14 @@ import { envelopeOf, lastVocalMoment } from './stemGesture';
 // Only a WINDOW is separated, never a whole track, kept at sixteen bits with the peak scaled out. A
 // four-minute track is a minute of CPU and a third of a gigabyte of stems; the last thirty seconds is
 // about ten seconds and 21MB - see STEM_WINDOW_SEC.
+//
+// @note Since the analysis service's phase 3 (docs/analysis-service-plan.md) a window is separated on
+// the GPU by default, through the analysis scheduler (analysis/stemRange.ts: the segment grid the drum
+// hits share, so a tail 智能动感模式 already separated is taken rather than run again, and the drums
+// of a head separated here are the drum hits' when that track plays), and on the CPU (the analysis
+// worker's MNN) only without a usable GPU, or when the GPU would be late for a deadline and the CPU
+// would not (scheduler.ts chooseExecutor). On the CPU the threads are the scheduler's level: quiet, or
+// hurry for a deadline the quiet level would miss. This file only asks: which window, and what to keep.
 
 export type StemName = 'drums' | 'bass' | 'other' | 'vocals';
 export const STEM_NAMES: readonly StemName[] = ['drums', 'bass', 'other', 'vocals'];
@@ -192,10 +203,20 @@ const view = (window: StemWindow): TrackStems => {
  * than 166MB of every installer. Whether the model itself is runnable - weights present - is
  * modelAvailability's to answer.
  */
-export const canSeparateStems = (): boolean =>
+export const canSeparateStems = (): boolean => canSeparateStemsOnCpu() || canSeparateStemsOnGpu();
+
+/** The analysis worker's MNN htdemucs. */
+const canSeparateStemsOnCpu = (): boolean =>
     typeof window !== 'undefined'
     && typeof window.electron?.separateStems === 'function'
     && modelCanRun('htdemucs');
+
+/** The renderer's WebGPU htdemucs (analysis/beatThisGpu.ts), the drum hits' (analysis/drumHits.ts canRunDrumStem). */
+const canSeparateStemsOnGpu = (): boolean =>
+    typeof window !== 'undefined'
+    && typeof window.electron?.getHtdemucsGpuWeights === 'function'
+    && typeof navigator !== 'undefined' && 'gpu' in navigator
+    && modelCanRun('htdemucs_gpu');
 
 const cache = new Map<string, StemWindow>();
 const inFlight = new Set<string>();
@@ -456,6 +477,11 @@ export interface StemRequest {
      * after they left it.
      */
     stillWanted?: () => boolean;
+    /**
+     * When the window must be separated by (performance.now() ms): the transition it is for. With it
+     * the scheduler may take the CPU, or hurry it, when the GPU would be late; without it the GPU it is.
+     */
+    deadline?: number;
 }
 
 /**
@@ -480,11 +506,42 @@ const cutWindow = async (key: string, bytes: ArrayBuffer, source: TrackBytesSour
     const total = decoded.length;
     const windowLength = Math.min(total, Math.round(STEM_WINDOW_SEC * STEM_SAMPLE_RATE));
     const start = role === 'tail' ? total - windowLength : 0;
-    const left = decoded.getChannelData(0).slice(start, start + windowLength);
-    const right = decoded.numberOfChannels > 1
-        ? decoded.getChannelData(1).slice(start, start + windowLength)
-        : left.slice();
-    return { left, right, start };
+    // Since phase 3: the samples of every grid segment that reaches into the window (a segment's
+    // worth more at most), for the GPU path; the window itself is a view of them.
+    const span = stemRangeSpan(total, start, start + windowLength);
+    const spanLeft = decoded.getChannelData(0).slice(span.start, span.end);
+    const spanRight = decoded.numberOfChannels > 1
+        ? decoded.getChannelData(1).slice(span.start, span.end)
+        : spanLeft.slice();
+    const left = spanLeft.subarray(start - span.start, start - span.start + windowLength);
+    const right = spanRight.subarray(start - span.start, start - span.start + windowLength);
+    return { left, right, start, total, spanLeft, spanRight, spanStart: span.start };
+};
+
+type StemParts = Record<'drums' | 'bass' | 'vocals', { left: Float32Array; right: Float32Array }>;
+
+/** CPU seconds per second of window at the quiet level: about a third (see STEM_WINDOW_SEC) at four threads. */
+const CPU_SECONDS_PER_SECOND = 0.35;
+
+/**
+ * Where a window is separated and how hard (see the header): the GPU unless it is missing or late,
+ * and on the CPU the quiet threads unless they would be late.
+ */
+const chooseStemExecutor = (request: StemRequest, total: number, start: number, length: number): { executor: Executor; threads: number } => {
+    const gpuAvailable = canSeparateStemsOnGpu();
+    const cpuAvailable = canSeparateStemsOnCpu();
+    const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency > 0 ? navigator.hardwareConcurrency : 4;
+    const quietThreads = cpuThreads(cores, 'quiet', 'htdemucs');
+    // At four threads the third of a second per second; fewer threads, proportionally longer.
+    const cpuMs = (threads: number) => (length / STEM_SAMPLE_RATE) * CPU_SECONDS_PER_SECOND * 1000 * Math.max(1, 4 / threads);
+    const now = performance.now();
+    const units = segmentsOver(total, start, start + length).length;
+    const gpuFinish = gpuAvailable ? estimateGpuFinish('htdemucs', units, 'background', request.deadline) : Infinity;
+    // The level first, so the CPU is judged on time at the level it would run at.
+    const level = chooseCpuThreads({ deadline: request.deadline, quietFinish: now + cpuMs(quietThreads) });
+    const threads = cpuThreads(cores, level, 'htdemucs');
+    const executor = !cpuAvailable ? 'gpu' : chooseExecutor({ gpuAvailable, deadline: request.deadline, gpuFinish, cpuFinish: now + cpuMs(threads) });
+    return { executor, threads };
 };
 
 /**
@@ -570,8 +627,6 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
         const { left, right, start } = cut;
         const windowLength = left.length;
 
-        const separate = window.electron?.separateStems;
-        if (!separate) return;
         // Last check before the expensive part: the wait above and the decode below it are long
         // enough for the listener to have moved on twice. Returning here leaves nothing cached and
         // clears `inFlight`, so coming back to this track asks again rather than finding a hole.
@@ -581,8 +636,54 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             return;
         }
         const modelStarted = performance.now();
-        const parts = await separate({ left, right });
+        const { executor, threads } = chooseStemExecutor(request, cut.total, start, windowLength);
+        let parts: StemParts | null = null;
+        let ranOn = executor === 'gpu' ? 'the GPU' : `the CPU (${threads} threads)`;
+        if (executor === 'gpu') {
+            // Said before it runs, so a segment the drum hits separate meanwhile is kept for it.
+            wantStemRange(target.key, start, start + windowLength, cut.total);
+            try {
+                const stems = await separateStemRange({
+                    key: target.key,
+                    left: cut.spanLeft,
+                    right: cut.spanRight,
+                    offset: cut.spanStart,
+                    total: cut.total,
+                    from: start,
+                    to: start + windowLength,
+                    options: { urgency: 'background', deadline: request.deadline, stillWanted: request.stillWanted, key: target.key },
+                });
+                // htdemucs' order: drums, bass, other, vocals. `other` is derived below, as on the CPU.
+                if (stems) parts = { drums: stems[0], bass: stems[1], vocals: stems[3] };
+            } finally {
+                forgetStemRange(target.key, start, start + windowLength, cut.total);
+            }
+            if (!parts && request.stillWanted && !request.stillWanted()) {
+                console.log(`[Automix] dropped the ${request.role} of "${request.song.name}":`
+                    + ' no longer the pair a transition is coming for');
+                return;
+            }
+            // The GPU could not (no device, a failed run): the CPU, as before phase 3, when it can.
+            if (!parts && canSeparateStemsOnCpu()) {
+                console.log(`[Automix] the GPU could not separate the ${request.role} of "${request.song.name}", trying the CPU`);
+                ranOn = `the CPU (${threads} threads, after the GPU)`;
+            }
+        }
+        let triedCpu = false;
+        if (!parts && canSeparateStemsOnCpu() && (executor === 'cpu' || ranOn.includes('after the GPU'))) {
+            const separate = window.electron?.separateStems;
+            if (!separate) return;
+            triedCpu = true;
+            // Copies of the window alone: a view would carry its whole span across the IPC.
+            parts = await separate({ left: left.slice(), right: right.slice(), threads });
+        }
         if (!parts) {
+            // The GPU's own failures are its runtime's to note (analysis/beatThisGpu.ts); only the
+            // CPU model's answer is written down here.
+            if (!triedCpu) {
+                console.log(`[Automix] could not separate the ${request.role} of "${request.song.name}" on the GPU`);
+                return;
+            }
             // Nothing came back. The window this can happen in is the widest in the app - separation
             // is asked for the instant a track starts and runs for tens of seconds - so weights
             // disappearing under one, or the worker restarting under it on a folder switch, is
@@ -658,7 +759,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
                 : `, still singing at ${(start / STEM_SAMPLE_RATE + vocalEnd).toFixed(2)}s`;
         console.log(`[Automix] separated the ${request.role} of "${request.song.name}"`
             + ` (${(windowLength / STEM_SAMPLE_RATE).toFixed(1)}s from ${(start / STEM_SAMPLE_RATE).toFixed(1)}s)`
-            + ` - ${modelSec.toFixed(1)}s in the model, ${totalSec.toFixed(1)}s with the decode${sung}`);
+            + ` - ${modelSec.toFixed(1)}s in the model on ${ranOn}, ${totalSec.toFixed(1)}s with the decode${sung}`);
     } catch (error) {
         console.warn('[Automix] separation failed', error);
     } finally {

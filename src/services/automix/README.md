@@ -81,7 +81,8 @@ prefetchService
 
         [ 准备阶段，当前曲目开始播放时 ]
 useAutomixDecks
-  └─ ensureStems({ song, role })       stems.ts      → utilityProcess → htdemucs
+  └─ ensureStems({ song, role })       stems.ts      → 默认 GPU：analysis 调度层 → stemRange.ts（与智能动感共用分段）
+       │                                             没有 GPU、GPU 失败或赶不上截止时间 → utilityProcess → MNN htdemucs（调度层定线程档）
        └─ TrackStems { drums, bass, other, vocals }  首尾各 30 秒
 
         [ 排程阶段，距歌尾 AUTOMIX_ARM_LEAD_SEC 秒 ]
