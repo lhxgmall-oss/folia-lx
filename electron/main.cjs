@@ -76,6 +76,7 @@ const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
 const { createCrashLog, installCrashHandlers } = require('./debug/crashLog.cjs');
 const { measureLeftovers, removeDownloadedLeftovers } = require('./analysis/modelPaths.cjs');
 const { resolveLinuxPasswordStore } = require('./linuxPasswordStore.cjs');
+const { resolveLinuxVulkanChoice, logLinuxVulkanChoice } = require('./linuxVulkan.cjs');
 const { isWindowAlwaysOnTopSupported } = require('./windowAlwaysOnTopSupport.cjs');
 const { createTranscodeService } = require('./transcode/service.cjs');
 const { TRANSCODE_PROTOCOL_SCHEME } = require('./transcode/protocol.cjs');
@@ -158,6 +159,12 @@ app.on('certificate-error', (event, _webContents, requestUrl, error, _certificat
   callback(false);
 });
 
+// Logged once the debug host captures the console, so the decision also reaches the in-app log.
+const linuxVulkan = resolveLinuxVulkanChoice({
+  ozonePlatform: app.commandLine.getSwitchValue('ozone-platform'),
+  graphicsMode: linuxGraphicsMode,
+});
+
 // Fix for Arch Linux / Wayland & Vulkan compatibility issues
 if (process.platform === 'linux') {
   // Must run before the ready event: Chromium reads the password backend once while initialising
@@ -167,8 +174,12 @@ if (process.platform === 'linux') {
     app.commandLine.appendSwitch('password-store', linuxPasswordStore);
   }
 
-  app.commandLine.appendSwitch('disable-vulkan');
-  app.commandLine.appendSwitch('disable-features', 'Vulkan');
+  if (linuxVulkan.enabled) {
+    appendChromiumFeature('Vulkan');
+  } else {
+    app.commandLine.appendSwitch('disable-vulkan');
+    appendChromiumFeature('Vulkan', 'disable-features');
+  }
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
   app.commandLine.appendSwitch('log-level', '3');
 
@@ -183,7 +194,7 @@ if (process.platform === 'linux') {
     app.commandLine.appendSwitch('use-angle', 'swiftshader');
     app.commandLine.appendSwitch('enable-unsafe-swiftshader');
   } else {
-    app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
+    appendChromiumFeature('WaylandWindowDecorations');
   }
 }
 
@@ -198,13 +209,14 @@ if (process.platform === 'linux') {
 // therefore subscribes to `devicechange` while the device picker is open and unsubscribes when it
 // closes, purely to trigger the timer -- see src/hooks/useAudioOutputDevices.ts. Removing that
 // subscription re-pins the capture service for the lifetime of the process.
-function appendChromiumFeature(featureName) {
+// Pass 'disable-features' as switchName to turn a feature off the same way.
+function appendChromiumFeature(featureName, switchName = 'enable-features') {
   // base::CommandLine keeps one value per switch, so a plain appendSwitch would drop features the
   // user passed on the command line, or any appended earlier here.
-  const enabledFeatures = app.commandLine.getSwitchValue('enable-features');
+  const listedFeatures = app.commandLine.getSwitchValue(switchName);
   app.commandLine.appendSwitch(
-    'enable-features',
-    enabledFeatures ? `${enabledFeatures},${featureName}` : featureName,
+    switchName,
+    listedFeatures ? `${listedFeatures},${featureName}` : featureName,
   );
 }
 
@@ -2499,6 +2511,7 @@ const displaySleepBlocker = createDisplaySleepBlocker(powerSaveBlocker);
 // The developer debug module: the runtime log and the memory monitor, both switched from
 // Settings > Developer. Created BEFORE the analysis host, which logs through it.
 createDebugHost({ app, ipcMain, store, BrowserWindow });
+logLinuxVulkanChoice(linuxVulkan, linuxGraphicsMode);
 
 const analysisHost = createAnalysisHost({
   app, ipcMain, getModelsDir: getBundledModelsDirectory,
