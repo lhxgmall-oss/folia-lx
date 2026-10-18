@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalSong } from '@/types';
 import { buildLocalSongLyricMatchContext, shouldRefreshLocalSongLyricsFromMetadata, shouldRunLocalSongAutomaticMatch } from '@/utils/lyrics/localSongMatchContext';
+import { getPlatformLyricSource, LYRIC_SOURCES } from '@/utils/lyrics/lyricSources';
 
 // test/unit/lyrics/localSongMatchContext.test.ts
 
@@ -19,6 +20,21 @@ const song = (patch: Partial<LocalSong> = {}): LocalSong => ({
 });
 
 describe('localSongMatchContext', () => {
+    it.each(LYRIC_SOURCES.flatMap(source => {
+        const platform = getPlatformLyricSource(source.id);
+        return platform ? [platform.id] : [];
+    }))('retains the selected %s identity for automatic and legacy lyric matching', source => {
+        const selected = song({
+            noAutoMatch: true,
+            onlineMetadata: { source, songId: 'selected-id', artists: [], matchMode: 'manual', matchedAt: 1 },
+            matchedLyrics: { lines: [], isWordByWord: true },
+        });
+        expect(buildLocalSongLyricMatchContext(selected).metadataCandidate).toEqual({ source, songId: 'selected-id' });
+        expect(shouldRunLocalSongAutomaticMatch(selected)).toBe(true);
+        expect(shouldRefreshLocalSongLyricsFromMetadata(selected)).toBe(true);
+        expect(shouldRefreshLocalSongLyricsFromMetadata({ ...selected, hasManualLyricSelection: true })).toBe(false);
+        expect(shouldRefreshLocalSongLyricsFromMetadata({ ...selected, markedPureMusic: true })).toBe(false);
+    });
     it('uses the selected online identity and metadata for lyric matching', () => {
         const context = buildLocalSongLyricMatchContext(song({
             title: 'Correct title',
