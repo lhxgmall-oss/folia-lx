@@ -57,7 +57,7 @@ describe('loadBeatFxTrackBeats', () => {
         expect(second.events.length).toBeGreaterThan(0);
         expect(getTrackBeatGrid).toHaveBeenCalledTimes(2);
         // final0's shared list, on the GPU only: the beat FX never ask for the CPU fallback.
-        for (const call of getTrackBeatGrid.mock.calls) expect(call[2]).toEqual({ storedOnly: false });
+        for (const call of getTrackBeatGrid.mock.calls) expect(call[2]).toEqual({ storedOnly: false, urgency: 'onScreen' });
     });
 
     const ACCENTS = { v: BEAT_ACCENTS_VERSION, impact: [0.2, 1], low: [0.8, 0.2], mid: [0.1, 0.4], high: [0.1, 0.4], rhythmic: [1, 1], pulse: [1, 1], trackScale: 0.7 };
@@ -86,7 +86,7 @@ describe('loadBeatFxTrackBeats', () => {
         it('asks the store only, and plays a list without accents as it is', async () => {
             getTrackBeatGrid.mockResolvedValueOnce({ beats: [0.5, 1], downbeats: [0.5] });
             const answer = await loadBeatFxTrackBeats(makeSong('cached-plain'), { storedOnly: true }).beats;
-            expect(getTrackBeatGrid.mock.calls[0][2]).toEqual({ storedOnly: true });
+            expect(getTrackBeatGrid.mock.calls[0][2]).toEqual({ storedOnly: true, urgency: 'onScreen' });
             expect(answer.source).toBe('beat_this');
             expect(answer.trackScale).toBe(1);
             expect(answer.accented).toBeUndefined();

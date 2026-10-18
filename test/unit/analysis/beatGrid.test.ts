@@ -87,8 +87,8 @@ describe('getTrackBeatGrid', () => {
         expect(gpuOnly).toBeNull();
         expect(withCpu).toEqual(GRID);
         expect(analyseBeatGrid.mock.calls.map(call => call[1])).toEqual([
-            { cpuFallback: false, percussive: true },
-            { cpuFallback: true, percussive: true },
+            { cpuFallback: false, percussive: true, urgency: 'background' },
+            { cpuFallback: true, percussive: true, urgency: 'background' },
         ]);
     });
 
@@ -184,7 +184,7 @@ describe('beat accents', () => {
         expect(readMid).toHaveBeenCalledTimes(1);
         expect((await readStoredBeatGrid('song-1'))?.accents).toEqual(a);
         // final0 runs again once, for its confidence in the stored beats and the percussive energy.
-        expect(analyseBeatGrid.mock.calls.map(call => call[1])).toEqual([{ percussive: true }]);
+        expect(analyseBeatGrid.mock.calls.map(call => call[1])).toEqual([{ percussive: true, urgency: 'onScreen' }]);
     });
 
     it('does not file accents against a list replaced meanwhile, or without the bytes', async () => {

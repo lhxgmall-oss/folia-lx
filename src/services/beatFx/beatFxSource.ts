@@ -154,7 +154,8 @@ const resolveTrackBeats = async (
         return toMidSide(buffer).mid;
     };
     try {
-        grid = await getTrackBeatGrid(key, readMid, { storedOnly });
+        // The picture on screen waits on these: ahead of automix's background profiles on the GPU.
+        grid = await getTrackBeatGrid(key, readMid, { storedOnly, urgency: 'onScreen' });
     } catch (error) {
         // A throw here (a cache read, a worker, a GPU device lost mid-run) is "no beats" like any
         // other: answered, so the caller's frame falls back, and not remembered, so a later play retries.

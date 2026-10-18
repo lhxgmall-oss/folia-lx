@@ -2,6 +2,7 @@ import { getFromCache, saveToCache } from '../db';
 import { melSpectrogramOffThread } from '../automix/analysisOffThread';
 import { analyseBeatGrid, canRunBeatThis, type BeatGrid } from './beatThis';
 import { runPercussiveEnergyGpu } from './beatThisGpu';
+import type { Urgency } from './scheduler';
 import { BEAT_GRID_PREFIX } from './beatGridKeys';
 import { computeBeatAccents, formatBeatMeter, isBeatAccents, resolveBeatConfidence, type BeatAccents, type BeatMeter } from './beatAccents';
 
@@ -90,6 +91,8 @@ export interface TrackBeatGridOptions {
      * joined, or null - and `readMid` is never called, so nothing is decoded or read off a stream.
      */
     storedOnly?: boolean;
+    /** How the GPU scheduler orders a run started here (scheduler.ts); automix's default, 'background'. */
+    urgency?: Urgency;
 }
 
 /**
@@ -106,7 +109,7 @@ export interface TrackBeatGridOptions {
 export const getTrackBeatGrid = async (
     key: string,
     readMid: () => Promise<Float32Array | null>,
-    { cpuFallback = false, storedOnly = false }: TrackBeatGridOptions = {},
+    { cpuFallback = false, storedOnly = false, urgency = 'background' }: TrackBeatGridOptions = {},
 ): Promise<AccentedBeatGrid | null> => {
     const stored = await readStoredBeatGrid(key);
     if (stored) return stored;
@@ -124,7 +127,7 @@ export const getTrackBeatGrid = async (
         if (!mid) return null;
         const mel = await melSpectrogramOffThread(mid);
         // The GPU also measures the spectrogram's percussive energy, for the accents' gate.
-        const analysed = await analyseBeatGrid(mel, { cpuFallback, percussive: true });
+        const analysed = await analyseBeatGrid(mel, { cpuFallback, percussive: true, urgency });
         // The energy is only an input: the grid kept and handed on is the beats alone.
         const grid: BeatGrid | null = analysed ? { beats: analysed.beats, downbeats: analysed.downbeats } : null;
         // The accents ride on the spectrogram the beats were found on: a few ms, no second decode. Only
@@ -181,8 +184,9 @@ export const getTrackBeatAccents = (
         const mel = await melSpectrogramOffThread(mid);
         // final0 again for its logits at the stored beats and the percussive energy (GPU only, once per
         // track); when it cannot run, the energy alone, and null leaves every beat rhythmic.
-        const analysed = await analyseBeatGrid(mel, { percussive: true });
-        const energy = analysed?.percussive ?? (analysed ? null : await runPercussiveEnergyGpu(mel));
+        // Only the beat FX ask for accents, for the track on screen.
+        const analysed = await analyseBeatGrid(mel, { percussive: true, urgency: 'onScreen' });
+        const energy = analysed?.percussive ?? (analysed ? null : await runPercussiveEnergyGpu(mel, { urgency: 'onScreen', key }));
         const accents = computeBeatAccents(mel, grid.beats, grid.downbeats, energy, {
             confidence: analysed?.beatLogits ? resolveBeatConfidence(analysed.beatLogits, grid.beats) : null,
             onMeter: logBeatMeter(key),

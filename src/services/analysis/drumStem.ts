@@ -75,7 +75,8 @@ export const separateDrumStem = async (
         inRight.fill(0);
         inLeft.set(left.subarray(start, start + n));
         inRight.set(right.subarray(start, start + n));
-        const stem = await runHtdemucsGpu(inLeft, inRight);
+        // On screen (时计), one unit of the scheduler's; a track left meanwhile is dropped there too.
+        const stem = await runHtdemucsGpu(inLeft, inRight, { urgency: 'onScreen', stillWanted: keepGoing, unitsLeft: starts.length - index });
         if (!stem) return null;
         for (let i = 0; i < n; i += 1) {
             drums[start + i] += ((stem.left[i] + stem.right[i]) / 2) * win[i];

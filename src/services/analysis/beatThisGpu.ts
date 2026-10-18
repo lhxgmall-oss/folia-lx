@@ -28,9 +28,16 @@
 // rest. A segment is ~135 ms of GPU on an M4, cut like a chunk, so a track's separation interleaves
 // with beat_this requests a segment at a time instead of holding them for its whole length.
 //
+// Which request goes next is the scheduler's (scheduler.ts): a picture on screen is waiting for its
+// beats or drum hits before automix's background profile, a request whose track was left is dropped
+// before it runs, and every run's time is measured. Each request is one unit there - an htdemucs
+// segment, a beat_this run over a track's chunks (about half a second), a percussive pass.
+//
 // Every failure answers null and the caller runs the chunks on the CPU instead, if it may. A failure to
 // get a device at all is remembered for the session - that is the machine, not the moment - while
 // a lost device or a failed run only drops this worker, and the next track tries a fresh one.
+
+import { createScheduler, watchFrames, type UnitRequest } from './scheduler';
 
 const IDLE_MS = 120_000;
 /**
@@ -94,11 +101,17 @@ const failedModels = new Set<GpuModel>();
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let nextId = 0;
 /**
- * Requests, one at a time. The model has one set of activation buffers, so two runs interleaving
- * in the worker would read each other's halves; profileService already serialises analysis, and
- * this makes it true here regardless.
+ * Requests, one at a time and in the scheduler's order. The model has one set of activation buffers,
+ * so two runs interleaving in the worker would read each other's halves; profileService already
+ * serialises analysis, and this makes it true here regardless.
  */
-let queue: Promise<unknown> = Promise.resolve();
+const scheduler = createScheduler({
+    isLoaded: kind => (kind === 'percussive' ? worker !== null : ready.has(kind as GpuModel)),
+    frames: watchFrames(),
+});
+
+/** Who asks for a GPU run and how urgently: the scheduler's fields bar the work itself. */
+export type GpuRunOptions = Omit<UnitRequest<unknown>, 'kind' | 'run'>;
 const pending = new Map<number, (reply: Reply) => void>();
 
 const drop = () => {
@@ -160,10 +173,12 @@ const start = async (model: GpuModel): Promise<boolean> => {
         : window.electron?.getBeatThisGpuWeights && (() => window.electron!.getBeatThisGpuWeights!(model));
     if (typeof fetchWeights !== 'function') return false;
     // Not there only in a checkout without the models (both ship in the installer); asked again on the next track.
+    const started = performance.now();
     const found = await fetchWeights();
     if (!found || !spawn()) return false;
 
     const reply = await ask({ kind: 'load', model, weights: found.weights, manifest: found.manifest }, [found.weights.buffer]);
+    if (!reply.error) scheduler.noteLoad(model, performance.now() - started);
     if (reply.error) {
         // Before the first chunk: no WebGPU, no adapter, or a pipeline this device will not build.
         // None of those changes within a session - but only the first three are the machine's.
@@ -210,12 +225,11 @@ export const runBeatThisGpu = (
     chunks: Array<{ data: Float32Array; frames: number }>,
     model: BeatThisModel = 'beat_this',
     percussiveOf?: { data: Float32Array; frames: number },
+    options: GpuRunOptions = { urgency: 'background' },
 ): Promise<Logits | null> => {
     if (unsupported || failedModels.has(model) || typeof window === 'undefined' || typeof Worker === 'undefined') return Promise.resolve(null);
     if (!chunks.length || chunks.some(chunk => chunk.frames < 1 || chunk.frames > CHUNK_FRAMES)) return Promise.resolve(null);
-    const run = queue.then(() => runNow(chunks, model, percussiveOf));
-    queue = run.catch(() => null);
-    return run;
+    return scheduler.submit({ ...options, kind: model, run: () => runNow(chunks, model, percussiveOf) });
 };
 
 /**
@@ -223,9 +237,12 @@ export const runBeatThisGpu = (
  * already stored (the accents filled in later). Needs only the device, no model. Null when this
  * machine has no usable WebGPU or the run failed.
  */
-export const runPercussiveEnergyGpu = (mel: { data: Float32Array; frames: number }): Promise<PercussiveEnergyFrames | null> => {
+export const runPercussiveEnergyGpu = (
+    mel: { data: Float32Array; frames: number },
+    options: GpuRunOptions = { urgency: 'onScreen' },
+): Promise<PercussiveEnergyFrames | null> => {
     if (unsupported || typeof window === 'undefined' || typeof Worker === 'undefined' || mel.frames < 1) return Promise.resolve(null);
-    const run = queue.then(async (): Promise<PercussiveEnergyFrames | null> => {
+    return scheduler.submit({ ...options, kind: 'percussive', run: async (): Promise<PercussiveEnergyFrames | null> => {
         if (unsupported || !spawn()) return null;
         if (idleTimer) clearTimeout(idleTimer);
         idleTimer = null;
@@ -241,9 +258,7 @@ export const runPercussiveEnergyGpu = (mel: { data: Float32Array; frames: number
             return null;
         }
         return reply.result as PercussiveEnergyFrames;
-    });
-    queue = run.catch(() => null);
-    return run;
+    } });
 };
 
 /** The worker with `model` built on it, loading it first if need be; false when it cannot be had now. */
@@ -268,10 +283,14 @@ const ensureLoaded = async (model: GpuModel): Promise<boolean> => {
  * HTDEMUCS_GPU_SEGMENT samples at 44.1 kHz in, the drums' two channels out. Null when htdemucs_gpu is
  * not installed, this machine cannot run it, or the run failed - there is no CPU path behind this.
  */
-export const runHtdemucsGpu = (left: Float32Array, right: Float32Array): Promise<{ left: Float32Array; right: Float32Array } | null> => {
+export const runHtdemucsGpu = (
+    left: Float32Array,
+    right: Float32Array,
+    options: GpuRunOptions = { urgency: 'onScreen' },
+): Promise<{ left: Float32Array; right: Float32Array } | null> => {
     if (unsupported || failedModels.has('htdemucs') || typeof window === 'undefined' || typeof Worker === 'undefined') return Promise.resolve(null);
     if (left.length !== HTDEMUCS_GPU_SEGMENT || right.length !== HTDEMUCS_GPU_SEGMENT) return Promise.resolve(null);
-    const run = queue.then(async () => {
+    return scheduler.submit({ ...options, kind: 'htdemucs', run: async () => {
         if (unsupported || failedModels.has('htdemucs') || !(await ensureLoaded('htdemucs'))) return null;
         // Copied, not transferred: the caller still owns the track it cut these from.
         const l = Float32Array.from(left);
@@ -284,9 +303,7 @@ export const runHtdemucsGpu = (left: Float32Array, right: Float32Array): Promise
         }
         if (worker) idleTimer = setTimeout(drop, IDLE_MS);
         return reply.result as { left: Float32Array; right: Float32Array };
-    });
-    queue = run.catch(() => null);
-    return run;
+    } });
 };
 
 const runNow = async (
