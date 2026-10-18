@@ -40,7 +40,7 @@ async function main() {
     // HTW_SOURCES (e.g. "0,1,2,3"): the sources each run returns; out.f32 is then [n, sources, 2, 172032].
     const sources = config.sources ? String(config.sources).split(',').map(Number) : [0];
     const model = await HtdemucsWgsl.create(device, weights, manifest, { f16, sources });
-    log(`create: ${(performance.now() - started).toFixed(0)} ms${f16 ? ' (f16 GEMMs)' : ''}`);
+    log(`create: ${(performance.now() - started).toFixed(0)} ms${f16 ? ' (f16 GEMMs)' : ''}, ${(model.bytes / 1048576).toFixed(0)} MB on the GPU`);
 
     const bytes = fs.readFileSync(config.mix);
     const mix = new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));

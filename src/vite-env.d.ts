@@ -779,8 +779,11 @@ declare global {
        * `other` is not returned - it is derived by subtraction so the stems sum to the mix exactly.
        */
       separateStems?: (
-        /** `threads`: the CPU threads to run with (analysis/scheduler.ts cpuThreads); four when absent. */
-        request: { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer>; threads?: number },
+        /**
+         * `threads`: the CPU threads to run with (analysis/scheduler.ts cpuThreads); four when absent.
+         * `resident: false`: a fallback for a GPU machine, released after a minute idle (phase 4).
+         */
+        request: { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer>; threads?: number; resident?: boolean },
       ) => Promise<Record<
         'drums' | 'bass' | 'vocals',
         // Never shared memory: this crosses the IPC boundary by structured clone, which always

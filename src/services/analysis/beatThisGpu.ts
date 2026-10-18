@@ -35,6 +35,13 @@
 // before it runs, and every run's time is measured. Each request is one unit there - an htdemucs
 // segment, a beat_this run over a track's chunks (about half a second), a percussive pass.
 //
+// Residency (analysis service plan, phase 4): each model is released on its own once idle -
+// htdemucs (350 MB on the GPU, measured on an M4: a track's segments come in a burst when it starts)
+// after MODEL_IDLE_MS.htdemucs, beat_this (106 MB) after a minute - instead of both staying until the
+// whole worker's two idle minutes; and a load that would take the models past GPU_BUDGET_BYTES first
+// releases the least recently used other one. On Apple's unified memory this is the machine's RAM.
+// The worker and its device still go after IDLE_MS with nothing loaded or run.
+//
 // Every failure answers null and the caller runs the chunks on the CPU instead, if it may. A failure to
 // get a device at all is remembered for the session - that is the machine, not the moment - while
 // a lost device or a failed run only drops this worker, and the next track tries a fresh one.
@@ -69,6 +76,8 @@ export const HTDEMUCS_GPU_SEGMENT = 172032;
 interface Reply {
     id: number;
     result?: unknown;
+    /** A load's: the GPU memory the model holds. */
+    bytes?: number;
     error?: string;
     /** On a failed load: 'device' when the machine has no usable WebGPU, 'model' when only this export failed. */
     scope?: 'device' | 'model';
@@ -102,6 +111,60 @@ let unsupported = false;
 const failedModels = new Set<GpuModel>();
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let nextId = 0;
+
+/** What the GPU models may hold together (phase 4); both fit, with room for a short chunk's graph. */
+const GPU_BUDGET_BYTES = 512 * 1024 * 1024;
+/** A model's GPU memory before it has been measured here (M4, f32 htdemucs with four sources). */
+const FIRST_GUESS_BYTES: Record<GpuModel, number> = { beat_this: 106 * 1024 * 1024, htdemucs: 350 * 1024 * 1024 };
+/** How long a model stays loaded after its last run. */
+const MODEL_IDLE_MS: Record<GpuModel, number> = { beat_this: 60_000, htdemucs: 30_000 };
+/** The models loaded: their measured bytes, last use and release timer. */
+const resident = new Map<GpuModel, { bytes: number; usedAt: number; timer: ReturnType<typeof setTimeout> | null }>();
+/** Each model's bytes as last measured, for the budget before a load. */
+const measuredBytes = new Map<GpuModel, number>();
+/** The model a run is using now: never released under it. */
+let inUse: GpuModel | null = null;
+
+const megabytes = (bytes: number) => `${(bytes / 1048576).toFixed(0)} MB`;
+
+/** Releases `model` in the worker (its device stays); the next run loads it again. */
+const unload = (model: GpuModel, why: string) => {
+    const entry = resident.get(model);
+    if (!entry) return;
+    if (entry.timer) clearTimeout(entry.timer);
+    resident.delete(model);
+    ready.delete(model);
+    console.log(`[beat-this-gpu] ${model} released (${why}), ${megabytes(entry.bytes)} back`);
+    if (worker) void ask({ kind: 'unload', model });
+};
+
+/** Marks `model` just used, and arms its release. */
+const used = (model: GpuModel) => {
+    const entry = resident.get(model);
+    if (!entry) return;
+    entry.usedAt = performance.now();
+    if (entry.timer) clearTimeout(entry.timer);
+    const arm = () => {
+        entry.timer = setTimeout(() => {
+            // A run that began just before: released after it instead.
+            if (inUse === model) arm();
+            else unload(model, `idle ${MODEL_IDLE_MS[model] / 1000}s`);
+        }, MODEL_IDLE_MS[model]);
+    };
+    arm();
+};
+
+/** Before loading `model`: the least recently used others released until it fits the budget. */
+const makeRoom = (model: GpuModel) => {
+    const need = measuredBytes.get(model) ?? FIRST_GUESS_BYTES[model];
+    for (;;) {
+        const others = [...resident.entries()].filter(([name]) => name !== model && name !== inUse);
+        const held = [...resident.entries()].filter(([name]) => name !== model).reduce((sum, [, entry]) => sum + entry.bytes, 0);
+        if (held + need <= GPU_BUDGET_BYTES || others.length === 0) return;
+        const [oldest] = others.sort((a, b) => a[1].usedAt - b[1].usedAt)[0];
+        unload(oldest, `room for ${model} within ${megabytes(GPU_BUDGET_BYTES)}`);
+    }
+};
 /**
  * Requests, one at a time and in the scheduler's order. The model has one set of activation buffers,
  * so two runs interleaving in the worker would read each other's halves; profileService already
@@ -131,6 +194,8 @@ const drop = () => {
     const dying = worker;
     worker = null;
     ready.clear();
+    for (const entry of resident.values()) if (entry.timer) clearTimeout(entry.timer);
+    resident.clear();
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = null;
     for (const settle of pending.values()) settle({ id: -1, error: 'worker dropped' });
@@ -186,6 +251,7 @@ const start = async (model: GpuModel): Promise<boolean> => {
         : window.electron?.getBeatThisGpuWeights && (() => window.electron!.getBeatThisGpuWeights!(model));
     if (typeof fetchWeights !== 'function') return false;
     // Not there only in a checkout without the models (both ship in the installer); asked again on the next track.
+    makeRoom(model);
     const started = performance.now();
     const found = await fetchWeights();
     if (!found || !spawn()) return false;
@@ -205,7 +271,11 @@ const start = async (model: GpuModel): Promise<boolean> => {
         }
         return false;
     }
-    console.log(`[beat-this-gpu] ${model} loaded on ${reply.result}`);
+    const bytes = typeof reply.bytes === 'number' ? reply.bytes : FIRST_GUESS_BYTES[model];
+    measuredBytes.set(model, bytes);
+    resident.set(model, { bytes, usedAt: performance.now(), timer: null });
+    used(model);
+    console.log(`[beat-this-gpu] ${model} loaded on ${reply.result}, ${megabytes(bytes)} on the GPU`);
     return true;
 };
 
@@ -317,7 +387,9 @@ export const runHtdemucsGpu = (
         // Copied, not transferred: the caller still owns the track it cut these from.
         const l = Float32Array.from(left);
         const r = Float32Array.from(right);
-        const reply = await ask({ kind: 'separate', left: l, right: r }, [l.buffer, r.buffer]);
+        inUse = 'htdemucs';
+        const reply = await ask({ kind: 'separate', left: l, right: r }, [l.buffer, r.buffer]).finally(() => { inUse = null; });
+        used('htdemucs');
         if (reply.error) {
             console.warn(`[beat-this-gpu] htdemucs run failed: ${reply.error}`);
             drop();
@@ -341,10 +413,12 @@ const runNow = async (
     const percussive = percussiveOf
         ? { mel: Float32Array.from(percussiveOf.data.subarray(0, percussiveOf.frames * 128)), frames: percussiveOf.frames }
         : undefined;
+    inUse = model;
     const reply = await ask(
         { kind: 'run', model, chunks: data, percussive },
         [...data.map(chunk => chunk.buffer), ...(percussive ? [percussive.mel.buffer] : [])],
-    );
+    ).finally(() => { inUse = null; });
+    used(model);
     if (reply.error) {
         console.warn(`[beat-this-gpu] run failed, falling back to the CPU for this track: ${reply.error}`);
         drop();

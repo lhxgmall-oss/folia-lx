@@ -14,7 +14,8 @@ import { HtdemucsWgsl, type HtdemucsWgslManifest } from '../services/analysis/ht
 // beatThisWgsl/percussive.ts, for the beat accents - comes back with them), 'percussive' (that alone, for
 // a track whose beats are already known) and 'dispose' (destroy the device before the page terminates
 // this thread, so the GPU memory goes back at once rather than whenever the dead thread's objects are
-// collected). Each
+// collected), and 'unload' (one model's GPU memory back, the device kept: phase 4's residency, decided
+// in beatThisGpu.ts). Each
 // chunk is run with 'auto' slicing - one stage on the GPU at a time, cut finer wherever a stage
 // outlasts a 120 Hz frame - because the GPU only switches between command buffers, and one
 // 45-80 ms submit is enough to cost a busy visualizer several frames (measured with
@@ -31,6 +32,7 @@ type Request =
     | { id: number; kind: 'separate'; left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> }
     | { id: number; kind: 'run'; model: ModelName; chunks: Float32Array<ArrayBuffer>[]; percussive?: { mel: Float32Array<ArrayBuffer>; frames: number } }
     | { id: number; kind: 'percussive'; mel: Float32Array<ArrayBuffer>; frames: number }
+    | { id: number; kind: 'unload'; model: ModelName | 'htdemucs' }
     | { id: number; kind: 'dispose' };
 
 const models = new Map<ModelName, BeatThisWgsl>();
@@ -87,7 +89,7 @@ self.onmessage = async (event: MessageEvent<Request>) => {
                         return;
                     }
                 }
-                self.postMessage({ id: request.id, result: deviceLabel });
+                self.postMessage({ id: request.id, result: deviceLabel, bytes: htdemucs?.bytes });
                 return;
             }
             if (!models.has(request.model)) {
@@ -98,7 +100,7 @@ self.onmessage = async (event: MessageEvent<Request>) => {
                     return;
                 }
             }
-            self.postMessage({ id: request.id, result: deviceLabel });
+            self.postMessage({ id: request.id, result: deviceLabel, bytes: models.get(request.model)?.bytes });
             return;
         }
         if (request.kind === 'percussive') {
@@ -123,6 +125,18 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             // htdemucs' four sources in its order (drums, bass, other, vocals), each its own copy to transfer.
             const stems = result.stems.map(stem => ({ left: stem.left.slice(), right: stem.right.slice() }));
             self.postMessage({ id: request.id, result: { stems } }, { transfer: stems.flatMap(stem => [stem.left.buffer, stem.right.buffer]) });
+            return;
+        }
+        if (request.kind === 'unload') {
+            // Between runs only (the page never asks for one under a run of the model): its buffers go back now.
+            if (request.model === 'htdemucs') {
+                htdemucs?.destroy();
+                htdemucs = null;
+            } else {
+                models.get(request.model)?.destroy();
+                models.delete(request.model);
+            }
+            self.postMessage({ id: request.id, result: true });
             return;
         }
         if (request.kind === 'dispose') {

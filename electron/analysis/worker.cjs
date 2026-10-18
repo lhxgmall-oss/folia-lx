@@ -172,11 +172,23 @@ const MODEL_RATE = 44100;
 const MAX_SAMPLES = 40 * MODEL_RATE;
 
 /**
+ * How long htdemucs stays after a run the renderer marked `resident: false` (analysis service plan,
+ * phase 4): a fallback for a machine whose GPU does the separating (a GPU run that could not, or a
+ * deadline it would have missed). Keeping ~400 MB for the rest of the session on the strength of
+ * one such window is the waste phase 4 is about; a machine without a GPU (`resident` true or absent)
+ * keeps it while automix is on, as before.
+ */
+const FALLBACK_IDLE_MS = 60_000;
+let fallbackTimer = null;
+
+/**
  * Frees htdemucs in this process. Sent by the host when automix is switched off; queued like any request,
  * so it never lands in the middle of a separation. mnn.cjs' release returns the memory to the system,
  * not only to the allocator (folia_mnn_free).
  */
 const release = () => {
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    fallbackTimer = null;
     if (!stems) return true;
     const before = rssMb();
     stems.model.release();
@@ -218,6 +230,19 @@ const runHtdemucs = async (request) => {
     const threads = Number.isInteger(asked) && asked >= 1 ? Math.min(asked, MAX_HTDEMUCS_THREADS) : HTDEMUCS_THREADS;
     const loaded = loadStems(threads);
     if (!loaded) return null;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    fallbackTimer = null;
+    if (request?.resident === false) {
+        // Queued like a request, so it never lands in the middle of a separation.
+        fallbackTimer = setTimeout(() => {
+            fallbackTimer = null;
+            queue = queue.then(() => {
+                console.log(`[htdemucs] the CPU fallback idle ${FALLBACK_IDLE_MS / 1000}s`);
+                release();
+            }, () => undefined);
+        }, FALLBACK_IDLE_MS);
+        if (fallbackTimer.unref) fallbackTimer.unref();
+    }
     try {
         return await htdemucs.separate(loaded.model, Float32Array.from(left), Float32Array.from(right));
     } catch (error) {

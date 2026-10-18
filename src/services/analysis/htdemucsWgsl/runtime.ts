@@ -85,6 +85,11 @@ export class HtdemucsWgsl {
     private readonly fineStages = new Set<number>();
     private autoRuns = 0;
 
+    /** GPU memory this model holds (weights, activations, uniforms), bytes: for a residency budget. */
+    get bytes(): number {
+        return this.owned.reduce((sum, buffer) => sum + buffer.size, 0);
+    }
+
     /**
      * Uploads the weights (the .bin as written, f32 or --f16) and builds the whole graph. `source` is
      * which stem a run returns (an index into HTDEMUCS_SOURCES); `sources`, which several (all four

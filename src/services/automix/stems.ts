@@ -675,7 +675,8 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             if (!separate) return;
             triedCpu = true;
             // Copies of the window alone: a view would carry its whole span across the IPC.
-            parts = await separate({ left: left.slice(), right: right.slice(), threads });
+            // Kept loaded only where the CPU is the separator; a GPU machine's fallback goes after a minute.
+            parts = await separate({ left: left.slice(), right: right.slice(), threads, resident: !canSeparateStemsOnGpu() });
         }
         if (!parts) {
             // The GPU's own failures are its runtime's to note (analysis/beatThisGpu.ts); only the

@@ -99,7 +99,8 @@ describe('where a stem window is separated', () => {
         gpu.works = false;
         await separate(nextSong());
         expect(separateStems).toHaveBeenCalledTimes(1);
-        expect(separateStems.mock.calls[0]).toMatchObject([{ threads: cpuThreads(8, 'quiet', 'htdemucs') }]);
+        // A GPU machine's fallback: not kept loaded (phase 4).
+        expect(separateStems.mock.calls[0]).toMatchObject([{ threads: cpuThreads(8, 'quiet', 'htdemucs'), resident: false }]);
     });
 
     it('runs on the CPU without a GPU', async () => {
@@ -108,6 +109,8 @@ describe('where a stem window is separated', () => {
         await separate(nextSong());
         expect(runHtdemucsGpu).not.toHaveBeenCalled();
         expect(separateStems).toHaveBeenCalledTimes(1);
+        // The CPU is this machine's separator: kept loaded while automix is on, as before.
+        expect(separateStems.mock.calls[0]).toMatchObject([{ resident: true }]);
     });
 
     it('takes the CPU, hurried, when the GPU would be late for the deadline and the quiet CPU too', async () => {
