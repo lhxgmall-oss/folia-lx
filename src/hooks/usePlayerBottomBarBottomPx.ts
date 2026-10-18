@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useSpring, useTransform, type MotionValue } from 'framer-motion';
 import { playerBottomBarLiveOffset } from '../stores/motionSignals';
+import { safeAreaInsets, startSafeAreaInsetTracking } from '../stores/safeAreaInsets';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { useIsPlayerBottomBarHost, usePreviewBottomBarOffset } from '../components/floating-player/PlayerBottomBarLayoutContext';
 import { useMediaQuery } from './useMediaQuery';
@@ -16,15 +17,17 @@ import {
 /**
  * 返回可直接绑定到 motion 元素 bottom 样式的值。
  * 传入组件原来的底距后，默认设置保持原布局，用户调整只增加同一段抬升量。
+ * 再加上设备底部的安全区（安卓全面屏下的手势条 / 导航栏，见 stores/safeAreaInsets）；桌面上它是 0。
  */
 export const usePlayerBottomBarBottomPx = (
     componentBaseBottomPx = PLAYER_BOTTOM_BAR_BASE_OFFSET_PX,
-): MotionValue<number> => (
-    useTransform(
-        playerBottomBarLiveOffset,
-        value => resolvePlayerBottomComponentBottomPx(value, componentBaseBottomPx),
-    )
-);
+): MotionValue<number> => {
+    startSafeAreaInsetTracking();
+    return useTransform(
+        [playerBottomBarLiveOffset, safeAreaInsets.bottom],
+        ([value, safeBottom]: number[]) => resolvePlayerBottomComponentBottomPx(value, componentBaseBottomPx) + safeBottom,
+    );
+};
 
 /** 原来的 `bottom-28 sm:bottom-6`，即 sm 断点上下各自的底距。 */
 const SIDE_PANEL_BASE_BOTTOM_PX = { wide: 24, narrow: 112 } as const;
@@ -70,11 +73,12 @@ export const usePlayerSubtitleBottomPx = (isPlayerChromeHidden: boolean): Motion
         controlBarPresence.set(isControlBarAbsent ? 0 : 1);
     }, [controlBarPresence, isControlBarAbsent]);
 
+    startSafeAreaInsetTracking();
     return useTransform(
-        [controlBarPresence, playerBottomBarLiveOffset],
-        ([presence, offset]: number[]) => resolvePlayerSubtitleBottomFromPresence(
+        [controlBarPresence, playerBottomBarLiveOffset, safeAreaInsets.bottom],
+        ([presence, offset, safeBottom]: number[]) => resolvePlayerSubtitleBottomFromPresence(
             isBottomBarHost ? offset : previewOffset,
             presence,
-        ),
+        ) + (isBottomBarHost ? safeBottom : 0),
     );
 };

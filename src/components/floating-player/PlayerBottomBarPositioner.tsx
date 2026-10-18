@@ -56,7 +56,7 @@ const PlayerBottomBarPositioner: React.FC<PlayerBottomBarPositionerProps> = ({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.22, ease: 'easeOut' }}
-                className="pointer-events-auto fixed left-1/2 top-8 z-[70] -translate-x-1/2"
+                className="pointer-events-auto fixed left-1/2 top-[calc(2rem+var(--lx-safe-top,0px))] z-[70] -translate-x-1/2"
             >
                 <div className={`flex items-center gap-3 rounded-full border px-4 py-2 text-sm shadow-xl backdrop-blur-xl ${chipClass}`}>
                     <span className="select-none">{t('options.playerBottomBarPositioningHint')}</span>

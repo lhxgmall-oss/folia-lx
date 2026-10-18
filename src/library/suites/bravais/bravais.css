@@ -188,6 +188,9 @@
 .bravais-seam-body {
     box-sizing: border-box;
     height: 100%;
+    /* Folia LX Android draws under the status bar (src/index.css --lx-safe-*); 0 elsewhere. The bottom
+       one rides on the inline padding-bottom (useBravaisPlayerSafeArea). */
+    padding-top: var(--lx-safe-top, 0px);
 }
 
 .bravais-seam button { font: inherit; color: inherit; }

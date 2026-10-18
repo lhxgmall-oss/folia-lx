@@ -26,7 +26,7 @@ const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
     return (
         <>
             {createPortal(
-                <div className="pointer-events-none fixed inset-x-0 top-[30px] z-[210] grid justify-items-center px-4">
+                <div className="pointer-events-none fixed inset-x-0 top-[calc(30px+var(--lx-safe-top,0px))] z-[210] grid justify-items-center px-4">
                     <AnimatePresence>
                         {statusToast && <StatusToast key={statusToast.toastKey} toast={statusToast} />}
                     </AnimatePresence>

@@ -63,6 +63,18 @@ body {
   from { opacity: 0; }
 }
 
+/* Safe-area insets (status bar, navigation / gesture bar, display cutout). The Folia LX Android shell
+   draws the WebView edge to edge and injects --safe-area-inset-* on every WebView version
+   (android/.../MainActivity.java); WebView 140+ and iOS also report env(). Take the larger so neither
+   source is counted twice. Desktop and ordinary browsers: all 0, so nothing that adds them moves.
+   JS that positions with numbers reads them through src/stores/safeAreaInsets.ts. */
+:root {
+  --lx-safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --lx-safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  --lx-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --lx-safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+}
+
 :root {
   --scrollbar-track: #18181b;
   --scrollbar-thumb: #3f3f46;

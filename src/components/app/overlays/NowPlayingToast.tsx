@@ -1,11 +1,13 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValue, useTransform } from 'framer-motion';
 import { Music } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
 import { useTransitionBorderCue } from './now-playing-toast/useTransitionBorderCue';
 import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBottomPx';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
+import { playerControlBarHeight, playerControlBarLeft, resolveNowPlayingCardBottomPx } from '../../../stores/playerControlBarGeometry';
+import { safeAreaInsets } from '../../../stores/safeAreaInsets';
 
 // src/components/app/overlays/NowPlayingToast.tsx
 // 播放器与 Lattice 左下角的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入）。
@@ -24,6 +26,9 @@ const NowPlayingToastTransitionBorder = lazy(() => import('./now-playing-toast/N
 
 /** 卡片圆角，和下面的 rounded-2xl 对齐；描边要按它算圆角 */
 const CARD_RADIUS = 16;
+
+/** 卡片的左距，和下面的 left-6 一致（再加左侧安全区，横屏刘海 / 导航栏在左边时）。 */
+const CARD_LEFT_PX = 24;
 
 export type StageTrackPillMode = 'auto' | 'always' | 'never';
 
@@ -115,6 +120,15 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
         layoutRef(element);
     }, [layoutRef]);
     const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
+    // 竖屏手机上卡片（左下）和中间的进度条胶囊落在同一条基线上，会叠在一起：
+    // 横向上够到胶囊时，卡片抬到胶囊上方（stores/playerControlBarGeometry）。宽屏上碰不到，位置不变。
+    const cardWidth = useMotionValue(0);
+    const cardBottomPx = useTransform(
+        [bottomBarBottomPx, playerControlBarLeft, playerControlBarHeight, safeAreaInsets.left, cardWidth],
+        ([bottom, barLeft, barHeight, safeLeft, width]: number[]) => resolveNowPlayingCardBottomPx(
+            bottom, CARD_LEFT_PX + safeLeft, width, barLeft, barHeight,
+        ),
+    );
     useEffect(() => {
         const frame = frameRef.current;
         if (!frame || typeof ResizeObserver === 'undefined') return;
@@ -122,6 +136,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
             // contentRect 而不是 getBoundingClientRect：外层这一圈在做 x 位移动画，
             // 后者会把 transform 算进去。
             const { width, height } = entry.contentRect;
+            cardWidth.set(width);
             setCardSize(prev => (
                 Math.abs(prev.width - width) < 0.5 && Math.abs(prev.height - height) < 0.5
                     ? prev
@@ -130,7 +145,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
         });
         observer.observe(frame);
         return () => observer.disconnect();
-    }, [visible]);
+    }, [visible, cardWidth]);
 
     return (
         <AnimatePresence>
@@ -144,8 +159,8 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                     transition={{ duration: 0.35, ease: 'easeOut' }}
                     // 底边跟右下角面板开关按钮和中间的进度条胶囊落在同一条基线上，
                     // 由共享 MotionValue 直接驱动 bottom（默认 32，即原来的 bottom-8）。
-                    style={{ bottom: bottomBarBottomPx }}
-                    className="pointer-events-none fixed left-6 z-40"
+                    style={{ bottom: cardBottomPx }}
+                    className="pointer-events-none fixed left-[calc(1.5rem+var(--lx-safe-left,0px))] z-40"
                 >
                     {/* 描边排在卡片前面：卡片自己是 relative，绘制顺序上压在描边上头，所以
                         描边内侧那一半被卡片背景盖住，露在外面的是外侧 + 辉光。

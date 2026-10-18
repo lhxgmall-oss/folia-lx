@@ -91,7 +91,7 @@ export function FoliumHomePage({ entry, extraTabs, account, surfaceProps }: Foli
         }} />;
 
     return <section ref={sectionRef} data-folium-home-page={entry.id} data-folia-keyboard-window="true"
-        aria-label={label} className="absolute inset-0 z-[60] flex min-h-0 flex-col overflow-hidden pt-8 pointer-events-auto"
+        aria-label={label} className="absolute inset-0 z-[60] flex min-h-0 flex-col overflow-hidden pt-[calc(2rem+var(--lx-safe-top,0px))] pointer-events-auto"
         style={{ backgroundColor: theme.backgroundColor, color: theme.primaryColor }}
         onKeyDown={event => {
             // Keep the host's explicit global palette entry reachable, including from a ShadowRoot input.

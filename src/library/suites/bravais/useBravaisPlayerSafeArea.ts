@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { useSpring, useTransform } from 'framer-motion';
 import { playerBottomBarLiveOffset } from '../../../stores/motionSignals';
+import { safeAreaInsets, startSafeAreaInsetTracking } from '../../../stores/safeAreaInsets';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { resolvePlayerSubtitleBottomFromPresence } from '../../../utils/playerBottomBarLayout';
 import { BRAVAIS_SEAM_BASE_BOTTOM_PX, BRAVAIS_SEAM_SAFE_AREA_EXTRA_PX } from './bravaisConstants';
@@ -21,11 +22,13 @@ export const useBravaisPlayerSafeArea = () => {
         presence.set(hasPlayer ? 1 : 0);
     }, [hasPlayer, presence]);
 
+    // 设备底部安全区（安卓全面屏的手势条 / 导航栏，stores/safeAreaInsets）整段垫在下面：胶囊本身也抬了这么多。桌面上是 0。
+    startSafeAreaInsetTracking();
     const bottomPx = useTransform(
-        [presence, playerBottomBarLiveOffset],
-        ([value, offset]: number[]) => {
+        [presence, playerBottomBarLiveOffset, safeAreaInsets.bottom],
+        ([value, offset, deviceBottom]: number[]) => {
             const safe = resolvePlayerSubtitleBottomFromPresence(offset, 1) + BRAVAIS_SEAM_SAFE_AREA_EXTRA_PX;
-            return BRAVAIS_SEAM_BASE_BOTTOM_PX + value * (safe - BRAVAIS_SEAM_BASE_BOTTOM_PX);
+            return BRAVAIS_SEAM_BASE_BOTTOM_PX + value * (safe - BRAVAIS_SEAM_BASE_BOTTOM_PX) + deviceBottom;
         },
     );
     const getBottomInset = useCallback(() => bottomPx.get(), [bottomPx]);

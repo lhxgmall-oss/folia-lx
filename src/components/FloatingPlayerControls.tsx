@@ -16,6 +16,7 @@ import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsS
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, clampPlayerBottomBarOffset, resolvePlayerBottomBarMaxOffset } from '../utils/playerBottomBarLayout';
 import type { PlayerControlSlotActionId, PlayerControlSlotContext } from './floating-player/playerControlSlotActions';
 import { usePlayerOverlayObstacle } from '../hooks/usePlayerOverlayLayout';
+import { playerControlBarHeight, playerControlBarLeft } from '../stores/playerControlBarGeometry';
 
 export interface TrackNavigation {
     /** 当前曲目的稳定身份，用于识别「确实换歌了」；相邻两首同名时标题字符串不变，不能拿标题判断 */
@@ -122,6 +123,31 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
 }) => {
     const { t } = useTranslation();
     const { ref: layoutRef, invalidate: invalidateLayout } = usePlayerOverlayObstacle('player-controls', 'playback', !isHidden);
+    // The capsule's footprint, for the bottom-left now-playing card (stores/playerControlBarGeometry):
+    // on a portrait phone the two would overlap, so the card moves up above the bar. The capsule is
+    // centred, so its left edge follows from its layout width; getBoundingClientRect would include
+    // the layout animation's transform.
+    const capsuleObserverRef = useRef<ResizeObserver | null>(null);
+    const capsuleRef = useCallback((element: HTMLDivElement | null) => {
+        layoutRef(element);
+        capsuleObserverRef.current?.disconnect();
+        capsuleObserverRef.current = null;
+        if (!element) {
+            playerControlBarLeft.set(Number.POSITIVE_INFINITY);
+            playerControlBarHeight.set(0);
+            return;
+        }
+        const measure = () => {
+            playerControlBarLeft.set((window.innerWidth - element.offsetWidth) / 2);
+            playerControlBarHeight.set(element.offsetHeight);
+        };
+        measure();
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(measure);
+            observer.observe(element);
+            capsuleObserverRef.current = observer;
+        }
+    }, [layoutRef]);
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'bg-black/40 border border-white/5';
     const glassBgCollapsed = isDaylight ? 'bg-white/40 border border-white/20 shadow-lg hover:bg-white/50' : 'bg-black/20 border border-white/5 hover:bg-black/30';
@@ -363,7 +389,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                     }}
                 >
                     <motion.div
-                        ref={layoutRef}
+                        ref={capsuleRef}
                         onUpdate={invalidateLayout}
                         onLayoutAnimationComplete={invalidateLayout}
                         layout
