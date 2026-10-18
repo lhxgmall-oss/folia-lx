@@ -85,6 +85,11 @@ export interface TrackBeatGridOptions {
      * can still be handed a list an earlier CPU run stored; it just never starts one.
      */
     cpuFallback?: boolean;
+    /**
+     * Never start a run (智能动感模式's `cached`): a stored list, or a run already in flight (automix's)
+     * joined, or null - and `readMid` is never called, so nothing is decoded or read off a stream.
+     */
+    storedOnly?: boolean;
 }
 
 /**
@@ -101,7 +106,7 @@ export interface TrackBeatGridOptions {
 export const getTrackBeatGrid = async (
     key: string,
     readMid: () => Promise<Float32Array | null>,
-    { cpuFallback = false }: TrackBeatGridOptions = {},
+    { cpuFallback = false, storedOnly = false }: TrackBeatGridOptions = {},
 ): Promise<AccentedBeatGrid | null> => {
     const stored = await readStoredBeatGrid(key);
     if (stored) return stored;
@@ -110,9 +115,9 @@ export const getTrackBeatGrid = async (
     const joined = running.get(runKey);
     if (joined) {
         const grid = await joined.grid;
-        if (grid || joined.cpuFallback || !cpuFallback) return grid;
+        if (grid || joined.cpuFallback || !cpuFallback || storedOnly) return grid;
     }
-    if (!canRunBeatThis()) return null;
+    if (storedOnly || !canRunBeatThis()) return null;
 
     const grid = (async () => {
         const mid = await readMid();

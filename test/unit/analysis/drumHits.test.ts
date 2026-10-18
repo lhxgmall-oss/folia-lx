@@ -17,7 +17,7 @@ const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
 
 const { drumStemSegments, drumStemWindow, separateDrumStem } = await import('@/services/analysis/drumStem');
-const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, getDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
+const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
 const { getFromCache } = await import('@/services/db');
 const { createDrumBandStream } = await import('@/services/analysis/drumHitStream');
 const { melSpectrogram } = await import('@/services/analysis/beatThis');
@@ -112,6 +112,16 @@ describe('drum hits', () => {
         expect(readBytes).not.toHaveBeenCalled();
         store.set(`${DRUM_HITS_PREFIX}song-3`, analysis(0.3));
         expect(await loadTrackDrumHits('song-3', readBytes)).not.toBeNull();
+    });
+
+    it('reads the cache alone for 智能动感模式 cached, and never separates', async () => {
+        runHtdemucsGpu.mockClear();
+        expect(await loadStoredDrumHits('song-5')).toBeNull();
+        expect(getDrumHits('song-5')).toBeNull();
+        store.set(`${DRUM_HITS_PREFIX}song-5`, analysis(0.3));
+        expect(await loadStoredDrumHits('song-5')).not.toBeNull();
+        expect(getDrumHits('song-5')?.times.length).toBe(2);
+        expect(runHtdemucsGpu).not.toHaveBeenCalled();
     });
 
     it('runs again for a joiner whose run answers null while its track is still wanted', async () => {

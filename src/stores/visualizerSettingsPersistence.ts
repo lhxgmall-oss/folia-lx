@@ -1,4 +1,4 @@
-import { DEFAULT_SMART_BEAT_SETTINGS, type BeatEffectSetting, type SmartBeatSettings, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_SMART_BEAT_SETTINGS, type BeatEffectSetting, type SmartBeatMode, type SmartBeatSettings, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 // 只做字符串校验，走 types/visualizerModes 而不是 registry：后者的 eager glob 会把 13 个
 // renderer（含 three.js）拉进来，而这里读的只是一个 localStorage 字符串。
 // mod 模式在启动时本来就看不到——bootstrap.tsx 的 restoreStoredModVisualizer 在 mods 注册完
@@ -118,11 +118,20 @@ const resolveSmartBeatStrength = (value: unknown, fallback: number): number => (
 const BEAT_EFFECT_ID = /^[A-Za-z0-9_-]{1,32}\.[A-Za-z0-9_-]{1,32}$/;
 const MAX_STORED_BEAT_EFFECTS = 64;
 
+const SMART_BEAT_MODES: readonly SmartBeatMode[] = ['off', 'cached', 'on'];
+
 /**
- * A 智能动感模式 patch: the switch, any effects' settings (each one partial), and - from settings
- * stored or exported before effects had their own - the one 轻拍 / 重拍 pair every picture shared.
+ * A 智能动感模式 patch: the mode, any effects' settings (each one partial), and - from settings
+ * stored, exported or synced by a build before the three modes - the one switch `enabled`, and from
+ * one before effects had their own, the one 轻拍 / 重拍 pair every picture shared.
  */
 export interface SmartBeatPatch {
+    mode?: SmartBeatMode;
+    /**
+     * Legacy, read only without a valid `mode`: true is `on`. False is `off` only over `on`: an older
+     * build sees `cached` as `enabled: false` (`toStoredSmartBeat`), and syncing that back must not
+     * switch `cached` off.
+     */
     enabled?: boolean;
     effects?: Readonly<Record<string, Partial<BeatEffectSetting>>>;
     /** Legacy: folded into the beat-list effects (LEGACY_BEAT_LIST_EFFECT_IDS) as their mean. */
@@ -154,11 +163,26 @@ export const resolveSmartBeatSettings = (
             strength: resolveSmartBeatStrength(value.strength, current.strength),
         };
     }
-    return {
-        enabled: typeof patch?.enabled === 'boolean' ? patch.enabled : base.enabled,
-        effects,
-    };
+    return { mode: resolveSmartBeatMode(patch, base.mode), effects };
 };
+
+const resolveSmartBeatMode = (patch: SmartBeatPatch | null | undefined, base: SmartBeatMode): SmartBeatMode => {
+    if (SMART_BEAT_MODES.includes(patch?.mode as SmartBeatMode)) return patch!.mode as SmartBeatMode;
+    if (patch?.enabled === true) return 'on';
+    if (patch?.enabled === false && base === 'on') return 'off';
+    return base;
+};
+
+/**
+ * The settings as stored, synced and exported: the mode, and for a build before the three modes the
+ * switch it reads - on only for `on`, as such a build would analyse every track; `cached` reads there
+ * as off, the nearest it has to "run nothing".
+ */
+export const toStoredSmartBeat = (settings: SmartBeatSettings): SmartBeatSettings & { enabled: boolean } => ({
+    mode: settings.mode,
+    enabled: settings.mode === 'on',
+    effects: settings.effects,
+});
 
 export const readStoredSmartBeatSettings = (): SmartBeatSettings => {
     if (typeof window === 'undefined') return DEFAULT_SMART_BEAT_SETTINGS;

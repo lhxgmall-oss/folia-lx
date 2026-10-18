@@ -1,7 +1,7 @@
 import type { SongResult } from '../../types';
 import { mergeBeatFxEvents, type BeatFxEvent } from './clock';
 import { getTrackBeatAccents, getTrackBeatGrid } from '../analysis/beatGrid';
-import { getDrumHits, loadTrackDrumHits, setWantedDrumTrack } from '../analysis/drumHits';
+import { getDrumHits, loadStoredDrumHits, loadTrackDrumHits, setWantedDrumTrack } from '../analysis/drumHits';
 import { BEAT_THIS_SAMPLE_RATE, canRunBeatThis } from '../analysis/beatThis';
 import { decodeAtRate, readLocalTrackBytes, toMidSide } from '../analysis/trackAudio';
 import { getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
@@ -39,6 +39,12 @@ import type { PlaybackRepresentation } from '../../types/playbackRecovery';
 // GPU) are read on their own, from the same bytes, only when a live effect
 // on screen plays them (时计's 仿真鼓面), as they cost the track's bytes and seconds of GPU. They no
 // longer wait on the beats: a picture that plays only drum hits never runs beat_this.
+//
+// Under 智能动感模式's `cached` (`storedOnly`) both are read from what is stored and nothing else: no
+// bytes read, no decode, no model run - not even the accents of a list stored without them, which
+// then plays without, as a CPU-stored list always did. A beat list automix is analysing right now is
+// waited for, as it runs either way. A track with nothing stored answers 'none' and is not asked
+// again during the play.
 
 export type BeatFxSourceKind = 'beat_this' | 'none';
 
@@ -96,8 +102,9 @@ const resolveTrackBeats = async (
     song: SongResult,
     key: string,
     representation: PlaybackRepresentation | null,
+    storedOnly: boolean,
 ): Promise<BeatFxTrackBeats> => {
-    let note = 'beat_this returned no beats (no usable GPU, or a failed run)';
+    let note = storedOnly ? 'none stored (智能动感模式 uses stored results only)' : 'beat_this returned no beats (no usable GPU, or a failed run)';
     let retry = false;
     let grid: Awaited<ReturnType<typeof getTrackBeatGrid>>;
     const readBytes = async () => {
@@ -124,7 +131,7 @@ const resolveTrackBeats = async (
         return toMidSide(buffer).mid;
     };
     try {
-        grid = await getTrackBeatGrid(key, readMid);
+        grid = await getTrackBeatGrid(key, readMid, { storedOnly });
     } catch (error) {
         // A throw here (a cache read, a worker, a GPU device lost mid-run) is "no beats" like any
         // other: answered, so the caller's frame falls back, and not remembered, so a later play retries.
@@ -132,11 +139,11 @@ const resolveTrackBeats = async (
     }
     if (grid?.beats.length) {
         const found = grid;
-        if (found.accents) {
+        if (found.accents || storedOnly) {
             return {
                 events: mergeBeatFxEvents(found.beats, found.downbeats, found.accents),
                 source: 'beat_this',
-                trackScale: found.accents.trackScale,
+                trackScale: found.accents?.trackScale ?? 1,
             };
         }
         // Measured on a worker after the fact; a failure only leaves the beats as they are.
@@ -151,21 +158,23 @@ const resolveTrackBeats = async (
             .catch(() => null);
         return { events: mergeBeatFxEvents(found.beats, found.downbeats), source: 'beat_this', trackScale: 1, accented };
     }
-    if (!canRunBeatThis()) return { events: [], source: 'none', note: 'not the desktop app', trackScale: 1 };
+    if (!storedOnly && !canRunBeatThis()) return { events: [], source: 'none', note: 'not the desktop app', trackScale: 1 };
     return { events: [], source: 'none', note, trackScale: 1, ...(retry ? { retry } : {}) };
 };
 
 /**
  * The beat list for a track and the analysis key it belongs to, computed once per session and shared
  * by concurrent callers. The key and the representation whose bytes are read are resolved together,
- * so a transcode registering mid-analysis cannot file one's beats under the other's key.
+ * so a transcode registering mid-analysis cannot file one's beats under the other's key. `storedOnly`
+ * (智能动感模式's `cached`) is remembered apart: its answer may lack the accents an `on` lookup adds.
  */
-export const loadBeatFxTrackBeats = (song: SongResult): { key: string; beats: Promise<BeatFxTrackBeats> } => {
+export const loadBeatFxTrackBeats = (song: SongResult, { storedOnly = false } = {}): { key: string; beats: Promise<BeatFxTrackBeats> } => {
     const { key, representation } = getPlaybackAnalysisTarget(song);
-    const existing = memory.get(key);
+    const remembered = storedOnly ? `stored:${key}` : key;
+    const existing = memory.get(remembered);
     if (existing) return { key, beats: existing };
-    const pending = resolveTrackBeats(song, key, representation);
-    memory.set(key, pending);
+    const pending = resolveTrackBeats(song, key, representation, storedOnly);
+    memory.set(remembered, pending);
     while (memory.size > MAX_TRACKS) {
         const oldest = memory.keys().next().value;
         if (oldest === undefined) break;
@@ -173,7 +182,7 @@ export const loadBeatFxTrackBeats = (song: SongResult): { key: string; beats: Pr
     }
     // A failed lookup is not remembered, so a later play (e.g. once the track is cached) retries.
     void pending.then((result) => {
-        if (result.source === 'none' && memory.get(key) === pending) memory.delete(key);
+        if (result.source === 'none' && memory.get(remembered) === pending) memory.delete(remembered);
     });
     return { key, beats: pending };
 };
@@ -188,9 +197,14 @@ export type BeatFxTrackDrums = 'hits' | 'none' | 'retry';
  * 'retry' when the bytes are not to be had yet (an online track whose stream URL playback has not
  * resolved). The track asked for is the one a separation may run for; the caller says when it is
  * left (`setWantedDrumTrack(null)`) - on a track change or the switch going off, not a picture switch.
+ * `storedOnly` (智能动感模式's `cached`): the cache alone, 'hits' or 'none', and no track is wanted.
  */
-export const loadBeatFxTrackDrums = (song: SongResult): { key: string; drums: Promise<BeatFxTrackDrums> } => {
+export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false } = {}): { key: string; drums: Promise<BeatFxTrackDrums> } => {
     const { key, representation } = getPlaybackAnalysisTarget(song);
+    if (storedOnly) {
+        const drums = loadStoredDrumHits(key).then((analysis): BeatFxTrackDrums => (analysis && getDrumHits(key) ? 'hits' : 'none'));
+        return { key, drums };
+    }
     setWantedDrumTrack(key);
     let missing = false;
     const readBytes = async () => {

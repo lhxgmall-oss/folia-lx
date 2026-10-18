@@ -20,6 +20,7 @@ import { resolvePendoloFallbackAnchorIndex } from './pendoloTimeline';
 import PendoloRotatingLine from './PendoloRotatingLine';
 import { resolvePendoloWaveReach, usePendoloBeatFx } from './usePendoloBeatFx';
 import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
+import { smartBeatActive } from '../../../services/beatFx/beatEffects';
 
 const PENDOLO_SCROLL_IDLE_RESET_MS = 2500;
 /** Peak alpha of the beat halo's front, at full strength (additive). */
@@ -361,7 +362,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const angleStepRad = totalArcRad / Math.max(1, visibleWindowCount - 1);
     // 智能动感模式 (usePendoloBeatFx): the shockwave on the lyric lines and the shake. Off, every
     // MotionValue it returns stays 0. The wheel itself keeps to the lyrics; beats move the lower gears.
-    const smartBeatEnabled = useVisualizerSettingsStore(state => state.smartBeat.enabled);
+    const smartBeatEnabled = useVisualizerSettingsStore(state => smartBeatActive(state.smartBeat));
     const beatFx = usePendoloBeatFx(
         smartBeatEnabled,
         {

@@ -92,6 +92,24 @@ describe('getTrackBeatGrid', () => {
         ]);
     });
 
+    it('stored only (智能动感模式 cached): a stored list or a joined run, never a run of its own', async () => {
+        const readMid = vi.fn(mid);
+        expect(await getTrackBeatGrid('song-1', readMid, { storedOnly: true })).toBeNull();
+        expect(readMid).not.toHaveBeenCalled();
+        expect(analyseBeatGrid).not.toHaveBeenCalled();
+        // automix's run in flight is waited for and used, even one allowed the CPU.
+        analyseBeatGrid.mockResolvedValue(GRID);
+        const [automix, beatFx] = await Promise.all([
+            getTrackBeatGrid('song-2', mid, { cpuFallback: true }),
+            getTrackBeatGrid('song-2', readMid, { storedOnly: true }),
+        ]);
+        expect(beatFx).toEqual(automix);
+        expect(analyseBeatGrid).toHaveBeenCalledTimes(1);
+        expect(readMid).not.toHaveBeenCalled();
+        await storeBeatGrid('song-1', GRID);
+        expect(await getTrackBeatGrid('song-1', readMid, { storedOnly: true })).toEqual(GRID);
+    });
+
     it('never starts a run without the model, but still reads a stored list', async () => {
         canRunBeatThis.mockReturnValue(false);
         expect(await getTrackBeatGrid('song-1', mid)).toBeNull();

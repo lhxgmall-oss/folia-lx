@@ -35,7 +35,9 @@ import { decodeAtRate } from './trackAudio';
 // once another is wanted - skipping through tracks does not queue their separations up. The wanted
 // track is the one 智能动感模式 plays while it is on (hooks/useBeatFxTrack.ts), not only while 时计 is
 // on screen: a separation stopped on a picture switch threw away what it had, and coming back to 时计
-// separated the track again from the start.
+// separated the track again from the start. Under 智能动感模式's `cached` nothing separates: only a
+// stored analysis is read (`loadStoredDrumHits`), and switching to it stops a separation as leaving the
+// track does - its hits so far go with it (the `finally` in separateAndRead).
 //
 // A track separating now has hits before it is done: the stem is read as its head is finished
 // (drumHitStream.ts), and about once a second (LIVE_EVERY_MS) the hits so far are picked again and
@@ -350,6 +352,23 @@ const separateAndRead = async (key: string, bytes: ArrayBuffer): Promise<DrumAna
     } finally {
         // A separation left or failed part way leaves no hits behind: a later play would read them as whole.
         if (!complete && getDrumHits(key)?.until !== undefined) hitLists.delete(key);
+    }
+};
+
+/**
+ * A track's drum analysis from the cache only, never separated (智能动感模式's `cached`). Once it is
+ * in, `getDrumHits(key)` answers its hits. Null when none is stored. A run in flight is not joined:
+ * only `on` starts one, and leaving `on` stops it (`setWantedDrumTrack(null)`).
+ */
+export const loadStoredDrumHits = async (key: string): Promise<DrumAnalysis | null> => {
+    try {
+        const stored = await getFromCache<DrumAnalysis>(`${DRUM_HITS_PREFIX}${key}`);
+        if (!isDrumAnalysis(stored)) return null;
+        remember(key, stored, 'from the cache');
+        return stored;
+    } catch (error) {
+        console.warn(`[DrumHits] ${key}: cache read failed`, error);
+        return null;
     }
 };
 
