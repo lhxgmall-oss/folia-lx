@@ -187,7 +187,7 @@ export type BeatFxTrackDrums = 'hits' | 'none' | 'retry';
  * `getDrumHits` answers for the key; 'none' for a drumless track, no htdemucs_gpu or no WebGPU;
  * 'retry' when the bytes are not to be had yet (an online track whose stream URL playback has not
  * resolved). The track asked for is the one a separation may run for; the caller says when it is
- * left (`setWantedDrumTrack(null)`).
+ * left (`setWantedDrumTrack(null)`) - on a track change or the switch going off, not a picture switch.
  */
 export const loadBeatFxTrackDrums = (song: SongResult): { key: string; drums: Promise<BeatFxTrackDrums> } => {
     const { key, representation } = getPlaybackAnalysisTarget(song);

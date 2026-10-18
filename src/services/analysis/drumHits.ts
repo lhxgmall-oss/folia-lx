@@ -31,8 +31,11 @@ import { decodeAtRate } from './trackAudio';
 //
 // GPU only, and only with htdemucs_gpu installed (`canRunDrumStem`): without them there are no hits,
 // and 时计 plays beat_this' beats as it always did. A separation takes ~15 s of GPU for a four-minute
-// track, so it runs only for the track the picture wants (`setWantedDrumTrack`) and stops at its next
-// segment once another is wanted - skipping through tracks does not queue their separations up.
+// track, so it runs only for the wanted track (`setWantedDrumTrack`) and stops at its next segment
+// once another is wanted - skipping through tracks does not queue their separations up. The wanted
+// track is the one 智能动感模式 plays while it is on (hooks/useBeatFxTrack.ts), not only while 时计 is
+// on screen: a separation stopped on a picture switch threw away what it had, and coming back to 时计
+// separated the track again from the start.
 //
 // A track separating now has hits before it is done: the stem is read as its head is finished
 // (drumHitStream.ts), and about once a second (LIVE_EVERY_MS) the hits so far are picked again and
@@ -248,7 +251,10 @@ const MAX_TRACKS = 24;
 /** The track whose separation may run; any other in flight stops at its next segment. */
 let wanted: string | null = null;
 
-/** Names the track the picture plays drum hits for now, or null for none (it was left or closed). */
+/**
+ * Names the track whose drum hits are wanted now, or null for none (it was left, or 智能动感模式 is
+ * off). Set when a picture asks for the hits; cleared on the track change, not on a picture switch.
+ */
 export const setWantedDrumTrack = (key: string | null): void => {
     wanted = key;
 };
@@ -355,7 +361,10 @@ const separateAndRead = async (key: string, bytes: ArrayBuffer): Promise<DrumAna
  */
 export const loadTrackDrumHits = (key: string, readBytes: () => Promise<ArrayBuffer | null>): Promise<DrumAnalysis | null> => {
     const existing = runs.get(key);
-    if (existing) return existing;
+    // Joined - but a run whose track was left and is wanted again before it reached its next segment
+    // is stopping, and answers null: then one fresh run, rather than no hits for the rest of the play.
+    // Only on null: a drumless track answers an analysis, and is not separated again.
+    if (existing) return existing.then(found => (found === null && wanted === key && !runs.has(key) ? loadTrackDrumHits(key, readBytes) : found));
     const run = (async (): Promise<DrumAnalysis | null> => {
         const stored = await getFromCache<DrumAnalysis>(`${DRUM_HITS_PREFIX}${key}`);
         if (isDrumAnalysis(stored)) {

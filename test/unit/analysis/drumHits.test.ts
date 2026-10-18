@@ -17,7 +17,8 @@ const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
 
 const { drumStemSegments, drumStemWindow, separateDrumStem } = await import('@/services/analysis/drumStem');
-const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, getDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits } = await import('@/services/analysis/drumHits');
+const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, getDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
+const { getFromCache } = await import('@/services/db');
 const { createDrumBandStream } = await import('@/services/analysis/drumHitStream');
 const { melSpectrogram } = await import('@/services/analysis/beatThis');
 const { DRUM_HITS_PREFIX, isBeatGridKey, isDrumHitsKey } = await import('@/services/analysis/beatGridKeys');
@@ -111,6 +112,24 @@ describe('drum hits', () => {
         expect(readBytes).not.toHaveBeenCalled();
         store.set(`${DRUM_HITS_PREFIX}song-3`, analysis(0.3));
         expect(await loadTrackDrumHits('song-3', readBytes)).not.toBeNull();
+    });
+
+    it('runs again for a joiner whose run answers null while its track is still wanted', async () => {
+        // The first run's cache read is held, and answers nothing: a run stopping because its track
+        // was left. The track is wanted again meanwhile, and the joiner gets a fresh run, not the null.
+        let release!: () => void;
+        vi.mocked(getFromCache).mockImplementationOnce(() => new Promise((resolve) => {
+            release = () => resolve(null);
+        }));
+        setWantedDrumTrack('song-4');
+        const first = loadTrackDrumHits('song-4', vi.fn(async () => null));
+        const joined = loadTrackDrumHits('song-4', vi.fn(async () => null));
+        store.set(`${DRUM_HITS_PREFIX}song-4`, analysis(0.3));
+        release();
+        expect(await first).toBeNull();
+        expect(await joined).not.toBeNull();
+        expect(getDrumHits('song-4')?.times.length).toBe(2);
+        setWantedDrumTrack(null);
     });
 
     it('files its key apart from the beat lists, as analysis data', () => {

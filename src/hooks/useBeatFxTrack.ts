@@ -19,6 +19,8 @@ import { setWantedDrumTrack } from '../services/analysis/drumHits';
 // React; the per-frame clock lives in services/beatFx/beatFxLive. While a live effect on screen plays
 // drum hits (时计's 仿真鼓面), the track's drum hits are read, on their own: a picture with no live
 // beat-list effect never runs beat_this, and the clock then only carries the track and its time.
+// A drum separation started for the track runs on until the track changes or the switch goes off,
+// even if the picture changes meanwhile (see the last effect below).
 
 /** An online track's stream URL is resolved by playback around the same time as the lookup. */
 const RETRY_ATTEMPTS = 4;
@@ -133,12 +135,21 @@ export function useBeatFxTrack(): boolean {
         return () => {
             left = true;
             if (retryTimer) clearTimeout(retryTimer);
-            // A separation still running for this track stops at its next segment.
-            setWantedDrumTrack(null);
+            // The separation is NOT stopped here: leaving the picture is not leaving the track. See below.
         };
         // Keyed like the lookup above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [identity, drumsWanted, drumModel]);
+
+    // A separation still running stops (at its next segment) when the track changes, or 智能动感模式 or
+    // static mode is switched off - not when the picture does. Stopped on a picture switch, it dropped
+    // the hits it had so far, and coming back to 时计 separated the track again from the start: no
+    // drumhead for the seconds that took (2026-10-17, on v0.7.21-rc.1). Left running, it finishes and is
+    // stored, at the cost of sharing the GPU for a while with whatever the new picture runs; the memory
+    // it holds is what it held on 时计.
+    const smartBeatOn = useVisualizerSettingsStore(state => state.smartBeat.enabled) && !staticMode;
+    const playingKey = smartBeatOn && song ? getPlaybackAnalysisKey(song) : null;
+    useEffect(() => () => setWantedDrumTrack(null), [playingKey]);
 
     return wanted;
 }
