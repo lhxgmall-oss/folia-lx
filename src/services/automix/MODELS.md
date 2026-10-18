@@ -25,9 +25,10 @@
 
 ---
 
-## 1. beat_this：未改动
+## 1. beat_this：权重未改，只换了导出格式
 
-下载到的是作者 `final0` 检查点的社区 ONNX 导出，未做任何修改。
+`beat_this-wgsl.bin` 由作者 `final0` 检查点导出（`build/beat_this_wgsl/export_weights.py`）：权重值未改，
+只把 BatchNorm 折进相邻层，并以 fp16 存储。以前下载的是同一检查点的社区 ONNX 导出，未做修改。
 
 **前处理全在本侧**（`../analysis/beatThis.ts`）：梅尔频谱、1500 帧分块、峰值挑选、网格拟合。
 导出的图拒收长张量（整首歌喂入会在注意力层抛 `invalid expand shape`），故分块是必需而非优化。
@@ -36,7 +37,8 @@
 自信的错误网格。
 
 与官方 Python（`Audio2Beats(final0, dbn=False)`）在 30 首歌上逐首比对：**拍点与重拍 F 值均为
-1.0000，平均偏移 0.00 ms**。改动此链路前须重跑对拍脚本。
+1.0000，平均偏移 0.00 ms**。改动此链路前须重跑对拍脚本。这是 ONNX 版（onnxruntime）时的结果；换成
+WebGPU / MNN 后的逐层比对脚本在 `build/beat_this_wgsl/compare_stages.py`，结果没有记在本文档。
 
 ---
 
