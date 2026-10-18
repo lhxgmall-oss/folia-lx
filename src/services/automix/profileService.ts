@@ -31,6 +31,8 @@ import {
 // holds the track, a local file, or - when song caching is on - the one download that would have
 // happened after playback, moved earlier and written to the same cache. With caching off, an online
 // track is simply not analysed and the blend falls back to the live measurement of the outgoing deck.
+// A library server's stream (Navidrome) follows the same switch, though it is never cached: see
+// `downloadRuleOf`.
 
 const profiles = new Map<string, TrackProfile | null>();
 const inFlight = new Set<string>();
@@ -214,6 +216,24 @@ const keepWithProvider = async (song: SongResult, audioUrl: string | null | unde
     return kept;
 };
 
+/**
+ * What reading a track's URL for analysis costs, which decides how much of it may be read.
+ *
+ * - `free`: a blob: or file: URL, or a song from this machine. Already here, so read whole whatever
+ *   the setting says, and never stored - there is nothing to download again.
+ * - `library`: a library server's stream (Navidrome). A real download, so the whole file only with
+ *   song caching on, and the front of it otherwise - but never written to the media cache, which
+ *   keeps online songs only. It was once read whole regardless, counted as "local" because it is
+ *   not an online song: every track a second time, alongside the stream playing it.
+ * - `online`: a real download, the whole file only with song caching on, and then stored.
+ */
+export const downloadRuleOf = (song: SongResult, audioUrl: string): 'free' | 'library' | 'online' => {
+    if (audioUrl.startsWith('blob:') || audioUrl.startsWith('file:')) return 'free';
+    const kind = getPlaybackSourceRef(song).kind;
+    if (kind === 'online') return 'online';
+    return kind === 'navidrome' ? 'library' : 'free';
+};
+
 const readBytes = async (
     { song, audioUrl, enableMediaCache }: ProfileRequest,
     /** The representation `songKey` names, resolved with it (getPlaybackAnalysisTarget). */
@@ -264,10 +284,8 @@ const readBytes = async (
     const downloadKey = `${getPlaybackSongKey(song)} ${audioUrl}`;
     const knownDownload = notTheSongDownloads.get(downloadKey);
     if (knownDownload) return { skipped: knownDownload };
-    // A blob: or file: URL is already on this machine, so reading it is free whatever the setting
-    // says. Anything else is a real download and needs a reason.
-    const isLocal = audioUrl.startsWith('blob:') || audioUrl.startsWith('file:')
-        || getPlaybackSourceRef(song).kind !== 'online';
+    const rule = downloadRuleOf(song, audioUrl);
+    const isLocal = rule === 'free';
 
     try {
         // A provider with a cache of its own is asked to keep the file before it is read, so the
@@ -300,7 +318,7 @@ const readBytes = async (
             });
             return { skipped: 'the download was not audio' };
         }
-        if (!isLocal && !ownCache) {
+        if (rule === 'online' && !ownCache) {
             // The same write the audio bridge would have done after playback, under the same check
             // (wholeSongCheck.ts: a preview clip, or a file under half the song, is not stored).
             // Fetching once and feeding both is the whole reason a full read is allowed here at all.

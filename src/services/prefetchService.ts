@@ -20,6 +20,7 @@ import { getSongCacheWithLegacyMigration, hasCachedSongAudio } from './onlineMus
 import { toPlayableAudioUrl, toSafePlaybackUrl } from '../utils/appPlaybackHelpers';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
 import { ensureTrackProfile, setAnalysisScope } from './automix/profileService';
+import { getNavidromeConfig, navidromeApi } from './navidromeService';
 import { modeNeedsBeatGrid } from './automix/transitionStrategy';
 import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
 import { useAutomixSettingsStore } from '../stores/useAutomixSettingsStore';
@@ -81,12 +82,16 @@ const analyseForAutomix = (song: SongResult, audioUrl: string | null | undefined
 };
 
 /**
- * Where the analyser may read a library song from: a Navidrome song's stream. A local file has no
- * URL to give - the analyser reads it off its own handle (analysis/trackAudio.ts).
+ * Where the analyser may read a library song from: a Navidrome song's stream, built from the
+ * configuration of now as playback builds it (songAudioSource.ts) - not the address stored on the
+ * queued song, which a restored queue may carry from a server since moved. A local file has no URL
+ * to give - the analyser reads it off its own handle (analysis/trackAudio.ts).
  */
-const libraryAudioUrl = (song: SongResult): string | null => (
-    resolveNavidromePlaybackCarrier(song)?.navidromeData.streamUrl ?? null
-);
+const libraryAudioUrl = (song: SongResult): string | null => {
+    const carrier = resolveNavidromePlaybackCarrier(song);
+    const config = carrier ? getNavidromeConfig() : null;
+    return carrier && config ? navidromeApi.getStreamUrl(config, carrier.navidromeData.id) : null;
+};
 
 export interface PrefetchedSongData {
     songKey: string;
