@@ -33,7 +33,11 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        shell: bash
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm ci 2>&1 | tee ci-logs/01-npm-ci.log
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -46,7 +50,11 @@ jobs:
           workspaces: packaging/windows/wallpaper-helper
 
       - name: Build wallpaper helper
-        run: node packaging/windows/build-wallpaper-helper.mjs
+        shell: bash
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          node packaging/windows/build-wallpaper-helper.mjs 2>&1 | tee ci-logs/02-wallpaper-helper.log
 
       - name: Stamp version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -61,19 +69,25 @@ jobs:
         env:
           ELECTRON: 'true'
           APP_VERSION_LABEL: Folia-LX
-        run: npm run build
+        shell: bash
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm run build 2>&1 | tee ci-logs/03-build.log
 
       - name: Package Electron app
         shell: bash
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: >
+          mkdir -p ci-logs && set -o pipefail &&
           npx electron-builder --win nsis --publish never
           --config.appId=top.izuna.foliamajor.lx
           --config.productName="Folia LX"
           --config.publish.provider=github
           --config.publish.owner="${{ github.repository_owner }}"
           --config.publish.repo="${{ github.event.repository.name }}"
+          2>&1 | tee ci-logs/04-electron-builder.log
 
       - name: Upload installer
         uses: actions/upload-artifact@v6
@@ -102,3 +116,16 @@ jobs:
             gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Folia-LX $TAG" --draft \
               --notes "Folia-LX $TAG（Windows 安装包）。不含任何音源脚本，仅供个人学习研究。"
           fi
+
+      - name: Push failure logs to ci-logs branch
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p /tmp/logs && cp -r ci-logs/. /tmp/logs/ 2>/dev/null || true
+          cd /tmp/logs
+          git init -q -b ci-logs
+          git config user.name "folia-lx-ci"
+          git config user.email "ci@users.noreply.github.com"
+          echo "run ${{ github.run_id }}" > RUN.txt
+          git add -A && git commit -qm "logs for run ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-logs
