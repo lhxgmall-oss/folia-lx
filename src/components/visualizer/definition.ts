@@ -38,6 +38,29 @@ export interface VisualizerModeCommand {
     keywords: string[];
 }
 
+/**
+ * An automix/crossfade blend handing the picture from the song on screen to the next one. The main
+ * window only, and only for a style that says it draws one (`followsSongHandoff`): everywhere else
+ * the song changes when the blend has settled, as it did.
+ */
+export interface VisualizerSongHandoff {
+    /** How far the hand-off has come, 0..1: 0 until the blend is announced. */
+    progress: MotionValue<number>;
+    /** The incoming song as the props will name it once the blend settles. */
+    seed: string | number;
+    songTitle?: string | null;
+    songArtist?: string | null;
+    songAlbum?: string | null;
+    coverUrl?: string | null;
+    /** The incoming song's theme, once it has come: the props keep the song on screen's until the blend settles. */
+    theme: Theme;
+    subtitleTheme?: Theme;
+    /** The incoming song's lyrics (none until they load), its own lyric clock and line. */
+    lines: Line[];
+    currentTime: MotionValue<number>;
+    currentLineIndex: number;
+}
+
 export interface VisualizerSharedProps {
     currentTime: MotionValue<number>;
     /** The song's length in seconds, 0 or absent while unknown; in a preview, the preview's length. Mod styles read it (getDuration). */
@@ -61,6 +84,8 @@ export interface VisualizerSharedProps {
      */
     temperaLayerImageAssets?: { id: string; name: string; url: string }[];
     seed?: string | number;
+    /** A blend handing over to the next song, while it runs (see VisualizerSongHandoff). */
+    songHandoff?: VisualizerSongHandoff | null;
     staticMode?: boolean;
     backgroundStaticMode?: boolean;
     visualizerOpacity?: number;
@@ -160,6 +185,8 @@ export interface VisualizerRegistryEntry {
     command?: VisualizerModeCommand;
     /** True when the renderer reads a click on a lyric line and the song should jump there. */
     seeksOnLineClick?: boolean;
+    /** True when the renderer draws a blend's song hand-off (`songHandoff`); the rest are not fed one. */
+    followsSongHandoff?: boolean;
     /*
      * The background this style is drawn over. VisualizerRenderer draws one background for every
      * style and keeps it through a style switch, so a style that changes it says so here, not only

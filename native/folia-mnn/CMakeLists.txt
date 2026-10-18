@@ -82,4 +82,10 @@ elseif(UNIX)
     # Self-contained: the Linux packages run on distributions whose libstdc++ is older than the
     # build machine's.
     target_link_options(folia_mnn PRIVATE -static-libstdc++ -static-libgcc)
+    # MNN's x86 assembly (avxfma/*.S, avx/*.S) carries no .note.GNU-stack, so GNU as marks those
+    # objects as needing an executable stack and ld marks the whole library RWE. glibc 2.41+ refuses to
+    # dlopen that ("cannot enable executable stack"), so on Arch and other current distributions the
+    # worker could not load the library and every separation answered null. Nothing here executes code
+    # on the stack.
+    target_link_options(folia_mnn PRIVATE -Wl,-z,noexecstack)
 endif()

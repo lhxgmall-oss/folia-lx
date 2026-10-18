@@ -34,12 +34,16 @@ class FakeWorker extends EventEmitter {
             queueMicrotask(() => this.emit('exit', 1));
             return;
         }
-        queueMicrotask(() => this.emit('message', { id: msg.id, result }));
+        queueMicrotask(() => this.emit('message', result instanceof Declined
+            ? { id: msg.id, result: null, reason: result.reason }
+            : { id: msg.id, result }));
     }
     kill() { this.killed = true; }
 }
 
 const DIE = Symbol('die');
+/** A null answer with the worker's reason beside it, the way worker.cjs' `decline` replies. */
+class Declined { constructor(public reason: string) { } }
 const forks: FakeWorker[] = [];
 /** Behaviour handed to the NEXT worker fork. */
 let replyForNextFork: (msg: { id: number; kind: string }) => unknown = () => null;
@@ -128,5 +132,15 @@ describe('analysis host lifecycle', () => {
         };
         expect(await separate()).toEqual({ stems: true });
         expect(forks).toHaveLength(2);
+    });
+
+    it("hands the renderer the worker's reason when it ran nothing", async () => {
+        replyForNextFork = (msg) => (msg.kind === 'htdemucs' ? new Declined('cannot enable executable stack') : true);
+        expect(await separate()).toEqual({ declined: 'cannot enable executable stack' });
+    });
+
+    it('says the worker died when it dies under the retry as well', async () => {
+        replyForNextFork = () => DIE;
+        expect(await separate()).toEqual({ declined: 'the analysis worker died twice in a row' });
     });
 });

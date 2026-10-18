@@ -3145,6 +3145,33 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_21": {
+      "intro": "Selamat datang di 0.7.21, Sabbat-of-the-witch Update—sebuah rilis besar. Aplikasi desktop menambahkan Spotify dan YouTube Music, dan semua platform kini masuk lewat satu jendela login; beranda mendapat tab Jelajahi; Sonnet, Diorama, dan Pendolo mendapat Mode ketukan pintar yang bergerak mengikuti ketukan dan drum; QQ Music bisa masuk dengan aplikasi QQ Music, dan antarmuka kini tersedia dalam bahasa Tionghoa Tradisional.",
+      "newPlatforms": {
+        "title": "Spotify dan YouTube Music",
+        "description": "Dua platform baru di desktop. Masuk ke Spotify lewat browser sistem untuk mencari, menjelajah, menyukai, menyimpan, dan mengedit playlist; pemutaran memerlukan Spotify Premium, kualitas hingga 320k, dan belum tersedia di Mac Intel. YouTube Music bisa mencari dan memutar tanpa masuk; untuk masuk, Folia membuka Chrome, Edge, Chromium, atau Brave di komputer Anda untuk akun Google, dan anggota Premium bisa memilih kualitas lebih tinggi. Lirik bawaan kedua platform hanya tersinkron per baris, dan keduanya belum tersedia di versi web."
+      },
+      "loginWindow": {
+        "title": "Satu Jendela Login",
+        "description": "NetEase Cloud Music, QQ Music, Kugou, Bodian, Spotify, dan YouTube Music kini masuk dari jendela yang sama: daftar platform dan status loginnya di kiri, langkah kode QR atau browser di kanan, dan saat gagal, jendela menjelaskan sebabnya dan kapan bisa dicoba lagi. Anda bisa tetap masuk ke beberapa platform sekaligus, serta beralih atau keluar di sini (keluar akan mengosongkan antrean). Buka dari tombol Masuk di beranda atau kapsul platform di pojok kanan bawah."
+      },
+      "explore": {
+        "title": "Jelajahi",
+        "description": "Beranda mendapat tab Jelajahi berisi playlist rekomendasi, tangga lagu, lagu baru, dan album baru dari NetEase Cloud Music, QQ Music, Spotify, dan YouTube Music, ditambah putaran terakhir dan \"Putar lagi\" yang tersimpan di perangkat ini, dengan tombol untuk menampilkan kumpulan baru. Bravais juga mendapat tab Jelajahi, dan membuka Lattice dari Jelajahi menata semuanya menjadi dinding poster. Anda bisa mematikannya di Pengaturan → Beranda & playlist; Jelajahi untuk QQ Music memerlukan backend qq-music-api 3.3.3 atau lebih baru."
+      },
+      "smartBeat": {
+        "title": "Mode Ketukan Pintar",
+        "description": "Gaya lirik di desktop mendapat Mode ketukan pintar: Sonnet mendorong kamera mendekat di setiap ketukan dan merobek dengan cahaya di ketukan pertama birama, partikel Diorama beriak mengikuti ketukan sementara kata yang sedang dinyanyikan melompat, dan cakram Pendolo mengembang mengikuti kick, snare, dan simbal yang dipisahkan. Setiap efek punya sakelar dan kekuatan sendiri, dan seluruh mode bisa dinyalakan dari palet perintah. Memerlukan GPU dengan WebGPU; lagu dianalisis sebentar saat pertama kali diputar lalu diingat. Model kini disertakan dalam installer, jadi automix juga tak perlu lagi mengunduh model terpisah."
+      },
+      "qqMusic": {
+        "title": "QQ Music: Masuk dengan Aplikasi dan Lainnya",
+        "description": "QQ Music kini bisa masuk dengan memindai memakai aplikasi QQ Music (di desktop, Docker, dan Node, kode yang sama juga bisa dipindai dengan QQ seluler dan WeChat); di versi web dengan backend Serverless, login diperpanjang otomatis hingga 30 hari. Pencarian saat masuk lebih stabil, dan saat platform menolak pencarian Anda melihat pesan galat, bukan \"tidak ada hasil\". Baru: cloud drive musik (hanya lagu yang bisa diputar), tingkat keanggotaan, jumlah putar playlist, dan membuat playlist kosong; jika sumber lagu penuh tidak tersedia, Folia memutar pratinjau dan memberi tahu. Semua ini memerlukan backend qq-music-api 3.3.3."
+      },
+      "moreDetails": {
+        "title": "Peningkatan Lainnya",
+        "description": "Antarmuka bisa beralih ke bahasa Tionghoa Tradisional; Pengaturan dikelompokkan ulang menjadi Antarmuka, Musik, Aplikasi, dan Lanjutan, dan sinkronisasi pindah ke Koneksi & integrasi. Baru: \"Sembunyikan kursor saat diam\", dan \"Temukan lagu yang diputar\" di palet perintah; jendela kendali jarak jauh didesain ulang dan bisa menahan sampul agar tidak membesar saat diam; selama transisi automix, Monet dan jendela kendali jarak jauh berganti lagu mengikuti mix. Dengan beberapa layar, Anda bisa memilih layar untuk mode wallpaper, dan menyeret di mode wallpaper Windows kini lebih mengikuti mouse. Paket Linux ARM64 kini tersedia, dan API mod naik ke Folium 1.6."
+      }
+    },
     "v0_7_20": {
       "intro": "0.7.20 melengkapi QQ Music dengan rekomendasi, suka, simpan, dan pengeditan playlist; menambahkan \"Lewati lagu yang tidak dapat diputar\"; membuat ekspor video desktop andal untuk file besar dan di Linux; menghadirkan pemisahan stem di Mac Intel; dan memungkinkan mod menambahkan halaman sendiri di beranda.",
       "qqMusic": {

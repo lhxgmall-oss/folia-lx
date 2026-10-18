@@ -777,6 +777,7 @@ declare global {
       /**
        * htdemucs separation in the analysis worker, for one window of one track at 44.1kHz.
        * `other` is not returned - it is derived by subtraction so the stems sum to the mix exactly.
+       * `{ declined }` carries the worker's reason when it ran nothing.
        */
       separateStems?: (
         /**
@@ -789,7 +790,7 @@ declare global {
         // Never shared memory: this crosses the IPC boundary by structured clone, which always
         // reconstitutes a plain ArrayBuffer on this side.
         { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> }
-      > | null>;
+      > | { declined: string } | null>;
       /**
        * Which model files are on disk, answered without loading them.
        *

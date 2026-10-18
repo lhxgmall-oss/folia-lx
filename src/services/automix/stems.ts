@@ -710,6 +710,8 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             }
         }
         let triedCpu = false;
+        // Why the CPU model declined, when it says (the worker's reason, e53569f5).
+        let declined: string | null = null;
         if (!parts && canSeparateStemsOnCpu() && (executor === 'cpu' || ranOn.includes('after the GPU'))) {
             const separate = window.electron?.separateStems;
             if (!separate) return;
@@ -717,7 +719,9 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             // Copies of the window alone: a view would carry its whole span across the IPC.
             // Kept loaded only where the CPU is the separator; a GPU machine's fallback goes after a minute.
             lastCpuThreads = threads;
-            parts = await separate({ left: left.slice(), right: right.slice(), threads, resident: !canSeparateStemsOnGpu() });
+            const answer = await separate({ left: left.slice(), right: right.slice(), threads, resident: !canSeparateStemsOnGpu() });
+            if (answer && 'declined' in answer) declined = answer.declined;
+            else parts = answer;
         }
         if (!parts) {
             // The GPU's own failures are its runtime's to note (analysis/beatThisGpu.ts); only the
@@ -726,6 +730,11 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
                 console.log(`[Automix] could not separate the ${request.role} of "${request.song.name}" on the GPU`);
                 return;
             }
+            // Said here, in the console the listener reads. The worker's own line goes to the main
+            // process's stdout only, so a library that would not load once looked like a separation
+            // that never finished: "separating" and then nothing, track after track.
+            console.warn(`[Automix] could not separate the ${request.role} of "${request.song.name}":`
+                + ` ${declined ?? 'the analysis worker answered nothing'}`);
             // Nothing came back. The window this can happen in is the widest in the app - separation
             // is asked for the instant a track starts and runs for tens of seconds - so weights
             // disappearing under one, or the worker restarting under it on a folder switch, is

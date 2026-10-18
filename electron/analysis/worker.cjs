@@ -93,8 +93,19 @@ let stems = null;
  */
 const decline = (kind, why) => {
     console.warn(`[${kind}] declined: ${why}`);
+    declined = why;
     return null;
 };
+
+/**
+ * Why the request being run answered null, sent back beside the null.
+ *
+ * The line above lands in the main process's stdout, which the renderer's console never shows - so a
+ * library that could not be loaded (rc1 on glibc 2.41+, a library marked as needing an executable
+ * stack) printed nothing where the listener looks, and every separation read as "still separating".
+ * Reset per request; requests run one at a time (the queue below), so one variable is enough.
+ */
+let declined = null;
 
 const rssMb = () => Math.round(process.memoryUsage().rss / 1048576);
 
@@ -289,6 +300,7 @@ process.parentPort.on('message', ({ data }) => {
     const { id, kind, payload } = data || {};
     const handler = HANDLERS[kind];
     const run = queue.then(async () => {
+        declined = null;
         if (!handler) return decline(kind, 'no handler for this kind');
         const started = Date.now();
         const result = await handler(payload);
@@ -301,9 +313,11 @@ process.parentPort.on('message', ({ data }) => {
         return result;
     }).catch((error) => {
         console.warn(`[${kind}] failed`, error);
+        declined = error?.message || String(error);
         return null;
-    });
+    // The reply is built inside the chain, before the next request can reset `declined`.
+    }).then(result => (result == null ? { id, result: null, reason: declined } : { id, result }));
     // The queue must not inherit a rejection, or one failure poisons every later request.
     queue = run.then(() => undefined, () => undefined);
-    run.then(result => process.parentPort.postMessage({ id, result: result ?? null }));
+    run.then(reply => process.parentPort.postMessage(reply));
 });

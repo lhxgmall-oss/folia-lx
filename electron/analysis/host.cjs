@@ -98,10 +98,10 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
         forward(started.stdout);
         forward(started.stderr);
 
-        started.on('message', ({ id, result }) => {
+        started.on('message', ({ id, result, reason }) => {
             // `settle` owns the delete, so hand it the reply and let it do that.
             const settle = pending.get(id);
-            if (settle) settle(result ?? null);
+            if (settle) settle({ result: result ?? null, reason: reason ?? null });
         });
         started.on('exit', (code) => {
             // `stop` clears `child` first, so reaching here with this one still installed means it
@@ -137,11 +137,20 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
     const ask = async (kind, payload) => {
         let answer = await send(kind, payload);
         if (answer === CRASHED) answer = await send(kind, payload);
-        return answer === CRASHED ? null : answer;
+        return answer === CRASHED ? { result: null, reason: 'the analysis worker died twice in a row' } : answer;
     };
 
-    ipcMain.handle('automix-beat-this', (_event, chunks) => ask('beat-this', chunks));
-    ipcMain.handle('automix-htdemucs', (_event, request) => ask('htdemucs', request));
+    ipcMain.handle('automix-beat-this', async (_event, chunks) => (await ask('beat-this', chunks)).result);
+    /**
+     * The stems, or `{ declined }` with the worker's reason when it ran nothing. The reason crosses over
+     * because the worker's own log goes to this process's stdout, which the renderer's console - where
+     * the listener looks - never shows: a library that would not load used to read there as a
+     * separation that never finished.
+     */
+    ipcMain.handle('automix-htdemucs', async (_event, request) => {
+        const { result, reason } = await ask('htdemucs', request);
+        return result ?? { declined: reason || 'the worker gave no reason' };
+    });
 
     /**
      * Automix switched on or off, from the renderer - on mount and on every change.

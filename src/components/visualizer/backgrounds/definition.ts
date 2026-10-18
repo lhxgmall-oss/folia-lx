@@ -81,6 +81,8 @@ export interface VisualizerBackgroundRenderProps {
      * 0 or left out where it changes at once.
      */
     blendMs?: number;
+    /** Where given, that blend plays along this (0..1, a blend's song hand-off) instead of over blendMs. */
+    blendProgress?: MotionValue<number>;
 }
 
 export interface VisualizerBackgroundSettingsProps {
