@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '@/types';
 
 // test/unit/automix/libraryDownload.test.ts
-// What the analyser downloads of a library server's stream (Navidrome): the front only with song
-// caching off, never a copy into the media cache, and no second range request to a server that
-// refused the first - a transcoding server refuses every time, and each ask starts a transcode.
+// What the analyser downloads of a library server's stream (Navidrome): the front only, whether song
+// caching is on or off - nothing keeps the stream, so a whole read would be a second download of every
+// track - and no second range request to a server that refused the first: a transcoding server
+// refuses every time, and each ask starts a transcode.
 
 const { saveAudioBlob } = vi.hoisted(() => ({ saveAudioBlob: vi.fn(async () => {}) }));
 
@@ -53,7 +54,7 @@ describe('reading a Navidrome stream for analysis', () => {
         vi.restoreAllMocks();
     });
 
-    it('asks for the front only with song caching off, and not again once the server refused', async () => {
+    it('asks for the front only, and not again once the server refused', async () => {
         const fetch = answerWhole();
         vi.stubGlobal('fetch', fetch);
         const song = navidrome('off');
@@ -66,14 +67,14 @@ describe('reading a Navidrome stream for analysis', () => {
         expect(describeProfileState(song)).toMatch(/^skipped: the server would not serve a partial range/);
     });
 
-    it('reads the whole stream with song caching on, and keeps no copy of it', async () => {
+    it('asks for the front only with song caching on too, and keeps no copy', async () => {
         const fetch = answerWhole();
         vi.stubGlobal('fetch', fetch);
 
         await analyse(navidrome('on'), true);
 
         expect(fetch).toHaveBeenCalledTimes(1);
-        expect(fetch.mock.calls[0]).toEqual([URL_OF('on')]);
+        expect(fetch.mock.calls[0]).toEqual([URL_OF('on'), { headers: { Range: expect.stringMatching(/^bytes=0-\d+$/) } }]);
         expect(saveAudioBlob).not.toHaveBeenCalled();
     });
 });

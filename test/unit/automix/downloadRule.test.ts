@@ -4,8 +4,9 @@ import { downloadRuleOf } from '@/services/automix/profileService';
 
 // test/unit/automix/downloadRule.test.ts
 // How much of a track's URL the analyser may read, and whether it is stored. Pinned on the library
-// server's stream: it once counted as local because it is not an online song, so it was read whole
-// with song caching off, a second download of every track alongside the stream playing it.
+// server's stream: it once counted as local because it is not an online song, so it was read whole,
+// a second download of every track alongside the stream playing it. What each rule reads is pinned
+// in libraryDownload.test.ts.
 
 const song = (sourceRef: SongResult['sourceRef']): SongResult => ({
     id: 'x',
@@ -23,7 +24,7 @@ describe('downloadRuleOf', () => {
         expect(downloadRuleOf(song({ kind: 'local', mediaId: 'x' }), 'https://anything.test/x')).toBe('free');
     });
 
-    it('treats a library server stream as a download that is never cached', () => {
+    it('treats a library server stream as a download that is never cached, read only in part', () => {
         expect(downloadRuleOf(song({ kind: 'navidrome', mediaId: 'x' }), 'https://navi.test/rest/stream?id=x')).toBe('library');
     });
 

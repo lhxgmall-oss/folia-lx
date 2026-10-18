@@ -31,8 +31,8 @@ import {
 // holds the track, a local file, or - when song caching is on - the one download that would have
 // happened after playback, moved earlier and written to the same cache. With caching off, an online
 // track is simply not analysed and the blend falls back to the live measurement of the outgoing deck.
-// A library server's stream (Navidrome) follows the same switch, though it is never cached: see
-// `downloadRuleOf`.
+// A library server's stream (Navidrome) is never cached, so only its front is read, whatever the
+// setting: see `downloadRuleOf`.
 
 const profiles = new Map<string, TrackProfile | null>();
 const inFlight = new Set<string>();
@@ -270,10 +270,10 @@ const keepWithProvider = async (song: SongResult, audioUrl: string | null | unde
  *
  * - `free`: a blob: or file: URL, or a song from this machine. Already here, so read whole whatever
  *   the setting says, and never stored - there is nothing to download again.
- * - `library`: a library server's stream (Navidrome). A real download, so the whole file only with
- *   song caching on, and the front of it otherwise - but never written to the media cache, which
- *   keeps online songs only. It was once read whole regardless, counted as "local" because it is
- *   not an online song: every track a second time, alongside the stream playing it.
+ * - `library`: a library server's stream (Navidrome). Only the front of it, whatever the setting:
+ *   the media cache keeps online songs only, so a whole read would be thrown away after measuring -
+ *   every track downloaded a second time, beside the stream playing it. That is what happened while
+ *   it counted as "local" for not being an online song. Its ending is measured as it plays out.
  * - `online`: a real download, the whole file only with song caching on, and then stored.
  */
 export const downloadRuleOf = (song: SongResult, audioUrl: string): 'free' | 'library' | 'online' => {
@@ -343,11 +343,13 @@ const readBytes = async (
         const ownCache = !isLocal && keepsOwnSongAudio(song);
         const kept = ownCache && await keepWithProvider(song, audioUrl, enableMediaCache);
 
-        if (!isLocal && !enableMediaCache && !kept) {
+        if (rule === 'library' || (!isLocal && !enableMediaCache && !kept)) {
             // Song caching is off, so the full file would be bandwidth nobody agreed to. Take the
             // front of it instead: less than the transition is worth, and it still answers the
             // questions about how this track STARTS - which is what the chooser needs from the
-            // track it is blending into.
+            // track it is blending into. How it ends is filled in once it has played out
+            // (`recordPlayedTail`). A library stream takes this road whatever the setting: nothing
+            // keeps it, so a whole read would be the second download of every track.
             if (hasStoredPartial) return { skipped: '' };
             const refused = rangeRefusedDownloads.get(downloadKey);
             if (refused) return { skipped: refused };
