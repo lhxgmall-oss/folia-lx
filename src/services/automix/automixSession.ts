@@ -41,7 +41,7 @@ import {
     type TransitionTrack,
 } from './transitionPlanner';
 import { planForMode, type TransitionSettings } from './transitionStrategy';
-import { announceTransition } from './transitionCue';
+import { announceTransition, whyCueNotDrawn, type TransitionCue } from './transitionCue';
 import type { TrackProfile } from './trackProfile';
 
 // src/services/automix/automixSession.ts
@@ -827,7 +827,13 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         clocks[incoming].reset();
 
         phase = 'armed';
-        diagMark(`armed -> ${request.nextKey}`);
+        // When it will start and what it was planned with, in the log a report carries - the console
+        // lines below it stay on the listener's machine.
+        diagMark(
+            `armed -> ${request.nextKey}, ${nextPlan.style} from ${nextPlan.outStart.toFixed(2)}s`
+            + ` (in ${Math.max(0, nextPlan.outStart - request.time).toFixed(1)}s) for ${nextPlan.overlap}s,`
+            + ` profiles: outgoing ${request.from.profile ? 'yes' : 'no'}, incoming ${request.to.profile ? 'yes' : 'no'}`,
+        );
         plan = nextPlan;
         plannedNextKey = request.nextKey;
         plannedFromKey = request.fromKey;
@@ -1162,12 +1168,23 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         // fraction that means something different from the number next to it. Divided by `applied` for the
         // same reason `wall` is - a bent outgoing track counts beats faster than its own tempo says, and a
         // pulse on the untouched period would drift across the window.
-        announceTransition({
+        const cue: TransitionCue = {
             seconds: hold + wall,
             crossover: hold + wall > 0 ? (hold + wall * shape.crossover) / (hold + wall) : 0,
             periodSec: periodSec === null ? null : periodSec / applied,
             ...(shape.style === 'plainBlend' ? { plain: true } as const : {}),
-        });
+        };
+        // What actually runs, which can differ from what was armed: the shape is settled only here. And
+        // whether the animations draw it, said once per transition - they refuse in silence otherwise,
+        // and "never saw the animation" was a report with nothing in any log to explain it.
+        const notDrawn = whyCueNotDrawn(cue);
+        if (notDrawn) console.log(`[Automix] the transition animations skip this one: ${notDrawn}`);
+        diagMark(
+            `blend ${shape.style}${shape.style === plan.style ? '' : ` (planned ${plan.style})`} ${cue.seconds.toFixed(2)}s`
+            + `, profiles: outgoing ${plannedFrom ? 'yes' : 'no'}, incoming ${plannedTo ? 'yes' : 'no'}`
+            + `, ${notDrawn ? `not drawn (${notDrawn})` : 'drawable'}`,
+        );
+        announceTransition(cue);
 
         if (stemmed) {
             cleanupTimer = setTimeout(

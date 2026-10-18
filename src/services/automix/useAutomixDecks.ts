@@ -7,7 +7,7 @@ import type { PlaybackRecoveryTarget } from '../../types/playbackRecovery';
 import { getPlaybackSongKey, isNavidromePlaybackSong, resolveNavidromePlaybackCarrier } from '../../utils/appPlaybackGuards';
 import { nextTransitionSong } from '../../utils/playbackNeighbors';
 import { getPrefetchedData } from '../prefetchService';
-import { getTrackProfile, recordPlayedTail } from './profileService';
+import { describeProfileState, getTrackProfile, recordPlayedTail } from './profileService';
 import { refreshModelAvailability } from '../analysis/modelAvailability';
 import { canSeparateStems, ensureStems, getStemsByKey, setWantedStems, stemWindowKey } from './stems';
 import { connectAutomixDeck, type AutomixDeckChain } from './crossfadeGraph';
@@ -61,6 +61,14 @@ export const isPausedByListener = (state: PlayerState): boolean => state === Pla
 export const shouldAbortTransitionOnPause = (state: PlayerState, pauseFadePending: boolean): boolean => (
     isPausedByListener(state) && !pauseFadePending
 );
+
+/** A position in a track as a log line wants it: `3:12.40 (192.40s)`. */
+const trackClock = (seconds: number): string => {
+    // Rounded first, so 59.999 reads 1:00.00 rather than 0:60.00.
+    const centis = Math.round(seconds * 100);
+    const minutes = Math.floor(centis / 6000);
+    return `${minutes}:${((centis - minutes * 6000) / 100).toFixed(2).padStart(5, '0')} (${(centis / 100).toFixed(2)}s)`;
+};
 
 /**
  * How often both decks are measured.
@@ -610,7 +618,17 @@ export function useAutomixDecks({
         if (!plan) return;
 
         if (session.getPhase() === 'armed') {
-            report(`${audioSrc}:${modeTag}armed`, `blending ${plan.overlap}s - ${plan.reason}`);
+            // Once per track (the report key), at the moment the blend is ready: when it will start, and
+            // what each end was planned with. The analysis state is the half the plan cannot say - a plan
+            // made blind reads the same whether the track was never asked for or is still in the queue.
+            const startIn = plan.outStart - time;
+            report(
+                `${audioSrc}:${modeTag}armed`,
+                `automix armed: "${currentSong.name}" -> "${nextSong.name}",`
+                + ` the blend starts at ${trackClock(plan.outStart)} of this track`
+                + ` (${startIn > 0.05 ? `in ${startIn.toFixed(1)}s` : 'now'}), ${plan.overlap}s - ${plan.reason}`
+                + `; analysis: this track ${describeProfileState(currentSong)}, the next ${describeProfileState(nextSong)}`,
+            );
         } else if (plan.kind !== 'fade') {
             report(`${audioSrc}:${modeTag}cut`, `plain cut - ${plan.reason}`);
         } else if (time >= plan.outStart) {

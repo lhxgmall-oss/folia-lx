@@ -49,6 +49,26 @@ const skipped = new Map<string, string>();
 const MAX_PROFILES = 200;
 
 /**
+ * What became of the last request for a track that left no profile behind: dropped for being out of
+ * scope, skipped for want of bytes, or failed. Only for `describeProfileState`.
+ *
+ * Kept because "no profile" alone could not tell a track never asked for from one asked for and
+ * turned away, and the first is a bug while the second is the bandwidth rule working. Every local
+ * and Navidrome transition planned blind for months, and the log said "never analysed" - the same
+ * words a track still waiting its turn prints. Nothing is recorded for a track nobody asked about.
+ */
+const outcomes = new Map<string, string>();
+const noteOutcome = (songKey: string, outcome: string) => {
+    outcomes.delete(songKey);
+    outcomes.set(songKey, outcome);
+    while (outcomes.size > MAX_PROFILES) {
+        const oldest = outcomes.keys().next().value;
+        if (oldest === undefined) break;
+        outcomes.delete(oldest);
+    }
+};
+
+/**
  * Files found this session not to be their song (wholeSongCheck.ts), with why: a download by the
  * song and its URL, a copy in the media cache by the song's audio key. Without them every prefetch
  * pass (one per song start) downloaded the whole file again, or read the whole copy and its header
@@ -147,6 +167,19 @@ export const needsGrid = (request: ProfileRequest, profile: TrackProfile | null 
 export const getTrackProfile = (song: SongResult | null | undefined): TrackProfile | null => (
     song ? profiles.get(getPlaybackAnalysisKey(song)) ?? null : null
 );
+
+/**
+ * Where a track's analysis stands, in words for a log line: measured, still queued, or why not.
+ * "never requested" is the one that points at a caller rather than at the track.
+ */
+export const describeProfileState = (song: SongResult): string => {
+    const songKey = getPlaybackAnalysisKey(song);
+    const profile = profiles.get(songKey);
+    if (profile) return profile.partial ? 'measured (head only)' : 'measured';
+    if (inFlight.has(songKey)) return 'queued, not finished yet';
+    if (profiles.has(songKey)) return 'could not be measured';
+    return outcomes.get(songKey) ?? 'never requested';
+};
 
 interface ProfileRequest {
     song: SongResult;
@@ -367,7 +400,10 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // Asked here, at the front of the queue, not when this was enqueued - see `wanted`. The
             // listener may have skipped past this track while it was waiting its turn, and the whole
             // point is to not spend a decode and a model pass on where they no longer are.
-            if (!wanted.has(songKey)) return;
+            if (!wanted.has(songKey)) {
+                noteOutcome(songKey, 'dropped, not the current or the next track when its turn came');
+                return;
+            }
 
             const stored = await getFromCache<TrackProfile>(storageKey(songKey));
             // A whole-file profile names the length of the file it measured. One under half the
@@ -410,13 +446,17 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                     skipped.set(songKey, result.skipped);
                     console.log(`[Automix] not analysing "${request.song.name}": ${result.skipped}`);
                 }
+                noteOutcome(songKey, `skipped: ${result.skipped || 'nothing more to read'}`);
                 return;
             }
             skipped.delete(songKey);
             // Asked a second time, because reading the bytes is the slow part: a full track off the
             // media cache or the network is seconds, and everything after this line - the decode, the
             // spectrogram, the beat model - is the expensive part it would be buying for nobody.
-            if (!wanted.has(songKey)) return;
+            if (!wanted.has(songKey)) {
+                noteOutcome(songKey, 'dropped, not the current or the next track when its turn came');
+                return;
+            }
 
             const buffer = await decodeAtRate(result.bytes, PROFILE_SAMPLE_RATE);
             const channels = buffer ? toMidSide(buffer) : null;
