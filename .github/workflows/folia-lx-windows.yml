@@ -81,6 +81,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: >
           mkdir -p ci-logs && set -o pipefail &&
+          export PATH="/c/Windows/System32:$PATH" &&
           npx electron-builder --win nsis --publish never
           --config.appId=top.izuna.foliamajor.lx
           --config.productName="Folia LX"
