@@ -42,7 +42,11 @@ function createQishuiApiBridge(options) {
                 switch (operation) {
                     case 'login_qr_key': data = await auth.start(); break;
                     case 'login_qr_create': data = auth.qr(raw.key); break;
-                    case 'login_qr_check': data = await auth.check(raw.key); break;
+                    case 'login_qr_check':
+                        data = await auth.check(raw.key);
+                        // A newly authorized account starts a fresh stream and invalidates guest reads in flight.
+                        if (data.state === 'confirmed') feed.clear();
+                        break;
                     case 'login_qr_cancel': auth.cancel(raw.key); data = null; break;
                     case 'login_status': data = await auth.status(); break;
                     case 'logout': auth.logout(); feed.clear(); data = null; break;

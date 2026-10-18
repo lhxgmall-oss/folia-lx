@@ -42,13 +42,21 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
         window.addEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
         return () => window.removeEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
     },
-    getPersonalFm: async selection => {
-        if (!selection) return omni.getPersonalFm();
-        const providerId = useOnlineProviderAccountStore.getState().activeProviderId;
-        const catalog = await omni.getPersonalFmCatalog(providerId);
-        usePersonalFmModeStore.getState().setCatalog(providerId, catalog);
-        const applied = usePersonalFmModeStore.getState().setProviderSelection(providerId, selection);
-        return omni.getPersonalFm(toPersonalFmRequestOptions(applied));
+    getPersonalFm: async (selection, cardProviderId) => {
+        const activeProvider = () => useOnlineProviderAccountStore.getState().activeProviderId;
+        const providerId = cardProviderId ?? activeProvider();
+        if (activeProvider() !== providerId) return [];
+        let options;
+        if (selection) {
+            const catalog = await omni.getPersonalFmCatalog(providerId);
+            // A card belongs to the provider that displayed it, even if the listener switches meanwhile.
+            if (activeProvider() !== providerId) return [];
+            usePersonalFmModeStore.getState().setCatalog(providerId, catalog);
+            const applied = usePersonalFmModeStore.getState().setProviderSelection(providerId, selection);
+            options = toPersonalFmRequestOptions(applied);
+        }
+        const songs = await omni.getPersonalFm(options);
+        return activeProvider() === providerId ? songs : [];
     },
     playPersonalFm: (song, queue) => getSurface().onPlaySong(song, queue, true),
     describeOnlineCollection: (collection, providerId) => createOnlineGridViewCollection(collection, providerId),

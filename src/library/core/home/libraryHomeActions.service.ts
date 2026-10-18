@@ -48,9 +48,9 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
         patch({ scan: progress?.active ? progress : null });
     };
 
-    const playPersonalFm = async (selection?: PersonalFmSelection): Promise<LibraryHomeActionResult> => {
+    const playPersonalFm = async (selection?: PersonalFmSelection, providerId?: string): Promise<LibraryHomeActionResult> => {
         try {
-            const songs = await port.getPersonalFm(selection);
+            const songs = await port.getPersonalFm(selection, providerId);
             if (songs.length > 0) port.playPersonalFm(songs[0], songs);
             return OK;
         } catch (error) {
@@ -136,7 +136,7 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
         playPersonalFm,
 
         openOnlineCard: async (card: LibraryHomeCard, providerId: string, open: LibraryHomeOpenCollection) => {
-            if (isPersonalFmCard(card)) return playPersonalFm((card.raw as { personalFm?: PersonalFmSelection } | undefined)?.personalFm);
+            if (isPersonalFmCard(card)) return playPersonalFm((card.raw as { personalFm?: PersonalFmSelection } | undefined)?.personalFm, providerId);
             open(port.describeOnlineCollection(onlineCardCollection(card), providerId));
             return OK;
         },

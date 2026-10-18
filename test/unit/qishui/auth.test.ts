@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 // A successful QR exchange must accept opaque IDs and restore the account after app restart.
 const require = createRequire(import.meta.url);
 const { createAuth } = require('../../../electron/qishui/auth.cjs');
+const { createQishuiApiBridge } = require('../../../electron/qishui/qishuiApiBridge.cjs');
 const { createSessionRepository, SESSION_KEY } = require('../../../electron/qishui/session.cjs');
 const { QishuiError } = require('../../../electron/qishui/client.cjs');
 const opaqueId = 'MS4wLjABAAAA_test-account-opaque-id';
@@ -64,5 +65,55 @@ describe('Qishui car sign-in', () => {
         resolve({ my_info: { id: opaqueId } });
         await expect(result).resolves.toEqual({ state: 'expired' });
         expect(repo.sessions.get()).toBeNull();
+    });
+});
+
+describe('QR confirmation resets bridge feed state', () => {
+    const setup = () => {
+        const repo = repository();
+        const authClient = clientFor(repo.sessions);
+        const bodies: any[] = [];
+        let held: (() => Promise<Response>) | undefined;
+        let release!: (response: Response) => void;
+        const fetch = vi.fn(async (url: string, options: { body?: string }) => {
+            if (url.includes('/client/token/get/')) return Response.json({ client_token: 'test-client-token' });
+            if (url.includes('/me/info/')) return Response.json({ data: { my_info: { id: opaqueId } } });
+            if (url.includes('/feed/song-tab/')) {
+                bodies.push(JSON.parse(options.body!));
+                return held ? held() : Response.json({ data: { items: [], has_more: true } });
+            }
+            const { data, headers } = await authClient.http(url);
+            return Response.json(data, { headers });
+        });
+        const bridge = createQishuiApiBridge({ ...repo, fetch, log: vi.fn() });
+        return { bridge, bodies, hold: () => { held = () => new Promise(done => { release = done; }); },
+            release: () => { held = undefined; release(Response.json({ data: { items: [], has_more: true } })); } };
+    };
+    const confirm = async (bridge: any) => {
+        const started = await bridge.request('login_qr_key');
+        expect(started.ok).toBe(true);
+        expect(await bridge.request('login_qr_check', { key: started.data.key })).toEqual({ ok: true, data: { state: 'confirmed' } });
+    };
+    it('starts a new authenticated stream instead of continuing the guest queue', async () => {
+        const { bridge, bodies } = setup();
+        await bridge.request('feed'); await bridge.request('feed');
+        await confirm(bridge);
+        await bridge.request('feed');
+        expect(bodies.map(body => body.is_first_request)).toEqual([true, false, true]);
+        expect(bodies.map(body => body.with_client_cache)).toEqual([false, true, false]);
+        expect(bodies[2].feed_preference.total_request_count).toBe(1);
+    });
+    it('invalidates a guest response still in flight when sign-in completes', async () => {
+        const { bridge, bodies, hold, release } = setup();
+        await bridge.request('feed');
+        hold();
+        const guest = bridge.request('feed');
+        await vi.waitFor(() => expect(bodies).toHaveLength(2));
+        await confirm(bridge);
+        release();
+        expect(await guest).toMatchObject({ ok: false, error: { code: 'unavailable' } });
+        await bridge.request('feed');
+        expect(bodies[2].is_first_request).toBe(true);
+        expect(bodies[2].feed_preference.total_request_count).toBe(1);
     });
 });

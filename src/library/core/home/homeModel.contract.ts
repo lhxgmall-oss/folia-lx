@@ -204,7 +204,7 @@ export interface LibraryHomePort {
     refreshLocalSongs(): Promise<void> | void;
     /** 订阅扫描进度；返回退订函数。 */
     subscribeScanProgress(listener: (progress: LibraryHomeScanProgress | null) => void): () => void;
-    getPersonalFm(selection?: PersonalFmSelection): Promise<SongResult[]>;
+    getPersonalFm(selection?: PersonalFmSelection, providerId?: string): Promise<SongResult[]>;
     playPersonalFm(song: SongResult, queue: SongResult[]): void;
     describeOnlineCollection(collection: Record<string, unknown>, providerId: string): LibraryCollectionDescriptor;
     describeLocalGroup(group: LocalLibraryGroup): LibraryCollectionDescriptor;
