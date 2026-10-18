@@ -1,0 +1,104 @@
+# Folia-LX: builds the Windows installer (NSIS) when a version tag is pushed, and attaches it to a
+# draft GitHub release of this repository. The steps follow upstream's electron-release.yml
+# (Publish Realeco) for its Windows leg; the release and update metadata point at this fork, and the
+# app id / product name differ from upstream so the installer never replaces an official Folia install.
+name: Folia-LX Windows installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: folia-lx-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - name: Cache wallpaper-helper Cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packaging/windows/wallpaper-helper
+
+      - name: Build wallpaper helper
+        run: node packaging/windows/build-wallpaper-helper.mjs
+
+      - name: Stamp version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          node -e "const fs=require('fs'); const pkg=require('./package.json'); pkg.version=process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$VERSION"
+
+      - name: Build web app for Electron
+        env:
+          ELECTRON: 'true'
+          APP_VERSION_LABEL: Folia-LX
+        run: npm run build
+
+      - name: Package Electron app
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: >
+          npx electron-builder --win nsis --publish never
+          --config.appId=top.izuna.foliamajor.lx
+          --config.productName="Folia LX"
+          --config.publish.provider=github
+          --config.publish.owner="${{ github.repository_owner }}"
+          --config.publish.repo="${{ github.event.repository.name }}"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v6
+        with:
+          name: folia-lx-windows
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/*.yml
+            !release/builder-debug.yml
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach to draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          shopt -s nullglob
+          files=(release/*.exe release/*.blockmap release/latest*.yml)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Folia-LX $TAG" --draft \
+              --notes "Folia-LX $TAG（Windows 安装包）。不含任何音源脚本，仅供个人学习研究。"
+          fi
