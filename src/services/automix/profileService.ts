@@ -31,6 +31,8 @@ import {
 // holds the track, a local file, or - when song caching is on - the one download that would have
 // happened after playback, moved earlier and written to the same cache. With caching off, an online
 // track is simply not analysed and the blend falls back to the live measurement of the outgoing deck.
+// A library server's stream (Navidrome) is never cached, so only its front is read, whatever the
+// setting: see `downloadRuleOf`.
 
 const profiles = new Map<string, TrackProfile | null>();
 const inFlight = new Set<string>();
@@ -45,6 +47,39 @@ const inFlight = new Set<string>();
 const skipped = new Map<string, string>();
 /** Same order of magnitude as the prefetch cache; each entry is a couple of hundred bytes. */
 const MAX_PROFILES = 200;
+
+/**
+ * What became of the last request for a track that left no profile behind: dropped for being out of
+ * scope, skipped for want of bytes, or failed. Only for `describeProfileState`.
+ *
+ * Kept because "no profile" alone could not tell a track never asked for from one asked for and
+ * turned away, and the first is a bug while the second is the bandwidth rule working. Every local
+ * and Navidrome transition planned blind for months, and the log said "never analysed" - the same
+ * words a track still waiting its turn prints. Nothing is recorded for a track nobody asked about.
+ */
+const outcomes = new Map<string, string>();
+const noteOutcome = (songKey: string, outcome: string) => rememberCapped(outcomes, songKey, outcome);
+
+/**
+ * Downloads whose server answered a range request with the whole file, by the song and its URL.
+ *
+ * A transcoding server does this every time - the stream it makes has no length to take a range of -
+ * so without it every prefetch pass (one per song start) asked again, and the server started a
+ * transcode for the analyser to cut off. A URL names one stream, so the answer holds for the session.
+ */
+const rangeRefusedDownloads = new Map<string, string>();
+const RANGE_REFUSED = 'the server would not serve a partial range, and a full download is not ours to spend';
+
+/** Sets `key`, keeping no more entries than there are profiles. */
+const rememberCapped = (map: Map<string, string>, key: string, value: string) => {
+    map.delete(key);
+    map.set(key, value);
+    while (map.size > MAX_PROFILES) {
+        const oldest = map.keys().next().value;
+        if (oldest === undefined) break;
+        map.delete(oldest);
+    }
+};
 
 /**
  * Files found this session not to be their song (wholeSongCheck.ts), with why: a download by the
@@ -118,6 +153,9 @@ const storageKey = (songKey: string) => `automix_profile_${songKey}`;
 const remember = (songKey: string, profile: TrackProfile | null) => {
     profiles.delete(songKey);
     profiles.set(songKey, profile);
+    // The answer replaces whatever an earlier request came to; left behind, it would be read back once
+    // this profile is evicted, older than the measurement that superseded it.
+    outcomes.delete(songKey);
     while (profiles.size > MAX_PROFILES) {
         const oldest = profiles.keys().next().value;
         if (oldest === undefined) break;
@@ -145,6 +183,19 @@ export const needsGrid = (request: ProfileRequest, profile: TrackProfile | null 
 export const getTrackProfile = (song: SongResult | null | undefined): TrackProfile | null => (
     song ? profiles.get(getPlaybackAnalysisKey(song)) ?? null : null
 );
+
+/**
+ * Where a track's analysis stands, in words for a log line: measured, still queued, or why not.
+ * "never requested" is the one that points at a caller rather than at the track.
+ */
+export const describeProfileState = (song: SongResult): string => {
+    const songKey = getPlaybackAnalysisKey(song);
+    const profile = profiles.get(songKey);
+    if (profile) return profile.partial ? 'measured (head only)' : 'measured';
+    if (inFlight.has(songKey)) return 'queued, not finished yet';
+    if (profiles.has(songKey)) return 'could not be measured';
+    return outcomes.get(songKey) ?? 'never requested';
+};
 
 interface ProfileRequest {
     song: SongResult;
@@ -190,7 +241,7 @@ const readPrefix = async (audioUrl: string): Promise<BytesResult> => {
     const response = await fetch(audioUrl, { headers: { Range: `bytes=0-${PREFIX_BYTES - 1}` } });
     if (response.status !== 206) {
         await response.body?.cancel();
-        return { skipped: 'the server would not serve a partial range, and a full download is not ours to spend' };
+        return { skipped: RANGE_REFUSED };
     }
     return { bytes: await response.arrayBuffer(), partial: true };
 };
@@ -212,6 +263,24 @@ const keepWithProvider = async (song: SongResult, audioUrl: string | null | unde
     const kept = await (store ? keepProviderSongAudio : hasProviderKeptSongAudio)(song, audioUrl);
     if (kept) notifyAudioCached(getSongResourceCacheKey('audio', song), audioUrl);
     return kept;
+};
+
+/**
+ * What reading a track's URL for analysis costs, which decides how much of it may be read.
+ *
+ * - `free`: a blob: or file: URL, or a song from this machine. Already here, so read whole whatever
+ *   the setting says, and never stored - there is nothing to download again.
+ * - `library`: a library server's stream (Navidrome). Only the front of it, whatever the setting:
+ *   the media cache keeps online songs only, so a whole read would be thrown away after measuring -
+ *   every track downloaded a second time, beside the stream playing it. That is what happened while
+ *   it counted as "local" for not being an online song. Its ending is measured as it plays out.
+ * - `online`: a real download, the whole file only with song caching on, and then stored.
+ */
+export const downloadRuleOf = (song: SongResult, audioUrl: string): 'free' | 'library' | 'online' => {
+    if (audioUrl.startsWith('blob:') || audioUrl.startsWith('file:')) return 'free';
+    const kind = getPlaybackSourceRef(song).kind;
+    if (kind === 'online') return 'online';
+    return kind === 'navidrome' ? 'library' : 'free';
 };
 
 const readBytes = async (
@@ -252,7 +321,7 @@ const readBytes = async (
     }
 
     if (!audioUrl) {
-        // A local track with no URL in hand (the next-up head: prefetch skips local files) is read
+        // A local track with no URL in hand (the prefetcher has none to give for a local file) is read
         // off its own file handle (analysis/trackAudio.ts).
         const file = await readLocalTrackFile(song);
         if (file) return { bytes: file, partial: false };
@@ -264,10 +333,8 @@ const readBytes = async (
     const downloadKey = `${getPlaybackSongKey(song)} ${audioUrl}`;
     const knownDownload = notTheSongDownloads.get(downloadKey);
     if (knownDownload) return { skipped: knownDownload };
-    // A blob: or file: URL is already on this machine, so reading it is free whatever the setting
-    // says. Anything else is a real download and needs a reason.
-    const isLocal = audioUrl.startsWith('blob:') || audioUrl.startsWith('file:')
-        || getPlaybackSourceRef(song).kind !== 'online';
+    const rule = downloadRuleOf(song, audioUrl);
+    const isLocal = rule === 'free';
 
     try {
         // A provider with a cache of its own is asked to keep the file before it is read, so the
@@ -276,13 +343,21 @@ const readBytes = async (
         const ownCache = !isLocal && keepsOwnSongAudio(song);
         const kept = ownCache && await keepWithProvider(song, audioUrl, enableMediaCache);
 
-        if (!isLocal && !enableMediaCache && !kept) {
+        if (rule === 'library' || (!isLocal && !enableMediaCache && !kept)) {
             // Song caching is off, so the full file would be bandwidth nobody agreed to. Take the
             // front of it instead: less than the transition is worth, and it still answers the
             // questions about how this track STARTS - which is what the chooser needs from the
-            // track it is blending into.
+            // track it is blending into. How it ends is filled in once it has played out
+            // (`recordPlayedTail`). A library stream takes this road whatever the setting: nothing
+            // keeps it, so a whole read would be the second download of every track.
             if (hasStoredPartial) return { skipped: '' };
-            return await readPrefix(audioUrl);
+            const refused = rangeRefusedDownloads.get(downloadKey);
+            if (refused) return { skipped: refused };
+            const prefix = await readPrefix(audioUrl);
+            if ('skipped' in prefix && prefix.skipped === RANGE_REFUSED) {
+                rememberCapped(rangeRefusedDownloads, downloadKey, RANGE_REFUSED);
+            }
+            return prefix;
         }
 
         const response = await fetch(audioUrl);
@@ -300,7 +375,7 @@ const readBytes = async (
             });
             return { skipped: 'the download was not audio' };
         }
-        if (!isLocal && !ownCache) {
+        if (rule === 'online' && !ownCache) {
             // The same write the audio bridge would have done after playback, under the same check
             // (wholeSongCheck.ts: a preview clip, or a file under half the song, is not stored).
             // Fetching once and feeding both is the whole reason a full read is allowed here at all.
@@ -349,7 +424,10 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // Asked here, at the front of the queue, not when this was enqueued - see `wanted`. The
             // listener may have skipped past this track while it was waiting its turn, and the whole
             // point is to not spend a decode and a model pass on where they no longer are.
-            if (!wanted.has(songKey)) return;
+            if (!wanted.has(songKey)) {
+                noteOutcome(songKey, 'dropped, not the current or the next track when its turn came');
+                return;
+            }
 
             const stored = await getFromCache<TrackProfile>(storageKey(songKey));
             // A whole-file profile names the length of the file it measured. One under half the
@@ -392,13 +470,17 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                     skipped.set(songKey, result.skipped);
                     console.log(`[Automix] not analysing "${request.song.name}": ${result.skipped}`);
                 }
+                noteOutcome(songKey, `skipped: ${result.skipped || 'nothing more to read'}`);
                 return;
             }
             skipped.delete(songKey);
             // Asked a second time, because reading the bytes is the slow part: a full track off the
             // media cache or the network is seconds, and everything after this line - the decode, the
             // spectrogram, the beat model - is the expensive part it would be buying for nobody.
-            if (!wanted.has(songKey)) return;
+            if (!wanted.has(songKey)) {
+                noteOutcome(songKey, 'dropped, not the current or the next track when its turn came');
+                return;
+            }
 
             const buffer = await decodeAtRate(result.bytes, PROFILE_SAMPLE_RATE);
             const channels = buffer ? toMidSide(buffer) : null;
