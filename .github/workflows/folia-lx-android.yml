@@ -41,9 +41,14 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
+      - name: Check the Android SDK
         id: android_sdk
-        uses: android-actions/setup-android@v3
+        # The Ubuntu runner image ships the SDK with its licenses accepted; Gradle fetches the platform and
+        # build tools the project names if they are missing.
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          test -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          ls "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/platforms" "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" || true
 
       - name: Install dependencies
         id: npm_ci
