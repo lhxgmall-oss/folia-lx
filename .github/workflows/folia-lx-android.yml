@@ -24,25 +24,29 @@ jobs:
 
     steps:
       - name: Check out Git repository
+        id: checkout
         uses: actions/checkout@v6
 
       - name: Install Node.js
+        id: node
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
 
       - name: Install JDK 21
+        id: java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-          cache: gradle
 
       - name: Set up Android SDK
+        id: android_sdk
         uses: android-actions/setup-android@v3
 
       - name: Install dependencies
+        id: npm_ci
         env:
           # The APK needs none of Electron's binaries.
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -69,11 +73,13 @@ jobs:
           echo "Folia LX $VERSION (versionCode $CODE)"
 
       - name: Bundle the Android LX core
+        id: lx_bundle
         run: |
           set -o pipefail
           npm run build:lx-android 2>&1 | tee ci-logs/02-lx-android.log
 
       - name: Build web app for Android
+        id: vite
         env:
           VITE_FOLIA_TARGET: android
           APP_VERSION_LABEL: Folia-LX
@@ -82,11 +88,13 @@ jobs:
           npx vite build 2>&1 | tee ci-logs/03-vite-build.log
 
       - name: Copy web app into the Android project
+        id: cap_sync
         run: |
           set -o pipefail
           npx cap sync android 2>&1 | tee ci-logs/04-cap-sync.log
 
       - name: Build signed APK
+        id: gradle
         working-directory: android
         run: |
           set -o pipefail
@@ -96,12 +104,14 @@ jobs:
             -PfoliaVersionCode=${{ steps.version.outputs.code }} 2>&1 | tee ../ci-logs/05-gradle.log
 
       - name: Name the APK
+        id: name_apk
         run: |
           mkdir -p release-android
           cp android/app/build/outputs/apk/release/app-release.apk "release-android/Folia-LX-${{ steps.version.outputs.version }}-android.apk"
           ls -la release-android
 
       - name: Upload APK
+        id: upload
         uses: actions/upload-artifact@v6
         with:
           name: REMOVED
@@ -110,6 +120,7 @@ jobs:
           retention-days: 14
 
       - name: Attach to draft release
+        id: attach
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -136,6 +147,10 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           URL="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+          mkdir -p ci-logs
+          cat > ci-logs/00-steps.json <<'STEPS_JSON'
+          ${{ toJSON(steps) }}
+          STEPS_JSON
           rm -rf /tmp/logs
           if ! git clone -q --depth 1 -b ci-logs "$URL" /tmp/logs 2>/dev/null; then
             mkdir -p /tmp/logs && cd /tmp/logs && git init -q -b ci-logs && git remote add origin "$URL" && cd -
