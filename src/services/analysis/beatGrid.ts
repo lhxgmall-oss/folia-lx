@@ -1,7 +1,7 @@
 import { getFromCache, saveToCache } from '../db';
 import { melSpectrogramOffThread } from '../automix/analysisOffThread';
 import { analyseBeatGrid, canRunBeatThis, type BeatGrid } from './beatThis';
-import { runPercussiveEnergyGpu } from './beatThisGpu';
+import { raiseGpuUrgency, runPercussiveEnergyGpu } from './beatThisGpu';
 import type { Urgency } from './scheduler';
 import { BEAT_GRID_PREFIX } from './beatGridKeys';
 import { computeBeatAccents, formatBeatMeter, isBeatAccents, resolveBeatConfidence, type BeatAccents, type BeatMeter } from './beatAccents';
@@ -117,6 +117,8 @@ export const getTrackBeatGrid = async (
     const runKey = key;
     const joined = running.get(runKey);
     if (joined) {
+        // A picture on screen joining automix's background run: its GPU unit moves up with it.
+        if (urgency !== 'background') raiseGpuUrgency(key, urgency);
         const grid = await joined.grid;
         if (grid || joined.cpuFallback || !cpuFallback || storedOnly) return grid;
     }
@@ -127,7 +129,7 @@ export const getTrackBeatGrid = async (
         if (!mid) return null;
         const mel = await melSpectrogramOffThread(mid);
         // The GPU also measures the spectrogram's percussive energy, for the accents' gate.
-        const analysed = await analyseBeatGrid(mel, { cpuFallback, percussive: true, urgency });
+        const analysed = await analyseBeatGrid(mel, { cpuFallback, percussive: true, urgency, key });
         // The energy is only an input: the grid kept and handed on is the beats alone.
         const grid: BeatGrid | null = analysed ? { beats: analysed.beats, downbeats: analysed.downbeats } : null;
         // The accents ride on the spectrogram the beats were found on: a few ms, no second decode. Only

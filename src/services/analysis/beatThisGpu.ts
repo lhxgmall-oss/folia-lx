@@ -26,7 +26,9 @@
 // The same worker, device and queue run htdemucs for the beat FX's drum stem (runHtdemucsGpu, one
 // 3.9 s segment a request): a third model on the one device, loaded on first use and dropped with the
 // rest. A segment is ~135 ms of GPU on an M4, cut like a chunk, so a track's separation interleaves
-// with beat_this requests a segment at a time instead of holding them for its whole length.
+// with beat_this requests a segment at a time instead of holding them for its whole length: a
+// background request (automix) goes before the next segment once it has waited a second
+// (scheduler.ts BACKGROUND_AGE_MS).
 //
 // Which request goes next is the scheduler's (scheduler.ts): a picture on screen is waiting for its
 // beats or drum hits before automix's background profile, a request whose track was left is dropped
@@ -112,6 +114,9 @@ const scheduler = createScheduler({
 
 /** Who asks for a GPU run and how urgently: the scheduler's fields bar the work itself. */
 export type GpuRunOptions = Omit<UnitRequest<unknown>, 'kind' | 'run'>;
+
+/** Raises a track's queued runs: a caller on screen joined a run asked in the background. */
+export const raiseGpuUrgency = (key: string, urgency: GpuRunOptions['urgency']): void => scheduler.raise(key, urgency);
 const pending = new Map<number, (reply: Reply) => void>();
 
 const drop = () => {

@@ -64,12 +64,25 @@ const FIRST_GUESS_MS: Record<string, number> = { htdemucs: 190, beat_this: 500, 
 /** Weight of the newest measurement in the moving average. */
 const EWMA = 0.2;
 const URGENCY_RANK: Record<Urgency, number> = { transition: 0, onScreen: 1, background: 2 };
+/**
+ * A background unit that has waited this long ranks with what is on screen (first come first served
+ * there). Without it a whole track's separation (时计, a unit every segment, some 16 s for four
+ * minutes) held automix's beats back for all of it, where the old FIFO let one in between segments.
+ */
+const BACKGROUND_AGE_MS = 1000;
 
 export interface Scheduler {
     submit<T>(request: UnitRequest<T>): Promise<T | null>;
+    /** Raises the queued units of `key` to `urgency`: a caller on screen joined a background run. */
+    raise(key: string, urgency: Urgency): void;
+    /** Looks at the queue again: a paused unit may have been resumed (2b). */
+    wake(): void;
     /** The moving average of a unit of `kind` (ms), or the first guess. */
     unitMs(kind: string): number;
-    /** Records a model load's time for `kind`, which an estimate adds while it is not loaded. */
+    /**
+     * Records a model load's time for `kind`, which an estimate adds while it is not loaded. A load
+     * happens inside a unit's run, so it is also taken off that unit's measured time.
+     */
     noteLoad(kind: string, ms: number): void;
     /** When a task of `units` units of `kind`, at `urgency`, submitted now would finish (ms, `now()` clock). */
     estimateFinish(kind: string, units: number, urgency: Urgency, deadline?: number): number;
@@ -77,28 +90,37 @@ export interface Scheduler {
     queued(): number;
 }
 
+const hasDeadline = (request: UnitRequest<unknown>) => request.deadline !== undefined && Number.isFinite(request.deadline);
+
 export const createScheduler = ({ now = () => performance.now(), isLoaded = () => true, frames = null, log = line => console.info(line) }: SchedulerOptions = {}): Scheduler => {
     const queue: Entry[] = [];
     const averages = new Map<string, number>();
     const loads = new Map<string, number>();
     let busy = false;
     let order = 0;
+    /** The unit running: its kind and start, for an estimate's "what is left of it". */
+    let running: { kind: string; started: number } | null = null;
+    /** Load time noted while the running unit ran, taken off its own time. */
+    let loadedDuringUnit = 0;
 
     const unitMs = (kind: string) => averages.get(kind) ?? FIRST_GUESS_MS[kind] ?? 100;
     const loadMs = (kind: string) => loads.get(kind) ?? FIRST_GUESS_MS.load;
     const slackOf = (request: UnitRequest<unknown>, at: number) => (
-        request.deadline === undefined ? Infinity : request.deadline - (at + (request.unitsLeft ?? 1) * unitMs(request.kind))
+        hasDeadline(request) ? request.deadline! - (at + (request.unitsLeft ?? 1) * unitMs(request.kind)) : Infinity
+    );
+    const rankOf = (entry: Entry, at: number) => (
+        entry.request.urgency === 'background' && at - entry.queuedAt >= BACKGROUND_AGE_MS ? URGENCY_RANK.onScreen : URGENCY_RANK[entry.request.urgency]
     );
     /** Negative when `a` goes before `b`. */
     const compare = (a: Entry, b: Entry, at: number) => {
-        const deadlineA = a.request.deadline !== undefined;
-        const deadlineB = b.request.deadline !== undefined;
+        const deadlineA = hasDeadline(a.request);
+        const deadlineB = hasDeadline(b.request);
         if (deadlineA !== deadlineB) return deadlineA ? -1 : 1;
         if (deadlineA && deadlineB) {
             const bySlack = slackOf(a.request, at) - slackOf(b.request, at);
             if (bySlack !== 0) return bySlack;
         }
-        const byUrgency = URGENCY_RANK[a.request.urgency] - URGENCY_RANK[b.request.urgency];
+        const byUrgency = rankOf(a, at) - rankOf(b, at);
         return byUrgency !== 0 ? byUrgency : a.order - b.order;
     };
 
@@ -128,23 +150,36 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
         const { request } = entry;
         const started = now();
         const waited = started - entry.queuedAt;
+        running = { kind: request.kind, started };
+        loadedDuringUnit = 0;
         frames?.begin();
         // Measured before the caller hears back, so whatever it asks next is estimated with this unit in.
-        const finish = () => {
-            const took = now() - started;
-            const previous = averages.get(request.kind);
-            averages.set(request.kind, previous === undefined ? took : previous + EWMA * (took - previous));
+        const finish = (answered: boolean) => {
+            const took = now() - started - loadedDuringUnit;
+            // A run that answered nothing (no device, a failed model) did no work worth timing.
+            if (answered) {
+                const previous = averages.get(request.kind);
+                averages.set(request.kind, previous === undefined ? took : previous + EWMA * (took - previous));
+            }
             const seen = frames?.end() ?? null;
             // Only the unit worth a look: one that waited, or one the picture dropped frames under.
             if (waited > 200 || (seen && seen.over > 0)) {
                 log(`[Scheduler] ${request.kind} ${took.toFixed(0)}ms (${request.urgency}, waited ${waited.toFixed(0)}ms, ${queue.length} queued${request.key ? `, ${request.key}` : ''})`
                     + (seen ? ` | frames: worst ${seen.worst.toFixed(1)}ms over ${seen.refresh.toFixed(1)}ms refresh, ${seen.over} over 1.5x` : ''));
             }
+            running = null;
             busy = false;
         };
-        void request.run().then(
-            (value) => { finish(); entry.settle(value); },
-            (error) => { finish(); entry.fail(error); },
+        let pending: Promise<unknown>;
+        try {
+            pending = request.run();
+        } catch (error) {
+            // A run that throws before its first await must not leave the scheduler busy for good.
+            pending = Promise.reject(error);
+        }
+        void pending.then(
+            (value) => { finish(value !== null && value !== undefined); entry.settle(value); },
+            (error) => { finish(false); entry.fail(error); },
         ).finally(pump);
     };
 
@@ -155,18 +190,29 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
                 pump();
             });
         },
+        raise(key, urgency) {
+            for (const entry of queue) {
+                if (entry.request.key === key && URGENCY_RANK[urgency] < URGENCY_RANK[entry.request.urgency]) {
+                    entry.request = { ...entry.request, urgency };
+                }
+            }
+        },
+        wake: pump,
         unitMs,
         noteLoad(kind, ms) {
             const previous = loads.get(kind);
             loads.set(kind, previous === undefined ? ms : previous + EWMA * (ms - previous));
+            if (running) loadedDuringUnit += ms;
         },
         estimateFinish(kind, units, urgency, deadline) {
             const at = now();
             const probe: Entry = { request: { kind, urgency, deadline, unitsLeft: units, run: async () => null }, order: order + 1, queuedAt: at, settle: () => undefined, fail: () => undefined };
-            // The units that would be picked before it: one each, as each task has one queued at a time.
+            // What is left of the unit running, then every task picked before this one, all its units:
+            // a task ahead submits its next unit as soon as one answers, and goes on being picked first.
+            const current = running ? Math.max(0, unitMs(running.kind) - (at - running.started)) : 0;
             const ahead = queue.filter(entry => !entry.request.paused?.() && compare(entry, probe, at) < 0)
-                .reduce((sum, entry) => sum + unitMs(entry.request.kind), 0);
-            return at + ahead + units * unitMs(kind) + (isLoaded(kind) ? 0 : loadMs(kind));
+                .reduce((sum, entry) => sum + (entry.request.unitsLeft ?? 1) * unitMs(entry.request.kind), 0);
+            return at + current + ahead + units * unitMs(kind) + (isLoaded(kind) ? 0 : loadMs(kind));
         },
         queued: () => queue.length,
     };
@@ -217,28 +263,35 @@ export interface FrameWatch {
 
 /**
  * Watches the gaps between frames while a unit runs: the worst one, and how many were over 1.5x the
- * refresh (the shortest gap seen this session). A hidden page has no frames to drop and is not
+ * refresh (the shortest of the recent gaps). A hidden page has no frames to drop and is not
  * watched. Null off a renderer.
  */
 export const watchFrames = (): FrameWatch | null => {
     if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return null;
-    let refresh = Infinity;
+    // The refresh is the shortest of the last REFRESH_GAPS gaps, not of the session: a window moved
+    // from a 120 Hz display to a 60 Hz one would otherwise count every frame after as dropped.
+    const REFRESH_GAPS = 120;
+    const recent: number[] = [];
     let handle = 0;
     let last = 0;
     let worst = 0;
     let over = 0;
     let watching = false;
+    const refresh = () => (recent.length ? Math.min(...recent) : Infinity);
     const step = (at: number) => {
         if (!watching) return;
         if (last) {
             const gap = at - last;
-            refresh = Math.min(refresh, gap);
+            recent.push(gap);
+            if (recent.length > REFRESH_GAPS) recent.shift();
             worst = Math.max(worst, gap);
-            if (Number.isFinite(refresh) && gap > refresh * 1.5) over += 1;
+            if (gap > refresh() * 1.5) over += 1;
         }
         last = at;
         handle = window.requestAnimationFrame(step);
     };
+    // A page hidden mid-unit has no frames; the gap across it is not a dropped frame.
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { last = 0; });
     return {
         begin() {
             if (typeof document !== 'undefined' && document.hidden) return;
@@ -252,7 +305,8 @@ export const watchFrames = (): FrameWatch | null => {
             if (!watching) return null;
             watching = false;
             window.cancelAnimationFrame(handle);
-            return Number.isFinite(refresh) && worst > 0 ? { worst, refresh, over } : null;
+            const shortest = refresh();
+            return Number.isFinite(shortest) && worst > 0 ? { worst, refresh: shortest, over } : null;
         },
     };
 };

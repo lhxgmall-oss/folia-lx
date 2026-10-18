@@ -87,8 +87,8 @@ describe('getTrackBeatGrid', () => {
         expect(gpuOnly).toBeNull();
         expect(withCpu).toEqual(GRID);
         expect(analyseBeatGrid.mock.calls.map(call => call[1])).toEqual([
-            { cpuFallback: false, percussive: true, urgency: 'background' },
-            { cpuFallback: true, percussive: true, urgency: 'background' },
+            { cpuFallback: false, percussive: true, urgency: 'background', key: 'song-1' },
+            { cpuFallback: true, percussive: true, urgency: 'background', key: 'song-1' },
         ]);
     });
 

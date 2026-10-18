@@ -80,9 +80,9 @@ describe('the scheduler', () => {
         const time = clock();
         let loaded = false;
         const scheduler = createScheduler({ now: time.now, isLoaded: () => loaded, log: () => undefined });
-        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { time.advance(200); } });
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { time.advance(200); return 1; } });
         expect(scheduler.unitMs('htdemucs')).toBe(200);
-        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { time.advance(100); } });
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { time.advance(100); return 1; } });
         // A moving average, weighted to the newer.
         expect(scheduler.unitMs('htdemucs')).toBeCloseTo(180);
         scheduler.noteLoad('htdemucs', 1000);
@@ -99,12 +99,70 @@ describe('the scheduler', () => {
         const busy = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: first.run });
         const behind = scheduler.submit({ kind: 'beat_this', urgency: 'background', run: async () => 'x' });
         const ahead = scheduler.submit({ kind: 'beat_this', urgency: 'onScreen', run: async () => 'y' });
-        // On screen: the on-screen unit is ahead of it (first come), the background one is not.
-        expect(scheduler.estimateFinish('htdemucs', 1, 'onScreen')).toBeCloseTo(scheduler.unitMs('beat_this') + scheduler.unitMs('htdemucs'));
+        // What is left of the running unit (none of it has passed on this clock), then: on screen, the
+        // on-screen unit is ahead of it (first come) and the background one is not.
+        const runningLeft = scheduler.unitMs('htdemucs');
+        expect(scheduler.estimateFinish('htdemucs', 1, 'onScreen')).toBeCloseTo(runningLeft + scheduler.unitMs('beat_this') + scheduler.unitMs('htdemucs'));
         // A deadline goes before both.
-        expect(scheduler.estimateFinish('htdemucs', 1, 'transition', 1e9)).toBeCloseTo(scheduler.unitMs('htdemucs'));
+        expect(scheduler.estimateFinish('htdemucs', 1, 'transition', 1e9)).toBeCloseTo(runningLeft + scheduler.unitMs('htdemucs'));
         first.finish();
         await Promise.all([busy, behind, ahead]);
+    });
+});
+
+describe('the scheduler, from review', () => {
+    it('lets a background unit that has waited a second in before the next on-screen one', async () => {
+        const time = clock();
+        const scheduler = createScheduler({ now: time.now, log: () => undefined });
+        const started: string[] = [];
+        const segment = held('segment-1', started);
+        const busy = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: segment.run });
+        const automix = scheduler.submit({ kind: 'beat_this', urgency: 'background', run: async () => { started.push('automix'); return 'automix'; } });
+        time.advance(1500);
+        // The separation asks for its next segment as the last one answers.
+        const next = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { started.push('segment-2'); return 'segment-2'; } });
+        segment.finish();
+        await Promise.all([busy, automix, next]);
+        expect(started).toEqual(['segment-1', 'automix', 'segment-2']);
+    });
+
+    it('raises a track\'s queued units when a caller on screen joins them', async () => {
+        const scheduler = createScheduler({ log: () => undefined });
+        const started: string[] = [];
+        const first = held('first', started);
+        const busy = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: first.run });
+        const joined = scheduler.submit({ kind: 'beat_this', key: 'song-1', urgency: 'background', run: async () => { started.push('song-1'); return 1; } });
+        const screen = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { started.push('screen'); return 2; } });
+        scheduler.raise('song-1', 'onScreen');
+        first.finish();
+        await Promise.all([busy, joined, screen]);
+        expect(started).toEqual(['first', 'song-1', 'screen']);
+    });
+
+    it('runs a resumed unit on wake, with nothing else queued', async () => {
+        const scheduler = createScheduler({ log: () => undefined });
+        let paused = true;
+        const answer = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', paused: () => paused, run: async () => 'resumed' });
+        await flush();
+        expect(scheduler.queued()).toBe(1);
+        paused = false;
+        scheduler.wake();
+        expect(await answer).toBe('resumed');
+    });
+
+    it('takes a load off the unit it happened in, and does not time a run that answered nothing', async () => {
+        const time = clock();
+        const scheduler = createScheduler({ now: time.now, log: () => undefined });
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { time.advance(1000); scheduler.noteLoad('htdemucs', 1000); time.advance(150); return 1; } });
+        expect(scheduler.unitMs('htdemucs')).toBe(150);
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => null });
+        expect(scheduler.unitMs('htdemucs')).toBe(150);
+    });
+
+    it('does not stay busy after a run that throws before its first await', async () => {
+        const scheduler = createScheduler({ log: () => undefined });
+        await expect(scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: () => { throw new Error('sync'); } })).rejects.toThrow('sync');
+        expect(await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 'after' })).toBe('after');
     });
 });
 
