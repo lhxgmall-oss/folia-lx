@@ -124,7 +124,7 @@ export const useMediaSessionBridge = ({
         // The displayed track's own deck, so the position published below belongs to the title
         // published beside it. Falls back to the active deck whenever no blend is holding a picture.
         const audio = getDisplayAudioElement?.() ?? audioRef.current;
-        if (!audio || !audioSrc) {
+        if (!audio || (!audioSrc && import.meta.env.VITE_FOLIA_TARGET !== 'android')) {
             return;
         }
 
@@ -133,7 +133,7 @@ export const useMediaSessionBridge = ({
         let artworkUrl = getSupportedMediaSessionArtworkUrl(sourceArtworkUrl, document.baseURI);
         let disposableArtworkUrl: string | null = null;
         const publish = () => {
-            if (disposed || !isMediaSessionSourceReady(audio, audioSrc, document.baseURI)) {
+            if (disposed || !isMediaSessionSourceReady(audio, audioSrc ?? '', document.baseURI)) {
                 return;
             }
 
@@ -179,6 +179,7 @@ export const useMediaSessionBridge = ({
         audio.addEventListener('durationchange', publish);
         // Re-publish after playback starts in case Chromium delivered a late clear from the old source.
         audio.addEventListener('playing', publish);
+        audio.addEventListener('canplay', publish);
         publish();
         void prepareUnsupportedArtwork();
 
@@ -187,6 +188,7 @@ export const useMediaSessionBridge = ({
             audio.removeEventListener('loadedmetadata', publish);
             audio.removeEventListener('durationchange', publish);
             audio.removeEventListener('playing', publish);
+            audio.removeEventListener('canplay', publish);
             if (disposableArtworkUrl) URL.revokeObjectURL(disposableArtworkUrl);
         };
     }, [audioRef, audioSrc, cachedCoverUrl, currentSong, getDisplayAudioElement, unknownArtistLabel]);

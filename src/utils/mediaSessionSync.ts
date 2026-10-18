@@ -40,6 +40,11 @@ export const isMediaSessionSourceReady = (
     expectedSource: string,
     baseUrl?: string
 ) => {
+    if (import.meta.env.VITE_FOLIA_TARGET === 'android') {
+        // Android app: the native player only needs a loaded source; URLs are rewritten on the way
+        // (redirects, the WebView's CORS proxy) and some streams report no duration.
+        return audio.readyState >= 1 || !!audio.currentSrc;
+    }
     if (audio.readyState < 1 || !Number.isFinite(audio.duration) || audio.duration <= 0) {
         return false;
     }
@@ -87,11 +92,11 @@ export const publishMediaSessionTrack = (
     createMetadata: MediaSessionMetadataFactory = init => new MediaMetadata(init)
 ) => {
     const positionState = createMediaSessionPositionState(audio);
-    if (!positionState) {
+    if (!positionState && import.meta.env.VITE_FOLIA_TARGET !== 'android') {
         return false;
     }
 
-    mediaSession.setPositionState(positionState);
+    if (positionState) mediaSession.setPositionState(positionState);
     const artworkUrl = getSupportedMediaSessionArtworkUrl(track.artworkUrl);
     mediaSession.metadata = createMetadata({
         title: track.title,

@@ -68,6 +68,7 @@ public class LxPlaybackService extends Service {
                 int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK : 0;
                 ServiceCompat.startForeground(this, LxMediaController.NOTIFICATION_ID, notification, type);
             } catch (RuntimeException error) {
+                controller.lastError = "startForeground: " + error;
                 // Android 12+ refuses to go foreground from the background without a user action; the
                 // notification is still posted, just without the foreground guarantee.
                 controller.postNotification(this);

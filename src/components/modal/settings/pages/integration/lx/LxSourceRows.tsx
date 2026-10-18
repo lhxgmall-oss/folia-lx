@@ -14,6 +14,10 @@ import { setStatusMessage } from '../../../../../../stores/useStatusMessageStore
 import { errorMessage } from '../../../../../../utils/errorText';
 import { Button, Row, Select, Status, TextField, Toggle } from '../../../kit';
 import { O } from '../options';
+import { IS_ANDROID_BUILD } from '../../../../../../utils/androidApp';
+import {
+    lxMediaDiagnostics, openLxMediaSettings, readLxMediaNativeStatus, requestLxMediaPermission, testLxMediaNotification,
+} from '../../../../../../services/android/androidMediaSession';
 
 // src/components/modal/settings/pages/integration/lx/LxSourceRows.tsx
 // The LX Music rows of the 连接与集成 page (desktop only): the custom source scripts the listener
@@ -24,6 +28,37 @@ import { O } from '../options';
 
 const SUB_SOURCES: readonly LxSubSourceSetting[] = ['all', 'kw', 'kg', 'tx', 'wy', 'mg'];
 const QUALITIES: readonly LxQualitySetting[] = ['follow', '128k', '320k', 'flac', 'flac24bit'];
+
+// Android only: why the system music player (notification / lock screen) does not show.
+const MediaNotificationRows: React.FC = () => {
+    const [report, setReport] = useState<string>('');
+    const check = async () => {
+        const page = lxMediaDiagnostics;
+        try {
+            const n = await readLxMediaNativeStatus();
+            const lines = [
+                `通知权限：${n.permission ? '已允许' : '未允许'}；通知总开关：${n.notificationsEnabled ? '开' : '关'}；播放通道重要性：${n.channelImportance}`,
+                `网页→原生：替身${page.installed ? '已装' : '未装'}，曲目写入 ${page.metadataSets} 次，发送 ${page.pushes} 次，失败 ${page.pushErrors} 次`,
+                `原生收到 ${n.updates} 次；当前：${n.lastTitle || '（无）'} / ${n.lastState}；服务${n.serviceRunning ? '运行中' : '未运行'}；会话${n.sessionActive ? '激活' : '未激活'}`,
+                `安卓 SDK ${n.sdk}${n.lastError ? `；原生错误：${n.lastError}` : ''}${page.lastError ? `；网页错误：${page.lastError}` : ''}`,
+            ];
+            setReport(lines.join('\n'));
+        } catch (cause) {
+            setReport(`读取失败：${errorMessage(cause)}（网页侧：发送 ${page.pushes} 次，${page.lastError}）`);
+        }
+    };
+    return (
+        <>
+            <Row label="播放通知诊断" hint="正在放歌时点「检查」，把结果截图发给开发者。没有通知时先点「请求权限」或「通知设置」。">
+                <Button onClick={() => void check()}>检查</Button>
+                <Button onClick={() => void requestLxMediaPermission().then(() => check())}>请求权限</Button>
+                <Button onClick={() => void openLxMediaSettings()}>通知设置</Button>
+                <Button onClick={() => void testLxMediaNotification().then(() => setStatusMessage({ type: 'info', text: '已发送测试通知' })).catch(cause => setReport(`测试通知失败：${errorMessage(cause)}`))}>测试通知</Button>
+            </Row>
+            {report && <Row sub notice={report} />}
+        </>
+    );
+};
 
 export const LxSourceRows: React.FC = () => {
     const { t } = useTranslation();
@@ -134,6 +169,7 @@ export const LxSourceRows: React.FC = () => {
 
     return (
         <>
+            {IS_ANDROID_BUILD && <MediaNotificationRows />}
             <Row option={O.lxScripts} hint={t('lx.scriptsDesc')} note={t('lx.scriptsNote')}>
                 {statusLine}
             </Row>

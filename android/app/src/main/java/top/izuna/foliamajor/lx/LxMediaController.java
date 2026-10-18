@@ -57,7 +57,8 @@ public final class LxMediaController {
     }
 
     static final int NOTIFICATION_ID = 4107;
-    static final String CHANNEL_ID = "folia_playback";
+    // "folia_playback" (v0.2.5-0.2.7) was IMPORTANCE_LOW, which some skins file under silent / folded.
+    static final String CHANNEL_ID = "folia_playback_v2";
     private static LxMediaController instance;
 
     private final Context context;
@@ -70,6 +71,11 @@ public final class LxMediaController {
     private String artworkUrl = "";
     private Bitmap artwork;
     private boolean serviceStarted;
+    int updates;
+    String lastError = "";
+
+    State current() { return current; }
+    boolean sessionActive() { return session.isActive(); }
 
     public static synchronized LxMediaController get(Context context) {
         if (instance == null) instance = new LxMediaController(context.getApplicationContext());
@@ -90,11 +96,16 @@ public final class LxMediaController {
         Intent open = new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         session.setSessionActivity(PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "播放控制", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "播放控制", NotificationManager.IMPORTANCE_DEFAULT);
             channel.setShowBadge(false);
             channel.setSound(null, null);
+            channel.enableVibration(false);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             NotificationManager manager = context.getSystemService(NotificationManager.class);
-            if (manager != null) manager.createNotificationChannel(channel);
+            if (manager != null) {
+                manager.deleteNotificationChannel("folia_playback");
+                manager.createNotificationChannel(channel);
+            }
         }
     }
 
@@ -114,6 +125,7 @@ public final class LxMediaController {
     }
 
     private void apply(State state) {
+        updates++;
         current = state;
         if ("none".equals(state.state) || state.title.isEmpty()) {
             clear(context);
@@ -163,6 +175,7 @@ public final class LxMediaController {
             serviceStarted = true;
         } catch (RuntimeException error) {
             // Not allowed from the background right now: show the notification without the service.
+            lastError = "startForegroundService: " + error;
             postNotification(context);
         }
     }
@@ -205,6 +218,7 @@ public final class LxMediaController {
         try {
             NotificationManagerCompat.from(ctx).notify(NOTIFICATION_ID, notification);
         } catch (SecurityException ignored) {
+            lastError = "notify: no permission";
             // No notification permission (Android 13+): the session still drives the system player.
         }
     }

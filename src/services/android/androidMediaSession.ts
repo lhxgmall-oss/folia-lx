@@ -24,12 +24,51 @@ interface LxMediaUpdate {
     actions: string[];
 }
 
+export interface LxMediaNativeStatus {
+    sdk: number;
+    permission: boolean;
+    notificationsEnabled: boolean;
+    channelImportance: number;
+    updates: number;
+    lastTitle: string;
+    lastState: string;
+    serviceRunning: boolean;
+    sessionActive: boolean;
+    lastError: string;
+}
+
 interface LxMediaPlugin {
     update(options: LxMediaUpdate): Promise<void>;
+    status(): Promise<LxMediaNativeStatus>;
+    requestPermission(): Promise<{ granted: boolean }>;
+    openSettings(): Promise<void>;
+    testNotification(): Promise<void>;
     addListener(event: 'action', listener: (data: { action: string; seekTime?: number }) => void): Promise<PluginListenerHandle>;
 }
 
 const LxMedia = registerPlugin<LxMediaPlugin>('LxMedia');
+
+/** What the page side has done so far, for the 播放通知诊断 row in settings. */
+export const lxMediaDiagnostics = {
+    installed: false,
+    metadataSets: 0,
+    pushes: 0,
+    pushErrors: 0,
+    lastError: '',
+    lastTitle: '',
+    lastState: '',
+};
+
+export const readLxMediaNativeStatus = () => LxMedia.status();
+export const requestLxMediaPermission = () => LxMedia.requestPermission();
+export const openLxMediaSettings = () => LxMedia.openSettings();
+export const testLxMediaNotification = () => LxMedia.testNotification();
+
+const playingAudio = (): HTMLAudioElement | null =>
+    [...document.querySelectorAll('audio')].find(el => !el.paused && !el.ended) ?? null;
+
+const anyAudioWithSource = (): HTMLAudioElement | null =>
+    playingAudio() ?? [...document.querySelectorAll('audio')].find(el => !!el.currentSrc) ?? null;
 
 type Handler = ((details: { action: string; seekTime?: number }) => void) | null;
 
@@ -53,6 +92,7 @@ export const installAndroidMediaSession = (): void => {
     let rate = 1;
     let positionAt = Date.now();
     let scheduled = false;
+    let everPlayed = false;
 
     const currentPosition = () => {
         if (playbackState !== 'playing') return position;
@@ -63,19 +103,42 @@ export const installAndroidMediaSession = (): void => {
 
     const push = () => {
         scheduled = false;
-        const state: NativeState = metadata && playbackState !== 'none' ? playbackState as NativeState : (metadata ? 'paused' : 'none');
         const actions = [...handlers.entries()].filter(([, h]) => !!h).map(([name]) => name);
+        // The element is the truth for playing / paused: the page's own state can lag or say 'none'
+        // (stage mode), and then the system player would never appear.
+        const live = playingAudio();
+        if (live) everPlayed = true;
+        let state: NativeState;
+        if (live) state = 'playing';
+        else if (metadata) state = playbackState === 'playing' ? 'playing' : 'paused';
+        else if (everPlayed && anyAudioWithSource()) state = 'paused';
+        else state = 'none';
+        if (live && Number.isFinite(live.duration) && live.duration > 0) {
+            duration = live.duration;
+            position = live.currentTime;
+            positionAt = Date.now();
+            rate = live.playbackRate > 0 ? live.playbackRate : 1;
+            if (playbackState !== 'playing') playbackState = 'playing';
+        }
+        const title = metadata?.title || (state !== 'none' ? 'Folia LX' : '');
+        lxMediaDiagnostics.pushes += 1;
+        lxMediaDiagnostics.lastTitle = title;
+        lxMediaDiagnostics.lastState = state;
         LxMedia.update({
-            title: metadata?.title ?? '',
+            title,
             artist: metadata?.artist ?? '',
             album: metadata?.album ?? '',
             artwork: toHttpArtwork(metadata),
-            state: metadata ? state : 'none',
+            state: title ? state : 'none',
             position: currentPosition(),
             duration: Number.isFinite(duration) ? duration : 0,
             rate,
             actions,
-        }).catch(error => console.warn('[LxMedia] update failed', error));
+        }).catch(error => {
+            lxMediaDiagnostics.pushErrors += 1;
+            lxMediaDiagnostics.lastError = String(error?.message ?? error);
+            console.warn('[LxMedia] update failed', error);
+        });
     };
 
     const schedule = () => {
@@ -86,7 +149,7 @@ export const installAndroidMediaSession = (): void => {
 
     const session = {
         get metadata() { return metadata; },
-        set metadata(value: MediaMetadata | null) { metadata = value; schedule(); },
+        set metadata(value: MediaMetadata | null) { metadata = value; lxMediaDiagnostics.metadataSets += 1; schedule(); },
         get playbackState() { return playbackState; },
         set playbackState(value: MediaSessionPlaybackState) {
             if (value === playbackState) return;
@@ -119,7 +182,26 @@ export const installAndroidMediaSession = (): void => {
         Object.defineProperty(navigator, 'mediaSession', { configurable: true, get: () => session });
     } catch (error) {
         console.warn('[LxMedia] could not replace navigator.mediaSession', error);
+        lxMediaDiagnostics.lastError = `replace failed: ${String(error)}`;
         return;
+    }
+    lxMediaDiagnostics.installed = navigator.mediaSession === (session as unknown as MediaSession);
+
+    // Follow the audio elements directly too, so the system player tracks play / pause even when
+    // the page's media-session code publishes nothing.
+    for (const type of ['playing', 'pause', 'ended', 'durationchange', 'emptied']) {
+        document.addEventListener(type, event => {
+            const target = event.target as HTMLElement | null;
+            if (!target || target.tagName !== 'AUDIO') return;
+            if (type === 'pause' || type === 'ended') {
+                if (!playingAudio() && playbackState === 'playing') {
+                    position = currentPosition();
+                    positionAt = Date.now();
+                    playbackState = 'paused';
+                }
+            }
+            schedule();
+        }, true);
     }
 
     void LxMedia.addListener('action', ({ action, seekTime }) => {
