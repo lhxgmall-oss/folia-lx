@@ -32,6 +32,9 @@ export const PLATFORM_NAMES = {
     bodian: /bodian|波点/i,
     ytm: /ytm|youtube/i,
     spotify: /spotify/i,
+    // LX Music (Folia-LX). The id quoted or as a path part, the heads of its names (lxRequest,
+    // LxSourceRows, LX_MUSIC) and its own names: the bare letters stand for other things (lx, LX lyrics).
+    lx: /['"`]lx['"`]|\/lx\/|\blx(?:Request|Provider|Desktop|Transport|Scripts|Normalize|Catalog|Failure|-api)|\bLx[A-Z]|\bLX_MUSIC|LX Music|洛雪/,
 } as const;
 
 export type CountedPlatform = keyof typeof PLATFORM_NAMES;
@@ -45,7 +48,9 @@ const SOURCE_FILE = /\.(ts|tsx|cjs|mjs|js|css|md)$/;
 const LANGUAGE_FILE = /^src\/i18n\/locales\//;
 const DOCUMENT = /\.md$/;
 // Never read: it holds no platform rule of ours and must not be opened.
-const SKIPPED_FILE = /^electron\/ytm\/poToken\.cjs$/;
+// The LX musicSdk is third-party code copied in (electron/lx/musicSdk/NOTICE.md): the platforms it
+// names are its own sources, not a rule of ours.
+const SKIPPED_FILE = /^electron\/ytm\/poToken\.cjs$|^electron\/lx\/musicSdk\//;
 // Letters of other things that happen to spell a platform's name.
 const NOT_A_NAME = /MmLlHhVvCcSsQqTtAaZz|'quanqiu', 'qq'/g;
 const COMMENT_LINE = /^\s*(\/\/|\/?\*|\{\/\*)/;
