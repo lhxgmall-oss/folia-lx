@@ -170,13 +170,18 @@ describe('the scheduler, from review', () => {
 describe('yielding to the picture', () => {
     /** Frames that drop under every unit while `dropping`, and waits the test lets through by hand. */
     const fakeFrames = () => {
-        const waits: Array<{ count: number; done: () => void }> = [];
+        const waits: Array<{ count: number; done: (waited?: { drawn: boolean; over: number }) => void }> = [];
         const watch = {
             dropping: true,
+            /** Whether a unit is drawn under at all: false, a minimised window. */
+            drawing: true,
             waits,
             begin: () => undefined,
-            end: () => ({ worst: 40, refresh: 16.7, over: watch.dropping ? 2 : 0 }),
-            wait: (count: number) => new Promise<void>((resolve) => { waits.push({ count, done: resolve }); }),
+            end: () => (watch.drawing ? { worst: 40, refresh: 16.7, over: watch.dropping ? 2 : 0 } : null),
+            wait: (count: number) => new Promise<{ drawn: boolean; over: number }>((resolve) => {
+                waits.push({ count, done: (waited = { drawn: true, over: 0 }) => resolve(waited) });
+            }),
+            frameMs: () => 16.7,
         };
         return watch as typeof watch & FrameWatch;
     };
@@ -223,6 +228,96 @@ describe('yielding to the picture', () => {
         expect(frames.waits).toHaveLength(1);
         frames.waits[0].done();
         expect(await spare).toBe('spare');
+    });
+
+    it('goes back to back when the picture drops frames between units too: they are not the cause', async () => {
+        const frames = fakeFrames();
+        const lines: string[] = [];
+        const scheduler = createScheduler({ frames, log: line => lines.push(line) });
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 1 });
+        const next = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 2 });
+        await flush();
+        frames.waits[0].done({ drawn: true, over: 1 });
+        expect(await next).toBe(2);
+        // It dropped under the second unit as well, but that starts over at one frame, not two.
+        const third = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 3 });
+        await flush();
+        expect(frames.waits.map(wait => wait.count)).toEqual([1, 1]);
+        frames.waits[1].done();
+        await third;
+        expect(lines.some(line => line.includes('between units too'))).toBe(true);
+    });
+
+    it('stops waiting when no frames come: a minimised window has no picture to yield to', async () => {
+        const frames = fakeFrames();
+        const scheduler = createScheduler({ frames, log: () => undefined });
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 1 });
+        frames.drawing = false;
+        const next = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 2 });
+        await flush();
+        // The wait ends on its timer, no frame drawn: no more waits, whatever the units after see.
+        frames.waits[0].done({ drawn: false, over: 0 });
+        expect(await next).toBe(2);
+        expect(await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 3 })).toBe(3);
+        expect(frames.waits).toHaveLength(1);
+    });
+
+    it('caps the wait at eight frames, and counts it in an estimate', async () => {
+        const time = clock();
+        const frames = fakeFrames();
+        const scheduler = createScheduler({ now: time.now, frames, log: () => undefined });
+        const counts: number[] = [];
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 0 });
+        for (let n = 1; n <= 5; n += 1) {
+            const unit = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => n });
+            await flush();
+            const wait = frames.waits[frames.waits.length - 1];
+            counts.push(wait.count);
+            wait.done();
+            await unit;
+        }
+        expect(counts).toEqual([1, 2, 4, 8, 8]);
+        // Each unit is its own time and eight frames.
+        expect(scheduler.estimateFinish('htdemucs', 2, 'onScreen')).toBeCloseTo(time.now() + 2 * (scheduler.unitMs('htdemucs') + 8 * 16.7));
+    });
+
+    it('does not carry a wait over to a unit asked for after the one waited for was dropped', async () => {
+        const frames = fakeFrames();
+        const scheduler = createScheduler({ frames, log: () => undefined });
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 1 });
+        let wanted = true;
+        const dropped = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', stillWanted: () => wanted, run: async () => 2 });
+        await flush();
+        wanted = false;
+        frames.waits[0].done();
+        expect(await dropped).toBeNull();
+        const later = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 3 });
+        await flush();
+        expect(frames.waits).toHaveLength(2);
+        frames.waits[1].done();
+        expect(await later).toBe(3);
+    });
+
+    it('takes a unit submitted during a wait after it, once, in order', async () => {
+        const frames = fakeFrames();
+        const scheduler = createScheduler({ frames, log: () => undefined });
+        const ran: string[] = [];
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 1 });
+        const screen = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { ran.push('screen'); return 1; } });
+        await flush();
+        const late = scheduler.submit({ kind: 'htdemucs', urgency: 'transition', deadline: 1, run: async () => { ran.push('late'); return 2; } });
+        scheduler.wake();
+        await flush();
+        // Nothing handed out early, and the one wait.
+        expect(ran).toEqual([]);
+        expect(frames.waits).toHaveLength(1);
+        frames.waits[0].done();
+        await late;
+        expect(ran[0]).toBe('late');
+        await flush();
+        expect(frames.waits).toHaveLength(2);
+        frames.waits[1].done();
+        await screen;
     });
 });
 

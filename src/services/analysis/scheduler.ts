@@ -28,6 +28,12 @@
 // is handed out, so the picture gets one in between; dropped again, twice as many, up to
 // MAX_YIELD_FRAMES; a unit that drops none halves it back. Not for a unit whose deadline's slack is
 // under DEADLINE_MARGIN_MS: a frame or two dropped is better than a transition without its stems.
+// The frames waited are watched too, with no unit running (found by review): a picture that drops
+// frames then as well drops them on its own (a heavy picture, a 60 fps picture on a 120 Hz display,
+// a hitch), and waiting does nothing for it - back to back again. So is a wait no frame ended (a
+// minimised or covered window, which Electron's backgroundThrottling: false keeps "visible"), and a
+// unit no frame was drawn under: there is no picture to yield to. The frames waited count in a
+// task's estimated finish.
 
 export type Urgency = 'transition' | 'onScreen' | 'background';
 
@@ -116,6 +122,15 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
     let yielding = false;
     /** Waited already for the unit about to be handed out: it goes without waiting again. */
     let yielded = false;
+    /** The frames the last wait was for, for the unit's log line. */
+    let lastWaitFrames = 0;
+    const setYield = (next: number, why: string) => {
+        if (next === yieldFrames) return;
+        log(`[Scheduler] ${next ? `${next} frame${next > 1 ? 's' : ''} between units` : 'units back to back'} (was ${yieldFrames}): ${why}`);
+        yieldFrames = next;
+    };
+    /** What waiting costs a unit now, for the estimate. */
+    const yieldMs = () => (yieldFrames && frames ? yieldFrames * frames.frameMs() : 0);
 
     const unitMs = (kind: string) => averages.get(kind) ?? FIRST_GUESS_MS[kind] ?? 100;
     const loadMs = (kind: string) => loads.get(kind) ?? FIRST_GUESS_MS.load;
@@ -168,7 +183,13 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
         if (busy || yielding) return;
         if (!yielded && shouldYield()) {
             yielding = true;
-            void frames!.wait(yieldFrames).finally(() => {
+            const asked = yieldFrames;
+            lastWaitFrames = asked;
+            void frames!.wait(asked).then((waited) => {
+                if (!waited.drawn || waited.over > 0) {
+                    setYield(0, waited.drawn ? `the picture drops frames between units too (${waited.over} of ${asked})` : 'no frames drawn');
+                }
+            }, () => undefined).finally(() => {
                 yielding = false;
                 yielded = true;
                 pump();
@@ -176,7 +197,12 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
             return;
         }
         const entry = pick();
-        if (!entry) return;
+        // Waited for a unit that is gone (dropped, paused): the next one asked for waits on its own.
+        if (!entry) {
+            yielded = false;
+            return;
+        }
+        const waitedFrames = yielded ? lastWaitFrames : 0;
         yielded = false;
         busy = true;
         const { request } = entry;
@@ -195,15 +221,14 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
             }
             const seen = frames?.end() ?? null;
             if (seen) {
-                const before = yieldFrames;
-                yieldFrames = seen.over > 0 ? Math.min(MAX_YIELD_FRAMES, Math.max(1, yieldFrames * 2)) : Math.floor(yieldFrames / 2);
-                if (before !== yieldFrames && (before === 0 || yieldFrames === 0)) {
-                    log(yieldFrames ? `[Scheduler] the picture drops frames under ${request.kind}: a frame between units` : '[Scheduler] the picture keeps up again: units back to back');
-                }
+                if (seen.over > 0) setYield(Math.min(MAX_YIELD_FRAMES, Math.max(1, yieldFrames * 2)), `the picture dropped ${seen.over} frames under ${request.kind}`);
+                else setYield(Math.floor(yieldFrames / 2), `the picture kept up under ${request.kind}`);
+            } else if (frames) {
+                setYield(Math.floor(yieldFrames / 2), `no frames drawn under ${request.kind}`);
             }
             // Only the unit worth a look: one that waited, or one the picture dropped frames under.
             if (waited > 200 || (seen && seen.over > 0)) {
-                log(`[Scheduler] ${request.kind} ${took.toFixed(0)}ms (${request.urgency}, waited ${waited.toFixed(0)}ms, ${queue.length} queued${request.key ? `, ${request.key}` : ''})`
+                log(`[Scheduler] ${request.kind} ${took.toFixed(0)}ms (${request.urgency}, waited ${waited.toFixed(0)}ms${waitedFrames ? ` of it ${waitedFrames} frames for the picture` : ''}, ${queue.length} queued${request.key ? `, ${request.key}` : ''})`
                     + (seen ? ` | frames: worst ${seen.worst.toFixed(1)}ms over ${seen.refresh.toFixed(1)}ms refresh, ${seen.over} over 1.5x` : ''));
             }
             running = null;
@@ -249,9 +274,11 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
             // What is left of the unit running, then every task picked before this one, all its units:
             // a task ahead submits its next unit as soon as one answers, and goes on being picked first.
             const current = running ? Math.max(0, unitMs(running.kind) - (at - running.started)) : 0;
+            // Every unit after it waits for the picture as much as units wait now (2c).
+            const each = (unitKind: string) => unitMs(unitKind) + yieldMs();
             const ahead = queue.filter(entry => !entry.request.paused?.() && compare(entry, probe, at) < 0)
-                .reduce((sum, entry) => sum + (entry.request.unitsLeft ?? 1) * unitMs(entry.request.kind), 0);
-            return at + current + ahead + units * unitMs(kind) + (isLoaded(kind) ? 0 : loadMs(kind));
+                .reduce((sum, entry) => sum + (entry.request.unitsLeft ?? 1) * each(entry.request.kind), 0);
+            return at + current + ahead + units * each(kind) + (isLoaded(kind) ? 0 : loadMs(kind));
         },
         queued: () => queue.length,
     };
@@ -298,8 +325,13 @@ export const chooseCpuThreads = ({ deadline, quietFinish }: { deadline?: number;
 export interface FrameWatch {
     begin(): void;
     end(): { worst: number; refresh: number; over: number } | null;
-    /** Resolves after `count` frames, or soon anyway when there are none (a hidden page). */
-    wait(count: number): Promise<void>;
+    /**
+     * Resolves after `count` frames, or soon anyway when none come (a hidden or minimised window):
+     * whether they came, and how many of their gaps were over 1.5x the refresh with no unit running.
+     */
+    wait(count: number): Promise<{ drawn: boolean; over: number }>;
+    /** The display's frame time (ms), the refresh; 1000/60 before any is seen. */
+    frameMs(): number;
 }
 
 /**
@@ -350,25 +382,34 @@ export const watchFrames = (): FrameWatch | null => {
             return Number.isFinite(shortest) && worst > 0 ? { worst, refresh: shortest, over } : null;
         },
         wait(count) {
-            return new Promise<void>((resolve) => {
+            return new Promise<{ drawn: boolean; over: number }>((resolve) => {
                 let left = count;
                 let frame = 0;
-                // A hidden page draws no frames: the wait ends anyway, at about 10 per second.
+                let previous = 0;
+                let waitOver = 0;
+                // A hidden or minimised window draws no frames: the wait ends anyway, at about 10 a second.
                 const timer = setTimeout(() => {
                     window.cancelAnimationFrame(frame);
-                    resolve();
-                }, count * 100);
-                const tick = () => {
+                    resolve({ drawn: false, over: waitOver });
+                }, (count + 1) * 100);
+                // The gap from the frame before the wait's first is the unit's; only those after are counted.
+                const tick = (at: number) => {
+                    if (previous && at - previous > refresh() * 1.5) waitOver += 1;
+                    previous = at;
                     left -= 1;
-                    if (left > 0) {
+                    if (left >= 0) {
                         frame = window.requestAnimationFrame(tick);
                         return;
                     }
                     clearTimeout(timer);
-                    resolve();
+                    resolve({ drawn: true, over: waitOver });
                 };
                 frame = window.requestAnimationFrame(tick);
             });
+        },
+        frameMs() {
+            const shortest = refresh();
+            return Number.isFinite(shortest) ? shortest : 1000 / 60;
         },
     };
 };
