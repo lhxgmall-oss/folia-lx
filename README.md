@@ -151,6 +151,8 @@ Vercel 与 Cloudflare 上的 QQ 音乐不再需要额外部署一个常驻 API �
 
 有一定技术的用户可以使用 capacitor 将本项目的web版本打包成为可安装的安卓apk，具体方法可参考示范仓库：[chthollyphile/folia-sonnet](https://github.com/chthollyphile/folia-sonnet)
 
+也可以直接使用社区移植的安卓版：[maimai993/folia-sonnet](https://github.com/maimai993/folia-sonnet)。该版本由社区自发维护，功能会与官方 PC 版存在差异，使用中遇到问题请反馈到该社区仓库。
+
 ### 直接下载
 
 - **Windows / macOS / Linux**: 最新版本的安装包请前往 [Releases 页面](https://github.com/chthollyphile/folia-major/releases/latest) 下载。

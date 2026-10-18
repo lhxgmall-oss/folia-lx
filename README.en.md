@@ -149,6 +149,8 @@ We recommend deploying the web or self-hosted version, then installing it as a P
 
 If you are comfortable with the tooling, you can package the web version as an installable Android APK with Capacitor. See the example repository [chthollyphile/folia-sonnet](https://github.com/chthollyphile/folia-sonnet).
 
+You can also use the community Android port at [maimai993/folia-sonnet](https://github.com/maimai993/folia-sonnet). It is maintained independently by the community and its features differ from the official desktop version; please report any issues to that repository.
+
 ### Direct download
 
 - **Windows / macOS / Linux**: Download the latest installers from the [Releases page](https://github.com/chthollyphile/folia-major/releases/latest).
