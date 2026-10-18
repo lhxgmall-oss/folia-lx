@@ -735,6 +735,15 @@ export function useAutomixDecks({
             const held = stemSongsRef.current[end];
             return Boolean(held && getPlaybackSongKey(held) === getPlaybackSongKey(song));
         };
+        // When the transition arms at the latest (the planner's longest overlap before the end, less
+        // the arm lead): the deadline both windows are separated against (analysis/scheduler.ts), so
+        // a GPU that would be late hands them to the CPU. Media seconds as wall seconds - a slower
+        // or faster playback rate only moves it a little. None while the duration is unknown.
+        const element = audioRef.current;
+        const leftSec = element && Number.isFinite(duration) && duration > 0
+            ? duration - element.currentTime - AUTOMIX_MAX_OVERLAP_SEC - AUTOMIX_ARM_LEAD_SEC
+            : null;
+        const deadline = leftSec === null ? undefined : performance.now() + Math.max(0, leftSec) * 1000;
         // The outgoing end first: it carries the vocal exit, which is the half of the gesture the
         // listening tests actually isolated. If only one window is ever ready this should be it -
         // though the session needs both before it will use either.
@@ -742,6 +751,7 @@ export function useAutomixDecks({
             song: currentSong,
             role: 'tail',
             audioUrl: audioSrc,
+            deadline,
             stillWanted: stillPaired(currentSong, 'from'),
             readBytes: () => localBytesRef.current?.(currentSong) ?? Promise.resolve(null),
         });
@@ -754,12 +764,15 @@ export function useAutomixDecks({
                     ? prefetched.audioUrl
                     : null,
                 stillWanted: stillPaired(next, 'to'),
+                deadline,
                 // A local next-up song has no prefetch URL and never enters the media cache, so this is
                 // the only way its head is ever separated. See readLocalBytes.
                 readBytes: () => localBytesRef.current?.(next) ?? Promise.resolve(null),
             });
         }
-    }, [audioQuality, audioSrc, currentSong, isEnabled, isFmMode, loopMode, playQueue, playerState, tailSrc, transition.mode]);
+    // `duration`: the deadline above needs it, and it arrives after the track does; a second pass is
+    // one more `ensureStems` that finds its window in flight or cached.
+    }, [audioQuality, audioRef, audioSrc, currentSong, duration, isEnabled, isFmMode, loopMode, playQueue, playerState, tailSrc, transition.mode]);
 
     // Any pause, from the UI, a media key or the OS, ends a transition. Watching player state
     // rather than the element's pause event matters: while armed the active deck is the silent
