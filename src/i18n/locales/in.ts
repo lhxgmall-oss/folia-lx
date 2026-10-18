@@ -2528,7 +2528,7 @@ export default {
     "smartBeatCached": "Hanya yang sudah dianalisis",
     "smartBeatOff": "Nonaktif",
     "smartBeatDesc_on": "Efek ketukan di pengaturan masing-masing animasi lirik menggerakkan gambar mengikuti musik, masing-masing dengan sakelar dan kekuatannya sendiri. Efek ketukan mengikuti ketukan yang dideteksi beat_this, efek drum mengikuti drum yang dipisahkan HTDemucs, masing-masing dianalisis hanya saat efek di layar memakainya. Lagu lokal dianalisis beberapa detik saat pertama diputar; lagu online dari stream-nya saat pertama diputar. Lagu yang sudah dianalisis akan diingat.",
-    "smartBeatDesc_cached": "Efek ketukan tetap berjalan, tetapi hanya dari hasil yang sudah ada: lagu yang pernah dianalisis saat Aktif, atau yang ketukannya sudah dianalisis automix. Lagu baru tidak dianalisis dan GPU tidak dipakai, juga tidak diperlukan; lagu yang belum pernah dianalisis mempertahankan gambar aslinya. Analisis automix sendiri tidak terpengaruh.",
+    "smartBeatDesc_cached": "Efek ketukan tetap berjalan, tetapi hanya dari hasil yang sudah dianalisis di komputer ini: lagu baru tidak dianalisis dan GPU tidak dipakai; lagu yang belum pernah dianalisis mempertahankan gambar aslinya.",
     "smartBeatDesc_off": "Semua gambar mempertahankan respons spektrum aslinya; tidak ada analisis yang dibaca atau dijalankan.",
     "beatFxUnavailable_noGpu": "Tidak ada WebGPU yang dapat digunakan di perangkat ini, jadi efek ketukan tidak berfungsi.",
     "beatFxUnavailable_desktopOnly": "Efek ketukan hanya tersedia di aplikasi desktop.",

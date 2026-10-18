@@ -2421,7 +2421,7 @@ export default {
     "smartBeatCached": "Analysed only",
     "smartBeatOff": "Off",
     "smartBeatDesc_on": "The beat effects listed in each lyric renderer's own settings drive the picture from the music, each with its own switch and strength. Beat effects follow the beats beat_this detects, drum effects the drums HTDemucs separates, each analysed only while an effect on screen uses it. A local track is analysed for a few seconds on its first play; an online track from its stream on its first play. Analysed tracks are remembered.",
-    "smartBeatDesc_cached": "The beat effects play, but only from results already there: tracks analysed earlier under On, or whose beats automix analysed. No new track is analysed and the GPU is not used, nor needed; a track never analysed keeps its original picture. Automix's own analysis is not affected.",
+    "smartBeatDesc_cached": "The beat effects play, but only from what this computer has already analysed: no new track is analysed and the GPU is not used; a track never analysed keeps its original picture.",
     "smartBeatDesc_off": "Every picture keeps its original spectrum response; no analysis is read or run.",
     "beatFxUnavailable_noGpu": "No usable WebGPU on this device, so beat effects have no effect.",
     "beatFxUnavailable_desktopOnly": "Beat effects are only available in the desktop app.",
