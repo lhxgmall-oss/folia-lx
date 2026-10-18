@@ -59,11 +59,36 @@ const legacyLeftovers = (dirs) => dirs.filter(Boolean).flatMap((dir) => {
     return isOldRuntime ? [...files, runtime] : files;
 });
 
+/** Bytes under `target`: a file's size, or every file's below a directory. */
+const sizeOf = async (target) => {
+    const stat = await fs.promises.lstat(target).catch(() => null);
+    if (!stat) return 0;
+    if (!stat.isDirectory()) return stat.isFile() ? stat.size : 0;
+    let bytes = 0;
+    for (const entry of await fs.promises.readdir(target).catch(() => [])) bytes += await sizeOf(path.join(target, entry));
+    return bytes;
+};
+
 /**
- * Deletes the legacy files and runtime in `dir` (the userData download directory) and resolves to
- * `{ removed, bytes }`. Rejects on the first that will not go; the next launch tries again.
+ * The legacy files and runtime in `dir` and what they take on disk (the runtime counted whole), for
+ * asking the listener before deleting them: `{ paths, bytes }`, no paths when there is nothing.
+ */
+const measureLeftovers = async (dir) => {
+    const paths = legacyLeftovers([dir]);
+    let bytes = 0;
+    for (const leftover of paths) bytes += await sizeOf(leftover);
+    return { paths, bytes };
+};
+
+/**
+ * Deletes the legacy files and runtime in `dir` and resolves to `{ removed, bytes }`. Rejects on the
+ * first that will not go; the next launch tries again.
  *
- * @param dir userData/models - never the installer's models directory (see LEGACY_FILES)
+ * Only the names in LEGACY_FILES and an old runtime are touched, never `dir` itself or anything else
+ * in it - which is what makes it safe on the folder an earlier version let the listener choose (the
+ * 模型目录 setting, up to 0.7.20), deleted there only once they say so (main.cjs).
+ *
+ * @param dir userData/models, or that chosen folder - never the installer's models directory (see LEGACY_FILES)
  */
 const removeDownloadedLeftovers = async (dir) => {
     const removed = [];
@@ -107,5 +132,5 @@ const resolveModelFile = (dirs, name) => {
 const modelsPresent = (dirs) => Object.fromEntries(MODEL_NAMES.map(name => [name, resolveModelFile(dirs, name) !== null]));
 
 module.exports = {
-    MODEL_NAMES, MODEL_FILES, LEGACY_FILES, LEGACY_RUNTIME_BIN, legacyLeftovers, removeDownloadedLeftovers, resolveModelFile, modelsPresent,
+    MODEL_NAMES, MODEL_FILES, LEGACY_FILES, LEGACY_RUNTIME_BIN, legacyLeftovers, measureLeftovers, removeDownloadedLeftovers, resolveModelFile, modelsPresent,
 };

@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    resolveModelFile, modelsPresent, legacyLeftovers, removeDownloadedLeftovers, MODEL_FILES, LEGACY_RUNTIME_BIN,
+    resolveModelFile, modelsPresent, legacyLeftovers, measureLeftovers, removeDownloadedLeftovers, MODEL_FILES, LEGACY_RUNTIME_BIN,
 } = require('../../../electron/analysis/modelPaths.cjs');
 
 let root: string;
@@ -96,5 +96,28 @@ describe('what earlier versions downloaded', () => {
 
     it('answers nothing for a directory that is not there', async () => {
         expect(await removeDownloadedLeftovers(path.join(root, 'never-made'))).toEqual({ removed: [], bytes: 0 });
+    });
+
+    // The folder an earlier version let the listener choose: measured for the prompt, the runtime whole,
+    // and only the old files go when they say delete - their own things in it stay.
+    it('measures what is left in a chosen folder, runtime included, and deletes only that', async () => {
+        const chosen = path.join(root, 'chosen-models');
+        const exe = path.join(chosen, 'runtime', ...LEGACY_RUNTIME_BIN);
+        mkdirSync(path.dirname(exe), { recursive: true });
+        writeFileSync(exe, 'python');
+        writeFileSync(path.join(chosen, 'beat_this.onnx'), 'weights');
+        mkdirSync(path.join(chosen, 'mine'));
+        writeFileSync(path.join(chosen, 'mine', 'song.flac'), 'music');
+        const { paths, bytes } = await measureLeftovers(chosen);
+        expect(paths.sort()).toEqual([path.join(chosen, 'beat_this.onnx'), path.join(chosen, 'runtime')].sort());
+        expect(bytes).toBe('python'.length + 'weights'.length);
+
+        await removeDownloadedLeftovers(chosen);
+        expect(await measureLeftovers(chosen)).toEqual({ paths: [], bytes: 0 });
+        expect(existsSync(path.join(chosen, 'mine', 'song.flac'))).toBe(true);
+    });
+
+    it('measures nothing in a folder that is not there', async () => {
+        expect(await measureLeftovers(path.join(root, 'unplugged-drive'))).toEqual({ paths: [], bytes: 0 });
     });
 });

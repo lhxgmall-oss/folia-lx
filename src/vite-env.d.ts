@@ -806,6 +806,15 @@ declare global {
       onDebugMemorySample?: (callback: (sample: DebugMemorySample) => void) => () => void;
       /** One-way stage marks from the automix session into the runtime log. */
       diagMark?: (text: string) => void;
+      /**
+       * Old automix models in the folder an earlier version (up to 0.7.20) let the listener choose:
+       * where, how many and how big, or null when there is nothing to ask about.
+       */
+      checkLegacyModels?: () => Promise<{ dir: string; count: number; bytes: number } | null>;
+      /** Deletes them ('delete') or leaves them ('dismiss'); either way the prompt is not shown again. */
+      resolveLegacyModels?: (action: 'delete' | 'dismiss') => Promise<{ ok: boolean }>;
+      /** Opens that folder in the file manager. */
+      openLegacyModelsFolder?: () => Promise<boolean>;
       platform: string;
       isLinuxX11: boolean;
       getSettings: () => Promise<any>;

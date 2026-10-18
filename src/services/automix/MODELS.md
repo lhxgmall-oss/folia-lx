@@ -6,7 +6,9 @@
 `shared/modelManifest.json` 只给打包时按 sha256 校验用，`build/fetchModels.mjs`）。每个文件两种运行时
 都读：渲染进程的 WebGPU，和分析 worker 里编进 app 的 MNN（`native/folia-mnn`，`build/buildMnnRuntime.mjs`）。
 智能动感模式也用这两个文件：拍点和 automix 共用同一个 final0、同一份存盘结果（原先的 small0 已去掉），
-鼓点用 htdemucs 的 GPU 版。旧版下载到 userData/models 的模型文件，启动时自动删掉。
+鼓点用 htdemucs 的 GPU 版。旧版下载到 userData/models 的模型文件，启动时自动删掉。旧版（至 0.7.20）
+允许用户自选「模型目录」，那里的旧文件不自动删：启动后弹一次提示（`LegacyModelsPrompt.tsx`），用户选删除才删，
+只删认得的旧文件名和旧 Python 运行时，目录里别的东西不动；删除或「保留，不再提示」后清掉这个旧设置，不再询问。
 
 **结论：`beat_this-wgsl.bin` 是作者原版 final0 检查点的导出（权重值未改，只做 BN 折叠和 fp16 存储，
 见 §1）；`htdemucs-wgsl.bin` 是 §2 ④ 之后那份 ONNX 的权重原样导出（§2.6），CPU 上由 MNN 照它手写网络（§2.7）。**
