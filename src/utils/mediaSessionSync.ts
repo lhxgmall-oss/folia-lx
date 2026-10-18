@@ -48,6 +48,13 @@ export const isMediaSessionSourceReady = (
         return false;
     }
 
+    // Android app: audio URLs can be rewritten on the way to the element (redirects, the WebView's
+    // CORS proxy), so the exact-source check would never pass and the system player would never
+    // get a track. A ready timeline is enough there.
+    if (import.meta.env.VITE_FOLIA_TARGET === 'android') {
+        return true;
+    }
+
     return normalizeSourceUrl(audio.currentSrc, baseUrl) === normalizeSourceUrl(expectedSource, baseUrl);
 };
 

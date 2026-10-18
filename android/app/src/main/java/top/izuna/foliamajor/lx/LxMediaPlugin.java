@@ -27,6 +27,23 @@ public class LxMediaPlugin extends Plugin {
         });
     }
 
+    private boolean askedNotifications;
+
+    /**
+     * Android 13+ (and skins like MagicOS / HyperOS even for media) hide the player notification
+     * until the app may post notifications: ask once, the first time something plays.
+     */
+    private void askNotificationPermissionOnce() {
+        if (askedNotifications || android.os.Build.VERSION.SDK_INT < 33) return;
+        askedNotifications = true;
+        android.app.Activity activity = getActivity();
+        if (activity == null) return;
+        if (androidx.core.content.ContextCompat.checkSelfPermission(activity, android.Manifest.permission.POST_NOTIFICATIONS)
+            == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        activity.runOnUiThread(() -> androidx.core.app.ActivityCompat.requestPermissions(
+            activity, new String[] { android.Manifest.permission.POST_NOTIFICATIONS }, 4108));
+    }
+
     @PluginMethod
     public void update(PluginCall call) {
         Set<String> actions = new HashSet<>();
@@ -46,6 +63,7 @@ public class LxMediaPlugin extends Plugin {
             call.getFloat("rate", 1f),
             actions
         );
+        if ("playing".equals(state.state)) askNotificationPermissionOnce();
         LxMediaController.get(getContext()).update(state);
         call.resolve();
     }
