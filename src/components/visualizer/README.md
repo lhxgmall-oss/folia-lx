@@ -95,7 +95,9 @@ App / ThemePark / VisPlayground / OBS source
 
 共享背景 props 与默认值在 `backgrounds/definition.ts`；实际渲染在 `backgrounds/VisualizerBackgroundRenderer.tsx`，由 `VisualizerBackdrop.tsx` 的 `VisualizerBackdropLayers` 挂上（外壳单独用时也是它）。新增背景不要在每个 visualizer 中内联。
 
-背景画的东西跟着歌变时（封面、种子），在 entry 写 `song`，返回它画的那几样（照 `common/entry.tsx`、`monet/entry.tsx`）：这几样变了，换歌时背景整个换成新的一份，在放过渡的宿主里用柔焦换，别处直接换。新的那一份要先读东西（解码封面、做图）时，用 `styleTransition/firstFrame.ts` 的 `useFirstFrameDrawn()`，读好时调它返回的函数（照 `common/FluidBackground.tsx`）；不调的挂上就算好了。主题颜色不写进 `song`：调色时颜色一直在变，主题也常在换歌之后才到，写进去每一步都会挂一份新的。再挂一份很贵的背景（隐现、空：每份都要重新编译着色器）不写 `song`，在原来那一份里把颜色慢慢换过去：用 `backgrounds/useBlendedColors.ts`，时长是渲染 props 的 `blendMs`（放过渡的宿主里是柔焦的长度，别处是 0，直接换）。
+背景画的东西跟着歌变时（封面、种子），在 entry 写 `song`，返回它画的那几样（照 `common/entry.tsx`、`monet/entry.tsx`）：这几样变了，换歌时背景整个换成新的一份，在放过渡的宿主里用柔焦换，别处直接换。新的那一份要先读东西（解码封面、做图）时，用 `styleTransition/firstFrame.ts` 的 `useFirstFrameDrawn()`，读好时调它返回的函数（照 `common/FluidBackground.tsx`）；不调的挂上就算好了。主题颜色不写进 `song`：调色时颜色一直在变，主题也常在换歌之后才到，写进去每一步都会挂一份新的。换走的那一份留着它自己的封面、种子和主题颜色：混音时下一首的主题先到，也不会画到上一首的背景上。再挂一份很贵的背景（隐现、空：每份都要重新编译着色器）不写 `song`，在原来那一份里把颜色慢慢换过去：用 `backgrounds/useBlendedColors.ts`，时长是渲染 props 的 `blendMs`（放过渡的宿主里是柔焦的长度，别处是 0，直接换）。
+
+混音过渡里画交接的样式（entry 写 `followsSongHandoff`，现在只有莫奈）：过渡一开始，`VisualizerRenderer` 就把下一首的封面、种子和主题交给背景，背景照上面的换歌过渡换，只是这个过渡跟着交接进度走（`styleTransition/layerTransition.ts` 的 `alongProgress`；隐现、空的换色跟着渲染 props 的 `blendProgress`），长度就是过渡的长度。过渡结束时背景已经是下一首，不再换；中途取消时按平常换歌换回去。静态模式和减少动效时没有交接，过渡结束时才换歌。主题跟着画面上的歌：混音一开始实时主题就换成下一首的，但样式拿到的 `theme` 在整个过渡里都是上一首的，取消回到上一首时也是（`useShownTheme.ts`）；下一首的主题放在 `songHandoff.theme` 里。
 
 ## Shared contracts and helpers
 
@@ -174,7 +176,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 
 ### Monet
 
-`monet/VisualizerMonet.tsx` 组合 `MonetLyricsRail`（歌词栏外壳与滚动；行与扫字在 `MonetRailLine.tsx` / `MonetRailTokens.tsx`，布局在 `monetRailLayout.ts`）、`AudioOverlay`、浮动装饰和背景 pipeline；图像资源还涉及 `src/services/monetBackgroundImage.ts`、`monetPortraitImage.ts`。
+`monet/VisualizerMonet.tsx` 组合 `MonetLyricsRail`（歌词栏外壳与滚动；行与扫字在 `MonetRailLine.tsx` / `MonetRailTokens.tsx`，布局在 `monetRailLayout.ts`）、`AudioOverlay`、浮动装饰和背景 pipeline；图像资源还涉及 `src/services/monetBackgroundImage.ts`、`monetPortraitImage.ts`。混音过渡时：封面在过渡开始就换成下一首，淡入跟着交接进度（`MonetPortraitImage` 的 `progress`）；文字和歌词在交接过半（声音交叉点）时换，莫奈自己画的颜色（文字、装饰）同时换成下一首的主题，用原有的换歌入场动画，之后歌词栏读下一首自己的时钟和行（`monetSongHandoff.ts`）。
 
 ### Diorama
 

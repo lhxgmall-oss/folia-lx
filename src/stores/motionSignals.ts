@@ -33,6 +33,14 @@ export const currentTime = motionValue(0);
 /** The lyric clock. Separate from `currentTime`: it carries the per-song timeline offset. */
 export const lyricCurrentTime = motionValue(0);
 
+/**
+ * The song hand-off of an automix/crossfade blend, as the main window's visualizer draws it: how far
+ * it has come (0..1, transitionCue's getTransitionHandoffProgress), and the incoming track's lyric
+ * clock. Written by the visualizer bridge while a blend holds the picture on the outgoing track.
+ */
+export const handoffProgress = motionValue(0);
+export const handoffLyricCurrentTime = motionValue(0);
+
 /** Overall analyser energy, 0..1. */
 export const audioPower = motionValue(0);
 

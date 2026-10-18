@@ -13,6 +13,7 @@ const { createStageApi } = require('./stageApi.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME } = require('./modSystem/modProtocol.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
+const { applyTileMemoryBudget } = require('./tileMemoryBudget.cjs');
 const {
   REMOTE_CONTROL_HIDE_TITLEBAR_SETTING_KEY,
   REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY,
@@ -4815,10 +4816,10 @@ function patchRemoteControlSnapshot(patch) {
     return;
   }
 
+  // updatedAt stays: it is when the main window read the playback time, and the time is not re-read here.
   latestRemoteControlSnapshot = {
     ...latestRemoteControlSnapshot,
     ...patch,
-    updatedAt: Date.now(),
   };
   sendRemoteControlSnapshot(latestRemoteControlSnapshot);
 }
@@ -5561,6 +5562,7 @@ async function setMainWindowTransparentModeFromRemote(enabled) {
 }
 
 app.whenReady().then(async () => {
+  applyTileMemoryBudget(app, screen);
   const startupResult = await mainProcessStartupPromise;
   if (startupResult === 'duplicate') {
     app.quit();

@@ -37,6 +37,8 @@ interface LatentBackgroundProps {
     tuning?: LatentBackgroundTuning;
     /** How long new colours take to blend in (useBlendedColors); 0 or left out, at once. */
     blendMs?: number;
+    /** Where given, the blend plays along this instead (useBlendedColors). */
+    blendProgress?: MotionValue<number>;
 }
 
 const MAX_SHADER_PIXELS = 1280 * 720;
@@ -134,6 +136,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
     paused,
     tuning: tuningOverride,
     blendMs = 0,
+    blendProgress,
 }) => {
     const ditheringRef = useRef<PaperShaderElement | null>(null);
     const meshRef = useRef<PaperShaderElement | null>(null);
@@ -186,6 +189,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
     const blendedColors = useBlendedColors(
         [theme.backgroundColor, resolvedColors.ditheringBack, resolvedColors.ditheringFront, ...resolvedColors.mesh],
         blendMs,
+        blendProgress,
     );
     const [backgroundColor, ditheringBack, ditheringFront] = blendedColors;
     const shaderColors = useMemo(
