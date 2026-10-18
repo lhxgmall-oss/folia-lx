@@ -65,7 +65,11 @@ export const createDrumBandStream = (
     const frames = Math.floor(Math.ceil(total / 2) / (frameSamples / 2)) + 1;
     const bands: DrumBands = [new Float32Array(frames), new Float32Array(frames), new Float32Array(frames)];
     let done = 0;
-    if (from && from.bands.every(band => band.length === frames)) {
+    if (from) {
+        // Carrying on from bands that are not this stream's would read zeros where the stem's head was.
+        if (from.done > frames || from.bands.some(band => band.length < from.done || band.length > frames)) {
+            throw new Error(`drum band stream: cannot carry on from ${from.done} frames of ${from.bands.map(band => band.length).join('/')} into ${frames}`);
+        }
         from.bands.forEach((band, index) => bands[index].set(band));
         done = from.done;
     }

@@ -19,8 +19,9 @@ import { setWantedDrumTrack } from '../services/analysis/drumHits';
 // React; the per-frame clock lives in services/beatFx/beatFxLive. While a live effect on screen plays
 // drum hits (时计's 仿真鼓面), the track's drum hits are read, on their own: a picture with no live
 // beat-list effect never runs beat_this, and the clock then only carries the track and its time.
-// A drum separation started for the track runs on until the track changes or the switch goes off,
-// even if the picture changes meanwhile (see the last effect below).
+// A drum separation started for the track stops (at its next segment) when the picture, the track or
+// the switch changes, and keeps where it was to carry on from when 时计 is back (see the note at the
+// end; until the analysis service's 2b it ran on behind another picture).
 // Under 智能动感模式's `cached` both are read from what is stored only (`storedOnly`, see
 // services/beatFx/beatFxSource.ts) and nothing is run; switching between `cached` and `on` mid-track
 // reloads both, so `on` analyses the track at once and `cached` stops a separation in flight.
@@ -148,12 +149,13 @@ export function useBeatFxTrack(): boolean {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [identity, drumsWanted, drumModel, storedOnly]);
 
-    // A separation still running stops (at its next segment) when the track changes, or 智能动感模式 or
-    // static mode is switched off - not when the picture does. Stopped on a picture switch, it dropped
-    // the hits it had so far, and coming back to 时计 separated the track again from the start: no
-    // drumhead for the seconds that took (2026-10-17, on v0.7.21-rc.1). Left running, it finishes and is
-    // stored, at the cost of sharing the GPU for a while with whatever the new picture runs; the memory
-    // it holds is what it held on 时计. Switching to `cached` stops it too: that mode runs nothing.
+    // Until the analysis service's 2b: a separation still running stopped (at its next segment) when the
+    // track changed, or 智能动感模式 or static mode was switched off - not when the picture did. Stopped
+    // on a picture switch, it dropped the hits it had so far, and coming back to 时计 separated the
+    // track again from the start: no drumhead for the seconds that took (2026-10-17, on
+    // v0.7.21-rc.1). Left running, it finished and was stored, at the cost of sharing the GPU for a
+    // while with whatever the new picture ran; the memory it held was what it held on 时计. Switching
+    // to `cached` stops it too: that mode runs nothing.
     // (`storedOnly` is also true while 智能动感模式 is off.)
     // @note That was PR #734's stopgap. Since the analysis service's 2b (docs/analysis-service-plan.md)
     // a picture switch stops it again, in the drum hits' cleanup above, and it no longer starts over: the
