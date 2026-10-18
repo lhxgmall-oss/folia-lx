@@ -1,4 +1,5 @@
-import { HTDEMUCS_GPU_SEGMENT, runHtdemucsGpu } from './beatThisGpu';
+import { HTDEMUCS_GPU_SEGMENT } from './beatThisGpu';
+import { separateStemSegment, stemSegmentStarts, stemSegmentWindow } from './stemRange';
 
 // src/services/analysis/drumStem.ts
 // A whole track's drum stem from htdemucs on the renderer's GPU (beatThisGpu.ts runHtdemucsGpu, the
@@ -26,31 +27,17 @@ import { HTDEMUCS_GPU_SEGMENT, runHtdemucsGpu } from './beatThisGpu';
 // object, so a separation stopped at a segment boundary can be handed back what it had - only the
 // part not yet final matters, the next segment's quarter - and carry on from that segment. The stem
 // is then the same, bit for bit, as one separated in a single go.
+//
+// Since the analysis service's phase 3 the grid, the window and the segments themselves are
+// stemRange.ts': with the track's `key`, a segment automix already separated (the track's head,
+// while the one before played) is taken from there rather than run again, and one automix said it
+// wants (the track's tail) is kept for it.
 
 /** The triangular overlap-add window of htdemucs.cjs `buildWindow`, for one segment. */
-export const drumStemWindow = (segment: number): Float32Array => {
-    const overlap = Math.floor(segment / 4);
-    const win = new Float32Array(segment).fill(1);
-    for (let i = 0; i < overlap; i += 1) {
-        const ramp = i / (overlap - 1);
-        win[i] = ramp;
-        win[segment - 1 - i] = ramp;
-    }
-    return win;
-};
+export const drumStemWindow = (segment: number): Float32Array => stemSegmentWindow(segment);
 
 /** Where each segment starts, for a track of `total` samples: a step of three quarters of a segment. */
-export const drumStemSegments = (total: number, segment = HTDEMUCS_GPU_SEGMENT): number[] => {
-    const stride = segment - Math.floor(segment / 4);
-    const count = Math.max(1, Math.ceil(total / stride));
-    const starts: number[] = [];
-    for (let c = 0; c < count; c += 1) {
-        const start = c * stride;
-        if (start >= total && c > 0) break;
-        starts.push(start);
-    }
-    return starts;
-};
+export const drumStemSegments = (total: number, segment = HTDEMUCS_GPU_SEGMENT): number[] => stemSegmentStarts(total, segment);
 
 /**
  * The drum stem of a stereo track at 44.1 kHz, as mono (the two channels averaged), or null when any
@@ -82,6 +69,8 @@ export const separateDrumStem = async (
     onSegment?: (done: number, count: number, drums: Float32Array, final: number) => void,
     keepGoing: () => boolean = () => true,
     progress: DrumStemProgress = startDrumStem(left.length),
+    /** The track's analysis key: segments shared with automix through stemRange.ts. */
+    key?: string,
 ): Promise<Float32Array | null> => {
     const segment = HTDEMUCS_GPU_SEGMENT;
     const total = left.length;
@@ -100,8 +89,9 @@ export const separateDrumStem = async (
         inLeft.set(left.subarray(start, start + n));
         inRight.set(right.subarray(start, start + n));
         // On screen (时计), one unit of the scheduler's; a track left meanwhile is dropped there too.
-        const stem = await runHtdemucsGpu(inLeft, inRight, { urgency: 'onScreen', stillWanted: keepGoing, unitsLeft: starts.length - index });
-        if (!stem) return null;
+        const stems = await separateStemSegment(key, index, total, inLeft, inRight, 'drums', { urgency: 'onScreen', stillWanted: keepGoing, unitsLeft: starts.length - index });
+        if (!stems) return null;
+        const stem = stems[0];
         for (let i = 0; i < n; i += 1) {
             drums[start + i] += ((stem.left[i] + stem.right[i]) / 2) * win[i];
             weight[start + i] += win[i];

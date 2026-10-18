@@ -1,0 +1,99 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// test/unit/analysis/stemRange.test.ts
+// Stretches of a track's four stems on the one segment grid (analysis/stemRange.ts): the same bits as
+// the whole track's at those samples, and the segments one caller separated taken by the other - the
+// drum hits' tail by automix, automix's head by the drum hits - instead of run again.
+
+const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
+vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
+
+const { forgetStemRange, peekStemSegment, resetStemSegmentsForTests, segmentsOver, separateStemRange, stemRangeSpan, wantStemRange } = await import('@/services/analysis/stemRange');
+const { separateDrumStem } = await import('@/services/analysis/drumStem');
+
+/** A stand-in model: four different, non-linear stems per segment, so the sums and weights matter. */
+const model = async (left: Float32Array, right: Float32Array) => {
+    const stems = [0.8, -0.3, 0.5, 1.1].map((gain, source) => ({
+        left: left.map(v => gain * v + 0.01 * source * v * v),
+        right: right.map(v => gain * v - 0.02 * source),
+    }));
+    return { left: stems[0].left, right: stems[0].right, stems };
+};
+
+const track = (total: number) => ({
+    left: Float32Array.from({ length: total }, (_, i) => Math.sin(i * 1.7) * 0.6),
+    right: Float32Array.from({ length: total }, (_, i) => Math.cos(i * 0.9) * 0.4),
+});
+
+const options = { urgency: 'background' as const };
+
+describe('stem ranges', () => {
+    beforeEach(() => {
+        runHtdemucsGpu.mockReset();
+        runHtdemucsGpu.mockImplementation(model);
+        resetStemSegmentsForTests();
+    });
+
+    it('separates only the segments that reach into a stretch, from just the samples they cover', () => {
+        // Starts every 12: 0, 12, 24, 36, 48.
+        expect(segmentsOver(50, 30, 40)).toEqual([2, 3]);
+        expect(stemRangeSpan(50, 30, 40)).toEqual({ start: 24, end: 50 });
+        expect(stemRangeSpan(50, 0, 10)).toEqual({ start: 0, end: 16 });
+    });
+
+    it('gives a stretch the same bits as the whole track there, cut from a decode of its span alone', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        const whole = await separateStemRange({ left, right, offset: 0, total, from: 0, to: total, options });
+        for (const [from, to] of [[30, 50], [0, 20], [13, 37]]) {
+            const span = stemRangeSpan(total, from, to);
+            const part = await separateStemRange({
+                left: left.slice(span.start, span.end), right: right.slice(span.start, span.end), offset: span.start, total, from, to, options,
+            });
+            for (let source = 0; source < 4; source += 1) {
+                expect(Array.from(part![source].left)).toEqual(Array.from(whole![source].left.subarray(from, to)));
+                expect(Array.from(part![source].right)).toEqual(Array.from(whole![source].right.subarray(from, to)));
+            }
+        }
+    });
+
+    it('lets automix take a tail the drum hits separated, and shrinks it to the drums once taken', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        const fresh = await separateStemRange({ left, right, offset: 0, total, from: 30, to: 50, options });
+        runHtdemucsGpu.mockClear();
+        wantStemRange('song', 30, 50, total);
+        expect(await separateDrumStem(left, right, undefined, undefined, undefined, 'song')).not.toBeNull();
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(5);
+        runHtdemucsGpu.mockClear();
+        const taken = await separateStemRange({ key: 'song', left, right, offset: 0, total, from: 30, to: 50, options });
+        expect(runHtdemucsGpu).not.toHaveBeenCalled();
+        for (let source = 0; source < 4; source += 1) expect(Array.from(taken![source].left)).toEqual(Array.from(fresh![source].left));
+        forgetStemRange('song', 30, 50, total);
+        expect(peekStemSegment('song', 3)).toHaveLength(1);
+        // A segment no stretch wanted was not kept.
+        expect(peekStemSegment('song', 0)).toBeNull();
+    });
+
+    it('lets the drum hits take the drums of a head automix separated, to the same stem', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        const own = await separateDrumStem(left, right);
+        runHtdemucsGpu.mockClear();
+        expect(await separateStemRange({ key: 'next', left, right, offset: 0, total, from: 0, to: 30, options })).not.toBeNull();
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(3);
+        runHtdemucsGpu.mockClear();
+        const shared = await separateDrumStem(left, right, undefined, undefined, undefined, 'next');
+        // Only the two segments past the head ran.
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(2);
+        expect(Array.from(shared!)).toEqual(Array.from(own!));
+    });
+
+    it('is null once the stretch is no longer wanted, before the next segment', async () => {
+        const { left, right } = track(50);
+        let asked = 0;
+        const result = await separateStemRange({ left, right, offset: 0, total: 50, from: 0, to: 50, options: { ...options, stillWanted: () => asked++ < 2 } });
+        expect(result).toBeNull();
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(2);
+    });
+});

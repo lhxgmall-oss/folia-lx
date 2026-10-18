@@ -283,16 +283,25 @@ const ensureLoaded = async (model: GpuModel): Promise<boolean> => {
     return true;
 };
 
+/** One stereo stem of one segment. */
+export interface StemChannels { left: Float32Array; right: Float32Array }
+/**
+ * One segment's four stems, in htdemucs' order (HTDEMUCS_SOURCES: drums, bass, other, vocals); `left`
+ * and `right` are the drums', as before the four.
+ */
+export interface HtdemucsGpuSegment extends StemChannels { stems: StemChannels[] }
+
 /**
  * One htdemucs segment's drum stem from the WebGPU runtime: `left` and `right` of exactly
  * HTDEMUCS_GPU_SEGMENT samples at 44.1 kHz in, the drums' two channels out. Null when htdemucs_gpu is
  * not installed, this machine cannot run it, or the run failed - there is no CPU path behind this.
+ * Since the analysis service's phase 3 all four stems come back (`stems`), for automix.
  */
 export const runHtdemucsGpu = (
     left: Float32Array,
     right: Float32Array,
     options: GpuRunOptions = { urgency: 'onScreen' },
-): Promise<{ left: Float32Array; right: Float32Array } | null> => {
+): Promise<HtdemucsGpuSegment | null> => {
     if (unsupported || failedModels.has('htdemucs') || typeof window === 'undefined' || typeof Worker === 'undefined') return Promise.resolve(null);
     if (left.length !== HTDEMUCS_GPU_SEGMENT || right.length !== HTDEMUCS_GPU_SEGMENT) return Promise.resolve(null);
     return scheduler.submit({ ...options, kind: 'htdemucs', run: async () => {
@@ -307,7 +316,8 @@ export const runHtdemucsGpu = (
             return null;
         }
         if (worker) idleTimer = setTimeout(drop, IDLE_MS);
-        return reply.result as { left: Float32Array; right: Float32Array };
+        const { stems } = reply.result as { stems: StemChannels[] };
+        return { left: stems[0].left, right: stems[0].right, stems };
     } });
 };
 

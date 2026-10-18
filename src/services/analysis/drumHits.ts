@@ -392,7 +392,7 @@ const separateAndRead = async (key: string, bytes: ArrayBuffer, resume: DrumResu
             live = pickLive(stem, final)
                 .catch(error => console.warn(`[DrumHits] ${key}: live hits failed`, error))
                 .finally(() => { live = null; });
-        }, () => wanted === key, progress);
+        }, () => wanted === key, progress, key);
         await live;
         if (!drums) {
             if (wanted !== key) console.info(`[DrumHits] ${key}: separation stopped at ${(progress.divided / STEM_RATE).toFixed(1)}s, the track or the picture was left`);

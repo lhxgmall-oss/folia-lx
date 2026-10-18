@@ -76,7 +76,12 @@ self.onmessage = async (event: MessageEvent<Request>) => {
                 if (!htdemucs) {
                     try {
                         // f16 GEMMs where the device has shader-f16: ~10% faster, the same drum hits (kernels.ts GemmMode).
-                        htdemucs = await HtdemucsWgsl.create(opened, request.weights, request.manifest, { f16 });
+                        // @note Since the analysis service's phase 3: f32, and all four sources. automix
+                        // takes its stems from here too, and in f16 the bass missed the 0.01 dB red line
+                        // on one reference segment (0.029 dB; f32: 0.0066 at worst over all four). The
+                        // user chose f32 for both (2026-10-17), so the two share one set of segments:
+                        // about 9% slower a segment on an M4, the same weights.
+                        htdemucs = await HtdemucsWgsl.create(opened, request.weights, request.manifest, { sources: [0, 1, 2, 3] });
                     } catch (error) {
                         self.postMessage({ id: request.id, error: String((error as Error)?.message ?? error), scope: 'model' });
                         return;
@@ -115,9 +120,9 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             // 'auto' as for a beat_this chunk: one stage on the GPU at a time, finer where a stage
             // outlasts a 120 Hz frame, so a segment never holds the visualizer's frames.
             const result = await htdemucs.run(request.left, request.right, { slice: 'auto' });
-            const left = result.left.slice();
-            const right = result.right.slice();
-            self.postMessage({ id: request.id, result: { left, right } }, { transfer: [left.buffer, right.buffer] });
+            // htdemucs' four sources in its order (drums, bass, other, vocals), each its own copy to transfer.
+            const stems = result.stems.map(stem => ({ left: stem.left.slice(), right: stem.right.slice() }));
+            self.postMessage({ id: request.id, result: { stems } }, { transfer: stems.flatMap(stem => [stem.left.buffer, stem.right.buffer]) });
             return;
         }
         if (request.kind === 'dispose') {
