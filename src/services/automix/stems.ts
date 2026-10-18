@@ -612,7 +612,12 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
         }
         const modelStarted = performance.now();
         const parts = await separate({ left, right });
-        if (!parts) {
+        if (!parts || 'declined' in parts) {
+            // Said here, in the console the listener reads. The worker's own line goes to the main
+            // process's stdout only, so a library that would not load once looked like a separation
+            // that never finished: "separating" and then nothing, track after track.
+            console.warn(`[Automix] could not separate the ${request.role} of "${request.song.name}":`
+                + ` ${parts ? parts.declined : 'the analysis worker answered nothing'}`);
             // Nothing came back. The window this can happen in is the widest in the app - separation
             // is asked for the instant a track starts and runs for tens of seconds - so weights
             // disappearing under one, or the worker restarting under it on a folder switch, is
