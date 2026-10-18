@@ -38,6 +38,16 @@ UI / hooks / stores / app services
 
 每个平台靠哪个库或哪个服务拿数据、版本钉在哪、上游变了怎么跟，见同目录 [`UPSTREAMS.md`](UPSTREAMS.md)。
 
+## LX Music（Folia-LX）
+
+Folia-LX 分支登记了 `lx` 平台（`lx/lxProvider.ts`，仅桌面端，不需要账号，`capabilities.auth` 为 `false`）。搜索、歌单、歌词、封面来自主进程里移植的 LX Music musicSdk（`electron/lx/musicSdk/`，第三方代码见其 `NOTICE.md`，改动后用 `npm run build:lx-sdk` 重新打包）；播放地址来自用户自己导入的 LX 自定义源脚本（`electron/lx/userApi/`，在 utilityProcess 的 vm 上下文里运行），仓库不带任何脚本。渲染进程只经 `lx/lxTransport.ts` 调 `window.electron.lxRequest`（IPC `lx-api-request`，`electron/lx/lxApiBridge.cjs`）。
+
+- 歌曲 id 是 `<子源>_<songmid>`，LX 的原始行（old music info）放在 `sourceRef.providerData.musicInfo`，取地址时原样交给脚本；歌单 id 是 `<子源>__<listId>`。
+- 子源筛选（`all` 或 kw/kg/tx/wy/mg）、音质（`follow` 或 LX 的四档）、失败换源开关由主进程和脚本一起存在 `userData/lx-user-api/index.json`，设置页（`src/components/modal/settings/pages/integration/lx/`）经 `lx/lxScripts.ts` 读写。
+- 聚合搜索：每个子源要 `ceil(limit / 5)` 条，交错合并；失败的子源略过，全部失败才报错。
+- 取地址失败且开着换源时，按歌名 + 歌手在脚本支持的其他子源搜索，用 LX `findMusic` 的匹配规则排序后依次再试。
+- 逐字歌词：LX 的 `lxlyric` 用 `parseAwlrc` 解析，没有时用 LRC。
+
 ## 接入一个新平台
 
 下面用 `foo` 代表新平台的 id。`OnlineProviderId` 是开放的字符串，不用改类型。
