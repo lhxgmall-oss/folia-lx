@@ -15,8 +15,11 @@ const { ensureTrackProfile, setAnalysisScope } = vi.hoisted(() => ({
     setAnalysisScope: vi.fn(),
 }));
 
-vi.mock('@/services/navidromeService', () => ({
-    getNavidromeConfig: () => ({ serverUrl: 'https://navi.test' }),
+const navidrome$ = vi.hoisted(() => ({ config: { serverUrl: 'https://navi.test' } as unknown }));
+
+vi.mock('@/services/navidromeService', async importOriginal => ({
+    ...await importOriginal<typeof import('@/services/navidromeService')>(),
+    getNavidromeConfig: () => navidrome$.config,
     navidromeApi: { getStreamUrl: (_config: unknown, id: string) => `https://navi.test/rest/stream?id=${id}` },
 }));
 
@@ -94,6 +97,17 @@ describe('prefetchNearbySongs on a library queue', () => {
             ['Alpha', 'https://navi.test/rest/stream?id=a'],
             ['Bravo', 'https://navi.test/rest/stream?id=b'],
         ]);
+    });
+
+    it('leaves a Navidrome song without a URL when Navidrome is not configured', async () => {
+        navidrome$.config = null;
+        const queue = [navidrome('a', 'Alpha'), navidrome('b', 'Bravo')];
+
+        try {
+            expect(await run(queue[0], queue)).toEqual([['Alpha', null], ['Bravo', null]]);
+        } finally {
+            navidrome$.config = { serverUrl: 'https://navi.test' };
+        }
     });
 
     it('analyses nothing while blending is off', async () => {

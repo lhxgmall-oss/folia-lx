@@ -58,13 +58,26 @@ const MAX_PROFILES = 200;
  * words a track still waiting its turn prints. Nothing is recorded for a track nobody asked about.
  */
 const outcomes = new Map<string, string>();
-const noteOutcome = (songKey: string, outcome: string) => {
-    outcomes.delete(songKey);
-    outcomes.set(songKey, outcome);
-    while (outcomes.size > MAX_PROFILES) {
-        const oldest = outcomes.keys().next().value;
+const noteOutcome = (songKey: string, outcome: string) => rememberCapped(outcomes, songKey, outcome);
+
+/**
+ * Downloads whose server answered a range request with the whole file, by the song and its URL.
+ *
+ * A transcoding server does this every time - the stream it makes has no length to take a range of -
+ * so without it every prefetch pass (one per song start) asked again, and the server started a
+ * transcode for the analyser to cut off. A URL names one stream, so the answer holds for the session.
+ */
+const rangeRefusedDownloads = new Map<string, string>();
+const RANGE_REFUSED = 'the server would not serve a partial range, and a full download is not ours to spend';
+
+/** Sets `key`, keeping no more entries than there are profiles. */
+const rememberCapped = (map: Map<string, string>, key: string, value: string) => {
+    map.delete(key);
+    map.set(key, value);
+    while (map.size > MAX_PROFILES) {
+        const oldest = map.keys().next().value;
         if (oldest === undefined) break;
-        outcomes.delete(oldest);
+        map.delete(oldest);
     }
 };
 
@@ -140,6 +153,9 @@ const storageKey = (songKey: string) => `automix_profile_${songKey}`;
 const remember = (songKey: string, profile: TrackProfile | null) => {
     profiles.delete(songKey);
     profiles.set(songKey, profile);
+    // The answer replaces whatever an earlier request came to; left behind, it would be read back once
+    // this profile is evicted, older than the measurement that superseded it.
+    outcomes.delete(songKey);
     while (profiles.size > MAX_PROFILES) {
         const oldest = profiles.keys().next().value;
         if (oldest === undefined) break;
@@ -225,7 +241,7 @@ const readPrefix = async (audioUrl: string): Promise<BytesResult> => {
     const response = await fetch(audioUrl, { headers: { Range: `bytes=0-${PREFIX_BYTES - 1}` } });
     if (response.status !== 206) {
         await response.body?.cancel();
-        return { skipped: 'the server would not serve a partial range, and a full download is not ours to spend' };
+        return { skipped: RANGE_REFUSED };
     }
     return { bytes: await response.arrayBuffer(), partial: true };
 };
@@ -333,7 +349,13 @@ const readBytes = async (
             // questions about how this track STARTS - which is what the chooser needs from the
             // track it is blending into.
             if (hasStoredPartial) return { skipped: '' };
-            return await readPrefix(audioUrl);
+            const refused = rangeRefusedDownloads.get(downloadKey);
+            if (refused) return { skipped: refused };
+            const prefix = await readPrefix(audioUrl);
+            if ('skipped' in prefix && prefix.skipped === RANGE_REFUSED) {
+                rememberCapped(rangeRefusedDownloads, downloadKey, RANGE_REFUSED);
+            }
+            return prefix;
         }
 
         const response = await fetch(audioUrl);

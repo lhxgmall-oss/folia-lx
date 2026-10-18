@@ -14,7 +14,7 @@ import {
     type AutomixStemBus,
     type AutomixStemChain,
 } from './crossfadeGraph';
-import { diagMark } from './diag'; // TEMPORARY memory-diagnostic marks
+import { diagMark } from './diag'; // stage marks into the runtime log; began as temporary memory-diagnostic marks, now also what each blend was planned with
 import {
     envelopeOf,
     singsInWindow,
@@ -186,6 +186,8 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
     /** Both offline profiles, kept from planning until the blend is actually scheduled. */
     let plannedFrom: TrackProfile | null = null;
     let plannedTo: TrackProfile | null = null;
+    /** The mode the armed plan was made in: the crossfade mode is all plain fades, and says so once in settings. */
+    let plannedMode: AutomixTransitionRequest['settings']['mode'] | null = null;
     let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
     let balanceTimer: ReturnType<typeof setInterval> | null = null;
     let releaseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -742,6 +744,7 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         plannedFromKey = null;
         plannedFrom = null;
         plannedTo = null;
+        plannedMode = null;
         ports.onTailSrcChange(null, { harvest: options.harvest ?? true, end: options.end ?? 'handedOver' });
         // Last, and unconditional: this is the only settle, so it is the only place that
         // can tell the screen a blend is over when the blend was cut short rather than
@@ -827,8 +830,8 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         clocks[incoming].reset();
 
         phase = 'armed';
-        // When it will start and what it was planned with, in the log a report carries - the console
-        // lines below it stay on the listener's machine.
+        // When it will start and what it was planned with, as a line in the runtime log beside the
+        // analysis worker's own (electron/analysis/host.cjs).
         diagMark(
             `armed -> ${request.nextKey}, ${nextPlan.style} from ${nextPlan.outStart.toFixed(2)}s`
             + ` (in ${Math.max(0, nextPlan.outStart - request.time).toFixed(1)}s) for ${nextPlan.overlap}s,`
@@ -839,6 +842,7 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         plannedFromKey = request.fromKey;
         plannedFrom = request.from.profile ?? null;
         plannedTo = request.to.profile ?? null;
+        plannedMode = request.settings.mode;
 
         // The order matters: pin the outgoing source to the deck it is already playing on before
         // the roles change, so that deck's src string never changes and its playback is never
@@ -1178,7 +1182,8 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         // whether the animations draw it, said once per transition - they refuse in silence otherwise,
         // and "never saw the animation" was a report with nothing in any log to explain it.
         const notDrawn = whyCueNotDrawn(cue);
-        if (notDrawn) console.log(`[Automix] the transition animations skip this one: ${notDrawn}`);
+        // Not in the crossfade mode: every handover there is a plain fade, and nothing is ever drawn.
+        if (notDrawn && plannedMode === 'automix') console.log(`[Automix] the transition animations skip this one: ${notDrawn}`);
         diagMark(
             `blend ${shape.style}${shape.style === plan.style ? '' : ` (planned ${plan.style})`} ${cue.seconds.toFixed(2)}s`
             + `, profiles: outgoing ${plannedFrom ? 'yes' : 'no'}, incoming ${plannedTo ? 'yes' : 'no'}`

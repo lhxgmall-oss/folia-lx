@@ -90,7 +90,13 @@ const analyseForAutomix = (song: SongResult, audioUrl: string | null | undefined
 const libraryAudioUrl = (song: SongResult): string | null => {
     const carrier = resolveNavidromePlaybackCarrier(song);
     const config = carrier ? getNavidromeConfig() : null;
-    return carrier && config ? navidromeApi.getStreamUrl(config, carrier.navidromeData.id) : null;
+    if (!carrier || !config) return null;
+    try {
+        return navidromeApi.getStreamUrl(config, carrier.navidromeData.id);
+    } catch {
+        // A server address that is not a URL: playback says so; the prefetch of the songs around is not stopped for it.
+        return null;
+    }
 };
 
 export interface PrefetchedSongData {

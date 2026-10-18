@@ -525,6 +525,8 @@ export function useAutomixDecks({
      * feature that is broken - which is exactly how the first build of this read.
      */
     const lastReportRef = useRef<string | null>(null);
+    /** Arms reported so far, to key each one's line apart - see the armed report below. */
+    const armsReportedRef = useRef(0);
     const report = useCallback((signature: string, message: string) => {
         if (lastReportRef.current === signature) return;
         lastReportRef.current = signature;
@@ -618,14 +620,20 @@ export function useAutomixDecks({
         if (!plan) return;
 
         if (session.getPhase() === 'armed') {
-            // Once per track (the report key), at the moment the blend is ready: when it will start, and
+            // Once per arm, at the moment the blend is ready: when it will start, and
             // what each end was planned with. The analysis state is the half the plan cannot say - a plan
             // made blind reads the same whether the track was never asked for or is still in the queue.
+            //
+            // Keyed by the arm, not the track: this branch runs once per arm already, and the same song
+            // queued twice in a row - one stream URL for both - would otherwise have its second arm
+            // swallowed as a repeat of the first.
             const startIn = plan.outStart - time;
+            armsReportedRef.current += 1;
             report(
-                `${audioSrc}:${modeTag}armed`,
+                `${audioSrc}:${modeTag}armed:${armsReportedRef.current}`,
                 `automix armed: "${currentSong.name}" -> "${nextSong.name}",`
-                + ` the blend starts at ${trackClock(plan.outStart)} of this track`
+                // A cut has no blend to start: its `overlap` is the room it stands in, not a length.
+                + ` ${plan.style === 'beatCut' ? 'the cut is placed from' : 'the blend starts at'} ${trackClock(plan.outStart)} of this track`
                 + ` (${startIn > 0.05 ? `in ${startIn.toFixed(1)}s` : 'now'}), ${plan.overlap}s - ${plan.reason}`
                 + `; analysis: this track ${describeProfileState(currentSong)}, the next ${describeProfileState(nextSong)}`,
             );

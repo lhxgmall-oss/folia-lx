@@ -118,7 +118,8 @@ vi.mock('@/utils/appNavidromeLyrics', () => ({
     },
 }));
 
-// The analysis and prefetch of the songs around the one played: only whether a play asks for it.
+// The analysis and prefetch of the songs around the one played, stubbed for the whole file: only
+// whether a play asks for it is pinned (the last describe), and no other test here depends on it.
 const { prefetchNearbySongs } = vi.hoisted(() => ({ prefetchNearbySongs: vi.fn(async () => {}) }));
 vi.mock('@/services/prefetchService', async importOriginal => ({
     ...await importOriginal<typeof import('@/services/prefetchService')>(),
