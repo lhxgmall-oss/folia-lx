@@ -19,6 +19,8 @@ UI / hooks / stores / app services
                  -> ytmTransport.ts（YouTube Music 的受限 IPC 边界，仅桌面端）
             -> spotifyProvider.ts
                  -> spotifyTransport.ts（Spotify 的受限 IPC 边界，仅桌面端）
+            -> qishuiProvider.ts
+                 -> qishuiTransport.ts（汽水车机协议的受限 IPC 边界，仅桌面端）
        -> account/（各平台账号共用的逻辑，只从 omni 进入）
        -> login/（登录失败的分类和请求时限，不认识任何平台）
        -> providerAccountCache.ts / providerStorage.ts
@@ -27,7 +29,7 @@ UI / hooks / stores / app services
 
 图里的 `<id>Provider.ts` 和 `<id>Transport.ts` 都在各平台自己的目录 `<id>/` 里（例如 `qq/qqProvider.ts`）。网易云没有单独的 transport，请求在 `netease/netease.ts`。
 
-当前 registry 注册 `netease`、`kugou`、`qq`，以及桌面端的 `bodian`、`ytm`（YouTube Music）和 `spotify`。波点接入状态、接口与剩余验收见
+当前 registry 注册 `netease`、`kugou`、`qq`，以及桌面端的 `bodian`、`ytm`（YouTube Music）、`spotify` 和 `qishui`（汽水音乐）。波点接入状态、接口与剩余验收见
 [`docs/bodian.md`](../../../docs/bodian.md)；支持喜欢与自建歌单歌曲增删，收藏写入尚未实现。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
 
 登录的分工：provider 把后端的回答翻成 `LoginState`。失败带着平台的原话（`message`）和事实（`failure`：码、原话、HTTP 状态、要等多久，或者直接点名的情况，比如 QQ 的登录设备超限 `device-limit`）；这一次检查在网络这一层没拿到回答、码在平台那边还有效时标 `transient`，登录接着检查。要码与生成二维码拿不到 key / 图片时直接抛错，不交出空值。情况怎么分在 `login/loginFailureCase.ts`，平台自己的码是什么意思由它的 `describeLoginFailure` 说。登录失败后由登录调用一次 `omni.runLoginSelfCheck` 主动自检（`loginSelfCheck.ts`），结果进诊断报告；`omni.getLoginDiagnostics` 的 provider 段每一行都由 `login/loginDiagnosticReport.ts` 的 `diagnosticLine` 写，放进去的文字先洗过：登录凭据、IP 和账号不进报告。
@@ -37,6 +39,16 @@ UI / hooks / stores / app services
 要地址、读集合没有成功时，失败分成有名字的情况（`failure/onlineFailureCase.ts`，不认识任何平台；平台自己的码是什么意思由它的 `describeFailure` 说），提示条按情况说发生了什么、该做什么，再引平台的原话（`failure/onlineFailureTexts.ts`）。要地址连不上时先自己再要两次（到了时限的请求只再要一次），并提示正在重试；平台要求稍后再试而说了等多久时，到点之前这个平台的地址点歌和预取都不再去要；没说多久、或平台的服务出了错（5xx）时只让预取先停 30 秒（`failure/onlineRequestCooldown.ts`）。播放时失败只按情况说，从不回写歌曲的可用性、预取或缓存。
 
 每个平台靠哪个库或哪个服务拿数据、版本钉在哪、上游变了怎么跟，见同目录 [`UPSTREAMS.md`](UPSTREAMS.md)。
+
+### 汽水音乐（桌面端）
+
+`qishui/qishuiProvider.ts` 接入车机协议已有的读取能力：抖音扫码授权、歌曲搜索、歌曲详情、逐字歌词、账号自建及收藏歌单、歌单翻页、歌手详情和热门歌曲、推荐流，以及场景电台。`electron/qishui/` 只暴露固定操作，登录态留在主进程；只存用户主动在 Folia 扫码授权的账号，不读取其他应用的凭据。操作系统不能安全保存凭据时，仅在本次运行内保留账号。
+
+电台卡片带各自的场景选择；模式面板经 `omni.getPersonalFmCatalog` 读取平台自己的场景目录。场景使用车机返回的数字 ID，不套用默认目录的场景 ID。各平台分别保存选择，原有私人 FM 存储键保持不变；切换模式后自动补歌沿用新模式。上游的小场景图标由 `qishuiSceneCover.ts` 组合成有留白的封面。
+
+播放仅使用服务直接返回的未加密地址，对外声明标准音质，试听地址保留试听标记。没有解密受保护音频、提取密钥、调用官方客户端原生签名模块的实现。车机没有相应的专辑详情和云端编辑接口，因此不声明专辑浏览、红心、收藏写入及歌单编辑。歌手曲目按车机首次返回的热门列表展示，不把其不前进的游标当成还有更多。
+
+本地 macOS Electron 开发版已验证扫码登录、登录态恢复、歌单读取、搜索、歌词、未加密音频地址及场景电台，界面经用户实际测试。Windows、Linux 和安装包尚未实测；单元测试使用裁剪样本和替身，不代表上游接口始终可用。
 
 ## 接入一个新平台
 

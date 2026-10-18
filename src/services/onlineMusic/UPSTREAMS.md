@@ -90,6 +90,14 @@
   - `test/unit/spotify/` 下的测试（`spotifyApiBridge.test.ts`、`spotifyAudio.test.ts`、`spotifyAudioFiles.test.ts` 等）用替身，抓不到 Spotify 改了查询或答复。
   - 升级 node-librespot 前看它支持哪些系统；平台条目里的实测在同目录 `README.md` 的 `spotify/spotifyProvider.ts` 一条。
 
+## 汽水音乐（`qishui`，仅桌面端）
+
+- **上游**：汽水车机 HTTP 协议，由 `electron/qishui/client.cjs` 请求平台服务，不依赖官方客户端安装。
+- **版本与许可**：无新增 npm 或 Python 运行依赖。协议参数在 `electron/qishui/protocol.cjs`（`LunaOpenSDK/1.0.10`），相应许可见 `electron/qishui/LICENSE`。平台客户端标识是协议参数，不是用户账号凭据。
+- **Folia 的边界**：`electron/qishui/auth.cjs` 负责主动扫码、用本应用生成的密钥完成票据授权并续期；`session.cjs` 只用 Electron safeStorage 保护 Folia 自己保存的账号。`client.cjs` 限定请求地址、超时和错误；`catalog.cjs` 处理固定搜索批次与歌单的不透明游标；`feed.cjs` 管推荐流及场景切换。`playback.cjs` 仅挑选服务返回的未加密地址，拒绝只有受保护音频的歌曲；不加载 `bdms.node`、不导入其他应用的 cookie、不解密音频。
+- **上游变了怎么跟**：先在桌面版确认扫码授权、歌曲搜索、自己的歌单及下一页、逐字歌词、标准音质地址、试听标记、场景切换和后续补歌。场景目录从 `/feed/mode/` 读取，不把数字场景 ID 写死在界面里。接入新接口前核实实际请求和答复，再经受限 IPC 与 Omni 声明能力；没有接口的写入能力保持关闭。
+- **测试**：`test/unit/qishui/` 覆盖账号 ID、扫码取消与退出竞态、归一化、翻页、歌词时间、受保护音频拒绝和场景请求状态；共用登录、歌词来源、架构和存储契约测试也登记此平台。这些测试用替身或样本，抓不到上游未采样的变化。当前真实验证仅为 macOS Electron 开发版，Windows、Linux、安装包和长期续期尚未实测。
+
 ## Navidrome（不是 Omni 的 provider）
 
 - **上游**：用户自己的 Navidrome 服务，走 Subsonic API（`/rest/<接口>`），入口是 `src/services/navidromeService.ts`。歌词等扩展先问 `getOpenSubsonicExtensions` 再决定用不用。
