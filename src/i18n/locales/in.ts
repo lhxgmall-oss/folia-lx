@@ -3142,7 +3142,7 @@ export default {
     },
     "v0_7_21": {
       "intro": "Selamat datang di 0.7.21, Sabbat-of-the-witch Update—sebuah rilis besar. Aplikasi desktop menambahkan Spotify dan YouTube Music, dan semua platform kini masuk lewat satu jendela login; beranda mendapat tab Jelajahi; Sonnet, Diorama, dan Pendolo mendapat Mode ketukan pintar yang bergerak mengikuti ketukan dan drum; QQ Music bisa masuk dengan aplikasi QQ Music, dan antarmuka kini tersedia dalam bahasa Tionghoa Tradisional.",
-      "spotifyYtm": {
+      "newPlatforms": {
         "title": "Spotify dan YouTube Music",
         "description": "Dua platform baru di desktop. Masuk ke Spotify lewat browser sistem untuk mencari, menjelajah, menyukai, menyimpan, dan mengedit playlist; pemutaran memerlukan Spotify Premium, kualitas hingga 320k, dan belum tersedia di Mac Intel. YouTube Music bisa mencari dan memutar tanpa masuk; untuk masuk, Folia membuka Chrome, Edge, Chromium, atau Brave di komputer Anda untuk akun Google, dan anggota Premium bisa memilih kualitas lebih tinggi. Lirik bawaan kedua platform hanya tersinkron per baris, dan keduanya belum tersedia di versi web."
       },

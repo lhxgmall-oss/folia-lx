@@ -20,7 +20,7 @@ export const NEW_FEATURES_RELEASE: NewFeaturesRelease = {
     i18nKey: 'releaseNotes.v0_7_21',
     majorUpdate: { codename: 'Sabbat-of-the-witch' },
     features: [
-        { id: 'spotifyYtm', icon: Music2 },
+        { id: 'newPlatforms', icon: Music2 },
         { id: 'loginWindow', icon: LogIn },
         { id: 'explore', icon: Compass },
         { id: 'smartBeat', icon: AudioWaveform },

@@ -3142,7 +3142,7 @@ export default {
     },
     "v0_7_21": {
       "intro": "Welcome to 0.7.21, the Sabbat-of-the-witch Update—a major release. The desktop app adds Spotify and YouTube Music, and every platform now signs in through one login window; the home screen gains an Explore tab; Sonnet, Diorama and Pendolo get Smart beat mode, moving with the beats and drums; QQ Music can sign in with the QQ Music app, and the interface is now available in Traditional Chinese.",
-      "spotifyYtm": {
+      "newPlatforms": {
         "title": "Spotify and YouTube Music",
         "description": "Two new platforms on desktop. Sign in to Spotify through your system browser to search, browse, like, save and edit playlists; playback needs Spotify Premium, goes up to 320k, and isn't available on Intel Macs yet. YouTube Music searches and plays without signing in; to sign in, Folia opens Chrome, Edge, Chromium or Brave on your computer for your Google account, and Premium members can pick a higher quality. Both platforms bring line-synced lyrics only, and neither is available on the web version yet."
       },

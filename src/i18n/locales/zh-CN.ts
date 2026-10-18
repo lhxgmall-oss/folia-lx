@@ -3142,7 +3142,7 @@ export default {
     },
     "v0_7_21": {
       "intro": "欢迎来到 0.7.21「Sabbat-of-the-witch Update」：这是一次重大更新。桌面版接入 Spotify 和 YouTube Music，所有平台的登录收进同一个登录窗口；主页新增探索页；商籁、镜台、时计有了跟着节拍和鼓点动起来的「智能动感模式」；QQ 音乐可以用 QQ 音乐 App 扫码，界面也能切换成繁体中文。",
-      "spotifyYtm": {
+      "newPlatforms": {
         "title": "Spotify 与 YouTube Music",
         "description": "桌面版新增两个平台。Spotify 在系统浏览器里授权登录后，可以搜索、浏览、红心、收藏和编辑歌单；播放需要 Spotify 会员，音质最高 320k，Intel Mac 暂不能播放。YouTube Music 不登录也能搜索和播放；登录时会打开本机的 Chrome、Edge、Chromium 或 Brave 来登录 Google 账号，会员可选更高音质。两个平台自带的歌词都是逐行的，网页版暂不提供这两个平台。"
       },
