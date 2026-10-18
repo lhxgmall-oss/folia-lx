@@ -202,6 +202,8 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
     .digest('hex')
     .slice(0, 12)}`;
 
+  const isAndroidTarget = process.env.VITE_FOLIA_TARGET === 'android';
+
   return {
     base: process.env.ELECTRON === 'true' ? './' : '/',
     worker: {
@@ -270,7 +272,9 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
       traditionalLocalePlugin(),
       icuFoliaDataPlugin(),
       react(),
-      VitePWA({
+      // The Folia LX Android app (VITE_FOLIA_TARGET=android) serves its files from the APK through
+      // Capacitor; a service worker there would only pin stale copies across app updates.
+      !isAndroidTarget && VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['icon.svg'],
         devOptions: {

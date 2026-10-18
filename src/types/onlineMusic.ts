@@ -4,8 +4,9 @@ import type { LyricData, ReplayGainInfo, SongResult, UnifiedSong } from '../type
 
 export type MediaId = string | number;
 export type OnlineProviderId = 'netease' | (string & {});
-// The provider that is active where none was chosen, or where the one chosen is not there.
-export const DEFAULT_ONLINE_PROVIDER_ID: OnlineProviderId = 'netease';
+// The provider that is active where none was chosen, or where the one chosen is not there. The Folia LX
+// Android app (VITE_FOLIA_TARGET=android, see src/utils/androidApp.ts) starts on LX Music instead.
+export const DEFAULT_ONLINE_PROVIDER_ID: OnlineProviderId = import.meta.env?.VITE_FOLIA_TARGET === 'android' ? 'lx' : 'netease';
 // Lowest first as `omni` orders them: standard, high, ultra, lossless, hires. 'ultra' is a level
 // only for a provider that lists it (YouTube Music, for a Premium member); everywhere else a stored
 // 'ultra' stands for 'high'.

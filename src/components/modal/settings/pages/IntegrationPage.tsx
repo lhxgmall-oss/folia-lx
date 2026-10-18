@@ -8,6 +8,7 @@ import { Button, CopyValue, Group, Reveal, Row, Status, Toggle, Value, type Sett
 import NavidromeRows from './integration/NavidromeRows';
 import { LX_MUSIC, O, SERVICES, STREAMING } from './integration/options';
 import LxSourceRows from './integration/lx/LxSourceRows';
+import { isAndroidApp } from '../../../../utils/androidApp';
 import { DesktopStageRows, WebStageRows } from './integration/StageModeRows';
 import SyncServerRows from './integration/SyncServerRows';
 import { useSettingsPage } from './settingsPageContext';
@@ -127,7 +128,7 @@ const IntegrationPage: React.FC = () => {
                 {isElectron ? <DesktopStageRows /> : <WebStageRows />}
             </Group>
 
-            {isElectron && (
+            {(isElectron || isAndroidApp()) && (
                 <Group def={LX_MUSIC}>
                     <LxSourceRows />
                 </Group>

@@ -1,0 +1,154 @@
+# Folia-LX: builds the Android APK (Capacitor shell under android/, LX core in the WebView) when a version
+# tag is pushed, and attaches it to the same draft GitHub release folia-lx-windows.yml creates.
+# Signed with the fixed key in packaging/android/folia-lx.keystore (see README.md, "安卓版"), so every
+# release installs over the previous one.
+name: Folia-LX Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: REMOVED-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        env:
+          # The APK needs none of Electron's binaries.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          mkdir -p ci-logs
+          set -o pipefail
+          npm ci 2>&1 | tee ci-logs/01-npm-ci.log
+
+      - name: Work out the version
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_NAME" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+            VERSION="${REF_NAME#v}"
+            CODE=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+          else
+            VERSION="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+            CODE=1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          node -e "const fs=require('fs'); const pkg=require('./package.json'); pkg.version=process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$VERSION"
+          echo "Folia LX $VERSION (versionCode $CODE)"
+
+      - name: Bundle the Android LX core
+        run: |
+          set -o pipefail
+          npm run build:lx-android 2>&1 | tee ci-logs/02-lx-android.log
+
+      - name: Build web app for Android
+        env:
+          VITE_FOLIA_TARGET: android
+          APP_VERSION_LABEL: Folia-LX
+        run: |
+          set -o pipefail
+          npx vite build 2>&1 | tee ci-logs/03-vite-build.log
+
+      - name: Copy web app into the Android project
+        run: |
+          set -o pipefail
+          npx cap sync android 2>&1 | tee ci-logs/04-cap-sync.log
+
+      - name: Build signed APK
+        working-directory: android
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -PfoliaVersionName=${{ steps.version.outputs.version }} \
+            -PfoliaVersionCode=${{ steps.version.outputs.code }} 2>&1 | tee ../ci-logs/05-gradle.log
+
+      - name: Name the APK
+        run: |
+          mkdir -p release-android
+          cp android/app/build/outputs/apk/release/app-release.apk "release-android/Folia-LX-${{ steps.version.outputs.version }}-android.apk"
+          ls -la release-android
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: REMOVED
+          path: release-android/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach to draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          shopt -s nullglob
+          files=(release-android/*.apk)
+          # The Windows workflow may be creating the same release at the same moment: create it when it is
+          # not there, and where creating fails because it now is, upload into it.
+          for attempt in 1 2 3 4 5; do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber && exit 0
+            else
+              gh release create "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --title "Folia-LX $TAG" --draft \
+                --notes "Folia-LX $TAG（Windows 安装包与 Android APK）。不含任何音源脚本，仅供个人学习研究。" && exit 0
+            fi
+            sleep $(( attempt * 10 ))
+          done
+          exit 1
+
+      - name: Push failure logs to ci-logs branch
+        if: failure()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          URL="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+          rm -rf /tmp/logs
+          if ! git clone -q --depth 1 -b ci-logs "$URL" /tmp/logs 2>/dev/null; then
+            mkdir -p /tmp/logs && cd /tmp/logs && git init -q -b ci-logs && git remote add origin "$URL" && cd -
+          fi
+          rm -rf /tmp/logs/android && mkdir -p /tmp/logs/android
+          cp -r ci-logs/. /tmp/logs/android/ 2>/dev/null || true
+          cd /tmp/logs
+          echo "run ${{ github.run_id }} (android)" > android/RUN.txt
+          git config user.name "folia-lx-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A && git commit -qm "android logs for run ${{ github.run_id }}"
+          for attempt in 1 2 3; do
+            git push -q origin HEAD:ci-logs && exit 0
+            git pull -q --rebase origin ci-logs || true
+          done
+          git push -f -q origin HEAD:ci-logs

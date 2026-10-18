@@ -61,7 +61,9 @@
     "contributors:add": "npx all-contributors-cli add",
     "contributors:generate": "npx all-contributors-cli generate",
     "models:fetch": "node build/fetchModels.mjs",
-    "manual:ai-probe": "node test/manual/ai_probe.mjs"
+    "manual:ai-probe": "node test/manual/ai_probe.mjs",
+    "build:lx-android": "node dev/lx/bundleAndroidLx.mjs",
+    "build:android": "cross-env VITE_FOLIA_TARGET=android vite build && cap sync android"
   },
   "build": {
     "appId": "top.izuna.foliamajor",
@@ -211,6 +213,8 @@
     }
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.5",
     "@google/genai": "^2.24.0",
     "@neteasecloudmusicapienhanced/api": "4.41.1",
     "@xhayper/discord-rpc": "^1.5.1",
@@ -233,6 +237,8 @@
   },
   "devDependencies": {
     "@applemusic-like-lyrics/ttml": "^1.0.1",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
     "@chenglou/pretext": "^0.0.9",
     "@emnapi/core": "1.11.3",
     "@emnapi/runtime": "1.11.3",

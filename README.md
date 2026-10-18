@@ -23,7 +23,7 @@ Folia-LX 是 [Folia（chthollyphile/folia-major）](https://github.com/chthollyp
 - **音质**：按播放器的音质设置（标准 / 高 / 无损 / Hi-Res 对应 `128k / 320k / flac / flac24bit`），或在 LX 设置里固定一档；脚本或歌曲没有这一档时自动降一档。
 - **失败换源**：脚本取不到某首歌的地址时，按歌名、歌手、专辑、时长在脚本支持的其他子源里找同一首歌再试（移植自 LX 的 `findMusic`），可以在设置里关掉。
 
-只在桌面版（Electron）里可用；网页版里这个平台显示为不可用。
+桌面版（Electron）和安卓版（见下文“安卓版”）里可用；网页版里这个平台显示为不可用。
 
 ## 导入自定义源脚本
 
@@ -65,6 +65,55 @@ Folia-LX 是 [Folia（chthollyphile/folia-major）](https://github.com/chthollyp
 - 导出文件里很多歌没有封面（LX 常把 `picUrl` 留空）。导入后在后台补全：每次 3–4 首，按歌曲的子源用 musicSdk 的 `getPic` 取封面，取到的写回保存的歌曲；设置页这一行显示“正在补全封面 n/N”，完成后首页歌单刷新。取不到的留空，本次运行不再重试（下次启动打开列表时会再试一次）。歌单封面用第一首有封面的歌的封面。
 - 导入的列表保存在应用数据目录的 `lx-my-lists/` 里。
 
+## 安卓版
+
+Folia-LX 也有安卓 APK（`Folia-LX-<版本>-android.apk`，和 Windows 安装包放在同一个 Release 里）。界面、歌词和视觉效果就是 Folia 本身；LX 的部分（聚合搜索、歌单、歌词、封面、自定义源脚本、导入洛雪歌单、失败换源）和桌面版是同一份代码。
+
+### 安装和使用
+
+1. 在手机上下载 APK，点开安装。第一次安装时系统会提示“禁止安装未知来源应用”：按提示进入设置，允许当前浏览器（或文件管理器）“安装未知应用”，再回来点“安装”。部分手机还会弹出“风险提示 / 纯净模式”，选“继续安装”。
+2. 打开 Folia LX，默认平台就是 **“LX Music 聚合”**。
+3. 导入自定义源脚本：**设置 → 连接与集成 → LX Music 音源**：
+   - **从文件导入**：点“选择 .js 文件”，在系统文件选择器里找到脚本（通常在“下载”目录）；
+   - **从网址导入**：粘贴脚本的 http(s) 地址，点“导入”。
+   状态行显示“脚本已就绪：kw / tx / …”就可以播放了。
+4. 导入洛雪歌单：同一页点 **“导入洛雪歌单（.lxmc / .json）”**，在文件选择器里选从 LX Music 导出的 `.lxmc` 文件（先把文件传到手机上，例如“下载”目录）。导入后在首页“歌单”页签里。
+
+### 和桌面版的区别
+
+- 只有 LX Music 聚合可用。酷狗、QQ 音乐、波点、YouTube Music、Spotify 依赖桌面主进程，安卓版不显示；网易云只有在构建时设置了 `VITE_NETEASE_API_BASE` 才显示（默认的 APK 没有设置）。
+- 自定义源脚本运行在一个 Web Worker 里：没有 DOM、没有 `fetch` / `XMLHttpRequest`，网络只有 `lx.request`（走安卓原生 HTTP）。API 与桌面版相同（`lx.env` 为 `desktop`）。
+- 脚本、设置和导入的歌单保存在应用私有目录的 `folia-lx/` 下（卸载应用会一起删除）。
+- 播放：脚本给出的音频地址和五个平台的封面由原生层代取并加上 CORS 头（相当于桌面版的 `mediaCors.cjs`），所以 Folia 的频谱和取色照常工作。没有锁屏 / 通知栏播放控制；切到后台后，系统可能会暂停或结束应用。
+- 本地音乐、桌面歌词、壁纸、OBS 等桌面功能在安卓版里不可用。
+
+### 签名
+
+APK 用仓库里的固定密钥 `packaging/android/folia-lx.keystore` 签名（PKCS12，别名 `folia-lx`，密码 `REMOVED`，写在 `android/app/build.gradle`），这样新版本可以直接覆盖安装旧版本。这是个人私有仓库的做法：任何能读这个仓库的人都能用这把钥匙签出“Folia LX”，不要把仓库公开。应用 ID 为 `top.izuna.foliamajor.lx`。
+
+### 代码
+
+| 位置 | 内容 |
+| --- | --- |
+| `capacitor.config.json`、`android/` | Capacitor 8 安卓工程（`npx cap add android` 生成后修改） |
+| `android/app/src/main/java/top/izuna/foliamajor/lx/` | `LxNativePlugin`（原生 HTTP，OkHttp）、`LxWebViewClient` + `LxMediaPolicy`（音频与封面的 CORS 代理） |
+| `capacitor/lx/` | 安卓适配层：`androidCore.js`（把桌面版桥接接到 WebView 里）、`scriptWorker.js`（脚本 Worker）、`lxHttpMobile.js`、`shims/`（fs / path / crypto / zlib / vm 替身），见 `capacitor/lx/NOTICE.md` |
+| `src/services/onlineMusic/lx/android/` | `lxAndroidBridge.ts`（原生 HTTP、文件保存、文件选择、Worker），`generated/`（`npm run build:lx-android` 的产物） |
+| `src/utils/androidApp.ts` | 判断是否安卓版（构建变量 `VITE_FOLIA_TARGET=android`） |
+
+### 构建 APK
+
+需要 Node.js 24、JDK 21、Android SDK（compileSdk 36）。
+
+```bash
+npm ci
+npm run build:lx-android        # 改了 electron/lx/ 或 capacitor/lx/ 之后
+npm run build:android           # VITE_FOLIA_TARGET=android vite build && cap sync android
+cd android && ./gradlew assembleRelease   # 产物：android/app/build/outputs/apk/release/app-release.apk
+```
+
+推送 `v*` 标签时，`.github/workflows/REMOVED.yml` 在 Ubuntu 上构建 APK，附到同名的草稿 Release（与 Windows 工作流共用）；失败时把日志推到 `ci-logs` 分支的 `android/` 目录。
+
 ## 构建
 
 需要 Node.js 24 或更高版本。
@@ -94,7 +143,7 @@ npm run build:lx-sdk     # 生成 electron/lx/musicSdk/lxMusicSdk.cjs
 
 ### GitHub Actions
 
-推送 `v*` 标签（例如 `git tag v0.1.0 && git push origin v0.1.0`）会触发 `.github/workflows/folia-lx-windows.yml`：在 Windows 上构建 NSIS 安装包，上传为构建产物，并附到同名的**草稿** Release。安装包的应用 ID 和产品名（`Folia LX`）与官方 Folia 不同，不会覆盖已安装的官方版本。上游原有的工作流保持不变，在分支仓库里可能因为缺少密钥而跳过或失败，可以按需在仓库设置里停用。
+推送 `v*` 标签（例如 `git tag v0.1.0 && git push origin v0.1.0`）会触发 `.github/workflows/folia-lx-windows.yml` 和 `REMOVED.yml`（见上文“安卓版”）。Windows 工作流：在 Windows 上构建 NSIS 安装包，上传为构建产物，并附到同名的**草稿** Release。安装包的应用 ID 和产品名（`Folia LX`）与官方 Folia 不同，不会覆盖已安装的官方版本。上游原有的工作流保持不变，在分支仓库里可能因为缺少密钥而跳过或失败，可以按需在仓库设置里停用。
 
 ## 代码在哪
 

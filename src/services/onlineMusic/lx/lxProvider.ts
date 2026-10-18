@@ -11,7 +11,7 @@ import { lxCatalog } from './lxCatalog';
 import { LX_LOCAL_USER, normalizeLxMyList, readLxMyLists } from './lxMyLists';
 
 // src/services/onlineMusic/lx/lxProvider.ts
-// LX Music (洛雪音乐) as an Omni provider, desktop only. Search, song lists, lyrics and covers come from
+// LX Music (洛雪音乐) as an Omni provider, on desktop and in the Android app (lx/android/). Search, song lists, lyrics and covers come from
 // the LX musicSdk ported into the main process (electron/lx/musicSdk); the audio URL of a song comes from
 // the custom source script the listener imported in settings (no script ships with Folia-LX). Search is
 // over one sub-source (kw/kg/tx/wy/mg) or all of them, as set in settings; where the script fails for
