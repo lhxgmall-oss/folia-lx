@@ -14,6 +14,7 @@ import { analyseTrackOffThread, melSpectrogramOffThread } from './analysisOffThr
 import { analyseBeatGrid, canRunBeatThis } from '../analysis/beatThis';
 import { getTrackBeatGrid } from '../analysis/beatGrid';
 import { decodeAtRate, readLocalTrackFile, toMidSide } from '../analysis/trackAudio';
+import { decodeTrackAtRate, putTrackBytes } from '../analysis/trackBytes';
 import {
     measureEdges,
     PROFILE_SAMPLE_RATE,
@@ -395,12 +396,17 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                 return;
             }
             skipped.delete(songKey);
+            // The whole song, read or downloaded under this file's rules, is kept for 智能动感模式 and
+            // the stems (analysis/trackBytes.ts), so neither reads or streams it again. Only kept from
+            // here, never taken: this read's download is also the media-cache write above, which a
+            // copy handed over from elsewhere would skip.
+            if (!result.partial) putTrackBytes(songKey, result.bytes);
             // Asked a second time, because reading the bytes is the slow part: a full track off the
             // media cache or the network is seconds, and everything after this line - the decode, the
             // spectrogram, the beat model - is the expensive part it would be buying for nobody.
             if (!wanted.has(songKey)) return;
 
-            const buffer = await decodeAtRate(result.bytes, PROFILE_SAMPLE_RATE);
+            const buffer = await decodeTrackAtRate(songKey, PROFILE_SAMPLE_RATE, result.bytes, decodeAtRate, 'automix profile', 'own');
             const channels = buffer ? toMidSide(buffer) : null;
             // The beat grid, from a model rather than autocorrelation, when this build has one. Asked
             // for here rather than inside `analyseTrack` because it is the impure step - it crosses

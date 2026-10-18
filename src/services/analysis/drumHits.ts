@@ -6,6 +6,7 @@ import { createDrumBandStream, type DrumBands } from './drumHitStream';
 import { separateDrumStem } from './drumStem';
 import { modelCanRun } from './modelAvailability';
 import { decodeAtRate } from './trackAudio';
+import { decodeTrackAtRate } from './trackBytes';
 
 // src/services/analysis/drumHits.ts
 // A whole track's drum hits, read off htdemucs' drum stem (drumStem.ts, the renderer's GPU) and kept:
@@ -287,7 +288,7 @@ const remember = (key: string, analysis: DrumAnalysis, note: string) => {
 
 const separateAndRead = async (key: string, bytes: ArrayBuffer): Promise<DrumAnalysis | null> => {
     const started = performance.now();
-    const buffer = await decodeAtRate(bytes, STEM_RATE);
+    const buffer = await decodeTrackAtRate(key, STEM_RATE, bytes, decodeAtRate, 'drum hits', 'own');
     if (!buffer) return null;
     const left = buffer.getChannelData(0);
     const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;

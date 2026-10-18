@@ -2,11 +2,11 @@ import type { SongResult } from '../../types';
 import { getPlaybackSongKey, getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { onAudioCached } from '../audioCache';
 import { hasProviderKeptSongAudio } from '../onlineMusic/providerRegistry';
-import { getCachedSongAudioBlob } from '../onlineMusic/resourceCache';
 import { getSongResourceCacheKey } from '../onlineMusic/resourceKeys';
 import type { PlaybackRepresentation } from '../../types/playbackRecovery';
 import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
-import { whyNotTheSong } from '../wholeSongCheck';
+import { decodeAtRate, readLocalTrackBytes } from '../analysis/trackAudio';
+import { decodeTrackAtRate, loadTrackBytes, type TrackBytesSource } from '../analysis/trackBytes';
 import { canRunBeatThis } from '../analysis/beatThis';
 import { modelCanRun, noteModelFailed } from '../analysis/modelAvailability';
 import { profilesSettled } from './profileService';
@@ -402,61 +402,36 @@ export const getStemsByKey = (key: string | null, role: StemRole): TrackStems | 
  *
  * Deliberately narrower than profileService's version, which is allowed to move a download earlier.
  * Separation is not worth a byte of anyone's bandwidth, so this reads the media cache, a local URL
- * already in hand, or - for a local track with no URL - the file straight off its own handle
- * (`readBytes`), and gives up otherwise.
+ * already in hand, a file its provider keeps, or - for a local track with no URL - the file straight
+ * off its own handle (`readBytes`), and gives up otherwise: the shared local ladder
+ * (analysis/trackAudio.ts), through analysis/trackBytes.ts, so bytes another analyser already read -
+ * automix's profile download, 智能动感模式's stream read - are handed over instead of waited for.
  */
 const readLocalBytes = async (
     request: StemRequest,
+    key: string,
     representation: PlaybackRepresentation | null,
-): Promise<ArrayBuffer | null> => {
+): Promise<{ bytes: ArrayBuffer | null; source: TrackBytesSource }> => {
     const { song, audioUrl } = request;
-    if (representation) {
-        try {
-            const response = await fetch(representation.url);
-            // An evicted transcode answers 404 with a text body, which must never reach the decoder.
-            if (!response.ok) throw new Error(`representation responded ${response.status}`);
-            return await response.arrayBuffer();
-        } catch {
-            return null;
-        }
-    }
-    const cached = await getCachedSongAudioBlob(song);
-    if (cached) {
+    return loadTrackBytes(key, async () => {
+        const found = await readLocalTrackBytes(song, {
+            representation,
+            audioUrl,
+            // No reader of its own: the registered one is asked for a local track, as before.
+            ...(request.readBytes ? { readLocalFile: request.readBytes } : {}),
+            // An online URL is left alone - separation never downloads - unless its provider keeps
+            // the file on this machine itself: reading that URL is then a read of the kept file.
+            mayReadOnlineUrl: url => hasProviderKeptSongAudio(song, url),
+        });
+        if (found && 'bytes' in found) return found.bytes;
         // A copy under half the song (a clip a version before wholeSongCheck.ts kept) is not
         // separated: its window is not the song's. The request waits as for no copy, and the song's
-        // own file wakes it when it is stored. A marked clip never reaches the media cache, and its
-        // URL is an online one, which is never read here.
-        const notTheSong = await whyNotTheSong(song, null, cached);
-        if (!notTheSong) return cached.arrayBuffer();
-        explainOnce(`${keyOf(song, request.role)}:not-the-song`, `[Automix] not separating the ${request.role} of "${song.name}": the copy in the media cache is ${notTheSong}`);
-        return null;
-    }
-
-    // A local URL already in hand: the outgoing track plays from a blob: URL, so its tail reads
-    // straight off that. An online URL is left alone - separation never downloads - unless its
-    // provider keeps the file on this machine itself: reading that URL is then a read of the kept
-    // file, not a download.
-    if (audioUrl) {
-        const isLocalUrl = audioUrl.startsWith('blob:') || audioUrl.startsWith('file:')
-            || getPlaybackSourceRef(song).kind !== 'online';
-        if (!isLocalUrl && !await hasProviderKeptSongAudio(song, audioUrl)) return null;
-        try {
-            const response = await fetch(audioUrl);
-            // A URL the provider no longer honours answers with a status and no audio.
-            if (!isLocalUrl && !response.ok) return null;
-            return await response.arrayBuffer();
-        } catch {
-            return null;
+        // own file wakes it when it is stored.
+        if (found && found.skipped.startsWith('the copy in the media cache is')) {
+            explainOnce(`${keyOf(song, request.role)}:not-the-song`, `[Automix] not separating the ${request.role} of "${song.name}": ${found.skipped}`);
         }
-    }
-
-    // No cached bytes and no URL. The incoming head of a local track has neither - prefetchSong skips
-    // local files, so it never gets a prefetch URL, and no media-cache event will ever wake a parked
-    // request for a file that was always on disk. `readBytes` reads it from its own handle instead;
-    // this is the entry local-to-local transitions were missing, the whole of the "waiting... not in
-    // the media cache yet" loop that never resolved.
-    if (request.readBytes) return request.readBytes();
-    return null;
+        return null;
+    });
 };
 
 export interface StemRequest {
@@ -496,16 +471,11 @@ export interface StemRequest {
  * Decoded at the model's rate rather than the context's, because the model's rate is not negotiable
  * and resampling twice to land back where we started would only add error.
  */
-const cutWindow = async (bytes: ArrayBuffer, role: StemRole) => {
-    const OfflineContext = window.OfflineAudioContext;
-    if (!OfflineContext) return null;
-    let decoded: AudioBuffer;
-    try {
-        decoded = await new OfflineContext(1, 1, STEM_SAMPLE_RATE).decodeAudioData(bytes);
-    } catch (error) {
-        console.warn('[Automix] could not decode a track for separation', error);
-        return null;
-    }
+const cutWindow = async (key: string, bytes: ArrayBuffer, source: TrackBytesSource, role: StemRole) => {
+    // The same decode as the drum hits' (analysis/trackAudio.ts decodeAtRate, at the model's rate),
+    // joined with it when both ask at once (analysis/trackBytes.ts); shared, so only read here.
+    const decoded = await decodeTrackAtRate(key, STEM_SAMPLE_RATE, bytes, decodeAtRate, `stems ${role}`, source);
+    if (!decoded) return null;
 
     const total = decoded.length;
     const windowLength = Math.min(total, Math.round(STEM_WINDOW_SEC * STEM_SAMPLE_RATE));
@@ -575,7 +545,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
         await profilesSettled();
 
         const started = performance.now();
-        const bytes = await readLocalBytes(request, target.representation);
+        const { bytes, source } = await readLocalBytes(request, target.key, target.representation);
         if (!bytes) {
             // A local file the handle could not reach - permission not restored, moved, or deleted.
             // NOT parked: nothing fires a media-cache event for a local file, so a parked request would
@@ -595,7 +565,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             return;
         }
 
-        const cut = await cutWindow(bytes, request.role);
+        const cut = await cutWindow(target.key, bytes, source, request.role);
         if (!cut) return;
         const { left, right, start } = cut;
         const windowLength = left.length;

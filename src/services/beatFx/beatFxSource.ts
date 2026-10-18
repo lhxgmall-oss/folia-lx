@@ -4,6 +4,8 @@ import { getTrackBeatAccents, getTrackBeatGrid } from '../analysis/beatGrid';
 import { getDrumHits, loadStoredDrumHits, loadTrackDrumHits, setWantedDrumTrack } from '../analysis/drumHits';
 import { BEAT_THIS_SAMPLE_RATE, canRunBeatThis } from '../analysis/beatThis';
 import { decodeAtRate, readLocalTrackBytes, toMidSide } from '../analysis/trackAudio';
+import { decodeTrackAtRate, loadTrackBytes, type TrackBytesSource } from '../analysis/trackBytes';
+import { whyNotTheSong } from '../wholeSongCheck';
 import { getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
 import { isCacheableAudioResponse } from '../playbackRecovery/mediaCacheGuard';
 import { getPrefetchedData, isUrlValid } from '../prefetchService';
@@ -24,7 +26,11 @@ import type { PlaybackRepresentation } from '../../types/playbackRecovery';
 // prefetch entry for that very song, never another's): its beats arrive a few seconds into its first
 // play instead of on its second (the user chose this over waiting, 2026-10-17). Only analysed, not
 // cached: the media cache keeps its own rule of fully played tracks. Before playback has resolved
-// that URL there are no bytes yet, and `retry` says so.
+// that URL there are no bytes yet, and `retry` says so. A stream that is not the whole song (a
+// preview clip, wholeSongCheck.ts) is not analysed: its beats would be stored as the song's.
+//
+// The bytes are read once for the beats, the drum hits and automix alike (analysis/trackBytes.ts):
+// whichever asks first reads them, the others are handed a copy.
 //
 // The run is on the renderer's GPU only - the beat FX never ask for the CPU fallback automix may use -
 // so a machine whose GPU cannot take it gets no beats - and the visualizer its original picture - rather than a CPU inference competing
@@ -73,7 +79,14 @@ const readStreamedTrackBytes = async (song: SongResult): Promise<ArrayBuffer | n
         const response = await fetch(url);
         const blob = await response.blob();
         // An error page or a cut-off download decoded would be stored as this track's beats.
-        return isCacheableAudioResponse(response, blob) ? await blob.arrayBuffer() : null;
+        if (!isCacheableAudioResponse(response, blob)) return null;
+        // Kept for automix too (trackBytes.ts), whose rule is the whole song only.
+        const notTheSong = await whyNotTheSong(song, url, blob);
+        if (notTheSong) {
+            console.info(`[BeatFx] not analysing the stream: it is ${notTheSong}`);
+            return null;
+        }
+        return await blob.arrayBuffer();
     } catch (error) {
         console.warn('[BeatFx] could not read the stream for beats', error);
         return null;
@@ -85,17 +98,27 @@ interface TrackBytes {
     bytes: ArrayBuffer | null;
     /** Why there are none, when there are none. */
     note?: string;
+    /** Where they came from (trackBytes.ts), for the decode's log line. */
+    source: TrackBytesSource;
 }
 
-/** The track's bytes as `key` names them: the representation's, or the local copy, or its stream. */
-const readTrackBytes = async (song: SongResult, representation: PlaybackRepresentation | null): Promise<TrackBytes> => {
-    const found = await readLocalTrackBytes(song, { representation });
-    let bytes = found && 'bytes' in found ? found.bytes : null;
-    // A representation's bytes are what the key names; an online track's stream is read only
-    // when there is none.
-    if (!bytes && !representation) bytes = await readStreamedTrackBytes(song);
-    if (bytes) return { bytes };
-    return { bytes: null, note: found && 'skipped' in found ? found.skipped : 'track not cached yet, and no stream URL resolved' };
+/**
+ * The track's bytes as `key` names them: the representation's, or the local copy, or its stream -
+ * or another analyser's read of them (trackBytes.ts).
+ */
+const readTrackBytes = async (song: SongResult, key: string, representation: PlaybackRepresentation | null): Promise<TrackBytes> => {
+    let note: string | undefined;
+    const { bytes, source } = await loadTrackBytes(key, async () => {
+        const found = await readLocalTrackBytes(song, { representation });
+        let read = found && 'bytes' in found ? found.bytes : null;
+        // A representation's bytes are what the key names; an online track's stream is read only
+        // when there is none.
+        if (!read && !representation) read = await readStreamedTrackBytes(song);
+        if (!read) note = found && 'skipped' in found ? found.skipped : undefined;
+        return read;
+    });
+    if (bytes) return { bytes, source };
+    return { bytes: null, note: note ?? 'track not cached yet, and no stream URL resolved', source };
 };
 
 const resolveTrackBeats = async (
@@ -108,12 +131,12 @@ const resolveTrackBeats = async (
     let retry = false;
     let grid: Awaited<ReturnType<typeof getTrackBeatGrid>>;
     const readBytes = async () => {
-        const read = await readTrackBytes(song, representation);
+        const read = await readTrackBytes(song, key, representation);
         if (!read.bytes) {
             note = read.note ?? note;
             retry = true;
         }
-        return read.bytes;
+        return read;
     };
     const readMid = async () => {
         // Asked before the read and the decode, which are seconds of work for nobody without one.
@@ -121,9 +144,9 @@ const resolveTrackBeats = async (
             note = 'no WebGPU in this renderer';
             return null;
         }
-        const bytes = await readBytes();
-        if (!bytes) return null;
-        const buffer = await decodeAtRate(bytes, BEAT_THIS_SAMPLE_RATE);
+        const read = await readBytes();
+        if (!read.bytes) return null;
+        const buffer = await decodeTrackAtRate(key, BEAT_THIS_SAMPLE_RATE, read.bytes, decodeAtRate, 'beats', read.source);
         if (!buffer) {
             note = 'decode failed';
             return null;
@@ -208,7 +231,7 @@ export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false } = 
     setWantedDrumTrack(key);
     let missing = false;
     const readBytes = async () => {
-        const read = await readTrackBytes(song, representation);
+        const read = await readTrackBytes(song, key, representation);
         if (!read.bytes) missing = true;
         return read.bytes;
     };
