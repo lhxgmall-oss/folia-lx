@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { LYRICS_FONT_SCALE_MAX, LYRICS_FONT_SCALE_MIN } from '../../../utils/lyricsFontScaleLimits';
 import { type Theme, type SubtitleContentMode, type VisualizerBackgroundMode, type VisualizerMode } from '../../../types';
 import { Button, Group, PictureGrid, Reveal, Row, Segmented, Select, Tabs, Value, type PictureState } from '../../modal/settings/kit';
 import type { SettingsGroupDef } from '../../modal/settings/kit';
@@ -362,8 +363,8 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                                 label={t('options.fontSize')}
                                 disabled={lyricsFontSizeAutoNoticeKey !== null}
                                 value={fontScale}
-                                min={0.85}
-                                max={1.4}
+                                min={LYRICS_FONT_SCALE_MIN}
+                                max={LYRICS_FONT_SCALE_MAX}
                                 step={0.05}
                                 marks={fontScaleMarks}
                                 format={percent}

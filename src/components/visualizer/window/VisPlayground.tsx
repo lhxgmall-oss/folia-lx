@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { LYRICS_FONT_SCALE_DEFAULT } from '../../../utils/lyricsFontScaleLimits';
+import { IS_ANDROID_BUILD } from '../../../utils/androidApp';
 import { motion } from 'framer-motion';
 import { Pause, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -97,6 +99,7 @@ const PREVIEW_THEME: Theme = {
 };
 
 const FONT_SCALE_OPTIONS: PresetOption<number>[] = [
+    ...(IS_ANDROID_BUILD ? [{ label: '60%', value: 0.6 }, { label: '70%', value: 0.7 }, { label: '80%', value: 0.8 }] : []),
     { label: '90%', value: 0.9 },
     { label: '100%', value: 1 },
     { label: '110%', value: 1.1 },
@@ -408,13 +411,13 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
         gate.forget('fontScale');
         gate.forget('fontWeight');
         gate.forget('visualizerOpacity');
-        setDraftFontScale(1);
+        setDraftFontScale(LYRICS_FONT_SCALE_DEFAULT);
         setDraftFontWeight(null);
         setDraftVisualizerOpacity(1);
         onCustomFontChange(null);
         onFontFallbackFamiliesChange?.([]);
         onFontStyleChange('sans');
-        onFontScaleChange(1);
+        onFontScaleChange(LYRICS_FONT_SCALE_DEFAULT);
         onFontWeightChange(null);
         onVisualizerOpacityChange?.(1);
     };

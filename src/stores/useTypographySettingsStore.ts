@@ -11,6 +11,7 @@ import { clearUploadedLyricsFont, uploadAndRegisterLyricsFont } from '../service
 import { type StatusMessage, type StoredCustomLyricsFont, type SubtitleContentMode, type Theme } from '../types';
 import { normalizeFontFamilyStack, normalizeFontWeight } from '../utils/fontStacks';
 import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
+import { clampLyricsFontScale, LYRICS_FONT_SCALE_DEFAULT } from '../utils/lyricsFontScaleLimits';
 import { setStatusMessage } from './useStatusMessageStore';
 
 export const SUBTITLE_OVERLAY_OPACITY_STORAGE_KEY = 'subtitle_overlay_opacity';
@@ -85,6 +86,12 @@ const readStoredFontScale = (key: string): number => {
     if (!Number.isFinite(parsed)) return 1;
 
     return Math.min(1.4, Math.max(0.85, parsed));
+};
+
+const readStoredLyricsFontScale = (): number => {
+    if (typeof window === 'undefined') return LYRICS_FONT_SCALE_DEFAULT;
+    const parsed = parseFloat(localStorage.getItem('lyrics_font_scale') ?? '');
+    return Number.isFinite(parsed) ? clampLyricsFontScale(parsed) : LYRICS_FONT_SCALE_DEFAULT;
 };
 
 const readStoredFontWeight = (key: string): number | null => {
@@ -238,7 +245,7 @@ export const useTypographySettingsStore = create<TypographySettingsState>((set, 
     showHarmonySubtitle: getStoredBoolean(SHOW_HARMONY_SUBTITLE_STORAGE_KEY, true),
     harmonySubtitleBackground: getStoredBoolean(HARMONY_SUBTITLE_BACKGROUND_STORAGE_KEY, true),
     lyricsFontStyle: readStoredLyricsFontStyle(),
-    lyricsFontScale: readStoredFontScale('lyrics_font_scale'),
+    lyricsFontScale: readStoredLyricsFontScale(),
     lyricsFontWeight: readStoredFontWeight(LYRICS_FONT_WEIGHT_STORAGE_KEY),
     lyricsCustomFont: readStoredCustomLyricsFont(),
     lyricsFontFallbackFamilies: readStoredFontFamilyStack(LYRICS_FONT_FALLBACK_FAMILIES_STORAGE_KEY),
@@ -317,7 +324,7 @@ export const useTypographySettingsStore = create<TypographySettingsState>((set, 
         set({ lyricsFontStyle: fontStyle });
     },
     handleSetLyricsFontScale: (fontScale) => {
-        const next = Math.min(1.4, Math.max(0.85, fontScale));
+        const next = clampLyricsFontScale(fontScale);
         if (typeof window !== 'undefined') {
             localStorage.setItem('lyrics_font_scale', String(next));
         }
