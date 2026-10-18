@@ -33,6 +33,47 @@ beforeEach(() => {
     api.getPersonalFm.mockResolvedValue(songs);
 });
 describe('home radio provider binding', () => {
+    it('discards songs from an earlier card while the newer scene is still loading', async () => {
+        const first = deferred<SongResult[]>();
+        const second = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+        const { actions, play } = setup();
+        const open = () => actions.openOnlineCard({ id: 'scene-33', name: 'Driving', type: 'radio', raw: { personalFm: selection } }, 'qishui', vi.fn());
+        const earlier = open();
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
+        const latest = open();
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(2));
+        first.resolve(songs);
+        await earlier;
+        expect(play).not.toHaveBeenCalled();
+        const latestSongs = [{ id: 's2' }] as SongResult[];
+        second.resolve(latestSongs);
+        await latest;
+        expect(play).toHaveBeenCalledExactlyOnceWith(latestSongs[0], latestSongs, true);
+    });
+    it('does not restore an earlier card when the latest scene returns no songs', async () => {
+        const pending = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(pending.promise).mockResolvedValueOnce([]);
+        const { actions, play } = setup();
+        const open = () => actions.openOnlineCard({ id: 'scene-33', name: 'Driving', type: 'radio', raw: { personalFm: selection } }, 'qishui', vi.fn());
+        const earlier = open();
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
+        await open();
+        pending.resolve(songs);
+        await earlier;
+        expect(play).not.toHaveBeenCalled();
+    });
+    it('discards an earlier catalogue before it can overwrite the newer selection', async () => {
+        const pending = deferred<typeof catalog>();
+        api.getPersonalFmCatalog.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(catalog);
+        const { port } = setup();
+        const earlier = port.getPersonalFm(selection);
+        await port.getPersonalFm({ mode: 'DEFAULT', scene: null });
+        pending.resolve(catalog);
+        expect(await earlier).toEqual([]);
+        expect(api.getPersonalFm).toHaveBeenCalledTimes(1);
+        expect(usePersonalFmModeStore.getState().providerSelections.qishui).toEqual({ mode: 'DEFAULT', scene: null });
+    });
     it('keeps a selected scene and starts its own stream when the provider stays put', async () => {
         const { port } = setup();
         expect(await port.getPersonalFm(selection)).toEqual(songs);

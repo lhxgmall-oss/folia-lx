@@ -22,52 +22,58 @@ import {
 
 type HomePortSurface = Pick<HomeSurfaceProps, 'localSongs' | 'onRefreshLocalSongs' | 'onStatusMessage' | 'onPlaySong'>;
 
-export const createLibraryHomePort = (getSurface: () => HomePortSurface): LibraryHomePort => ({
-    localAvailability: () => getLocalLibraryAvailability(),
-    importFolder: async () => (await importFolder()).length,
-    resyncAllFolders: async () => (await resyncAllFolders())?.length ?? 0,
-    importPlaylistFile: async (file) => {
-        const result = await importLocalPlaylistFile(file, getSurface().localSongs);
-        return {
-            playlistName: result.playlist?.name ?? null,
-            matchedCount: result.matchedSongIds.length,
-            skippedCount: result.unmatchedPaths.length + result.ambiguousPaths.length,
-        };
-    },
-    refreshLocalSongs: () => getSurface().onRefreshLocalSongs(),
-    subscribeScanProgress: (listener) => {
-        const handleScanProgress = (event: Event) => {
-            listener((event as CustomEvent<LibraryHomeScanProgress>).detail ?? null);
-        };
-        window.addEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
-        return () => window.removeEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
-    },
-    getPersonalFm: async (selection, cardProviderId) => {
-        const activeProvider = () => useOnlineProviderAccountStore.getState().activeProviderId;
-        const providerId = cardProviderId ?? activeProvider();
-        if (activeProvider() !== providerId) return [];
-        let options;
-        if (selection) {
-            const catalog = await omni.getPersonalFmCatalog(providerId);
-            // A card belongs to the provider that displayed it, even if the listener switches meanwhile.
-            if (activeProvider() !== providerId) return [];
-            usePersonalFmModeStore.getState().setCatalog(providerId, catalog);
-            const applied = usePersonalFmModeStore.getState().setProviderSelection(providerId, selection);
-            options = toPersonalFmRequestOptions(applied);
-        }
-        const songs = await omni.getPersonalFm(options);
-        return activeProvider() === providerId ? songs : [];
-    },
-    playPersonalFm: (song, queue) => getSurface().onPlaySong(song, queue, true),
-    describeOnlineCollection: (collection, providerId) => createOnlineGridViewCollection(collection, providerId),
-    describeLocalGroup: group => createLocalGridViewCollection(group),
-    describeNavidromeCard: (card, type) => createNavidromeGridViewCollection(card, type),
-    notify: (notice) => {
-        const text = translateHomeMessage(i18n.t, notice.message);
-        if (notice.kind === 'alert') {
-            alert(text);
-            return;
-        }
-        getSurface().onStatusMessage?.({ type: notice.type, text });
-    },
-});
+export const createLibraryHomePort = (getSurface: () => HomePortSurface): LibraryHomePort => {
+    // A later card click supersedes both catalogue loading and songs from the earlier click.
+    let personalFmRequest = 0;
+    return {
+        localAvailability: () => getLocalLibraryAvailability(),
+        importFolder: async () => (await importFolder()).length,
+        resyncAllFolders: async () => (await resyncAllFolders())?.length ?? 0,
+        importPlaylistFile: async (file) => {
+            const result = await importLocalPlaylistFile(file, getSurface().localSongs);
+            return {
+                playlistName: result.playlist?.name ?? null,
+                matchedCount: result.matchedSongIds.length,
+                skippedCount: result.unmatchedPaths.length + result.ambiguousPaths.length,
+            };
+        },
+        refreshLocalSongs: () => getSurface().onRefreshLocalSongs(),
+        subscribeScanProgress: (listener) => {
+            const handleScanProgress = (event: Event) => {
+                listener((event as CustomEvent<LibraryHomeScanProgress>).detail ?? null);
+            };
+            window.addEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
+            return () => window.removeEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
+        },
+        getPersonalFm: async (selection, cardProviderId) => {
+            const request = ++personalFmRequest;
+            const activeProvider = () => useOnlineProviderAccountStore.getState().activeProviderId;
+            const providerId = cardProviderId ?? activeProvider();
+            const stillCurrent = () => request === personalFmRequest && activeProvider() === providerId;
+            if (!stillCurrent()) return [];
+            let options;
+            if (selection) {
+                const catalog = await omni.getPersonalFmCatalog(providerId);
+                // A card belongs to the provider that displayed it, even if the listener switches meanwhile.
+                if (!stillCurrent()) return [];
+                usePersonalFmModeStore.getState().setCatalog(providerId, catalog);
+                const applied = usePersonalFmModeStore.getState().setProviderSelection(providerId, selection);
+                options = toPersonalFmRequestOptions(applied);
+            }
+            const songs = await omni.getPersonalFm(options);
+            return stillCurrent() ? songs : [];
+        },
+        playPersonalFm: (song, queue) => getSurface().onPlaySong(song, queue, true),
+        describeOnlineCollection: (collection, providerId) => createOnlineGridViewCollection(collection, providerId),
+        describeLocalGroup: group => createLocalGridViewCollection(group),
+        describeNavidromeCard: (card, type) => createNavidromeGridViewCollection(card, type),
+        notify: (notice) => {
+            const text = translateHomeMessage(i18n.t, notice.message);
+            if (notice.kind === 'alert') {
+                alert(text);
+                return;
+            }
+            getSurface().onStatusMessage?.({ type: notice.type, text });
+        },
+    };
+};

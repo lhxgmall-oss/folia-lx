@@ -25,6 +25,8 @@ interface LyricSourceEntry {
     platform: boolean;
     /** True when the source answers only with the listener's own account: it is on offer only while one is signed in. */
     needsAccount?: boolean;
+    /** True when this source requires its provider's runtime bridge or configuration. */
+    needsConfiguredProvider?: boolean;
     /**
      * True when its lyrics are timed by line only and come with no chorus data. The automatic pick
      * asks such a source only while no other source has given lines, keeps what it gives as the
@@ -40,7 +42,7 @@ const ENTRIES = [
     { id: 'amll', labelKey: 'lyricProvider.amll', platform: false },
     { id: 'qq', labelKey: 'lyricProvider.qq', platform: true },
     { id: 'kugou', labelKey: 'lyricProvider.kugou', platform: true },
-    { id: 'qishui', labelKey: 'lyricProvider.qishui', platform: true },
+    { id: 'qishui', labelKey: 'lyricProvider.qishui', platform: true, needsConfiguredProvider: true },
     { id: 'spotify', labelKey: 'lyricProvider.spotify', platform: true, needsAccount: true, linesOnly: true },
 ] as const satisfies readonly LyricSourceEntry[];
 
