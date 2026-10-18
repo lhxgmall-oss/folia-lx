@@ -92,6 +92,7 @@ import { useLocalLibraryAutoScan } from './hooks/useLocalLibraryAutoScan';
 import { useElectronVideoExportController } from './hooks/useElectronVideoExportController';
 import { useElectronWindowPlaybackHandoff } from './components/app/playback/restore/useElectronWindowPlaybackHandoff';
 import { useMediaSessionBridge } from './hooks/useMediaSessionBridge';
+import { IS_ANDROID_BUILD } from './utils/androidApp';
 import { usePlayerChromeAutoHide } from './hooks/usePlayerChromeAutoHide';
 import { useIdleCursorHide } from './hooks/useIdleCursorHide';
 import { usePlaybackAudioBridge } from './components/app/playback/bridges/usePlaybackAudioBridge';
@@ -710,6 +711,40 @@ export default function App() {
             setIsPlayerPanelGuideHotspotActive(previous => previous ? false : previous);
         }
     }, [isPanelOpen]);
+
+    // Android back button (MainActivity asks this first): close what is open on top, then let the
+    // WebView's history go back a page (Folia navigates with history.pushState), and only on the
+    // first page does the app go to the background (music keeps playing).
+    useEffect(() => {
+        if (!IS_ANDROID_BUILD) return undefined;
+        const w = window as unknown as { __foliaAndroidBack?: () => boolean };
+        w.__foliaAndroidBack = () => {
+            if (document.querySelector('[role="dialog"], [aria-modal="true"]')) {
+                const escape = { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true } as KeyboardEventInit;
+                (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', escape));
+                window.dispatchEvent(new KeyboardEvent('keydown', escape));
+                return true;
+            }
+            if (isPanelOpen) {
+                setIsPanelOpen(false);
+                return true;
+            }
+            if (useSearchNavigationStore.getState().isSearchOpen) {
+                closeSearchView();
+                return true;
+            }
+            if (window.history.length > 1 && window.history.state !== null && currentView !== 'home') {
+                window.history.back();
+                return true;
+            }
+            if (currentView !== 'home') {
+                navigateToHome();
+                return true;
+            }
+            return false;
+        };
+        return () => { delete w.__foliaAndroidBack; };
+    }, [closeSearchView, currentView, isPanelOpen, navigateToHome, setIsPanelOpen]);
 
     const {
         isSearchOpen,

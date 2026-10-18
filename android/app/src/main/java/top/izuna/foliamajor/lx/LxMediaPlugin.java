@@ -93,6 +93,7 @@ public class LxMediaPlugin extends Plugin {
         out.put("serviceRunning", LxPlaybackService.running != null);
         out.put("sessionActive", controller.sessionActive());
         out.put("lastError", controller.lastError);
+        out.put("artworkLoaded", controller.artworkLoaded());
         call.resolve(out);
     }
 

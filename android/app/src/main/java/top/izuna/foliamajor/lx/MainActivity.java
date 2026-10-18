@@ -46,6 +46,33 @@ public class MainActivity extends BridgeActivity {
             bridge.setWebViewClient(new LxWebViewClient(bridge));
             installInsetsListener(bridge);
         }
+        installBackHandler();
+    }
+
+    /**
+     * Back: the page decides first (window.__foliaAndroidBack in src/App.tsx closes a dialog or the
+     * panel, or goes back a page); on the first page the app goes to the background instead of
+     * closing, so music keeps playing.
+     */
+    private void installBackHandler() {
+        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Bridge bridge = getBridge();
+                WebView webView = bridge == null ? null : bridge.getWebView();
+                if (webView == null) {
+                    moveTaskToBack(true);
+                    return;
+                }
+                webView.evaluateJavascript(
+                    "(function(){try{return !!(window.__foliaAndroidBack&&window.__foliaAndroidBack());}catch(e){return false;}})()",
+                    result -> {
+                        if ("true".equals(result)) return;
+                        if (webView.canGoBack()) webView.goBack();
+                        else moveTaskToBack(true);
+                    });
+            }
+        });
     }
 
     private void installInsetsListener(Bridge bridge) {

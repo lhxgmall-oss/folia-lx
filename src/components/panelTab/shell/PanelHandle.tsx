@@ -54,7 +54,10 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
     const isGuideLineVisible = canSlideOpenCommandPalette && (showGuideLine || isPanelGuideHotspotActive);
     const toggleButtonMotionClass = (isOpen || isGuideLineVisible || isDragging)
         ? 'translate-x-0 opacity-100'
-        : supportsHover
+        : IS_ANDROID_BUILD
+            // Phone: half of it hid past the screen edge and read as cut off; show it whole.
+            ? 'translate-x-0 opacity-100'
+            : supportsHover
             ? 'translate-x-1/2 opacity-60 group-hover:translate-x-0 group-hover:opacity-100 md:translate-x-0 md:opacity-100 md:hover:scale-105'
             : 'translate-x-1/2 opacity-60';
     const setCommandDestinationFeedback = (progress: number) => {

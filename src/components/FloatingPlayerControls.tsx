@@ -178,8 +178,33 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     ));
 
     const canAutoExpand = canTogglePlay && duration > 0;
+    // Android（触屏）：点胶囊会触发模拟的 mouseenter，却永远等不到 mouseleave，胶囊展开后就收不回去；
+    // 暂停时它还会自动展开。点胶囊以外的地方就收起，并且这次暂停期间不再自动展开，直到再点胶囊或开始播放。
+    const [touchDismissed, setTouchDismissed] = useState(false);
+    useEffect(() => {
+        if (!IS_ANDROID_BUILD) return undefined;
+        const onPointerDown = (event: PointerEvent) => {
+            const target = event.target as Element | null;
+            if (target?.closest?.('[data-ponder="player-bar"]')) {
+                setTouchDismissed(false);
+                return;
+            }
+            if (expandTimeoutRef.current !== null) {
+                window.clearTimeout(expandTimeoutRef.current);
+                expandTimeoutRef.current = null;
+            }
+            setIsHovered(false);
+            setTouchDismissed(true);
+        };
+        document.addEventListener('pointerdown', onPointerDown, true);
+        return () => document.removeEventListener('pointerdown', onPointerDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    useEffect(() => {
+        if (playerState === PlayerState.PLAYING) setTouchDismissed(false);
+    }, [playerState]);
     // 定位模式强制展开：用户要看到的是最终形态的胶囊，而不是一条细进度条。
-    const showExpanded = isPositioning || isHovered || (canAutoExpand && playerState !== PlayerState.PLAYING && currentView !== 'home');
+    const showExpanded = isPositioning || isHovered || (canAutoExpand && playerState !== PlayerState.PLAYING && currentView !== 'home' && !(IS_ANDROID_BUILD && touchDismissed));
 
     // 上限依赖视口高度，窗口变矮时要跟着收，否则虚线框会画到屏幕外。
     useEffect(() => {

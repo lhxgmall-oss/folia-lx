@@ -35,6 +35,7 @@ export interface LxMediaNativeStatus {
     serviceRunning: boolean;
     sessionActive: boolean;
     lastError: string;
+    artworkLoaded: boolean;
 }
 
 interface LxMediaPlugin {
@@ -57,6 +58,7 @@ export const lxMediaDiagnostics = {
     lastError: '',
     lastTitle: '',
     lastState: '',
+    artwork: '',
 };
 
 export const readLxMediaNativeStatus = () => LxMedia.status();
@@ -108,7 +110,7 @@ const resolveArtwork = (metadata: MediaMetadata | null, onReady: () => void): st
         converting.add(other);
         void toDataUrl(other)
             .then(data => { convertedArtwork.set(other, data); })
-            .catch(error => { convertedArtwork.set(other, ''); console.warn('[LxMedia] artwork failed', error); })
+            .catch(error => { convertedArtwork.set(other, ''); lxMediaDiagnostics.lastError = `封面转换失败：${String(error?.message ?? error)}`; console.warn('[LxMedia] artwork failed', error); })
             .finally(() => { converting.delete(other); if (convertedArtwork.size > 20) convertedArtwork.delete(convertedArtwork.keys().next().value as string); onReady(); });
     }
     return http;
@@ -157,11 +159,14 @@ export const installAndroidMediaSession = (): void => {
         lxMediaDiagnostics.pushes += 1;
         lxMediaDiagnostics.lastTitle = title;
         lxMediaDiagnostics.lastState = state;
+        const art = resolveArtwork(metadata, schedule);
+        const srcs = artworkSources(metadata);
+        lxMediaDiagnostics.artwork = `页面封面 ${srcs.length} 个（${srcs[0]?.slice(0, 40) ?? '无'}），发送 ${art ? art.slice(0, 16) : '无'}`;
         LxMedia.update({
             title,
             artist: metadata?.artist ?? '',
             album: metadata?.album ?? '',
-            artwork: resolveArtwork(metadata, schedule),
+            artwork: art,
             state: title ? state : 'none',
             position: currentPosition(),
             duration: Number.isFinite(duration) ? duration : 0,

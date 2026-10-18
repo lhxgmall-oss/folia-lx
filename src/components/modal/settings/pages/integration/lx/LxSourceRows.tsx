@@ -40,6 +40,7 @@ const MediaNotificationRows: React.FC = () => {
                 `通知权限：${n.permission ? '已允许' : '未允许'}；通知总开关：${n.notificationsEnabled ? '开' : '关'}；播放通道重要性：${n.channelImportance}`,
                 `网页→原生：替身${page.installed ? '已装' : '未装'}，曲目写入 ${page.metadataSets} 次，发送 ${page.pushes} 次，失败 ${page.pushErrors} 次`,
                 `原生收到 ${n.updates} 次；当前：${n.lastTitle || '（无）'} / ${n.lastState}；服务${n.serviceRunning ? '运行中' : '未运行'}；会话${n.sessionActive ? '激活' : '未激活'}`,
+                `${page.artwork}；原生封面：${n.artworkLoaded ? '已加载' : '未加载'}`,
                 `安卓 SDK ${n.sdk}${n.lastError ? `；原生错误：${n.lastError}` : ''}${page.lastError ? `；网页错误：${page.lastError}` : ''}`,
             ];
             setReport(lines.join('\n'));

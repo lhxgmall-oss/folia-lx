@@ -76,6 +76,7 @@ public final class LxMediaController {
 
     State current() { return current; }
     boolean sessionActive() { return session.isActive(); }
+    boolean artworkLoaded() { return artwork != null; }
 
     public static synchronized LxMediaController get(Context context) {
         if (instance == null) instance = new LxMediaController(context.getApplicationContext());
@@ -258,8 +259,8 @@ public final class LxMediaController {
                     options.inSampleSize = sample;
                     bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
                 }
-            } catch (Exception ignored) {
-                // No cover: the notification shows without one.
+            } catch (Exception error) {
+                lastError = "artwork: " + error;
             }
             final Bitmap loaded = bitmap;
             main.post(() -> {
