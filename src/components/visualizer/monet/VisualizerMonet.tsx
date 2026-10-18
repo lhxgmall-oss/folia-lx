@@ -54,7 +54,15 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
     // Through a blend the words stay on the song on screen until the audio crossover, then show the
     // incoming one (monetSongHandoff.ts). Held as state so the hand-off's every frame renders nothing.
     const handoffProgress = songHandoff?.progress ?? null;
-    const [handoffCrossed, setHandoffCrossed] = useState(false);
+    // Read off the hand-off in the render it appears in: mounted (or handed one) past the crossover, a
+    // first render on the outgoing song would play its intro, and the incoming song's a frame later.
+    const readCrossed = () => (handoffProgress ? monetTextShowsIncoming(handoffProgress.get()) : false);
+    const [handoffCrossed, setHandoffCrossed] = useState(readCrossed);
+    const [crossedFor, setCrossedFor] = useState(handoffProgress);
+    if (crossedFor !== handoffProgress) {
+        setCrossedFor(handoffProgress);
+        setHandoffCrossed(readCrossed());
+    }
     useEffect(() => {
         if (!handoffProgress) {
             setHandoffCrossed(false);

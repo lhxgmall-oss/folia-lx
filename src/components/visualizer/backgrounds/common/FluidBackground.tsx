@@ -142,26 +142,98 @@ const stopsOf = (ctx: CanvasRenderingContext2D, color: string): [string, string]
     return [solid, `rgba(${r}, ${g}, ${b}, 0)`];
 };
 
+const createCanvas = (width: number, height: number): HTMLCanvasElement => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+};
+
+let canvasBlurSupported: boolean | null = null;
 /**
- * Draws a cover layer as the CSS stack it replaces did: the cover object-cover in the box, blurred
- * 40px and then zoomed 1.5x about the centre, under linear-gradient(to bottom right, primary,
- * transparent, secondary) at opacity 0.4 with mix-blend-mode overlay. No image draws nothing.
+ * Whether `ctx.filter` blurs here. WebKit (Safari on macOS, every browser on iOS) has no canvas
+ * filters and ignores the assignment, so it is tried on a probe once rather than trusted.
  */
-const drawCover = (canvas: HTMLCanvasElement, image: ImageBitmap | null, primary: string, secondary: string, cssWidth: number) => {
+const canvasBlurWorks = (): boolean => {
+    if (canvasBlurSupported !== null) return canvasBlurSupported;
+    try {
+        const ctx = createCanvas(4, 1).getContext('2d', { willReadFrequently: true });
+        if (!ctx || typeof ctx.filter !== 'string') {
+            canvasBlurSupported = false;
+        } else {
+            ctx.filter = 'blur(1px)';
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(2, 0, 1, 1);
+            canvasBlurSupported = ctx.getImageData(1, 0, 1, 1).data[3] > 0;
+        }
+    } catch {
+        canvasBlurSupported = false;
+    }
+    return canvasBlurSupported;
+};
+
+/**
+ * Blurs a canvas without `ctx.filter`: halves it down to about one pixel per blur radius, then doubles
+ * it back up, each step smoothed. Softer at the edges than a gaussian, which a backdrop does not show.
+ */
+const blurByScaling = (source: HTMLCanvasElement, blurPx: number): HTMLCanvasElement => {
+    const { width: w, height: h } = source;
+    // A bilinear step back up spreads one pixel over about 2.5 radii of a gaussian of the same spread.
+    const smallest = w / Math.max(1, blurPx * 2.5);
+    const sizes: Array<[number, number]> = [];
+    let sw = w;
+    let sh = h;
+    while (sw / 2 >= smallest && sw > 2 && sh > 2) {
+        sw = Math.ceil(sw / 2);
+        sh = Math.ceil(sh / 2);
+        sizes.push([sw, sh]);
+    }
+    const steps = [...sizes, ...sizes.slice(0, -1).reverse(), [w, h] as [number, number]];
+    let current = source;
+    for (const [stepWidth, stepHeight] of steps) {
+        const next = createCanvas(stepWidth, stepHeight);
+        const ctx = next.getContext('2d');
+        if (!ctx) return current;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(current, 0, 0, stepWidth, stepHeight);
+        current = next;
+    }
+    return current;
+};
+
+/**
+ * The cover as the CSS stack it replaces drew it, without the overlay: object-cover in the box,
+ * blurred 40px and then zoomed 1.5x about the centre. Drawn once per cover and size, so a theme
+ * blending in redraws only the gradient over it.
+ */
+const bakeBlurredCover = (image: ImageBitmap, w: number, h: number, cssWidth: number): HTMLCanvasElement | null => {
+    const baked = createCanvas(w, h);
+    const ctx = baked.getContext('2d');
+    if (!ctx) return null;
+    const scale = Math.max(w / image.width, h / image.height) * 1.5;
+    const dw = image.width * scale;
+    const dh = image.height * scale;
+    const blurPx = (40 * 1.5 * w) / cssWidth;
+    const filtered = canvasBlurWorks();
+    if (filtered) ctx.filter = `blur(${blurPx}px)`;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    return filtered ? baked : blurByScaling(baked, blurPx);
+};
+
+/**
+ * Draws a cover layer: the blurred cover under linear-gradient(to bottom right, primary, transparent,
+ * secondary) at opacity 0.4 with mix-blend-mode overlay. No cover draws nothing.
+ */
+const drawCover = (canvas: HTMLCanvasElement, blurred: HTMLCanvasElement | null, primary: string, secondary: string) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const { width: w, height: h } = canvas;
     ctx.clearRect(0, 0, w, h);
-    if (!image) return;
-
-    const scale = Math.max(w / image.width, h / image.height) * 1.5;
-    const dw = image.width * scale;
-    const dh = image.height * scale;
-    ctx.filter = `blur(${(40 * 1.5 * w) / cssWidth}px)`;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(image, (w - dw) / 2, (h - dh) / 2, dw, dh);
-    ctx.filter = 'none';
+    if (!blurred) return;
+    ctx.drawImage(blurred, 0, 0, w, h);
 
     // The CSS gradient line for "to bottom right": through the centre, at right angles to the diagonal
     // from bottom left to top right, 2wh / diagonal long. CSS fades to 'transparent' premultiplied, so
@@ -193,7 +265,7 @@ interface CoverCanvasProps {
     onDrawn: () => void;
 }
 
-/** One cover layer: redrawn when the cover, the colours or the element's size change. */
+/** One cover layer: redrawn when the cover, the colours or the element's size change; blurred again only for the first and last. */
 const CoverCanvas: React.FC<CoverCanvasProps> = ({ image, primaryColor, secondaryColor, onDrawn }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [box, setBox] = useState<{ width: number; height: number } | null>(null);
@@ -217,6 +289,7 @@ const CoverCanvas: React.FC<CoverCanvasProps> = ({ image, primaryColor, secondar
         onDrawnRef.current = onDrawn;
     });
     const reportedRef = useRef(false);
+    const bakedRef = useRef<{ image: ImageBitmap; width: number; height: number; cssWidth: number; canvas: HTMLCanvasElement | null } | null>(null);
     useLayoutEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas || !box) return undefined;
@@ -226,7 +299,21 @@ const CoverCanvas: React.FC<CoverCanvasProps> = ({ image, primaryColor, secondar
                 canvas.width = COVER_CANVAS_WIDTH;
                 canvas.height = height;
             }
-            drawCover(canvas, image, primaryColor, secondaryColor, box.width);
+            let baked = bakedRef.current;
+            if (!image) {
+                baked = null;
+            } else if (!baked || baked.image !== image || baked.width !== canvas.width
+                || baked.height !== canvas.height || baked.cssWidth !== box.width) {
+                baked = {
+                    image,
+                    width: canvas.width,
+                    height: canvas.height,
+                    cssWidth: box.width,
+                    canvas: bakeBlurredCover(image, canvas.width, canvas.height, box.width),
+                };
+            }
+            bakedRef.current = baked;
+            drawCover(canvas, baked?.canvas ?? null, primaryColor, secondaryColor);
         }
         if (reportedRef.current) return undefined;
         // One frame for the drawn canvas to reach the screen while still transparent, then it may fade in.
@@ -281,6 +368,21 @@ const FluidBackground: React.FC<FluidBackgroundProps> = memo(({ coverUrl, theme 
     const coverKeyRef = useRef(0);
     const [coverLayers, setCoverLayers] = useState<Array<{ image: ImageBitmap | null; sourceCover: string; key: number }>>([]);
     const [readyCoverKeys, setReadyCoverKeys] = useState<Set<number>>(() => new Set());
+    // Every decoded cover not yet closed. A layer's bitmap holds about 1.6 MB of decoded pixels until it
+    // is closed, so each is closed once no layer draws it: pruned, never stacked, or the background gone.
+    const openBitmapsRef = useRef(new Set<ImageBitmap>());
+    useEffect(() => {
+        const drawn = new Set(coverLayers.map((layer) => layer.image));
+        openBitmapsRef.current.forEach((bitmap) => {
+            if (drawn.has(bitmap)) return;
+            bitmap.close();
+            openBitmapsRef.current.delete(bitmap);
+        });
+    }, [coverLayers]);
+    useEffect(() => () => {
+        openBitmapsRef.current.forEach((bitmap) => bitmap.close());
+        openBitmapsRef.current.clear();
+    }, []);
     useEffect(() => {
         if (isIOSSafari) return undefined;
         if (!coverUrl) { setCoverLayers([]); return undefined; }
@@ -301,6 +403,7 @@ const FluidBackground: React.FC<FluidBackgroundProps> = memo(({ coverUrl, theme 
                 bitmap.close();
                 return;
             }
+            openBitmapsRef.current.add(bitmap);
             setCoverLayers((prev) => {
                 const top = prev[prev.length - 1];
                 if (top && top.sourceCover === coverUrl) return prev;

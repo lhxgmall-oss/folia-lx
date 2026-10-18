@@ -17,6 +17,8 @@ export interface MonetPortraitLayer {
      * fading on the clock (MonetPortraitImage's `progress`).
      */
     handoffFrom?: number;
+    /** Fading back out: the cover a cancelled hand-off was bringing in. Drawn under nothing new. */
+    leaving?: boolean;
 }
 
 /** Default crossfade length. Matches the Monet background layer's own image swap. */
@@ -30,10 +32,13 @@ export const MONET_PORTRAIT_FADE_MS = 900;
  */
 export const MONET_PORTRAIT_MAX_LAYERS = 4;
 
-/** The cover the stack is heading towards - the top layer, which is the one still fading in. */
-export const monetPortraitTargetSource = (layers: MonetPortraitLayer[]): string | null => (
-    layers.length === 0 ? null : layers[layers.length - 1].src
-);
+/** The cover the stack is heading towards - the top layer not on its way back out. */
+export const monetPortraitTargetSource = (layers: MonetPortraitLayer[]): string | null => {
+    for (let index = layers.length - 1; index >= 0; index -= 1) {
+        if (!layers[index].leaving) return layers[index].src;
+    }
+    return null;
+};
 
 /**
  * Stacks a decoded cover on top. A repeat of the cover already on top is dropped: the effect that
@@ -78,9 +83,23 @@ export const settleMonetPortraitLayers = (
     return index <= 0 ? layers : layers.slice(index);
 };
 
-/** The stack once the hand-off is over: no cover fades along it any more, nor along the next one. */
-export const endMonetPortraitHandoff = (layers: MonetPortraitLayer[]): MonetPortraitLayer[] => (
-    layers.some(layer => layer.handoffFrom !== undefined)
-        ? layers.map(layer => (layer.handoffFrom === undefined ? layer : { key: layer.key, src: layer.src }))
-        : layers
+/**
+ * The stack once the hand-off is over: no cover fades along it any more, nor along the next one.
+ * `src` is the cover asked for now. When it is one beneath the cover that was fading in along the
+ * hand-off, the blend went back to it (a cancel): that cover fades back out rather than on in, which
+ * would brighten it only for the cover beneath to be stacked over it again.
+ */
+export const endMonetPortraitHandoff = (layers: MonetPortraitLayer[], src?: string | null): MonetPortraitLayer[] => {
+    const handoffIndex = layers.findIndex(layer => layer.handoffFrom !== undefined);
+    if (handoffIndex < 0) return layers;
+    const wentBack = Boolean(src) && layers.slice(0, handoffIndex).some(layer => layer.src === src && !layer.leaving);
+    return layers.map(layer => {
+        if (layer.handoffFrom === undefined) return layer;
+        return wentBack ? { key: layer.key, src: layer.src, leaving: true } : { key: layer.key, src: layer.src };
+    });
+};
+
+/** The stack once the covers going back out have faded away. */
+export const dropLeavingMonetPortraitLayers = (layers: MonetPortraitLayer[]): MonetPortraitLayer[] => (
+    layers.some(layer => layer.leaving) ? layers.filter(layer => !layer.leaving) : layers
 );

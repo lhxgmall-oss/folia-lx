@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { animate, motion, useMotionValue, type MotionValue } from 'framer-motion';
+import { progressSince } from '../../../services/automix/handoffProgress';
 import {
+    dropLeavingMonetPortraitLayers,
     endMonetPortraitHandoff,
     MONET_PORTRAIT_FADE_MS,
     pushMonetPortraitLayer,
@@ -30,22 +32,15 @@ type MonetPortraitLayerImageProps = {
     from: number;
 };
 
-/**
- * How far a cover whose fade along the hand-off began at `from` has come, 0..1: counted from there,
- * so a cover that decodes late fades in rather than jumping to the hand-off's opacity.
- */
-const alongHandoff = (value: number, from: number): number => (
-    from >= 1 ? 1 : Math.min(1, Math.max(0, (value - from) / (1 - from)))
-);
-
 /** One cover of the stack, fading to `opacity` over `fadeMs`, or along `progress` while it is given. */
 const MonetPortraitLayerImage: React.FC<MonetPortraitLayerImageProps> = ({ src, opacity: target, fadeMs, progress, from }) => {
     // A cover that takes the place of one fading along the hand-off shows where that one was.
-    const opacity = useMotionValue(progress ? target * alongHandoff(progress.get(), from) : 0);
+    // Counted from where its fade began, so a cover that decodes late fades in rather than jumping.
+    const opacity = useMotionValue(progress ? target * progressSince(progress.get(), from) : 0);
 
     useEffect(() => {
         if (progress) {
-            const follow = (value: number) => opacity.set(target * alongHandoff(value, from));
+            const follow = (value: number) => opacity.set(target * progressSince(value, from));
             follow(progress.get());
             return progress.on('change', follow);
         }
@@ -80,10 +75,16 @@ const MonetPortraitImage: React.FC<MonetPortraitImageProps> = ({ src, fadeMs = M
     const [layers, setLayers] = useState<MonetPortraitLayer[]>([]);
     const layerKeyRef = useRef(0);
     const progressRef = useRef(progress);
+    // The cover asked for, as the hand-off's end reads it: before the effects of the same commit.
+    const srcRef = useRef(src);
+    useLayoutEffect(() => {
+        srcRef.current = src;
+    });
     useEffect(() => {
         progressRef.current = progress;
-        // Once the hand-off is over no cover follows it, so none is tied to the next one.
-        if (!progress) setLayers(endMonetPortraitHandoff);
+        // Once the hand-off is over no cover follows it, so none is tied to the next one. A cancel asks
+        // for the cover beneath again in the same commit, and the one that was coming in fades back out.
+        if (!progress) setLayers(current => endMonetPortraitHandoff(current, srcRef.current));
     }, [progress]);
 
     useEffect(() => {
@@ -125,7 +126,7 @@ const MonetPortraitImage: React.FC<MonetPortraitImageProps> = ({ src, fadeMs = M
     // ever removed while something below it is still visible through it. A cover fading in along a
     // hand-off is opaque when the hand-off says so, so the timer waits for the hand-off to be over.
     const top = layers.length > 1 ? layers[layers.length - 1] : null;
-    const settlingKey = top && top.handoffFrom === undefined ? top.key : null;
+    const settlingKey = top && top.handoffFrom === undefined && !top.leaving ? top.key : null;
     useEffect(() => {
         if (!settlingKey) {
             return undefined;
@@ -137,6 +138,16 @@ const MonetPortraitImage: React.FC<MonetPortraitImageProps> = ({ src, fadeMs = M
         return () => window.clearTimeout(timer);
     }, [fadeMs, settlingKey]);
 
+    // A cover going back out (a cancelled hand-off) is dropped once it has faded away.
+    const hasLeaving = layers.some(layer => layer.leaving);
+    useEffect(() => {
+        if (!hasLeaving) {
+            return undefined;
+        }
+        const timer = window.setTimeout(() => setLayers(dropLeavingMonetPortraitLayers), fadeMs);
+        return () => window.clearTimeout(timer);
+    }, [fadeMs, hasLeaving]);
+
     // A song with no cover at all fades the stack out and keeps it, so the next cover has something
     // to fade in over instead of appearing against the bare frame.
     const targetOpacity = src ? 1 : 0;
@@ -147,7 +158,7 @@ const MonetPortraitImage: React.FC<MonetPortraitImageProps> = ({ src, fadeMs = M
                 <MonetPortraitLayerImage
                     key={layer.key}
                     src={layer.src}
-                    opacity={targetOpacity}
+                    opacity={layer.leaving ? 0 : targetOpacity}
                     fadeMs={fadeMs}
                     progress={layer.handoffFrom !== undefined ? progress : undefined}
                     from={layer.handoffFrom ?? 0}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { mixColors } from '../colorMix';
+import { progressSince } from '../../../services/automix/handoffProgress';
 
 // src/components/visualizer/backgrounds/useBlendedColors.ts
 // For a background that changes its colours in place rather than as a new copy (its entry has no
@@ -48,7 +49,7 @@ export const useBlendedColors = (
         const start = progress?.get() ?? 1;
         if (progress && start < 1) {
             // Evenly: the hand-off's progress brings its own curve.
-            const follow = (value: number) => show(mixed(Math.max(0, (value - start) / (1 - start))));
+            const follow = (value: number) => show(mixed(progressSince(value, start)));
             return progress.on('change', follow);
         }
         const startedAt = performance.now();

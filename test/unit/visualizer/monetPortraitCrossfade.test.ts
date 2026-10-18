@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    dropLeavingMonetPortraitLayers,
     endMonetPortraitHandoff,
     MONET_PORTRAIT_MAX_LAYERS,
     monetPortraitTargetSource,
@@ -82,5 +83,18 @@ describe('Monet portrait crossfade along a blend hand-off', () => {
         const layers = endMonetPortraitHandoff(pushMonetPortraitLayer(stack('a.jpg'), 'b.jpg', 'k1', 0.2));
         expect(layers).toEqual([{ key: 'k0', src: 'a.jpg' }, { key: 'k1', src: 'b.jpg' }]);
         expect(endMonetPortraitHandoff(layers)).toBe(layers);
+    });
+
+    it('fades the incoming cover back out when a cancel asks for the one beneath again', () => {
+        // Faded on in, it would brighten for a moment and then be covered by the outgoing cover
+        // stacked over it again: a flash at every cancelled blend.
+        const handingOff = pushMonetPortraitLayer(stack('a.jpg'), 'b.jpg', 'k1', 0.2);
+        const cancelled = endMonetPortraitHandoff(handingOff, 'a.jpg');
+        expect(cancelled).toEqual([{ key: 'k0', src: 'a.jpg' }, { key: 'k1', src: 'b.jpg', leaving: true }]);
+        expect(monetPortraitTargetSource(cancelled)).toBe('a.jpg');
+        expect(pushMonetPortraitLayer(cancelled, 'a.jpg', 'k2')).toBe(cancelled);
+        expect(dropLeavingMonetPortraitLayers(cancelled)).toEqual([{ key: 'k0', src: 'a.jpg' }]);
+        // A settle onto another address of the incoming cover goes on fading it in.
+        expect(endMonetPortraitHandoff(handingOff, 'b-cache.jpg')).toEqual([{ key: 'k0', src: 'a.jpg' }, { key: 'k1', src: 'b.jpg' }]);
     });
 });

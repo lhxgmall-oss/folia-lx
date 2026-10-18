@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type React from 'react';
 import { PlayerState, type ActiveLocalLyricsSource, type LyricData, type PlaybackContext, type ReplayGainMode, type SongResult } from '../types';
 import { createCoverUrlResolver } from '../components/app/playback/createCoverUrlResolver';
+import type { AutomixTransitionEnd } from '../services/automix/automixSession';
 
 /** The now-playing picture, frozen for as long as a transition is running. */
 export interface TransitionDisplay {
@@ -69,6 +70,11 @@ type PlaybackStoreState = {
      * capture whichever of the two React had committed. A store write has the ref's timing.
      */
     transitionDisplay: TransitionDisplay | null;
+    /**
+     * How the last blend let go of the picture, written in the same update that clears
+     * `transitionDisplay`. Only meaningful at that change: it is left as it was until the next blend ends.
+     */
+    transitionEnd: AutomixTransitionEnd | null;
 
     setCurrentSong: SetState<SongResult | null>;
     setAudioSrc: SetState<string | null>;
@@ -87,6 +93,8 @@ type PlaybackStoreState = {
     setReplayGainMode: SetState<ReplayGainMode>;
     setLyricTimelineOffsetMs: SetState<number>;
     setTransitionDisplay: SetState<TransitionDisplay | null>;
+    /** Lets go of the frozen picture, saying how the blend ended - one update, so a subscriber sees both. */
+    releaseTransitionDisplay: (end: AutomixTransitionEnd) => void;
 };
 
 const resolve = <T,>(next: React.SetStateAction<T>, previous: T): T => (
@@ -116,6 +124,7 @@ export const usePlaybackStore = create<PlaybackStoreState>((set, get) => ({
     replayGainMode: readStoredReplayGainMode(),
     lyricTimelineOffsetMs: 0,
     transitionDisplay: null,
+    transitionEnd: null,
 
     setCurrentSong: (next) => set({ currentSong: resolve(next, get().currentSong) }),
     setAudioSrc: (next) => set({ audioSrc: resolve(next, get().audioSrc) }),
@@ -136,6 +145,7 @@ export const usePlaybackStore = create<PlaybackStoreState>((set, get) => ({
     setReplayGainMode: (next) => set({ replayGainMode: resolve(next, get().replayGainMode) }),
     setLyricTimelineOffsetMs: (next) => set({ lyricTimelineOffsetMs: resolve(next, get().lyricTimelineOffsetMs) }),
     setTransitionDisplay: (next) => set({ transitionDisplay: resolve(next, get().transitionDisplay) }),
+    releaseTransitionDisplay: (end) => set({ transitionDisplay: null, transitionEnd: end }),
 }));
 
 // ---- module-level setters ----

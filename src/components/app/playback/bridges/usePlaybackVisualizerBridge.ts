@@ -98,8 +98,6 @@ export function usePlaybackVisualizerBridge({
     const beatFxWantedRef = useRef(false);
     beatFxWantedRef.current = useBeatFxTrack();
     const handoffLineIndexRef = useRef(-1);
-    /** The incoming track's deck while a blend holds the picture: the settle tells a hand-over from a cancel by it. */
-    const handoffElementRef = useRef<HTMLAudioElement | null>(null);
     // The lyric offsets as the loop reads them. The settle moves the displayed one onto the incoming
     // track's as it copies that track's clock: the prop catches up a render later, and a frame read in
     // between against the outgoing track's offset would move the line by the difference.
@@ -118,27 +116,28 @@ export function usePlaybackVisualizerBridge({
     useEffect(() => usePlaybackStore.subscribe((state, previous) => {
         if (state.transitionDisplay === previous.transitionDisplay) return;
         if (previous.transitionDisplay === null) {
-            handoffElementRef.current = null;
             handoffProgress.set(0);
             handoffLineIndexRef.current = -1;
             setHandoffLineIndex(-1);
             return;
         }
         if (state.transitionDisplay !== null) return;
-        const incoming = handoffElementRef.current;
-        handoffElementRef.current = null;
-        // Settled onto the incoming deck: the picture is now its track, read from where the hand-off
-        // left it. A cancel makes the outgoing deck active again first, and keeps its own clock.
+        // Handed over: the picture is now the incoming track, and its clock runs on from its own deck.
+        // Only the session knows which way the blend went. A cancel keeps the outgoing deck's clock, and
+        // a skip mid-blend loads some other track onto the deck that was incoming, so both are left to
+        // the ordinary song change. Read from the deck here rather than from the frame loop's last
+        // hand-off: that loop does not run while the window is hidden.
         // The hand-off itself is left where it stood: what plays along it (the background change, the
         // Monet cover) lets go of it at a settle or a cancel and plays the rest from there on the clock,
         // and a set here would snap it to the end first.
-        if (incoming && audioRef.current === incoming) {
-            displayOffsetMsRef.current = incomingOffsetMsRef.current;
-            currentTime.set(incoming.currentTime);
-            lyricCurrentTime.set(handoffLyricCurrentTime.get());
-            currentLineIndexRef.current = handoffLineIndexRef.current;
-            setCurrentLineIndex(handoffLineIndexRef.current);
-        }
+        const incoming = audioRef.current;
+        if (state.transitionEnd !== 'handedOver' || !incoming) return;
+        const clock = readIncomingLyricClock(incoming.currentTime, incomingOffsetMsRef.current, state.lyrics?.lines);
+        displayOffsetMsRef.current = incomingOffsetMsRef.current;
+        currentTime.set(incoming.currentTime);
+        lyricCurrentTime.set(clock.lyricTimeSec);
+        currentLineIndexRef.current = clock.lineIndex;
+        setCurrentLineIndex(clock.lineIndex);
     }), [audioRef]);
 
     const updateLoop = useCallback(() => {
@@ -303,7 +302,6 @@ export function usePlaybackVisualizerBridge({
         const heldElement = getDisplayElement?.() ?? null;
         const incomingElement = heldElement ? audioRef.current : null;
         if (incomingElement && incomingElement !== heldElement) {
-            handoffElementRef.current = incomingElement;
             handoffProgress.set(getTransitionHandoffProgress());
             const incomingClock = readIncomingLyricClock(incomingElement.currentTime, incomingOffsetMsRef.current, incomingLyrics?.lines);
             handoffLyricCurrentTime.set(incomingClock.lyricTimeSec);

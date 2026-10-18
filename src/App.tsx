@@ -110,6 +110,7 @@ import { usePlaybackQueueController } from './components/app/playback/start/useP
 import { usePlaybackTransportController } from './components/app/playback/bridges/usePlaybackTransportController';
 import { useLocalLibraryCatalog } from './hooks/useLocalLibraryCatalog';
 import { usePlaybackVisualizerBridge } from './components/app/playback/bridges/usePlaybackVisualizerBridge';
+import { useLyricReadHead } from './components/app/playback/bridges/useLyricReadHead';
 import { useRandomVisualizerMode } from './hooks/useRandomVisualizerMode';
 import { useObsBrowserSourcePublisher } from './hooks/useObsBrowserSourcePublisher';
 import { useLyricApiPublisher } from './hooks/useLyricApiPublisher';
@@ -124,7 +125,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
 import { hasLoopedToStart } from './services/playedTrackCache';
 import { getOnlineProviderIdForSong, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
-import { readLyricOffset, writeLyricOffset } from './utils/lyrics/lyricOffsetMemory';
+import { writeLyricOffset } from './utils/lyrics/lyricOffsetMemory';
 import { FALLBACK_AI_DUAL_THEME } from './services/themeSanitizer';
 import { BASE_DUAL_THEME, DAYLIGHT_THEME, DEFAULT_THEME } from './services/baseThemes';
 import { initializeSyncCoordinator } from './services/sync/syncCoordinator';
@@ -536,15 +537,6 @@ export default function App() {
     // uses: the per-song manual correction plus the device-wide audio latency compensation. The panel
     // control below keeps editing the per-song value alone.
     const effectiveLyricTimelineOffsetMs = lyricTimelineOffsetMs + globalLyricTimelineOffsetMs;
-    // The live song's, which during a blend is the incoming one: the visualizer bridge reads that
-    // track's lyric clock against it, so the read-head runs on unchanged once the settle makes it the
-    // displayed song (the effect that restores the displayed song's offset). Recomputed when an offset
-    // is edited, since the memory it reads has no subscription.
-    const incomingLyricTimelineOffsetMs = useMemo(
-        () => readLyricOffset(currentSong?.id) + globalLyricTimelineOffsetMs,
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- lyricTimelineOffsetMs: re-read after an edit
-        [currentSong?.id, globalLyricTimelineOffsetMs, lyricTimelineOffsetMs],
-    );
 
     const effectiveLoopMode: StageLoopMode = loopMode;
 
@@ -1193,49 +1185,8 @@ export default function App() {
         if (element) currentTime.set(element.currentTime);
     }, [audioRef, currentTime, getDisplayElement, isShowingTail]);
 
-    // Restore the displayed song's remembered manual offset (0 when never adjusted, so a fresh
-    // song behaves exactly like the old reset). Keyed on the DISPLAYED song, not the playing one:
-    // this is what the lyrics on screen are read against, and firing it when a blend arms would
-    // both mis-offset the outgoing lyrics and snap their read-head to zero - a lyric view that
-    // scrolls back to the top of a song it is still showing, which reads as an early song change.
-    // currentSongFullRef.current holds the live song for the change handler above, so a user's
-    // correction is still saved against the track the app has actually committed to.
-    //
-    // There must be exactly ONE of these. Upstream grew its own copy keyed on `currentSong`, the
-    // merge kept both, and the live-keyed one fired on every blend ARM - snapping the read-head to
-    // the top of the song still on screen, which the diorama reads as a loop restart and answers
-    // with a full camera flight that lands back where it started. That is the "it changes song,
-    // then changes song again" report.
-    //
-    // A blend that settles is the one song change that keeps the read-head where it is: the visualizer
-    // bridge has already moved it onto the incoming track, read against that track's own offset (the
-    // hand-off), and the track is seconds in. Set back to the top here, the lyrics on screen would
-    // start that song again for a frame - a line that jumps, and Monet, which reads a clock going
-    // back to zero as a loop, replaying its intro over a blend that had already handed over.
-    const wasShowingTailRef = useRef(isShowingTail);
-    useEffect(() => {
-        const nextOffsetMs = readLyricOffset(displaySong?.id);
-        setLyricTimelineOffsetMs(nextOffsetMs);
-        const handedOver = wasShowingTailRef.current && !isShowingTail;
-        if (!handedOver) lyricCurrentTime.set(-(nextOffsetMs + globalLyricTimelineOffsetMs) / 1000);
-        // Exactly ONE of these per song change, including across an automix blend. Two inside one
-        // transition means the duplicate effect described above is back: the second one fires on
-        // the arm, resets the read-head under the song still on screen, and the diorama answers it
-        // with a camera flight that lands where it started.
-        console.log(
-            `[Lyrics] read-head reset for the DISPLAYED song ${String(displaySong?.id ?? 'none')}`
-            + ` (per-song ${nextOffsetMs}ms + device ${globalLyricTimelineOffsetMs}ms)`
-            + `${handedOver ? ', kept running: handed over by the blend' : ''}`,
-        );
-        // globalLyricTimelineOffsetMs is intentionally not a dependency: it is a device-level constant
-        // the user tunes in Lab settings, and re-running this effect on it would fight the panel value.
-        // isShowingTail neither: the song change is what this answers, and the hold only says how.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [displaySong?.id, lyricCurrentTime]);
-    // After the effect above, so that one reads whether the picture was held before this commit.
-    useEffect(() => {
-        wasShowingTailRef.current = isShowingTail;
-    }, [isShowingTail]);
+    // Restores the displayed song's offset and resets its read-head, unless a blend handed it over.
+    const incomingLyricTimelineOffsetMs = useLyricReadHead(globalLyricTimelineOffsetMs);
 
     /**
      * The now playing card is allowed on screen right now.

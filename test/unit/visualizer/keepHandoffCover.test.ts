@@ -24,6 +24,17 @@ describe('keepHandoffCover', () => {
         expect(keepHandoffCover(kept, { seed: 'c', coverUrl: 'c.jpg' }, 'c')).toEqual({ seed: 'c', coverUrl: 'c.jpg' });
     });
 
+    it('lets go of an object URL the song moved off once the blend is over', () => {
+        // The player revokes the cached cover's object URL as it replaces it: a background mounted
+        // again on the kept one would draw no cover for the rest of the song.
+        const kept = keepHandoffCover(null, { seed: 'b', coverUrl: 'blob:b-1' }, 'b');
+        expect(keepHandoffCover(kept, { seed: 'b', coverUrl: 'blob:b-2' }, 'b', 'blob:b-2')).toBe(kept);
+        expect(keepHandoffCover(kept, null, 'b', 'blob:b-1')).toBe(kept);
+        expect(keepHandoffCover(kept, null, 'b', 'blob:b-2')).toBeNull();
+        const network = keepHandoffCover(null, { seed: 'b', coverUrl: 'b-net.jpg' }, 'b');
+        expect(keepHandoffCover(network, null, 'b', 'blob:b-2')).toBe(network);
+    });
+
     it('waits for an address while the incoming song has none yet', () => {
         expect(keepHandoffCover(null, { seed: 'b', coverUrl: null }, 'b')).toBeNull();
         expect(keepHandoffCover(null, null, 'a')).toBeNull();

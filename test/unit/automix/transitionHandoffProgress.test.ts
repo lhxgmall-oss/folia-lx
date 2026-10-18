@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { announceTransition, getTransitionHandoffProgress } from '../../../src/services/automix/transitionCue';
-import { mapTrackHandoffProgress } from '../../../src/services/automix/handoffProgress';
+import { mapTrackHandoffProgress, progressSince } from '../../../src/services/automix/handoffProgress';
 import { readIncomingLyricClock } from '../../../src/components/app/playback/bridges/incomingLyricClock';
 
 // test/unit/automix/transitionHandoffProgress.test.ts
@@ -61,5 +61,16 @@ describe('readIncomingLyricClock', () => {
 
     it('has no line while the lyrics are still loading', () => {
         expect(readIncomingLyricClock(6, 0, null)).toEqual({ lyricTimeSec: 6, lineIndex: -1 });
+    });
+});
+
+describe('progressSince', () => {
+    it('runs its whole course from where it began, and is done when it began at the end', () => {
+        expect(progressSince(0.4, 0.4)).toBe(0);
+        expect(progressSince(0.7, 0.4)).toBeCloseTo(0.5);
+        expect(progressSince(1, 0.4)).toBe(1);
+        // Behind where it began (a hand-off going back) stays at the start; at the end it is done.
+        expect(progressSince(0.2, 0.4)).toBe(0);
+        expect(progressSince(0.5, 1)).toBe(1);
     });
 });

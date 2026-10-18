@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
+import { progressSince } from '../../../services/automix/handoffProgress';
 
 // src/components/visualizer/styleTransition/layerTransition.ts
 // What a lyric style switch and a background change share. A layer is one style or one background in
@@ -54,13 +55,13 @@ const followProgress = (animation: Animation, progress: MotionValue<number>, len
     };
     const seek = (value: number) => {
         if (!following) return;
-        const along = (value - start) / (1 - start);
+        const along = progressSince(value, start);
         if (along >= 1) {
             stop();
             animation.finish();
             return;
         }
-        animation.currentTime = Math.max(0, along) * length;
+        animation.currentTime = along * length;
     };
     animation.pause();
     const unsubscribe = progress.on('change', seek);
