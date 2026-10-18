@@ -6,7 +6,8 @@ import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChrome
 import { useStageSettingsStore } from '../../../../stores/useStageSettingsStore';
 import { Button, CopyValue, Group, Reveal, Row, Status, Toggle, Value, type SettingsOptionDef } from '../kit';
 import NavidromeRows from './integration/NavidromeRows';
-import { O, SERVICES, STREAMING } from './integration/options';
+import { LX_MUSIC, O, SERVICES, STREAMING } from './integration/options';
+import LxSourceRows from './integration/lx/LxSourceRows';
 import { DesktopStageRows, WebStageRows } from './integration/StageModeRows';
 import SyncServerRows from './integration/SyncServerRows';
 import { useSettingsPage } from './settingsPageContext';
@@ -125,6 +126,12 @@ const IntegrationPage: React.FC = () => {
                 )}
                 {isElectron ? <DesktopStageRows /> : <WebStageRows />}
             </Group>
+
+            {isElectron && (
+                <Group def={LX_MUSIC}>
+                    <LxSourceRows />
+                </Group>
+            )}
         </>
     );
 };

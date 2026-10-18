@@ -7,6 +7,8 @@ import { option, type SettingsGroupDef } from '../../kit';
 
 export const SERVICES: SettingsGroupDef = { id: 'services', titleKey: 'options.settingsHeadingServices' };
 export const STREAMING: SettingsGroupDef = { id: 'streaming', titleKey: 'options.settingsHeadingStreaming' };
+// Folia-LX: the LX Music custom source scripts and settings (desktop only, pages/integration/lx).
+export const LX_MUSIC: SettingsGroupDef = { id: 'lxMusic', titleKey: 'lx.settingsHeading', electronOnly: true };
 
 
 export const O = {
@@ -29,4 +31,8 @@ export const O = {
     playerCapPlayer: option(STREAMING, 'playerCapPlayer', 'options.playerCapPlayer'),
     playerCapTimeline: option(STREAMING, 'playerCapTimeline', 'options.playerCapTimeline'),
     playerCapIgnoreClear: option(STREAMING, 'playerCapIgnoreClear', 'options.playerCapIgnoreClear'),
+    lxScripts: option(LX_MUSIC, 'lxScripts', 'lx.scripts'),
+    lxSubSource: option(LX_MUSIC, 'lxSubSource', 'lx.subSourceLabel'),
+    lxQuality: option(LX_MUSIC, 'lxQuality', 'lx.qualityLabel'),
+    lxFallback: option(LX_MUSIC, 'lxFallback', 'lx.fallbackLabel'),
 };

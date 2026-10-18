@@ -5187,5 +5187,44 @@ export default {
         "noMatch": "“Jangan gunakan metadata online” di kiri bawah membuat lagu ini hanya memakai milik berkasnya."
       }
     }
+  },
+  "lx": {
+    "settingsHeading": "Sumber LX Music",
+    "scripts": "Skrip sumber kustom",
+    "scriptsDesc": "Impor skrip sumber kustom LX Music; skrip itu memberi alamat pemutaran",
+    "scriptsNote": "Folia-LX tidak menyertakan skrip sumber apa pun. Skrip diimpor sendiri, disimpan di folder data aplikasi komputer ini, dan berjalan di proses terpisah. Hanya untuk belajar pribadi; patuhi hukum setempat dan ketentuan tiap platform.",
+    "statusNone": "Belum ada skrip yang dipakai",
+    "statusLoading": "Memuat skrip…",
+    "statusReady": "Skrip siap: {{sources}}",
+    "statusError": "Skrip gagal dimuat: {{message}}",
+    "inUse": "Dipakai",
+    "use": "Pakai",
+    "remove": "Hapus",
+    "importFile": "Impor dari berkas",
+    "chooseFile": "Pilih berkas .js",
+    "importUrl": "Impor dari URL",
+    "import": "Impor",
+    "updateAlert": "Skrip memberi tahu ada versi baru: {{log}}",
+    "subSourceLabel": "Sub-sumber pencarian",
+    "subSourceDesc": "Pencarian gabungan menanyai kelima platform dan menyelang-nyeling hasilnya",
+    "subSource": {
+      "all": "Semua (gabungan)",
+      "kw": "Kuwo",
+      "kg": "KuGou",
+      "tx": "QQ Music",
+      "wy": "NetEase Cloud Music",
+      "mg": "Migu"
+    },
+    "qualityLabel": "Kualitas",
+    "qualityDesc": "Kualitas yang diminta dari skrip; turun satu tingkat bila skrip atau lagu tidak memilikinya",
+    "quality": {
+      "follow": "Ikuti kualitas pemutar",
+      "128k": "Standar 128k",
+      "320k": "Tinggi 320k",
+      "flac": "Lossless FLAC",
+      "flac24bit": "Hi-Res FLAC 24-bit"
+    },
+    "fallbackLabel": "Ganti sumber saat gagal",
+    "fallbackDesc": "Bila skrip tidak memberi alamat, cari lagu yang sama di sub-sumber lain yang didukungnya"
   }
 } as const;

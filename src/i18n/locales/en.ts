@@ -5187,5 +5187,44 @@ export default {
         "noMatch": "“Don't use online metadata” at the bottom left makes the song use only what the file has."
       }
     }
+  },
+  "lx": {
+    "settingsHeading": "LX Music sources",
+    "scripts": "Custom source scripts",
+    "scriptsDesc": "Import an LX Music custom source script; it provides the playback URLs",
+    "scriptsNote": "Folia-LX ships no source script. A script is one you import yourself; it is kept in this computer's app data folder and runs in a separate process. For personal study only; follow your local law and each platform's terms.",
+    "statusNone": "No script in use",
+    "statusLoading": "Loading the script…",
+    "statusReady": "Script ready: {{sources}}",
+    "statusError": "The script failed to load: {{message}}",
+    "inUse": "In use",
+    "use": "Use",
+    "remove": "Remove",
+    "importFile": "Import from a file",
+    "chooseFile": "Choose a .js file",
+    "importUrl": "Import from a URL",
+    "import": "Import",
+    "updateAlert": "The script says a new version is out: {{log}}",
+    "subSourceLabel": "Search sub-source",
+    "subSourceDesc": "Aggregated search asks all five platforms and interleaves the results",
+    "subSource": {
+      "all": "All (aggregated)",
+      "kw": "Kuwo",
+      "kg": "KuGou",
+      "tx": "QQ Music",
+      "wy": "NetEase Cloud Music",
+      "mg": "Migu"
+    },
+    "qualityLabel": "Quality",
+    "qualityDesc": "The quality asked of the script; one level lower where the script or the song lacks it",
+    "quality": {
+      "follow": "Follow the player's quality",
+      "128k": "Standard 128k",
+      "320k": "High 320k",
+      "flac": "Lossless FLAC",
+      "flac24bit": "Hi-Res FLAC 24-bit"
+    },
+    "fallbackLabel": "Switch source on failure",
+    "fallbackDesc": "Where the script gives no URL, look for the same song on the other sub-sources it covers"
   }
 } as const;

@@ -5187,5 +5187,44 @@ export default {
         "noMatch": "左下角的「不使用在线数据」让这首歌只用文件自己的信息。"
       }
     }
+  },
+  "lx": {
+    "settingsHeading": "LX Music 音源",
+    "scripts": "自定义源脚本",
+    "scriptsDesc": "导入 LX Music（洛雪）格式的自定义源脚本，用来取得播放地址",
+    "scriptsNote": "Folia-LX 不附带任何音源脚本。脚本由你自己导入、保存在本机的应用数据目录里，在独立的进程中运行；仅供个人学习研究使用，请遵守当地法律与各平台的用户协议。",
+    "statusNone": "还没有在用的脚本",
+    "statusLoading": "脚本加载中…",
+    "statusReady": "脚本已就绪：{{sources}}",
+    "statusError": "脚本加载失败：{{message}}",
+    "inUse": "使用中",
+    "use": "使用",
+    "remove": "删除",
+    "importFile": "从文件导入",
+    "chooseFile": "选择 .js 文件",
+    "importUrl": "从网址导入",
+    "import": "导入",
+    "updateAlert": "脚本提示有新版本：{{log}}",
+    "subSourceLabel": "搜索的子源",
+    "subSourceDesc": "聚合搜索会同时搜五个平台并把结果交错排列",
+    "subSource": {
+      "all": "全部（聚合）",
+      "kw": "酷我音乐",
+      "kg": "酷狗音乐",
+      "tx": "QQ 音乐",
+      "wy": "网易云音乐",
+      "mg": "咪咕音乐"
+    },
+    "qualityLabel": "音质",
+    "qualityDesc": "向脚本请求的音质；脚本或歌曲没有这一档时自动降一档",
+    "quality": {
+      "follow": "跟随播放器音质",
+      "128k": "标准 128k",
+      "320k": "高品 320k",
+      "flac": "无损 FLAC",
+      "flac24bit": "Hi-Res FLAC 24bit"
+    },
+    "fallbackLabel": "失败时自动换源",
+    "fallbackDesc": "脚本取不到地址时，到脚本支持的其他子源找同一首歌"
   }
 } as const;
