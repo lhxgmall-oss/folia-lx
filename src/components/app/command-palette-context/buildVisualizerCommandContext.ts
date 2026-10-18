@@ -3,7 +3,6 @@ import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSetting
 import { useLyricSegmentationStore } from '../../../stores/useLyricSegmentationStore';
 import { useVideoLayerSettingsStore } from '../../../stores/useVideoLayerSettingsStore';
 import { getVisualizerRegistryEntry } from '../../visualizer/registry';
-import { smartBeatActive } from '../../../services/beatFx/beatEffects';
 import { isLyricSegmentationAiAvailable } from '../../../services/aiText';
 import type { LyricSegmentationActions } from '../playback/createLyricSegmentationActions';
 
@@ -32,11 +31,9 @@ export const buildVisualizerCommandContext = (
             const videoLayer = useVideoLayerSettingsStore.getState();
             videoLayer.setVideoLayerEnabled(!videoLayer.videoLayerEnabled);
         },
-        toggleSmartBeat: () => {
-            const latest = useVisualizerSettingsStore.getState();
-            // Two ways only: any mode that plays goes off, off goes fully on. `cached` is chosen in the settings.
-            latest.handleSetSmartBeat({ mode: smartBeatActive(latest.smartBeat) ? 'off' : 'on' });
-        },
+        // One command per mode, as Latent's variants: a toggle would have to guess what "the other one" is
+        // from the middle mode.
+        setSmartBeatMode: mode => useVisualizerSettingsStore.getState().handleSetSmartBeat({ mode }),
         pickVideoLayerFile: () => useVideoLayerSettingsStore.getState().pickLocalFile(),
         usesWordSegmentation: Boolean(getVisualizerRegistryEntry(visualizer.visualizerMode).usesWordSegmentation),
         lyricSegmentation: {
