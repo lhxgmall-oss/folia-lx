@@ -18,7 +18,6 @@ import { useProviderSignOut } from './components/app/dialogs/useProviderSignOut'
 import LoginHost from './components/login/LoginHost';
 import { useSettingsDialogModel } from './components/app/dialogs/useSettingsDialogModel';
 import AppOverlays from './components/app/overlays/AppOverlays';
-import AutomixModelReminder from './components/modal/AutomixModelReminder';
 import PonderHost from './components/ponder/PonderHost';
 // Lazy so animejs (~38KB gz) stays out of the bootstrap chunk: this overlay only ever draws when the
 // animation switch is on AND the mode is automix, both off by default, so it is mounted only then.
@@ -29,6 +28,7 @@ import { useVisualizerAroundWall, wallExitCompleted, WALL_LAYER } from './compon
 import { useMorphKeepsHost } from './components/collectionFlight';
 import { UserGuideModal } from './components/modal/UserGuideModal';
 import ReleaseNotesDialog from './components/modal/ReleaseNotesDialog';
+import LegacyModelsPrompt from './components/modal/LegacyModelsPrompt';
 import { PlaybackEntryViewPrompt } from './components/modal/playback-entry-view/PlaybackEntryViewPrompt';
 import { LatticeFmNotice } from './components/modal/playback-entry-view/LatticeFmNotice';
 import { useStartupExperienceGate } from './hooks/useStartupExperienceGate';
@@ -70,6 +70,7 @@ import { createQueueMutations } from './components/app/player-panel/createQueueM
 import { Album, Artist, LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode, UnifiedSong } from './types';
 import type { LocalSong } from './types';
 import { getLocalSongArrayBuffer } from './services/localMusicService';
+import { registerLocalTrackFileReader } from './services/analysis/trackAudio';
 import type { MediaId, OnlineProviderId, ProviderCollection } from './types/onlineMusic';
 import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
 import { omni } from './services/onlineMusic/omni';
@@ -293,6 +294,12 @@ export default function App() {
         () => ({ mode: transitionMode, crossfadeMaxSec, performance: transitionPerformance }),
         [transitionMode, crossfadeMaxSec, transitionPerformance],
     );
+    // The analysis worker keeps htdemucs loaded while automix can ask for it, and releases it the
+    // moment it cannot - the switch off, or the crossfade mode, which reads no model. Sent on mount
+    // too: the main process starts out assuming off. See electron/analysis/host.cjs.
+    useEffect(() => {
+        window.electron?.setAutomixEnabled?.(automixEnabled && transitionMode === 'automix');
+    }, [automixEnabled, transitionMode]);
 
     const startupExperience = useStartupExperienceGate();
 
@@ -1097,6 +1104,12 @@ export default function App() {
         const local = localSongs.find(candidate => candidate.id === song.localRef.songId);
         return getLocalSongArrayBuffer((local ?? song) as unknown as LocalSong);
     }, [localSongs]);
+    // The same reader for every analyser (analysis/trackAudio.ts): 智能动感模式 and automix's
+    // profile read a local track that has no URL in hand through it too.
+    useEffect(() => {
+        registerLocalTrackFileReader(getLocalStemBytes);
+        return () => registerLocalTrackFileReader(null);
+    }, [getLocalStemBytes]);
 
     const automix = useAutomixDecks({
         audioRef,
@@ -2843,9 +2856,8 @@ export default function App() {
                 </Suspense>
             )}
 
-            {/* Same arrangement, same reason. Mounted here rather than beside either of the two
-                switches that can open it, so that both reach the same one. */}
-            <AutomixModelReminder isDaylight={isDaylight} />
+            {/* 旧版 automix 模型留在用户自选目录里时，问一次要不要删；没有就什么都不画。 */}
+            <LegacyModelsPrompt isDaylight={isDaylight} />
 
             {/* 思索教程。常驻的只有悬停探测和提示胶囊；教程层自己走 React.lazy，
                 animejs 不进 bootstrap chunk。 */}
