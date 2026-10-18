@@ -5,6 +5,7 @@ import { Settings2, X, Command } from 'lucide-react';
 import type { Theme } from '../../../types';
 import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBottomPx';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
+import { IS_ANDROID_BUILD } from '../../../utils/androidApp';
 
 // src/components/panelTab/shell/PanelHandle.tsx
 // The round button at the bottom right of the playing page that opens the panel and, white, closes
@@ -324,7 +325,10 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
                     data-testid="panel-toggle"
                     ref={layoutRef}
                     onUpdate={invalidateLayout}
-                    style={{ bottom: bottomBarBottomPx }}
+                    // Android: clear of the cutout / navigation bar on the right in landscape.
+                    style={IS_ANDROID_BUILD
+                        ? { bottom: bottomBarBottomPx, paddingRight: 'calc(1rem + var(--lx-safe-right, 0px))', width: 'calc(5rem + var(--lx-safe-right, 0px))' }
+                        : { bottom: bottomBarBottomPx }}
                     className="pointer-events-auto fixed right-0 z-[60] pr-4 md:pr-8 group w-20 flex justify-end"
                     onMouseEnter={handleToggleButtonMouseEnter}
                     onMouseLeave={handleToggleButtonMouseLeave}

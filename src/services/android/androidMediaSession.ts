@@ -72,13 +72,46 @@ const anyAudioWithSource = (): HTMLAudioElement | null =>
 
 type Handler = ((details: { action: string; seekTime?: number }) => void) | null;
 
-const toHttpArtwork = (metadata: MediaMetadata | null): string => {
-    const list = metadata?.artwork ?? [];
-    for (let i = list.length - 1; i >= 0; i -= 1) {
-        const src = list[i]?.src ?? '';
-        if (/^https?:\/\//i.test(src)) return src;
+const artworkSources = (metadata: MediaMetadata | null): string[] =>
+    [...(metadata?.artwork ?? [])].map(item => item?.src ?? '').filter(Boolean).reverse();
+
+// Covers the native side can fetch itself are sent as URLs; the rest (blob: from Folia's cover
+// cache, app-local files) are drawn here, shrunk to 512 px and sent as a data: URL.
+const convertedArtwork = new Map<string, string>();
+const converting = new Set<string>();
+
+const toDataUrl = async (src: string): Promise<string> => {
+    const response = await fetch(src);
+    if (!response.ok) throw new Error(`artwork ${response.status}`);
+    const bitmap = await createImageBitmap(await response.blob());
+    const scale = Math.min(1, 512 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    return canvas.toDataURL('image/jpeg', 0.85);
+};
+
+const resolveArtwork = (metadata: MediaMetadata | null, onReady: () => void): string => {
+    const sources = artworkSources(metadata);
+    const http = sources.find(src => /^https?:\/\//i.test(src)) ?? '';
+    const other = sources[0];
+    if (!other) return '';
+    if (other.startsWith('data:') && other.length < 400_000) return other;
+    // Drawn here first (the page can already read it, with the WebView's cover proxy); the native
+    // side fetching the plain URL is the fallback.
+    const done = convertedArtwork.get(other);
+    if (done !== undefined) return done || http;
+    if (converting.has(other)) return http;
+    {
+        converting.add(other);
+        void toDataUrl(other)
+            .then(data => { convertedArtwork.set(other, data); })
+            .catch(error => { convertedArtwork.set(other, ''); console.warn('[LxMedia] artwork failed', error); })
+            .finally(() => { converting.delete(other); if (convertedArtwork.size > 20) convertedArtwork.delete(convertedArtwork.keys().next().value as string); onReady(); });
     }
-    return '';
+    return http;
 };
 
 export const installAndroidMediaSession = (): void => {
@@ -128,7 +161,7 @@ export const installAndroidMediaSession = (): void => {
             title,
             artist: metadata?.artist ?? '',
             album: metadata?.album ?? '',
-            artwork: toHttpArtwork(metadata),
+            artwork: resolveArtwork(metadata, schedule),
             state: title ? state : 'none',
             position: currentPosition(),
             duration: Number.isFinite(duration) ? duration : 0,

@@ -16,6 +16,7 @@ import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsS
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, clampPlayerBottomBarOffset, resolvePlayerBottomBarMaxOffset } from '../utils/playerBottomBarLayout';
 import type { PlayerControlSlotActionId, PlayerControlSlotContext } from './floating-player/playerControlSlotActions';
 import { usePlayerOverlayObstacle } from '../hooks/usePlayerOverlayLayout';
+import { IS_ANDROID_BUILD } from '../utils/androidApp';
 import { playerControlBarHeight, playerControlBarLeft } from '../stores/playerControlBarGeometry';
 
 export interface TrackNavigation {
@@ -361,7 +362,17 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                     ${currentView === 'home'
                         ? 'max-w-[calc(100vw-120px)] md:max-w-[min(calc(32rem_+_var(--folium-player-bar-extra,0px)),calc(100vw-120px))]'
                         : 'max-w-[min(calc(32rem_+_var(--folium-player-bar-extra,0px)),100vw)] px-4'}`}
-                style={{ bottom: bottomBarBottomPx }}
+                style={{
+                    bottom: bottomBarBottomPx,
+                    // Android, playing page: on a narrow screen the bar reached under the round panel
+                    // button at the bottom right (PanelHandle) and cut it off. Keep its right edge
+                    // clear of that button (48 px + its 16 px margin + a gap, plus the cutout / bar
+                    // inset); on a wide screen the centred bar is far from it and nothing changes.
+                    ...(IS_ANDROID_BUILD && currentView !== 'home' ? {
+                        paddingLeft: 'max(1rem, var(--lx-safe-left, 0px))',
+                        paddingRight: 'max(1rem, calc(76px + var(--lx-safe-right, 0px) - (100vw - min(calc(32rem + var(--folium-player-bar-extra, 0px)), 100vw)) / 2))',
+                    } : {}),
+                }}
                 onUpdate={invalidateLayout}
             >
             <motion.div

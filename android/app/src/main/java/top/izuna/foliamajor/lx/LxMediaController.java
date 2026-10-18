@@ -234,10 +234,18 @@ public final class LxMediaController {
     }
 
     private void loadArtwork(String url) {
-        if (url == null || !url.startsWith("http")) return;
+        if (url == null || !(url.startsWith("http") || url.startsWith("data:"))) return;
         new Thread(() -> {
             Bitmap bitmap = null;
-            try (Response response = http.newCall(new Request.Builder().url(url).build()).execute()) {
+            if (url.startsWith("data:")) {
+                try {
+                    int comma = url.indexOf(',');
+                    byte[] bytes = android.util.Base64.decode(url.substring(comma + 1), android.util.Base64.DEFAULT);
+                    bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                } catch (Exception ignored) {
+                    // Bad data: no cover.
+                }
+            } else try (Response response = http.newCall(new Request.Builder().url(url).build()).execute()) {
                 ResponseBody body = response.body();
                 if (response.isSuccessful() && body != null) {
                     byte[] bytes = body.bytes();
