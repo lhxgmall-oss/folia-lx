@@ -114,7 +114,12 @@ export const readLocalTrackBytes = async (
             const response = await fetch(audioUrl);
             // A URL the provider no longer honours answers with a status and no audio.
             if (!response.ok) throw new Error(`kept file responded ${response.status}`);
-            return { bytes: await response.arrayBuffer() };
+            const blob = await response.blob();
+            // Held to the media cache's rule: a file under half the song is not the song, and what is
+            // read here is shared with every analyser (trackBytes.ts).
+            const notTheSong = await whyNotTheSong(song, audioUrl, blob);
+            if (notTheSong) return { skipped: `the file its provider keeps is ${notTheSong}` };
+            return { bytes: await blob.arrayBuffer() };
         } catch (error) {
             console.warn('[Analysis] could not read a file its provider keeps', error);
             return { skipped: 'the file its provider keeps could not be read' };

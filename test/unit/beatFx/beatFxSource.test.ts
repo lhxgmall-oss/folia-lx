@@ -29,12 +29,14 @@ vi.mock('@/services/prefetchService', () => ({ getPrefetchedData, isUrlValid: ()
 vi.mock('@/services/playbackRecovery/mediaCacheGuard', () => ({ isCacheableAudioResponse: () => true }));
 
 const { loadBeatFxTrackBeats } = await import('@/services/beatFx/beatFxSource');
+const { resetTrackBytesForTests } = await import('@/services/analysis/trackBytes');
 
 const makeSong = (id: string) => ({ id, sourceRef: { kind: 'online', providerId: 'kugou', mediaId: id } }) as unknown as SongResult;
 const song = makeSong('throws');
 
 describe('loadBeatFxTrackBeats', () => {
     beforeEach(() => {
+        resetTrackBytesForTests();
         getTrackBeatGrid.mockReset();
         getTrackBeatAccents.mockReset();
         getTrackBeatAccents.mockResolvedValue(null);

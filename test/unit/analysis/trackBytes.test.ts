@@ -32,6 +32,19 @@ describe('track bytes', () => {
         expect(peekTrackBytes('song-1')!.byteLength).toBe(8);
     });
 
+    it('reads by its own rules when the read it joined found nothing', async () => {
+        let answer!: (bytes: ArrayBuffer | null) => void;
+        const first = vi.fn(() => new Promise<ArrayBuffer | null>((resolve) => { answer = resolve; }));
+        const own = vi.fn(async () => bytesOf(6));
+        const a = loadTrackBytes('song-1', first);
+        const b = loadTrackBytes('song-1', own);
+        answer(null);
+        expect((await a).bytes).toBeNull();
+        expect(await b).toMatchObject({ source: 'read' });
+        expect((await b).bytes!.byteLength).toBe(6);
+        expect(peekTrackBytes('song-1')!.byteLength).toBe(6);
+    });
+
     it('does not remember a read that found nothing', async () => {
         expect((await loadTrackBytes('song-1', async () => null)).bytes).toBeNull();
         const read = vi.fn(async () => bytesOf(4));

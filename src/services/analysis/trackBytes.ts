@@ -76,6 +76,11 @@ export const putTrackBytes = (key: string, bytes: ArrayBuffer): void => {
 /**
  * The bytes of `key`: the kept ones, the run in flight joined, or `read` now - kept when it answers.
  * A null answer is not remembered: a later caller reads again. Each caller gets its own copy.
+ *
+ * The analysers read by different rules (stem separation reads a file its provider keeps, 智能动感模式
+ * reads the stream playback resolved), so a run joined that answers null is not this caller's
+ * answer: its own `read` runs then. Found by review: the stems joined a beat FX stream read that
+ * failed, parked, and missed the provider's wake-up that had already fired.
  */
 export const loadTrackBytes = async (
     key: string,
@@ -86,7 +91,10 @@ export const loadTrackBytes = async (
     const running = reading.get(key);
     if (running) {
         const bytes = await running;
-        return { bytes: bytes ? bytes.slice(0) : null, source: 'joined' };
+        if (bytes) return { bytes: bytes.slice(0), source: 'joined' };
+        const own = await read();
+        if (own) keep(key, own.slice(0));
+        return { bytes: own, source: 'read' };
     }
     const run = read().then((bytes) => {
         if (bytes) keep(key, bytes.slice(0));

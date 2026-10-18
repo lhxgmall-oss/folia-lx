@@ -400,7 +400,15 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // the stems (analysis/trackBytes.ts), so neither reads or streams it again. Only kept from
             // here, never taken: this read's download is also the media-cache write above, which a
             // copy handed over from elsewhere would skip.
-            if (!result.partial) putTrackBytes(songKey, result.bytes);
+            // A file its provider keeps was not held to the whole-song rule on the way in: held here,
+            // on a copy taken now (the decode below detaches the read), without holding the decode up.
+            if (!result.partial) {
+                const copy = result.bytes.slice(0);
+                const song = request.song;
+                void whyNotTheSong(song, null, new Blob([copy]))
+                    .then((notTheSong) => { if (!notTheSong) putTrackBytes(songKey, copy); })
+                    .catch(() => undefined);
+            }
             // Asked a second time, because reading the bytes is the slow part: a full track off the
             // media cache or the network is seconds, and everything after this line - the decode, the
             // spectrogram, the beat model - is the expensive part it would be buying for nobody.
