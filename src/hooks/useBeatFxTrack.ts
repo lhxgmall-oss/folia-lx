@@ -3,12 +3,13 @@ import { selectDisplaySong, usePlaybackStore } from '../stores/usePlaybackStore'
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
 import { liveBeatEffects, liveBeatEffectStrength, visualizerWantsBeats, visualizerWantsDrumHits } from '../components/visualizer/beatClockTargets';
-import { resolveBeatEffectSetting, smartBeatMayAnalyse } from '../services/beatFx/beatEffects';
+import { BEAT_EFFECT_IDS, resolveBeatEffectSetting, smartBeatMayAnalyse } from '../services/beatFx/beatEffects';
 import { beginBeatFxTrack, getBeatFxHeard, setBeatFxEvents, setBeatFxIntensities, setBeatFxLiveEffects, stopBeatFx } from '../services/beatFx/beatFxLive';
 import { loadBeatFxTrackBeats, loadBeatFxTrackDrums } from '../services/beatFx/beatFxSource';
 import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../services/playbackRecovery/representationRegistry';
 import { modelsPresent, subscribeModelAvailability } from '../services/analysis/modelAvailability';
-import { setWantedDrumTrack } from '../services/analysis/drumHits';
+import { getDrumHits, setWantedDrumTrack } from '../services/analysis/drumHits';
+import { setStemDrumsWanted } from '../services/analysis/stemRange';
 
 // src/hooks/useBeatFxTrack.ts
 // Loads the beat list of the on-screen track into the live beat clock whenever the track changes,
@@ -25,6 +26,8 @@ import { setWantedDrumTrack } from '../services/analysis/drumHits';
 // Under 智能动感模式's `cached` both are read from what is stored only (`storedOnly`, see
 // services/beatFx/beatFxSource.ts) and nothing is run; switching between `cached` and `on` mid-track
 // reloads both, so `on` analyses the track at once and `cached` stops a separation in flight.
+// Also tells the stem segments (services/analysis/stemRange.ts) for which tracks the drums automix
+// separated are worth keeping for the drum hits (from the PR #750 review).
 
 /** An online track's stream URL is resolved by playback around the same time as the lookup. */
 const RETRY_ATTEMPTS = 4;
@@ -48,6 +51,20 @@ export function useBeatFxTrack(): boolean {
         .join(','));
     // Asked again when htdemucs_gpu's answer arrives (the startup check; the file ships with the app).
     const drumModel = useSyncExternalStore(subscribeModelAvailability, modelsPresent).htdemucs_gpu;
+
+    // Whether a track's drum hits may still be separated, on any picture (时计 may come on later): only
+    // then are the drums automix's segments leave behind kept (services/analysis/stemRange.ts), and only
+    // for a track whose hits are not all in yet.
+    const drumsMayRun = useVisualizerSettingsStore(state => smartBeatMayAnalyse(state.smartBeat)
+        && resolveBeatEffectSetting(state.smartBeat, BEAT_EFFECT_IDS.pendoloDrumhead).on) && drumModel;
+    useEffect(() => {
+        setStemDrumsWanted(drumsMayRun
+            ? (key) => {
+                const hits = getDrumHits(key);
+                return !hits || hits.until !== undefined;
+            }
+            : () => false);
+    }, [drumsMayRun]);
 
     useEffect(() => {
         setBeatFxIntensities(beatStrength, beatStrength);

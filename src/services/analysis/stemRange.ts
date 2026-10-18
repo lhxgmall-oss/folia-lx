@@ -27,6 +27,11 @@ import { HTDEMUCS_GPU_SEGMENT, runHtdemucsGpu, type GpuRunOptions, type StemChan
 // own segments whole (it has their sums); a segment being separated is joined, not run twice; and an
 // entry remembers the track length it was cut for.
 //
+// From the PR #750 review: the drums alone are kept only while the drum hits may still run for that
+// track (`setStemDrumsWanted`, set from 智能动感模式's settings by hooks/useBeatFxTrack.ts): with the
+// mode off or on stored results only, 仿真鼓面 off, or the track's hits already in, automix kept up to
+// MAX_BYTES of drums no one would read.
+//
 // The GPU is deterministic and every caller cuts its segment's input from the same decode (one per
 // key and rate, analysis/trackBytes.ts), so a segment taken from here is the segment the caller would
 // have separated itself.
@@ -125,6 +130,27 @@ const keep = (id: string, stems: StemChannels[], total: number) => {
     }
 };
 
+const drop = (id: string) => {
+    const found = kept.get(id);
+    if (!found) return;
+    keptBytes -= found.bytes;
+    kept.delete(id);
+};
+
+/** Whether the drum hits of a key may still be separated, so its drums are worth keeping. */
+let drumsWanted: (key: string) => boolean = () => true;
+
+/**
+ * Says for which keys the drum hits may still run (see the header); the drums kept for a key it now
+ * says no to are dropped at once.
+ */
+export const setStemDrumsWanted = (test: (key: string) => boolean): void => {
+    drumsWanted = test;
+    for (const [id, entry] of [...kept]) {
+        if (entry.stems.length === 1 && !drumsWanted(id.slice(0, id.lastIndexOf('#')))) drop(id);
+    }
+};
+
 /** A kept segment's stems (all four, or the drums alone), marked as just used; null when not kept. */
 export const peekStemSegment = (key: string, index: number, total?: number): StemChannels[] | null => {
     const id = segmentKey(key, index);
@@ -171,7 +197,9 @@ export const forgetStemRange = (key: string, from: number, to: number, total: nu
     for (const index of segmentsOver(total, from, to)) {
         const id = segmentKey(key, index);
         const found = kept.get(id);
-        if (found && found.stems.length > 1 && !inWantedRange(key, index, total)) keep(id, drumsOnly(found.stems), total);
+        if (!found || found.stems.length === 1 || inWantedRange(key, index, total)) continue;
+        if (drumsWanted(key)) keep(id, drumsOnly(found.stems), total);
+        else drop(id);
     }
 };
 
@@ -217,7 +245,7 @@ export const separateStemSegment = async (
     if (!stems) return null;
     if (key && id) {
         if (inWantedRange(key, index, total, own) && stems.length === STEM_SOURCES.length) keep(id, stems, total);
-        else if (by === 'stems') keep(id, drumsOnly(stems), total);
+        else if (by === 'stems' && drumsWanted(key)) keep(id, drumsOnly(stems), total);
     }
     return stems;
 };
@@ -292,4 +320,5 @@ export const resetStemSegmentsForTests = (): void => {
     keptBytes = 0;
     wanted.clear();
     separating.clear();
+    drumsWanted = () => true;
 };

@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
 
-const { forgetStemRange, peekStemSegment, resetStemSegmentsForTests, segmentsOver, separateStemRange, stemRangeSpan, wantStemRange } = await import('@/services/analysis/stemRange');
+const { forgetStemRange, peekStemSegment, resetStemSegmentsForTests, segmentsOver, separateStemRange, setStemDrumsWanted, stemRangeSpan, wantStemRange } = await import('@/services/analysis/stemRange');
 const { separateDrumStem } = await import('@/services/analysis/drumStem');
 
 /** A stand-in model: four different, non-linear stems per segment, so the sums and weights matter. */
@@ -177,3 +177,42 @@ describe('stem ranges, from review', () => {
     });
 });
 
+describe('stem ranges, from the PR #750 review', () => {
+    beforeEach(() => {
+        runHtdemucsGpu.mockReset();
+        runHtdemucsGpu.mockImplementation(model);
+        resetStemSegmentsForTests();
+    });
+
+    it('keeps no drums of automix\'s own segments for a track whose drum hits will not run', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        setStemDrumsWanted(key => key !== 'done');
+        wantStemRange('done', 30, 50, total);
+        expect(await separateStemRange({ key: 'done', left, right, offset: 0, total, from: 30, to: 50, options })).not.toBeNull();
+        expect(peekStemSegment('done', 3)).toBeNull();
+    });
+
+    it('drops a taken segment rather than shrink it to the drums, when they will not be read', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        wantStemRange('song', 30, 50, total);
+        expect(await separateDrumStem(left, right, undefined, undefined, undefined, 'song')).not.toBeNull();
+        setStemDrumsWanted(() => false);
+        forgetStemRange('song', 30, 50, total);
+        expect(peekStemSegment('song', 3)).toBeNull();
+    });
+
+    it('drops the drums already kept for a track it now says no to, and only those', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        wantStemRange('a', 30, 50, total);
+        wantStemRange('b', 30, 50, total);
+        expect(await separateStemRange({ key: 'a', left, right, offset: 0, total, from: 30, to: 50, options })).not.toBeNull();
+        expect(await separateStemRange({ key: 'b', left, right, offset: 0, total, from: 30, to: 50, options })).not.toBeNull();
+        expect(peekStemSegment('a', 3)).toHaveLength(1);
+        setStemDrumsWanted(key => key !== 'a');
+        expect(peekStemSegment('a', 3)).toBeNull();
+        expect(peekStemSegment('b', 3)).toHaveLength(1);
+    });
+});
