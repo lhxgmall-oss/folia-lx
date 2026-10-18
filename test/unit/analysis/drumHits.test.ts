@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/analysis/drumHits.test.ts
 // The drum stem of a whole track (drumStem.ts: segments, overlap-add) and its hits (drumHits.ts: the
 // drumless guard, the cache layering, the cache key's registration as analysis data), and the hits
-// read a stretch at a time while it separates (drumHitStream.ts): the same as the whole track's.
+// read a stretch at a time while it separates (drumHitStream.ts): the same as the whole track's. And a
+// separation stopped part way and carried on from what it kept (analysis service plan, 2b): the same
+// bits as one that ran through.
 
 const store = new Map<string, unknown>();
 vi.mock('@/services/db', () => ({
@@ -16,10 +18,10 @@ vi.mock('@/services/db', () => ({
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
 
-const { drumStemSegments, drumStemWindow, separateDrumStem } = await import('@/services/analysis/drumStem');
+const { drumStemSegments, drumStemWindow, separateDrumStem, startDrumStem } = await import('@/services/analysis/drumStem');
 const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
 const { getFromCache } = await import('@/services/db');
-const { createDrumBandStream } = await import('@/services/analysis/drumHitStream');
+const { createDrumBandStream, streamNeedsFrom } = await import('@/services/analysis/drumHitStream');
 const { melSpectrogram } = await import('@/services/analysis/beatThis');
 const { DRUM_HITS_PREFIX, isBeatGridKey, isDrumHitsKey } = await import('@/services/analysis/beatGridKeys');
 
@@ -64,6 +66,31 @@ describe('drum stem', () => {
         let calls = 0;
         expect(await separateDrumStem(new Float32Array(40), new Float32Array(40), undefined, () => calls++ < 2)).toBeNull();
         expect(runHtdemucsGpu).toHaveBeenCalledTimes(2);
+    });
+
+    it('carries on from a stop with only the tail kept, to the same bits as one run through', async () => {
+        // Not the identity: the two channels apart, so the sum and weight carried over matter.
+        runHtdemucsGpu.mockImplementation(async (left: Float32Array, right: Float32Array) => ({
+            left: left.map(v => v * 0.7 + 0.01),
+            right: right.map(v => v * -0.3),
+        }));
+        const left = Float32Array.from({ length: 50 }, (_, i) => Math.sin(i * 1.3));
+        const right = Float32Array.from({ length: 50 }, (_, i) => Math.cos(i * 0.7));
+        const through = await separateDrumStem(left, right);
+        const progress = startDrumStem(50);
+        let segments = 0;
+        expect(await separateDrumStem(left, right, undefined, () => segments++ < 2, progress)).toBeNull();
+        expect([progress.next, progress.divided]).toEqual([2, 24]);
+        // What drumHits keeps: from a point inside the divided head to the last sample reached.
+        const tailStart = 20;
+        const reached = 12 + 16;
+        const resumed = startDrumStem(50);
+        resumed.drums.set(progress.drums.slice(tailStart, reached), tailStart);
+        resumed.weight.set(progress.weight.slice(tailStart, reached), tailStart);
+        resumed.next = progress.next;
+        resumed.divided = progress.divided;
+        const carried = await separateDrumStem(left, right, undefined, undefined, resumed);
+        expect(Array.from(carried!.subarray(tailStart))).toEqual(Array.from(through!.subarray(tailStart)));
     });
 
     it('is null as soon as one segment cannot be separated', async () => {
@@ -195,6 +222,38 @@ describe('drum hits while separating', () => {
         expect(streamed.times.length).toBeGreaterThan(20);
         expect(Array.from(streamed.times)).toEqual(Array.from(reference.times));
         expect(Array.from(streamed.kinds)).toEqual(Array.from(reference.kinds));
+    });
+
+    it('carries a stream on from its bands and the stem from where it reads again, to the same bands', async () => {
+        const stem = clicks(12);
+        const steps = { resample: halve, mel: melSpectrogram, bands: drumBandTracks };
+        const through = createDrumBandStream(stem.length, steps);
+        await through.advance(stem, 129024, false);
+        await through.advance(stem, 2 * 129024, false);
+        await through.advance(stem, stem.length, true);
+        const stopped = createDrumBandStream(stem.length, steps);
+        await stopped.advance(stem, 129024, false);
+        // Carried on with nothing of the stem before where it reads again.
+        const tail = stem.slice();
+        tail.fill(0, 0, streamNeedsFrom(stopped.done));
+        const carried = createDrumBandStream(stem.length, steps, { bands: stopped.bands, done: stopped.done });
+        expect(carried.done).toBe(stopped.done);
+        await carried.advance(tail, 2 * 129024, false);
+        await carried.advance(tail, tail.length, true);
+        for (let band = 0; band < 3; band += 1) expect(Array.from(carried.bands[band])).toEqual(Array.from(through.bands[band]));
+    });
+
+    it('sums the drum energy a stretch at a time to the same bits as at once', () => {
+        const stem = clicks(3);
+        const hop = 441;
+        const atOnce = new Float32Array(Math.ceil(stem.length / hop));
+        for (let at = 0; at < stem.length; at += 1) atOnce[Math.floor(at / hop)] += stem[at] * stem[at];
+        const stretched = new Float32Array(atOnce.length);
+        let measured = 0;
+        for (const final of [10_000, 50_123, stem.length]) {
+            for (; measured < final; measured += 1) stretched[Math.floor(measured / hop)] += stem[measured] * stem[measured];
+        }
+        expect(Array.from(stretched)).toEqual(Array.from(atOnce));
     });
 
     it('picks over the frames so far alone', async () => {

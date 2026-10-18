@@ -140,7 +140,9 @@ export function useBeatFxTrack(): boolean {
         return () => {
             left = true;
             if (retryTimer) clearTimeout(retryTimer);
-            // The separation is NOT stopped here: leaving the picture is not leaving the track. See below.
+            // The separation stops here (at its next segment) and keeps where it was, to carry on from
+            // when the track is wanted again (drumHits.ts, DrumResume). See below.
+            setWantedDrumTrack(null);
         };
         // Keyed like the lookup above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,9 +155,11 @@ export function useBeatFxTrack(): boolean {
     // stored, at the cost of sharing the GPU for a while with whatever the new picture runs; the memory
     // it holds is what it held on 时计. Switching to `cached` stops it too: that mode runs nothing.
     // (`storedOnly` is also true while 智能动感模式 is off.)
-    const mayAnalyse = !storedOnly && !staticMode;
-    const playingKey = mayAnalyse && song ? getPlaybackAnalysisKey(song) : null;
-    useEffect(() => () => setWantedDrumTrack(null), [playingKey]);
+    // @note That was PR #734's stopgap. Since the analysis service's 2b (docs/analysis-service-plan.md)
+    // a picture switch stops it again, in the drum hits' cleanup above, and it no longer starts over: the
+    // hits so far and where it was are kept in memory (drumHits.ts, DrumResume), the hits play as soon as
+    // 时计 is back, and the separation carries on from the segment it stopped before. The decoded track
+    // and the stem are let go meanwhile, and the GPU is the new picture's.
 
     return wanted;
 }

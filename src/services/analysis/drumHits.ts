@@ -2,8 +2,9 @@ import { melSpectrogramOffThread } from '../automix/analysisOffThread';
 import { getFromCache, saveToCache } from '../db';
 import { BEAT_THIS_FPS, BEAT_THIS_SAMPLE_RATE, MEL_BANDS, melBandCentresHz, type MelSpectrogram } from './beatThis';
 import { DRUM_HITS_PREFIX } from './beatGridKeys';
-import { createDrumBandStream, type DrumBands } from './drumHitStream';
-import { separateDrumStem } from './drumStem';
+import { createDrumBandStream, streamNeedsFrom, type DrumBands } from './drumHitStream';
+import { drumStemSegments, separateDrumStem, startDrumStem, type DrumStemProgress } from './drumStem';
+import { HTDEMUCS_GPU_SEGMENT } from './beatThisGpu';
 import { modelCanRun } from './modelAvailability';
 import { decodeAtRate } from './trackAudio';
 import { decodeTrackAtRate } from './trackBytes';
@@ -286,7 +287,42 @@ const remember = (key: string, analysis: DrumAnalysis, note: string) => {
     else keep(key, analysis.hits);
 };
 
-const separateAndRead = async (key: string, bytes: ArrayBuffer): Promise<DrumAnalysis | null> => {
+/**
+ * What a separation stopped part way keeps, to carry on from (analysis service plan, 2b): the hits it
+ * had, and of everything else only what the rest needs - the stem from where the band stream and the
+ * energy will read it again up to the last sample a separated segment reached, its weight there, the
+ * bands and the drum energy so far, and the next segment. Under a megabyte, against the ~80 MB the
+ * decoded track and the stem take while separating, which are let go. In memory only: a track not
+ * finished is never stored, and after a restart it separates from the start.
+ */
+interface DrumResume {
+    total: number;
+    next: number;
+    divided: number;
+    tailStart: number;
+    drums: Float32Array;
+    weight: Float32Array;
+    bands: DrumBands;
+    done: number;
+    drumEnergy: Float32Array;
+    measured: number;
+    hits: DrumHits | null;
+}
+const resumes = new Map<string, DrumResume>();
+/** The tracks whose separation can carry on, the most recently stopped kept. */
+const MAX_RESUMES = 4;
+
+const keepResume = (key: string, resume: DrumResume) => {
+    resumes.delete(key);
+    resumes.set(key, resume);
+    while (resumes.size > MAX_RESUMES) {
+        const oldest = resumes.keys().next().value;
+        if (oldest === undefined) break;
+        resumes.delete(oldest);
+    }
+};
+
+const separateAndRead = async (key: string, bytes: ArrayBuffer, resume: DrumResume | null = null): Promise<DrumAnalysis | null> => {
     const started = performance.now();
     const buffer = await decodeTrackAtRate(key, STEM_RATE, bytes, decodeAtRate, 'drum hits', 'own');
     if (!buffer) return null;
@@ -297,7 +333,21 @@ const separateAndRead = async (key: string, bytes: ArrayBuffer): Promise<DrumAna
     const mixEnergy = energyFrames(mix);
     const drumEnergy = new Float32Array(mixEnergy.length);
     let measured = 0;
-    const stream = createDrumBandStream(buffer.length, { resample, mel: melSpectrogramOffThread, bands: drumBandTracks });
+    const progress = startDrumStem(buffer.length);
+    // Carried on only from a stop of this very decode's length; anything else starts again.
+    const from = resume && resume.total === buffer.length ? resume : null;
+    if (resume && !from) console.info(`[DrumHits] ${key}: the track decodes to another length than when it stopped, separating from the start`);
+    if (from) {
+        progress.drums.set(from.drums, from.tailStart);
+        progress.weight.set(from.weight, from.tailStart);
+        progress.next = from.next;
+        progress.divided = from.divided;
+        drumEnergy.set(from.drumEnergy);
+        measured = from.measured;
+        console.info(`[DrumHits] ${key}: carrying on from ${(from.divided / STEM_RATE).toFixed(1)}s`);
+    }
+    resumes.delete(key);
+    const stream = createDrumBandStream(buffer.length, { resample, mel: melSpectrogramOffThread, bands: drumBandTracks }, from ? { bands: from.bands, done: from.done } : undefined);
     // The hits of the head so far, for 时计 while the rest separates (see the header).
     const pickLive = async (drums: Float32Array, final: number) => {
         for (; measured < final; measured += 1) drumEnergy[Math.floor(measured / ENERGY_HOP)] += drums[measured] * drums[measured];
@@ -334,16 +384,20 @@ const separateAndRead = async (key: string, bytes: ArrayBuffer): Promise<DrumAna
             live = pickLive(stem, final)
                 .catch(error => console.warn(`[DrumHits] ${key}: live hits failed`, error))
                 .finally(() => { live = null; });
-        }, () => wanted === key);
+        }, () => wanted === key, progress);
         await live;
         if (!drums) {
-            if (wanted !== key) console.info(`[DrumHits] ${key}: separation stopped, the track was left`);
+            if (wanted !== key) console.info(`[DrumHits] ${key}: separation stopped at ${(progress.divided / STEM_RATE).toFixed(1)}s, the track or the picture was left`);
+            if (progress.next > 0) await stopForLater(key, progress, stream, drumEnergy, measured, buffer.length);
             return null;
         }
+        // The energy the live picks summed so far, finished to the end: the same sums in the same order
+        // as `energyFrames(drums)`, so the same bits, without the stem's head (gone after a resume).
+        for (; measured < drums.length; measured += 1) drumEnergy[Math.floor(measured / ENERGY_HOP)] += drums[measured] * drums[measured];
         await stream.advance(drums, drums.length, true);
         const analysis: DrumAnalysis = {
             hits: pickBandHits(stream.bands, stream.frames),
-            drumEnergy: energyFrames(drums),
+            drumEnergy,
             mixEnergy,
         };
         complete = true;
@@ -354,6 +408,46 @@ const separateAndRead = async (key: string, bytes: ArrayBuffer): Promise<DrumAna
         // A separation left or failed part way leaves no hits behind: a later play would read them as whole.
         if (!complete && getDrumHits(key)?.until !== undefined) hitLists.delete(key);
     }
+};
+
+/**
+ * Keeps what a separation stopped at a segment boundary needs to carry on (DrumResume): the energy and
+ * the bands brought up to what is final, then the stem from where they will read it next.
+ */
+const stopForLater = async (
+    key: string,
+    progress: DrumStemProgress,
+    stream: ReturnType<typeof createDrumBandStream>,
+    drumEnergy: Float32Array,
+    measuredSoFar: number,
+    total: number,
+) => {
+    let measured = measuredSoFar;
+    const { drums, weight, divided, next } = progress;
+    for (; measured < divided; measured += 1) drumEnergy[Math.floor(measured / ENERGY_HOP)] += drums[measured] * drums[measured];
+    try {
+        await stream.advance(drums, divided, false);
+    } catch (error) {
+        console.warn(`[DrumHits] ${key}: could not keep where it stopped`, error);
+        return;
+    }
+    const starts = drumStemSegments(total);
+    // The last sample a separated segment reached: past it the sum is all zeros.
+    const reached = Math.min(total, starts[next - 1] + HTDEMUCS_GPU_SEGMENT);
+    const tailStart = Math.min(streamNeedsFrom(stream.done), measured, divided);
+    keepResume(key, {
+        total,
+        next,
+        divided,
+        tailStart,
+        drums: drums.slice(tailStart, reached),
+        weight: weight.slice(tailStart, reached),
+        bands: [stream.bands[0].slice(), stream.bands[1].slice(), stream.bands[2].slice()],
+        done: stream.done,
+        drumEnergy: drumEnergy.slice(),
+        measured,
+        hits: getDrumHits(key),
+    });
 };
 
 /**
@@ -392,8 +486,11 @@ export const loadTrackDrumHits = (key: string, readBytes: () => Promise<ArrayBuf
             return stored;
         }
         if (!canRunDrumStem() || wanted !== key) return null;
+        // A separation stopped earlier: its hits play at once, while the track decodes again.
+        const resume = resumes.get(key) ?? null;
+        if (resume?.hits) keep(key, resume.hits);
         const bytes = await readBytes();
-        return bytes ? separateAndRead(key, bytes) : null;
+        return bytes ? separateAndRead(key, bytes, resume) : null;
     })().catch((error) => {
         console.warn(`[DrumHits] ${key}: failed`, error);
         return null;

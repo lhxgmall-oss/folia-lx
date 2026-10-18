@@ -20,6 +20,12 @@ import { HTDEMUCS_GPU_SEGMENT, runHtdemucsGpu } from './beatThisGpu';
 // has had every contribution it will get, so its quotient is final - divided there and then, and
 // handed to `onSegment` as the stem's finished head, for a caller that reads hits while the rest is
 // still separating (drumHitStream.ts). Each sample is divided once, so the stem is the same either way.
+//
+// The running sum is also what a stopped separation resumes from (analysis service plan, 2b): with
+// `progress`, the sum, the weight, the next segment and how far it is divided live in the caller's
+// object, so a separation stopped at a segment boundary can be handed back what it had - only the
+// part not yet final matters, the next segment's quarter - and carry on from that segment. The stem
+// is then the same, bit for bit, as one separated in a single go.
 
 /** The triangular overlap-add window of htdemucs.cjs `buildWindow`, for one segment. */
 export const drumStemWindow = (segment: number): Float32Array => {
@@ -52,22 +58,40 @@ export const drumStemSegments = (total: number, segment = HTDEMUCS_GPU_SEGMENT):
  * `onSegment` hears each finished segment's index and the count, and the stem so far: `drums` is final
  * up to `final` samples (the rest of it is not yet divided, and is not to be read).
  */
+/** Where a separation is: the running sum and weight, the next segment, and how far it is final. */
+export interface DrumStemProgress {
+    drums: Float32Array;
+    weight: Float32Array;
+    /** The index of the next segment to separate. */
+    next: number;
+    /** Samples from the start whose quotient is final (divided). */
+    divided: number;
+}
+
+/** A fresh progress for a track of `total` samples. */
+export const startDrumStem = (total: number): DrumStemProgress => ({
+    drums: new Float32Array(total),
+    weight: new Float32Array(total),
+    next: 0,
+    divided: 0,
+});
+
 export const separateDrumStem = async (
     left: Float32Array,
     right: Float32Array,
     onSegment?: (done: number, count: number, drums: Float32Array, final: number) => void,
     keepGoing: () => boolean = () => true,
+    progress: DrumStemProgress = startDrumStem(left.length),
 ): Promise<Float32Array | null> => {
     const segment = HTDEMUCS_GPU_SEGMENT;
     const total = left.length;
     const win = drumStemWindow(segment);
     const starts = drumStemSegments(total, segment);
-    const drums = new Float32Array(total);
-    const weight = new Float32Array(total);
+    const { drums, weight } = progress;
     const inLeft = new Float32Array(segment);
     const inRight = new Float32Array(segment);
-    let divided = 0;
-    for (const [index, start] of starts.entries()) {
+    for (let index = progress.next; index < starts.length; index += 1) {
+        const start = starts[index];
         if (!keepGoing()) return null;
         const n = Math.min(segment, total - start);
         // The last segment runs past the end of the track: zeros, as the reference pads it.
@@ -84,8 +108,9 @@ export const separateDrumStem = async (
         }
         // Up to where the next segment starts, nothing more will be added.
         const final = index + 1 < starts.length ? starts[index + 1] : total;
-        for (let i = divided; i < final; i += 1) drums[i] /= Math.max(weight[i], 1e-8);
-        divided = final;
+        for (let i = progress.divided; i < final; i += 1) drums[i] /= Math.max(weight[i], 1e-8);
+        progress.divided = final;
+        progress.next = index + 1;
         onSegment?.(index + 1, starts.length, drums, final);
     }
     return drums;
