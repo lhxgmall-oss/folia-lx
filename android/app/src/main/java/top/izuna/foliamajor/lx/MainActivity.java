@@ -32,6 +32,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(LxNativePlugin.class);
+        registerPlugin(LxMediaPlugin.class);
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this, SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

@@ -3,6 +3,8 @@ import { installGlobalVisualizerFrameRateLimiter } from './utils/frameRateLimite
 import { installConsoleLogCapture } from './utils/consoleLogBuffer';
 import { installDebugModule } from './services/debug/debugModule';
 import { installMemorySampleFeed } from './services/debug/memorySamples';
+import { IS_ANDROID_BUILD } from './utils/androidApp';
+import { installAndroidMediaSession } from './services/android/androidMediaSession';
 // import { installCoverSizeAudit } from './services/debug/coverSizeSamples';
 // @ts-ignore
 globalThis.Buffer = Buffer;
@@ -21,5 +23,7 @@ installMemorySampleFeed();
 // observer or the rows it retains.
 // if (import.meta.env.DEV) installCoverSizeAudit();
 installGlobalVisualizerFrameRateLimiter();
+// Android app: notification / lock-screen player and headset buttons through a native MediaSession.
+if (IS_ANDROID_BUILD) installAndroidMediaSession();
 
 void import('./bootstrap');

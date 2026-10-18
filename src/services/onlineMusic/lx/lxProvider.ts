@@ -23,6 +23,14 @@ import { LX_LOCAL_USER, normalizeLxMyList, readLxMyLists } from './lxMyLists';
 
 type SearchAnswer = { list: LxMusicInfo[]; total: number; hasMore: boolean };
 type MusicUrlAnswer = { url: string; quality: AudioQualityPreference; source: string; fallbackFrom?: string };
+// QQ 音乐等来源的翻译歌词会在第一行塞一句版权声明（“TME享有本翻译作品的著作权”），或者用 “//”
+// 占位；它们会被当成翻译显示出来，这里去掉。
+const TRANSLATION_NOTICE = /^(?:\/\/|TME享有本翻译作品的著作权|.*享有本翻译作品的著作权.*)$/;
+const stripTranslationNotices = (text: string): string => text
+    .split(/\r?\n/)
+    .filter(line => !TRANSLATION_NOTICE.test(line.replace(/^(?:\[[^\]]*\])+/, '').trim()))
+    .join('\n');
+
 type LyricAnswer = { lyric: string; tlyric: string; rlyric: string; lxlyric: string };
 type HotListAnswer = { list: unknown[] };
 
@@ -98,6 +106,7 @@ export const lxProvider: OnlineMusicProvider = {
         async getLyrics(song) {
             const { source, musicInfo } = lxSongTarget(song);
             const data = await requestLx<LyricAnswer>('lyric', { source, musicInfo });
+            data.tlyric = stripTranslationNotices(data.tlyric || '');
             const mainText = data.lyric || '';
             // `lxlyric` is LX's word-by-word track ([mm:ss.ms]<offset,duration>word), the same text the
             // awlrc container carries; where a sub-source has none, the plain LRC is used.

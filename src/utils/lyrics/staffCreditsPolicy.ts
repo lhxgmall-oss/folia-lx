@@ -25,7 +25,10 @@ export type {
     LyricStaffVerdict,
 } from './types';
 
-export const DEFAULT_LYRIC_STAFF_POLICY: LyricStaffPolicy = 'smart';
+import { IS_ANDROID_BUILD } from '../androidApp';
+
+// 安卓手机屏幕窄，开头的作词作曲信息会被拆成一堆大字叠在一起，默认直接隐藏（设置里仍可改回）。
+export const DEFAULT_LYRIC_STAFF_POLICY: LyricStaffPolicy = IS_ANDROID_BUILD ? 'hide' : 'smart';
 export const DEFAULT_LYRIC_STAFF_MIN_DWELL_SECONDS = 1.5;
 export const DEFAULT_LYRIC_STAFF_ABSORB_MODE: LyricStaffAbsorbMode = 'off';
 export const LYRIC_STAFF_MIN_DWELL_RANGE = { min: 0.6, max: 4 } as const;
