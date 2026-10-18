@@ -3,6 +3,7 @@
 build/htdemucs_wgsl/red_line.py
 
     python red_line.py REF_DIR OUT_DIR [SOURCE]
+    python red_line.py REF_DIR OUT_DIR 0,1,2,3   (out.f32 from HTW_SOURCES=0,1,2,3: [n, 4, 2, 172032])
 
 REF_DIR/stems.f32 from reference.py ([n, 4, 2, 172032]), OUT_DIR/out.f32 from dev/htdemucs-wgsl
 ([n, 2, 172032], source SOURCE, default 0 = drums). The same gate make_model.py (removed) held the CPU
@@ -19,17 +20,19 @@ LIMIT_DB = 0.01
 
 def main():
     ref_dir, out_dir = sys.argv[1:3]
-    source = int(sys.argv[3]) if len(sys.argv) > 3 else 0
-    ref = np.fromfile(f'{ref_dir}/stems.f32', np.float32).astype(np.float64).reshape(-1, 4, 2, L)[:, source]
-    out = np.fromfile(f'{out_dir}/out.f32', np.float32).astype(np.float64).reshape(-1, 2, L)
-    assert ref.shape == out.shape, (ref.shape, out.shape)
+    sources = [int(s) for s in sys.argv[3].split(',')] if len(sys.argv) > 3 else [0]
+    names = ['drums', 'bass', 'other', 'vocals']
+    refs = np.fromfile(f'{ref_dir}/stems.f32', np.float32).astype(np.float64).reshape(-1, 4, 2, L)
+    outs = np.fromfile(f'{out_dir}/out.f32', np.float32).astype(np.float64).reshape(-1, len(sources), 2, L)
+    assert refs.shape[0] == outs.shape[0], (refs.shape, outs.shape)
     worst = 0.0
-    for i, (r, o) in enumerate(zip(ref, out)):
-        level_r = 10 * np.log10(np.mean(r ** 2))
-        level_o = 10 * np.log10(np.mean(o ** 2))
-        snr = 10 * np.log10(np.mean(r ** 2) / max(np.mean((r - o) ** 2), 1e-30))
-        worst = max(worst, abs(level_o - level_r))
-        print(f'segment {i}: level {level_r:7.2f} dB, diff {level_o - level_r:+.4f} dB, SNR {snr:5.1f} dB')
+    for k, source in enumerate(sources):
+        for i, (r, o) in enumerate(zip(refs[:, source], outs[:, k])):
+            level_r = 10 * np.log10(np.mean(r ** 2))
+            level_o = 10 * np.log10(np.mean(o ** 2))
+            snr = 10 * np.log10(np.mean(r ** 2) / max(np.mean((r - o) ** 2), 1e-30))
+            worst = max(worst, abs(level_o - level_r))
+            print(f'{names[source]:6} segment {i}: level {level_r:7.2f} dB, diff {level_o - level_r:+.4f} dB, SNR {snr:5.1f} dB')
     print(f'worst level difference {worst:.4f} dB (limit {LIMIT_DB})')
     sys.exit(0 if worst <= LIMIT_DB else 1)
 
