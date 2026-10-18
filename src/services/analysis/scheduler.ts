@@ -22,6 +22,12 @@
 //
 // Also measured per unit, for phase 2c (yielding to the picture): the longest gap between two frames
 // while the unit ran, against the shortest gap seen (the display's refresh). Only logged here.
+//
+// Yielding to the picture (2c): a unit and the visualizer's frames share the one GPU. When frames
+// were dropped (a gap over 1.5x the refresh) while a unit ran, the next one waits a frame before it
+// is handed out, so the picture gets one in between; dropped again, twice as many, up to
+// MAX_YIELD_FRAMES; a unit that drops none halves it back. Not for a unit whose deadline's slack is
+// under DEADLINE_MARGIN_MS: a frame or two dropped is better than a transition without its stems.
 
 export type Urgency = 'transition' | 'onScreen' | 'background';
 
@@ -70,6 +76,8 @@ const URGENCY_RANK: Record<Urgency, number> = { transition: 0, onScreen: 1, back
  * minutes) held automix's beats back for all of it, where the old FIFO let one in between segments.
  */
 const BACKGROUND_AGE_MS = 1000;
+/** The most frames waited between two units while the picture drops frames (2c). */
+const MAX_YIELD_FRAMES = 8;
 
 export interface Scheduler {
     submit<T>(request: UnitRequest<T>): Promise<T | null>;
@@ -102,6 +110,12 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
     let running: { kind: string; started: number } | null = null;
     /** Load time noted while the running unit ran, taken off its own time. */
     let loadedDuringUnit = 0;
+    /** Frames to wait before the next unit, while the picture drops frames under them (2c). */
+    let yieldFrames = 0;
+    /** Waiting those frames: nothing is handed out meanwhile. */
+    let yielding = false;
+    /** Waited already for the unit about to be handed out: it goes without waiting again. */
+    let yielded = false;
 
     const unitMs = (kind: string) => averages.get(kind) ?? FIRST_GUESS_MS[kind] ?? 100;
     const loadMs = (kind: string) => loads.get(kind) ?? FIRST_GUESS_MS.load;
@@ -124,7 +138,8 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
         return byUrgency !== 0 ? byUrgency : a.order - b.order;
     };
 
-    const pick = (): Entry | null => {
+    /** The unit to run next, dropping those no longer wanted; taken off the queue only with `take`. */
+    const pick = (take = true): Entry | null => {
         const at = now();
         let best: Entry | null = null;
         for (let index = 0; index < queue.length;) {
@@ -138,14 +153,31 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
             if (entry.request.paused?.()) continue;
             if (!best || compare(entry, best, at) < 0) best = entry;
         }
-        if (best) queue.splice(queue.indexOf(best), 1);
+        if (best && take) queue.splice(queue.indexOf(best), 1);
         return best;
     };
 
+    /** Whether the next unit waits for the picture first: not one whose deadline is close (2c). */
+    const shouldYield = () => {
+        if (yieldFrames === 0 || !frames) return false;
+        const next = pick(false);
+        return next !== null && !(hasDeadline(next.request) && slackOf(next.request, now()) < DEADLINE_MARGIN_MS);
+    };
+
     const pump = () => {
-        if (busy) return;
+        if (busy || yielding) return;
+        if (!yielded && shouldYield()) {
+            yielding = true;
+            void frames!.wait(yieldFrames).finally(() => {
+                yielding = false;
+                yielded = true;
+                pump();
+            });
+            return;
+        }
         const entry = pick();
         if (!entry) return;
+        yielded = false;
         busy = true;
         const { request } = entry;
         const started = now();
@@ -162,6 +194,13 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
                 averages.set(request.kind, previous === undefined ? took : previous + EWMA * (took - previous));
             }
             const seen = frames?.end() ?? null;
+            if (seen) {
+                const before = yieldFrames;
+                yieldFrames = seen.over > 0 ? Math.min(MAX_YIELD_FRAMES, Math.max(1, yieldFrames * 2)) : Math.floor(yieldFrames / 2);
+                if (before !== yieldFrames && (before === 0 || yieldFrames === 0)) {
+                    log(yieldFrames ? `[Scheduler] the picture drops frames under ${request.kind}: a frame between units` : '[Scheduler] the picture keeps up again: units back to back');
+                }
+            }
             // Only the unit worth a look: one that waited, or one the picture dropped frames under.
             if (waited > 200 || (seen && seen.over > 0)) {
                 log(`[Scheduler] ${request.kind} ${took.toFixed(0)}ms (${request.urgency}, waited ${waited.toFixed(0)}ms, ${queue.length} queued${request.key ? `, ${request.key}` : ''})`
@@ -259,6 +298,8 @@ export const chooseCpuThreads = ({ deadline, quietFinish }: { deadline?: number;
 export interface FrameWatch {
     begin(): void;
     end(): { worst: number; refresh: number; over: number } | null;
+    /** Resolves after `count` frames, or soon anyway when there are none (a hidden page). */
+    wait(count: number): Promise<void>;
 }
 
 /**
@@ -307,6 +348,27 @@ export const watchFrames = (): FrameWatch | null => {
             window.cancelAnimationFrame(handle);
             const shortest = refresh();
             return Number.isFinite(shortest) && worst > 0 ? { worst, refresh: shortest, over } : null;
+        },
+        wait(count) {
+            return new Promise<void>((resolve) => {
+                let left = count;
+                let frame = 0;
+                // A hidden page draws no frames: the wait ends anyway, at about 10 per second.
+                const timer = setTimeout(() => {
+                    window.cancelAnimationFrame(frame);
+                    resolve();
+                }, count * 100);
+                const tick = () => {
+                    left -= 1;
+                    if (left > 0) {
+                        frame = window.requestAnimationFrame(tick);
+                        return;
+                    }
+                    clearTimeout(timer);
+                    resolve();
+                };
+                frame = window.requestAnimationFrame(tick);
+            });
         },
     };
 };

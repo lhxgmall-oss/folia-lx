@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { chooseCpuThreads, chooseExecutor, cpuThreads, createScheduler, DEADLINE_MARGIN_MS, type UnitRequest } from '@/services/analysis/scheduler';
+import { chooseCpuThreads, chooseExecutor, cpuThreads, createScheduler, DEADLINE_MARGIN_MS, type FrameWatch, type UnitRequest } from '@/services/analysis/scheduler';
 
 // test/unit/analysis/scheduler.test.ts
 // The analysis scheduler: which unit runs next (deadline by slack, then on screen, then background,
 // first come first served), a dropped task answering null at its turn, a paused one passed over and
-// kept, the estimate a task's finish is judged by, and the GPU / CPU and thread-level choices.
+// kept, the estimate a task's finish is judged by, and the GPU / CPU and thread-level choices. And
+// yielding to the picture (2c): frames waited between units while it drops frames, not for a deadline.
 
 const clock = () => {
     let at = 0;
@@ -163,6 +164,65 @@ describe('the scheduler, from review', () => {
         const scheduler = createScheduler({ log: () => undefined });
         await expect(scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: () => { throw new Error('sync'); } })).rejects.toThrow('sync');
         expect(await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 'after' })).toBe('after');
+    });
+});
+
+describe('yielding to the picture', () => {
+    /** Frames that drop under every unit while `dropping`, and waits the test lets through by hand. */
+    const fakeFrames = () => {
+        const waits: Array<{ count: number; done: () => void }> = [];
+        const watch = {
+            dropping: true,
+            waits,
+            begin: () => undefined,
+            end: () => ({ worst: 40, refresh: 16.7, over: watch.dropping ? 2 : 0 }),
+            wait: (count: number) => new Promise<void>((resolve) => { waits.push({ count, done: resolve }); }),
+        };
+        return watch as typeof watch & FrameWatch;
+    };
+
+    it('waits a frame before the next unit once frames drop, doubling while they go on, and halving back', async () => {
+        const frames = fakeFrames();
+        const scheduler = createScheduler({ frames, log: () => undefined });
+        const ran: number[] = [];
+        const unit = (n: number) => scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { ran.push(n); return n; } });
+        const answers = [unit(1), unit(2), unit(3)];
+        await flush();
+        // The first ran at once; frames dropped under it, so the second waits one frame.
+        expect(ran).toEqual([1]);
+        expect(frames.waits.map(wait => wait.count)).toEqual([1]);
+        frames.waits[0].done();
+        await flush();
+        expect(ran).toEqual([1, 2]);
+        expect(frames.waits.map(wait => wait.count)).toEqual([1, 2]);
+        frames.dropping = false;
+        frames.waits[1].done();
+        await Promise.all(answers);
+        expect(ran).toEqual([1, 2, 3]);
+        // The third dropped none: down to one frame, then none.
+        const after = unit(4);
+        await flush();
+        expect(frames.waits.map(wait => wait.count)).toEqual([1, 2, 1]);
+        frames.waits[2].done();
+        await after;
+        expect(await unit(5)).toBe(5);
+        expect(frames.waits).toHaveLength(3);
+    });
+
+    it('does not wait for a unit whose deadline is close', async () => {
+        const time = clock();
+        const frames = fakeFrames();
+        const scheduler = createScheduler({ now: time.now, frames, log: () => undefined });
+        await scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => 1 });
+        // Frames dropped: a unit with time to spare waits, one about to be late does not.
+        const late = scheduler.submit({ kind: 'htdemucs', urgency: 'transition', deadline: DEADLINE_MARGIN_MS - 1, run: async () => 'late' });
+        expect(await late).toBe('late');
+        expect(frames.waits).toHaveLength(0);
+        const spare = scheduler.submit({ kind: 'htdemucs', urgency: 'transition', deadline: 600_000, run: async () => 'spare' });
+        await flush();
+        expect(frames.waits).toHaveLength(1);
+        frames.waits[0].done();
+        expect(await spare).toBe('spare');
     });
 });
 
