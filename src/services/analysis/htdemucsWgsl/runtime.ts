@@ -427,6 +427,9 @@ export class HtdemucsWgsl {
             dispatch(ISTFT_A, [freqOut, specStats, tw, dft], [FRAMES, source], [1, 64, 2 * FRAMES], HTDEMUCS_SOURCES[source]);
             dispatch(ISTFT_B, [dft, tw, tensor('istft.window'), frames], [FRAMES], [1, 64, 2 * FRAMES], HTDEMUCS_SOURCES[source]);
             dispatch(OVERLAP_ADD, [frames, tensor('istft.env'), timeOut, mixStats, outBuffer], [FRAMES, L, source, index * 2 * L], flat(2 * L), HTDEMUCS_SOURCES[source]);
+            // A stage boundary between sources (found by review): the last stage is never cut, and
+            // four sources' iSTFTs in it are ~8.5 ms on an M4 - a 120 Hz frame - where one was ~2.
+            if (index < sources.length - 1) stage(`out_${HTDEMUCS_SOURCES[source]}`, outBuffer, 2 * L * (index + 1));
         });
         stage('out', outBuffer, 2 * L * sources.length);
 

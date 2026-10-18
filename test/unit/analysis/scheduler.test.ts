@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseCpuThreads, chooseExecutor, cpuThreads, createScheduler, DEADLINE_MARGIN_MS, type FrameWatch, type UnitRequest } from '@/services/analysis/scheduler';
+import { chooseCpuThreads, chooseExecutor, cpuThreads, createScheduler, DEADLINE_HORIZON_MS, DEADLINE_MARGIN_MS, type FrameWatch, type UnitRequest } from '@/services/analysis/scheduler';
 
 // test/unit/analysis/scheduler.test.ts
 // The analysis scheduler: which unit runs next (deadline by slack, then on screen, then background,
@@ -318,6 +318,22 @@ describe('yielding to the picture', () => {
         expect(frames.waits).toHaveLength(2);
         frames.waits[1].done();
         await screen;
+    });
+});
+
+describe('a deadline far off', () => {
+    it('ranks by its urgency until its slack is under the horizon, then goes first', async () => {
+        const time = clock();
+        const scheduler = createScheduler({ now: time.now, log: () => undefined });
+        const started: string[] = [];
+        const first = held('first', started);
+        const busy = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: first.run });
+        const far = scheduler.submit({ kind: 'htdemucs', urgency: 'background', deadline: 10 * DEADLINE_HORIZON_MS, run: async () => { started.push('far'); return 1; } });
+        const near = scheduler.submit({ kind: 'htdemucs', urgency: 'background', deadline: DEADLINE_HORIZON_MS / 2, run: async () => { started.push('near'); return 1; } });
+        const screen = scheduler.submit({ kind: 'htdemucs', urgency: 'onScreen', run: async () => { started.push('screen'); return 1; } });
+        first.finish();
+        await Promise.all([busy, far, near, screen]);
+        expect(started).toEqual(['first', 'near', 'screen', 'far']);
     });
 });
 

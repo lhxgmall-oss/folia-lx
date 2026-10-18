@@ -10,7 +10,7 @@ import { decodeTrackAtRate, loadTrackBytes, type TrackBytesSource } from '../ana
 import { canRunBeatThis } from '../analysis/beatThis';
 import { modelCanRun, noteModelFailed } from '../analysis/modelAvailability';
 import { profilesSettled } from './profileService';
-import { estimateGpuFinish } from '../analysis/beatThisGpu';
+import { estimateGpuFinish, gpuStemsUsable } from '../analysis/beatThisGpu';
 import { chooseCpuThreads, chooseExecutor, cpuThreads, type Executor } from '../analysis/scheduler';
 import { forgetStemRange, segmentsOver, separateStemRange, stemRangeSpan, wantStemRange } from '../analysis/stemRange';
 // The one edge back the other way is `import type`, so it is erased and this is not a cycle.
@@ -212,8 +212,11 @@ const canSeparateStemsOnCpu = (): boolean =>
     && modelCanRun('htdemucs');
 
 /** The renderer's WebGPU htdemucs (analysis/beatThisGpu.ts), the drum hits' (analysis/drumHits.ts canRunDrumStem). */
+// Also false once this machine's GPU turned out unusable (found by review): otherwise every window
+// went to a dead GPU first, and with the CPU model failed too, automix decoded and asked forever.
 const canSeparateStemsOnGpu = (): boolean =>
-    typeof window !== 'undefined'
+    gpuStemsUsable()
+    && typeof window !== 'undefined'
     && typeof window.electron?.getHtdemucsGpuWeights === 'function'
     && typeof navigator !== 'undefined' && 'gpu' in navigator
     && modelCanRun('htdemucs_gpu');
@@ -520,27 +523,53 @@ const cutWindow = async (key: string, bytes: ArrayBuffer, source: TrackBytesSour
 
 type StemParts = Record<'drums' | 'bass' | 'vocals', { left: Float32Array; right: Float32Array }>;
 
-/** CPU seconds per second of window at the quiet level: about a third (see STEM_WINDOW_SEC) at four threads. */
-const CPU_SECONDS_PER_SECOND = 0.35;
+/**
+ * CPU seconds per second of window at four threads: a 30 s window in 3.2-3.6 s on an M4 with MNN
+ * (electron/analysis/worker.cjs). Was 0.35, the onnxruntime figure STEM_WINDOW_SEC still quotes;
+ * found by review, three times too slow, which made the hurry level look needed when it was not.
+ */
+const CPU_SECONDS_PER_SECOND = 0.12;
+/** Building htdemucs on the CPU for another thread count (MNN fixes it per build): a 92 MB read and the network. */
+const CPU_REBUILD_MS = 1500;
+/** The thread count the CPU htdemucs was last asked for: another one rebuilds it. */
+let lastCpuThreads: number | null = null;
+/**
+ * Each window's deadline as it stands, by window key: a later `ensureStems` for a window in flight
+ * moves it (the duration arrives after the track does; a resume after a pause), and a pause clears
+ * them (`clearStemDeadlines`). Read at the executor choice and at every GPU segment.
+ */
+const deadlines = new Map<string, number>();
+
+/** No window is due while nothing plays: a paused transition is not coming (useAutomixDecks). */
+export const clearStemDeadlines = (): void => {
+    deadlines.clear();
+};
+
+/** Test-only: forgets the CPU's last thread count and every deadline. */
+export const resetStemExecutorForTests = (): void => {
+    lastCpuThreads = null;
+    deadlines.clear();
+};
 
 /**
  * Where a window is separated and how hard (see the header): the GPU unless it is missing or late,
  * and on the CPU the quiet threads unless they would be late.
  */
-const chooseStemExecutor = (request: StemRequest, total: number, start: number, length: number): { executor: Executor; threads: number } => {
+const chooseStemExecutor = (deadline: number | undefined, total: number, start: number, length: number): { executor: Executor; threads: number } => {
     const gpuAvailable = canSeparateStemsOnGpu();
     const cpuAvailable = canSeparateStemsOnCpu();
     const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency > 0 ? navigator.hardwareConcurrency : 4;
     const quietThreads = cpuThreads(cores, 'quiet', 'htdemucs');
-    // At four threads the third of a second per second; fewer threads, proportionally longer.
-    const cpuMs = (threads: number) => (length / STEM_SAMPLE_RATE) * CPU_SECONDS_PER_SECOND * 1000 * Math.max(1, 4 / threads);
+    // Fewer threads than four, proportionally longer; another count than the last, a rebuild first.
+    const cpuMs = (threads: number) => (length / STEM_SAMPLE_RATE) * CPU_SECONDS_PER_SECOND * 1000 * Math.max(1, 4 / threads)
+        + (threads === lastCpuThreads ? 0 : CPU_REBUILD_MS);
     const now = performance.now();
     const units = segmentsOver(total, start, start + length).length;
-    const gpuFinish = gpuAvailable ? estimateGpuFinish('htdemucs', units, 'background', request.deadline) : Infinity;
+    const gpuFinish = gpuAvailable ? estimateGpuFinish('htdemucs', units, 'background', deadline) : Infinity;
     // The level first, so the CPU is judged on time at the level it would run at.
-    const level = chooseCpuThreads({ deadline: request.deadline, quietFinish: now + cpuMs(quietThreads) });
+    const level = chooseCpuThreads({ deadline, quietFinish: now + cpuMs(quietThreads) });
     const threads = cpuThreads(cores, level, 'htdemucs');
-    const executor = !cpuAvailable ? 'gpu' : chooseExecutor({ gpuAvailable, deadline: request.deadline, gpuFinish, cpuFinish: now + cpuMs(threads) });
+    const executor = !cpuAvailable ? 'gpu' : chooseExecutor({ gpuAvailable, deadline, gpuFinish, cpuFinish: now + cpuMs(threads) });
     return { executor, threads };
 };
 
@@ -557,7 +586,11 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
     // transcode registering mid-window cannot file one's stems under the other's key.
     const target = getPlaybackAnalysisTarget(request.song);
     const key = `${target.key}:${request.role}`;
-    if (inFlight.has(key)) return;
+    if (inFlight.has(key)) {
+        // Under way: only its deadline moves.
+        if (request.deadline !== undefined) deadlines.set(key, request.deadline);
+        return;
+    }
     if (cache.has(key)) {
         // A hit says something, and it used to say it by staying quiet. "We already have this" and
         // "nothing ever asked for this" then read identically - and the second is a dead subsystem,
@@ -574,6 +607,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
         return;
     }
     inFlight.add(key);
+    if (request.deadline !== undefined) deadlines.set(key, request.deadline);
     // After the cache and in-flight guards, so this is once per window rather than once per render.
     //
     // "Asked for" and "asked for and gave up" look identical without it, and only one is a bug in this
@@ -636,9 +670,11 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             return;
         }
         const modelStarted = performance.now();
-        const { executor, threads } = chooseStemExecutor(request, cut.total, start, windowLength);
+        const { executor, threads } = chooseStemExecutor(deadlines.get(key), cut.total, start, windowLength);
         let parts: StemParts | null = null;
-        let ranOn = executor === 'gpu' ? 'the GPU' : `the CPU (${threads} threads)`;
+        // On the GPU the time includes the scheduler's queue (the picture's segments, its frames), so
+        // it is not the model's alone: said so, rather than read as what the machine can do.
+        let ranOn = executor === 'gpu' ? 'the GPU, queue included' : `the CPU (${threads} threads)`;
         if (executor === 'gpu') {
             // Said before it runs, so a segment the drum hits separate meanwhile is kept for it.
             wantStemRange(target.key, start, start + windowLength, cut.total);
@@ -651,7 +687,11 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
                     total: cut.total,
                     from: start,
                     to: start + windowLength,
-                    options: { urgency: 'background', deadline: request.deadline, stillWanted: request.stillWanted, key: target.key },
+                    // Not `stillWanted`: asked once, above, as before phase 3 - a window under way is
+                    // finished and kept (stemLateResult.test.ts). Its own log key: `raiseGpuUrgency` of
+                    // the playing track's beats must not raise automix's units with them.
+                    options: { urgency: 'background', key: `stems ${target.key}` },
+                    deadlineOf: () => deadlines.get(key),
                 });
                 // htdemucs' order: drums, bass, other, vocals. `other` is derived below, as on the CPU.
                 if (stems) parts = { drums: stems[0], bass: stems[1], vocals: stems[3] };
@@ -676,6 +716,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             triedCpu = true;
             // Copies of the window alone: a view would carry its whole span across the IPC.
             // Kept loaded only where the CPU is the separator; a GPU machine's fallback goes after a minute.
+            lastCpuThreads = threads;
             parts = await separate({ left: left.slice(), right: right.slice(), threads, resident: !canSeparateStemsOnGpu() });
         }
         if (!parts) {
@@ -765,6 +806,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
         console.warn('[Automix] separation failed', error);
     } finally {
         inFlight.delete(key);
+        deadlines.delete(key);
         // Unconditionally, including after a throw: a slot never handed back stalls every window
         // for the rest of the session, and the failure mode is the subsystem going quiet forever.
         release();

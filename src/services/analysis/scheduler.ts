@@ -12,6 +12,9 @@
 // less when they would finish - then what a picture on screen is waiting for, then background work,
 // first come first served within each. A unit whose task is no longer wanted is dropped when it
 // would have been picked (it answers null); one whose task is paused is passed over and kept.
+// A deadline counts only once it is close - slack under DEADLINE_HORIZON_MS (found by review, once
+// automix gave its windows the transition's deadline): further off, the unit ranks by its urgency
+// like any other, so a transition minutes away does not hold a picture's segments for its whole window.
 //
 // "Busy" is not a GPU utilisation figure - WebGPU has none - but an estimate: every unit's time is
 // measured, kept per kind as a moving average, and a task's finish is now + the units picked before
@@ -141,9 +144,11 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
         entry.request.urgency === 'background' && at - entry.queuedAt >= BACKGROUND_AGE_MS ? URGENCY_RANK.onScreen : URGENCY_RANK[entry.request.urgency]
     );
     /** Negative when `a` goes before `b`. */
+    /** A deadline close enough to go first: within DEADLINE_HORIZON_MS of slack. */
+    const pressing = (request: UnitRequest<unknown>, at: number) => hasDeadline(request) && slackOf(request, at) < DEADLINE_HORIZON_MS;
     const compare = (a: Entry, b: Entry, at: number) => {
-        const deadlineA = hasDeadline(a.request);
-        const deadlineB = hasDeadline(b.request);
+        const deadlineA = pressing(a.request, at);
+        const deadlineB = pressing(b.request, at);
         if (deadlineA !== deadlineB) return deadlineA ? -1 : 1;
         if (deadlineA && deadlineB) {
             const bySlack = slackOf(a.request, at) - slackOf(b.request, at);
@@ -286,6 +291,8 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
 
 /** How far ahead of its deadline a task must be estimated to finish to count as on time. */
 export const DEADLINE_MARGIN_MS = 5000;
+/** Slack under which a unit's deadline puts it before units without one; further off, its urgency ranks it. */
+export const DEADLINE_HORIZON_MS = 60_000;
 
 export type Executor = 'gpu' | 'cpu';
 

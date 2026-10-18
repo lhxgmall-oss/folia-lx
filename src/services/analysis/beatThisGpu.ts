@@ -154,11 +154,20 @@ const used = (model: GpuModel) => {
     arm();
 };
 
+/**
+ * A model used this recently is not released for room (found by review): where the two do not fit
+ * (beat_this unpacked to f32 without shader-f16 is about twice the M4's 106 MB), a track start that
+ * interleaves their units would otherwise reload one for every unit of the other. They are then
+ * over the budget together for those seconds, and the idle release brings them back under it.
+ */
+const BUDGET_SPARES_MS = 15_000;
+
 /** Before loading `model`: the least recently used others released until it fits the budget. */
 const makeRoom = (model: GpuModel) => {
     const need = measuredBytes.get(model) ?? FIRST_GUESS_BYTES[model];
     for (;;) {
-        const others = [...resident.entries()].filter(([name]) => name !== model && name !== inUse);
+        const now = performance.now();
+        const others = [...resident.entries()].filter(([name, entry]) => name !== model && name !== inUse && now - entry.usedAt >= BUDGET_SPARES_MS);
         const held = [...resident.entries()].filter(([name]) => name !== model).reduce((sum, [, entry]) => sum + entry.bytes, 0);
         if (held + need <= GPU_BUDGET_BYTES || others.length === 0) return;
         const [oldest] = others.sort((a, b) => a[1].usedAt - b[1].usedAt)[0];
@@ -185,6 +194,14 @@ export type GpuRunOptions = Omit<UnitRequest<unknown>, 'kind' | 'run'>;
 export const estimateGpuFinish = (kind: string, units: number, urgency: GpuRunOptions['urgency'], deadline?: number): number => (
     scheduler.estimateFinish(kind, units, urgency, deadline)
 );
+
+/**
+ * Whether the GPU htdemucs is worth asking: false once this machine turned out to have no usable
+ * WebGPU (no worker, adapter or device) or htdemucs would not build on it - for the session, as
+ * runHtdemucsGpu itself decides. automix reads it to tell a GPU machine from one that only has the
+ * API (automix/stems.ts).
+ */
+export const gpuStemsUsable = (): boolean => !unsupported && !failedModels.has('htdemucs');
 
 /** Raises a track's queued runs: a caller on screen joined a run asked in the background. */
 export const raiseGpuUrgency = (key: string, urgency: GpuRunOptions['urgency']): void => scheduler.raise(key, urgency);

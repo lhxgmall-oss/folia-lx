@@ -97,3 +97,59 @@ describe('stem ranges', () => {
         expect(runHtdemucsGpu).toHaveBeenCalledTimes(2);
     });
 });
+
+describe('stem ranges, from review', () => {
+    beforeEach(() => {
+        runHtdemucsGpu.mockReset();
+        runHtdemucsGpu.mockImplementation(model);
+        resetStemSegmentsForTests();
+    });
+
+    it('counts wants: a short track\'s head and tail are one stretch, and the first done leaves the other its segments', async () => {
+        const total = 20;
+        const { left, right } = track(total);
+        wantStemRange('short', 0, total, total);
+        wantStemRange('short', 0, total, total);
+        expect(await separateDrumStem(left, right, undefined, undefined, undefined, 'short')).not.toBeNull();
+        forgetStemRange('short', 0, total, total);
+        expect(peekStemSegment('short', 0)).toHaveLength(4);
+        runHtdemucsGpu.mockClear();
+        expect(await separateStemRange({ key: 'short', left, right, offset: 0, total, from: 0, to: total, options })).not.toBeNull();
+        expect(runHtdemucsGpu).not.toHaveBeenCalled();
+    });
+
+    it('does not keep a caller\'s own segments whole for itself, only their drums', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        wantStemRange('own', 30, 50, total);
+        expect(await separateStemRange({ key: 'own', left, right, offset: 0, total, from: 30, to: 50, options })).not.toBeNull();
+        expect(peekStemSegment('own', 3)).toHaveLength(1);
+    });
+
+    it('joins a segment another caller is separating rather than running it twice', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => { release = resolve; });
+        runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
+            await gate;
+            return model(l, r);
+        });
+        const drums = separateDrumStem(left, right, undefined, undefined, undefined, 'both');
+        const stems = separateStemRange({ key: 'both', left, right, offset: 0, total, from: 0, to: 10, options });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        release();
+        expect(await stems).not.toBeNull();
+        expect(await drums).not.toBeNull();
+        // Segment 0 once for the two of them, then the drum stem's other four.
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(5);
+    });
+
+    it('does not hand a segment kept for one track length to another', async () => {
+        const { left, right } = track(50);
+        expect(await separateStemRange({ key: 'len', left, right, offset: 0, total: 50, from: 0, to: 10, options })).not.toBeNull();
+        expect(peekStemSegment('len', 0, 50)).not.toBeNull();
+        expect(peekStemSegment('len', 0, 49)).toBeNull();
+    });
+});
+

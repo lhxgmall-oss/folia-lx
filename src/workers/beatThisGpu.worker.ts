@@ -122,9 +122,10 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             // 'auto' as for a beat_this chunk: one stage on the GPU at a time, finer where a stage
             // outlasts a 120 Hz frame, so a segment never holds the visualizer's frames.
             const result = await htdemucs.run(request.left, request.right, { slice: 'auto' });
-            // htdemucs' four sources in its order (drums, bass, other, vocals), each its own copy to transfer.
-            const stems = result.stems.map(stem => ({ left: stem.left.slice(), right: stem.right.slice() }));
-            self.postMessage({ id: request.id, result: { stems } }, { transfer: stems.flatMap(stem => [stem.left.buffer, stem.right.buffer]) });
+            // htdemucs' four sources in its order (drums, bass, other, vocals): views of the one readback,
+            // which is transferred once, uncopied (review: eight copies were 5.5 MB more per segment).
+            const { stems } = result;
+            self.postMessage({ id: request.id, result: { stems } }, { transfer: [stems[0].left.buffer] });
             return;
         }
         if (request.kind === 'unload') {

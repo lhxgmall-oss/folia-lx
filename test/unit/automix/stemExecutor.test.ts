@@ -18,17 +18,18 @@ vi.mock('@/services/audioCache', () => ({
 }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({ getCachedSongAudioBlob }));
 
-const gpu = vi.hoisted(() => ({ finish: 0, works: true }));
+const gpu = vi.hoisted(() => ({ finish: 0, works: true, usable: true }));
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({
     HTDEMUCS_GPU_SEGMENT: 256,
     runHtdemucsGpu,
     estimateGpuFinish: () => gpu.finish,
+    gpuStemsUsable: () => gpu.usable,
 }));
 
 import { refreshModelAvailability } from '@/services/analysis/modelAvailability';
 import { cpuThreads } from '@/services/analysis/scheduler';
-import { ensureStems, getStemsByKey, setWantedStems, stemWindowKey } from '@/services/automix/stems';
+import { clearStemDeadlines, ensureStems, getStemsByKey, resetStemExecutorForTests, setWantedStems, stemWindowKey } from '@/services/automix/stems';
 import { getPlaybackAnalysisKey } from '@/services/playbackRecovery/representationRegistry';
 
 const SAMPLES = 1024;
@@ -78,6 +79,8 @@ describe('where a stem window is separated', () => {
         });
         gpu.finish = 0;
         gpu.works = true;
+        gpu.usable = true;
+        resetStemExecutorForTests();
     });
 
     it('takes the GPU by default, on the segment grid, and never asks the CPU', async () => {
@@ -116,14 +119,14 @@ describe('where a stem window is separated', () => {
     it('takes the CPU, hurried, when the GPU would be late for the deadline and the quiet CPU too', async () => {
         const { separateStems, ready } = setUp();
         await ready;
-        // A window of 1024 samples is ~16 ms of CPU at the quiet level (two threads of eight cores),
-        // ~8 ms hurried (four): due 5 s and 12 ms out, only the hurried CPU is on time by the 5 s
-        // margin; the GPU is an hour late.
-        // A still clock, so the few ms the decode takes do not eat the 4 ms between the two levels.
+        // A window of 1024 samples is ~5.6 ms of CPU at the quiet level (two threads of eight cores),
+        // ~2.8 ms hurried (four), each after the 1.5 s build (none yet): due 5 s, 1.5 s and 4 ms out,
+        // only the hurried CPU is on time by the 5 s margin; the GPU is an hour late.
+        // A still clock, so the few ms the decode takes do not eat the ms between the two levels.
         const now = 1_000_000;
         const clock = vi.spyOn(performance, 'now').mockReturnValue(now);
         gpu.finish = now + 3_600_000;
-        await separate(nextSong(), now + 5000 + 12);
+        await separate(nextSong(), now + 5000 + 1500 + 4);
         clock.mockRestore();
         expect(runHtdemucsGpu).not.toHaveBeenCalled();
         expect(separateStems).toHaveBeenCalledTimes(1);
@@ -137,5 +140,70 @@ describe('where a stem window is separated', () => {
         await separate(nextSong(), performance.now() + 1000);
         expect(runHtdemucsGpu).toHaveBeenCalled();
         expect(separateStems).not.toHaveBeenCalled();
+    });
+});
+
+
+describe('where a stem window is separated, from review', () => {
+    beforeEach(() => {
+        vi.spyOn(console, 'log').mockImplementation(() => { });
+        runHtdemucsGpu.mockReset();
+        runHtdemucsGpu.mockImplementation(async (left: Float32Array, right: Float32Array) => {
+            const stems = [0.5, 0.2, 0.1, 0.2].map(gain => ({ left: left.map(v => v * gain), right: right.map(v => v * gain) }));
+            return { left: stems[0].left, right: stems[0].right, stems };
+        });
+        gpu.finish = 0;
+        gpu.works = true;
+        gpu.usable = true;
+        resetStemExecutorForTests();
+    });
+
+    it('does not send windows to a GPU that turned out unusable, and keeps the CPU model loaded there', async () => {
+        const { separateStems, ready } = setUp();
+        await ready;
+        gpu.usable = false;
+        await separate(nextSong());
+        expect(runHtdemucsGpu).not.toHaveBeenCalled();
+        expect(separateStems.mock.calls[0]).toMatchObject([{ resident: true }]);
+    });
+
+    it('gives a window under way the deadline a later call brings, at its next GPU segment', async () => {
+        const { ready } = setUp({ withCpu: false });
+        await ready;
+        const song = nextSong();
+        const seen: Array<number | undefined> = [];
+        let first = true;
+        runHtdemucsGpu.mockImplementation(async (left: Float32Array, right: Float32Array, options: { deadline?: number }) => {
+            seen.push(options.deadline);
+            if (first) {
+                first = false;
+                // The duration arrives while the first segment runs: the effect asks again, with it.
+                await ensureStems({ song, role: 'tail', readBytes: () => Promise.resolve(new ArrayBuffer(8)), deadline: 123_456 });
+            }
+            const stems = [0, 1, 2, 3].map(() => ({ left: left.slice(), right: right.slice() }));
+            return { left: stems[0].left, right: stems[0].right, stems };
+        });
+        await separate(song);
+        expect(seen[0]).toBeUndefined();
+        expect(seen.slice(1).every(deadline => deadline === 123_456)).toBe(true);
+    });
+
+    it('drops the deadlines of windows under way while paused', async () => {
+        const { ready } = setUp({ withCpu: false });
+        await ready;
+        const seen: Array<number | undefined> = [];
+        let first = true;
+        runHtdemucsGpu.mockImplementation(async (left: Float32Array, right: Float32Array, options: { deadline?: number }) => {
+            seen.push(options.deadline);
+            if (first) {
+                first = false;
+                clearStemDeadlines();
+            }
+            const stems = [0, 1, 2, 3].map(() => ({ left: left.slice(), right: right.slice() }));
+            return { left: stems[0].left, right: stems[0].right, stems };
+        });
+        await separate(nextSong(), 999_999);
+        expect(seen[0]).toBe(999_999);
+        expect(seen.slice(1).every(deadline => deadline === undefined)).toBe(true);
     });
 });

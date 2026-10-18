@@ -22,6 +22,11 @@ import { HTDEMUCS_GPU_SEGMENT, runHtdemucsGpu, type GpuRunOptions, type StemChan
 // Once automix has its stretch (`forgetStemRange`) its segments shrink to their drums. Nothing is
 // written to disk: the stems automix keeps are its own (16-bit, its window), the drum hits store hits.
 //
+// From review: wants are counted (a short track's head and tail are the same stretch, and the first
+// one done must not shrink the other's segments); the caller's own stretch does not make it keep its
+// own segments whole (it has their sums); a segment being separated is joined, not run twice; and an
+// entry remembers the track length it was cut for.
+//
 // The GPU is deterministic and every caller cuts its segment's input from the same decode (one per
 // key and rate, analysis/trackBytes.ts), so a segment taken from here is the segment the caller would
 // have separated itself.
@@ -76,22 +81,24 @@ export const stemRangeSpan = (total: number, from: number, to: number, segment =
 
 /** The segments kept, across tracks: some 17 segments' four stems. */
 const MAX_BYTES = 96 * 1024 * 1024;
-interface Kept { stems: StemChannels[]; bytes: number }
+interface Kept { stems: StemChannels[]; bytes: number; total: number }
 const kept = new Map<string, Kept>();
 let keptBytes = 0;
+/** Segments being separated, by segment key: a second caller joins rather than runs it again. */
+const separating = new Map<string, Promise<StemChannels[] | null>>();
 /** The stretches automix wants, by key: [from, to) in samples. */
 const wanted = new Map<string, Array<{ from: number; to: number; total: number }>>();
 
 const segmentKey = (key: string, index: number) => `${key}#${index}`;
 const bytesOf = (stems: StemChannels[]) => stems.reduce((sum, stem) => sum + stem.left.byteLength + stem.right.byteLength, 0);
 
-const keep = (id: string, stems: StemChannels[]) => {
+const keep = (id: string, stems: StemChannels[], total: number) => {
     const previous = kept.get(id);
     if (previous) {
         keptBytes -= previous.bytes;
         kept.delete(id);
     }
-    const entry = { stems, bytes: bytesOf(stems) };
+    const entry = { stems, bytes: bytesOf(stems), total };
     kept.set(id, entry);
     keptBytes += entry.bytes;
     while (keptBytes > MAX_BYTES) {
@@ -103,25 +110,35 @@ const keep = (id: string, stems: StemChannels[]) => {
 };
 
 /** A kept segment's stems (all four, or the drums alone), marked as just used; null when not kept. */
-export const peekStemSegment = (key: string, index: number): StemChannels[] | null => {
+export const peekStemSegment = (key: string, index: number, total?: number): StemChannels[] | null => {
     const id = segmentKey(key, index);
     const found = kept.get(id);
-    if (!found) return null;
+    if (!found || (total !== undefined && found.total !== total)) return null;
     kept.delete(id);
     kept.set(id, found);
     return found.stems;
 };
 
-const inWantedRange = (key: string, index: number, total: number) => (wanted.get(key) ?? [])
-    .some(range => range.total === total && segmentsOver(total, range.from, range.to).includes(index));
+/** Whether a wanted stretch takes in segment `index`, leaving out one want of `except` (the caller's own). */
+const inWantedRange = (key: string, index: number, total: number, except?: { from: number; to: number }) => {
+    let skipped = false;
+    return (wanted.get(key) ?? []).some((range) => {
+        if (except && !skipped && range.from === except.from && range.to === except.to && range.total === total) {
+            skipped = true;
+            return false;
+        }
+        return range.total === total && segmentsOver(total, range.from, range.to).includes(index);
+    });
+};
 
 /**
  * Says automix wants the stems of [from, to) of `key` (a track of `total` samples): a segment in it
  * that anyone separates meanwhile is kept whole for it.
  */
 export const wantStemRange = (key: string, from: number, to: number, total: number): void => {
+    // Counted: the same stretch wanted twice is forgotten twice.
     const ranges = wanted.get(key) ?? [];
-    if (!ranges.some(range => range.from === from && range.to === to && range.total === total)) ranges.push({ from, to, total });
+    ranges.push({ from, to, total });
     wanted.set(key, ranges);
 };
 
@@ -130,13 +147,15 @@ export const wantStemRange = (key: string, from: number, to: number, total: numb
  * hits of the track may still take, unless another wanted stretch needs them whole.
  */
 export const forgetStemRange = (key: string, from: number, to: number, total: number): void => {
-    const ranges = (wanted.get(key) ?? []).filter(range => !(range.from === from && range.to === to && range.total === total));
+    const ranges = wanted.get(key) ?? [];
+    const at = ranges.findIndex(range => range.from === from && range.to === to && range.total === total);
+    if (at >= 0) ranges.splice(at, 1);
     if (ranges.length) wanted.set(key, ranges);
     else wanted.delete(key);
     for (const index of segmentsOver(total, from, to)) {
         const id = segmentKey(key, index);
         const found = kept.get(id);
-        if (found && found.stems.length > 1 && !inWantedRange(key, index, total)) keep(id, [found.stems[0]]);
+        if (found && found.stems.length > 1 && !inWantedRange(key, index, total)) keep(id, [found.stems[0]], total);
     }
 };
 
@@ -156,15 +175,33 @@ export const separateStemSegment = async (
     inRight: Float32Array,
     by: StemSeparator,
     options: GpuRunOptions,
+    /** The caller's own stretch: wanting it does not keep its segments whole for itself. */
+    own?: { from: number; to: number },
 ): Promise<StemChannels[] | null> => {
-    const cached = key ? peekStemSegment(key, index) : null;
+    const cached = key ? peekStemSegment(key, index, total) : null;
     if (cached && (by === 'drums' || cached.length === STEM_SOURCES.length)) return cached;
-    const result = await runHtdemucsGpu(inLeft, inRight, { ...options, key: options.key ?? key });
-    if (!result) return null;
-    const stems = result.stems ?? [{ left: result.left, right: result.right }];
-    if (key) {
-        if (inWantedRange(key, index, total) && stems.length === STEM_SOURCES.length) keep(segmentKey(key, index), stems);
-        else if (by === 'stems') keep(segmentKey(key, index), [stems[0]]);
+    const id = key ? segmentKey(key, index) : null;
+    const running = id ? separating.get(id) : undefined;
+    if (running) {
+        const joined = await running;
+        if (joined && (by === 'drums' || joined.length === STEM_SOURCES.length)) return joined;
+    }
+    const run = (async () => {
+        const result = await runHtdemucsGpu(inLeft, inRight, { ...options, key: options.key ?? key });
+        if (!result) return null;
+        return result.stems ?? [{ left: result.left, right: result.right }];
+    })();
+    if (id) separating.set(id, run);
+    let stems: StemChannels[] | null;
+    try {
+        stems = await run;
+    } finally {
+        if (id && separating.get(id) === run) separating.delete(id);
+    }
+    if (!stems) return null;
+    if (key && id) {
+        if (inWantedRange(key, index, total, own) && stems.length === STEM_SOURCES.length) keep(id, stems, total);
+        else if (by === 'stems') keep(id, [stems[0]], total);
     }
     return stems;
 };
@@ -175,7 +212,7 @@ export const separateStemSegment = async (
  * least over `stemRangeSpan(total, from, to)`. Null as soon as a segment cannot be separated or
  * `stillWanted` says no (asked before each).
  */
-export const separateStemRange = async ({ key, left, right, offset, total, from, to, options }: {
+export const separateStemRange = async ({ key, left, right, offset, total, from, to, options, deadlineOf }: {
     key?: string;
     left: Float32Array;
     right: Float32Array;
@@ -184,6 +221,8 @@ export const separateStemRange = async ({ key, left, right, offset, total, from,
     from: number;
     to: number;
     options: GpuRunOptions;
+    /** The deadline as it stands at each segment (it can arrive or move after the stretch is asked for). */
+    deadlineOf?: () => number | undefined;
 }): Promise<StemChannels[] | null> => {
     const segment = HTDEMUCS_GPU_SEGMENT;
     const starts = stemSegmentStarts(total, segment);
@@ -204,7 +243,9 @@ export const separateStemRange = async ({ key, left, right, offset, total, from,
         inRight.fill(0);
         inLeft.set(left.subarray(start - offset, start - offset + n));
         inRight.set(right.subarray(start - offset, start - offset + n));
-        const stems = await separateStemSegment(key, index, total, inLeft, inRight, 'stems', { ...options, unitsLeft: indices.length - at });
+        const stems = await separateStemSegment(key, index, total, inLeft, inRight, 'stems', {
+            ...options, deadline: deadlineOf?.() ?? options.deadline, unitsLeft: indices.length - at,
+        }, { from, to });
         if (!stems || stems.length < STEM_SOURCES.length) return null;
         // Only the samples of the stretch; in the same order a whole track's would be summed.
         const first = Math.max(start, from);
@@ -234,4 +275,5 @@ export const resetStemSegmentsForTests = (): void => {
     kept.clear();
     keptBytes = 0;
     wanted.clear();
+    separating.clear();
 };

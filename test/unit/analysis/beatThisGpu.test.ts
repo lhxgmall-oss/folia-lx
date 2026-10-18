@@ -183,8 +183,17 @@ describe('GPU model residency', () => {
         const { runBeatThisGpu, runHtdemucsGpu } = await fresh();
         expect(await runHtdemucsGpu(SEGMENT, SEGMENT)).not.toBeNull();
         expect(unloads()).toEqual([]);
-        // 450 + 106 MB is past 512: htdemucs goes before beat_this loads.
+        // 450 + 106 MB is past 512, but htdemucs ran a moment ago: not released for it (no thrash).
         expect(await runBeatThisGpu(chunks)).not.toBeNull();
+        expect(unloads()).toEqual([]);
+        // Later, beat_this has gone idle and htdemucs comes back: room is made by releasing beat_this.
+        await vi.advanceTimersByTimeAsync(31_000);
         expect(unloads()).toEqual(['htdemucs']);
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(await runHtdemucsGpu(SEGMENT, SEGMENT)).not.toBeNull();
+        const received = workers[0].received.map(m => `${m.kind}${m.model ? ` ${m.model}` : ''}`);
+        expect(unloads()).toEqual(['htdemucs', 'beat_this']);
+        // Posted before the load that needed the room.
+        expect(received.lastIndexOf('unload beat_this')).toBeLessThan(received.lastIndexOf('load htdemucs'));
     });
 });

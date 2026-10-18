@@ -180,6 +180,11 @@ const MAX_SAMPLES = 40 * MODEL_RATE;
  */
 const FALLBACK_IDLE_MS = 60_000;
 let fallbackTimer = null;
+/**
+ * Bumped by every htdemucs request: a release the timer queued is dropped when a request came after
+ * it was armed (found by review: a queued run, a resident one included, could not stop it).
+ */
+let stemsGeneration = 0;
 
 /**
  * Frees htdemucs in this process. Sent by the host when automix is switched off; queued like any request,
@@ -232,21 +237,27 @@ const runHtdemucs = async (request) => {
     if (!loaded) return null;
     if (fallbackTimer) clearTimeout(fallbackTimer);
     fallbackTimer = null;
-    if (request?.resident === false) {
-        // Queued like a request, so it never lands in the middle of a separation.
-        fallbackTimer = setTimeout(() => {
-            fallbackTimer = null;
-            queue = queue.then(() => {
-                console.log(`[htdemucs] the CPU fallback idle ${FALLBACK_IDLE_MS / 1000}s`);
-                release();
-            }, () => undefined);
-        }, FALLBACK_IDLE_MS);
-        if (fallbackTimer.unref) fallbackTimer.unref();
-    }
+    const generation = (stemsGeneration += 1);
     try {
         return await htdemucs.separate(loaded.model, Float32Array.from(left), Float32Array.from(right));
     } catch (error) {
         return decline('htdemucs', error?.message || String(error));
+    } finally {
+        // Idle from when the run ends, not when it started (review: a slow run had its release queued
+        // right behind it).
+        if (request?.resident === false && generation === stemsGeneration) {
+            fallbackTimer = setTimeout(() => {
+                fallbackTimer = null;
+                // Queued like a request, so it never lands in the middle of a separation; dropped
+                // there if another request came meanwhile.
+                queue = queue.then(() => {
+                    if (generation !== stemsGeneration) return;
+                    console.log(`[htdemucs] the CPU fallback idle ${FALLBACK_IDLE_MS / 1000}s`);
+                    release();
+                }, () => undefined);
+            }, FALLBACK_IDLE_MS);
+            if (fallbackTimer.unref) fallbackTimer.unref();
+        }
     }
 };
 
