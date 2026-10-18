@@ -1,7 +1,16 @@
 # 分析服务重构计划（搁置中）
 
 <!-- docs/analysis-service-plan.md
-     2026-10-17 与用户讨论定下的方向，用户说「先放一放」。动手前先回来读这份，并确认末尾「待定」三条。 -->
+     2026-10-17 与用户讨论定下的方向，用户说「先放一放」。动手前先回来读这份，并确认末尾「待定」各条。
+     同日更新：模型内置和拍点统一用 final0 已经做完（见「已完成」）；加了「切换与中断」一节。 -->
+
+## 已完成（2026-10-17，PR #734）
+
+- 两个模型都随安装包分发（`beat_this-wgsl.bin` final0、`htdemucs-wgsl.bin`），不再下载；small0 去掉。
+- 拍点统一用 final0：智能动感和 automix 共用同一份存盘拍点（原规则 2，原阶段 3）。
+- CPU 版 htdemucs 由 MNN 照 `htdemucs-wgsl.bin` 手写网络（`native/folia-mnn/folia_htdemucs.cpp`），`htdemucs-v3.mnn` 不再需要。
+
+下面只剩还没做的部分。
 
 ## 起因：现在的浪费
 
@@ -10,9 +19,9 @@
 | 浪费 | 现状 |
 |---|---|
 | 读文件、解码 | 拍点、automix 分析、鼓轨各读各解，一首最多解码 3 次 |
-| 拍点 | automix 用 final0（下载），智能动感用 small0（内置），同一首跑两遍 |
 | htdemucs | automix 在 CPU（MNN）上分头尾各 30 秒的四轨（`services/automix/stems.ts`，只在内存里）；智能动感在 GPU 上整首再分一遍，只留鼓轨（`services/analysis/drumStem.ts` → `drumHits.ts`） |
 | 显存 / 内存 | 两边各自常驻，没有统一预算。GPU Worker 空闲 2 分钟才释放（`beatThisGpu.ts` `IDLE_MS`），开着 automix 时它几乎不空闲，htdemucs 约 370 MB 显存一直在；automix 的 CPU 分离峰值约 530 MB，两边同时跑约 1.1 GB |
+| 切换画面 | 见下面「切换与中断」 |
 
 现在两者一起用不会算错：GPU 任务在 `beatThisGpu.ts` 的 `queue` 里串行，节拍时钟和鼓点都跟显示中的那首和它的 deck（`usePlaybackVisualizerBridge.ts` `getDisplayElement`），过渡时不会错位。问题只有互相等待和重复计算。
 
@@ -20,7 +29,7 @@
 
 ```
   automix ──┐                    ┌─ GPU 执行器（现有渲染进程 Worker，beatThisGpu.worker.ts）
-            ├─> 分析服务 ────────┤    beat_this final0/small0、htdemucs 四轨
+            ├─> 分析服务 ────────┤    beat_this final0、htdemucs
  智能动感 ──┘   去重 · 缓存 · 排队 └─ CPU 执行器（现有 MNN 子进程，electron/analysis）
                                       beat_this final0、htdemucs，只作后备
 ```
@@ -29,10 +38,25 @@
 - 服务按「歌的分析 key + 数据种类」查缓存 → 有没有正在跑的同一个任务（有就等同一份）→ 都没有才排队。
 - 执行器只有两个，GPU 优先、CPU 后备；智能动感仍只走 GPU，automix 没有 GPU 时照旧走 CPU。
 
-两条复用规则：
+复用规则：**顺带的结果也要留**。GPU 上的 htdemucs 本来就算出四轨。整首分离时，鼓轨照旧变成鼓点存盘，同时把头尾各 30 秒的四轨按 16 位存下（每段约 21 MB，就是 automix 要的那份），automix 过渡时直接拿。
 
-1. **顺带的结果也要留**：GPU 上的 htdemucs 本来就算出四轨。整首分离时，鼓轨照旧变成鼓点存盘，同时把头尾各 30 秒的四轨按 16 位存下（每段约 21 MB，就是 automix 要的那份），automix 过渡时直接拿。
-2. **拍点用装了的最好模型**：装了 final0 就只跑 final0、两边共用，没装才用 small0。代价是商籁和镜台的拍点从 small0 换成 final0，画面会有细微不同；时计只用鼓点，不受影响。
+## 切换与中断：只留结果，回来续算
+
+用户的要求（2026-10-17）：一个推理被切走时，只保留它已经算出的结果，不在后台接着跑、也不占着资源；切回来从断点接着算，不从头来。
+
+现状（PR #734 里的临时做法）：鼓轨分离在切画面时不停，在后台跑完并存盘，只有换歌、关掉智能动感或开静态模式才停（`hooks/useBeatFxTrack.ts`）。之前切走就停、并丢掉已算的部分，切回来整首重分，时计要等十几秒才有鼓面。临时做法解决了重分，但切到别的画面后，这首的分离还在和新画面的推理分 GPU 队列（每次最多等一段，约 0.1–1 秒），解码出的整首音频（4 分钟约 80 MB）也一直留到分完。
+
+目标做法，在服务里统一：
+
+1. **任务可中断**：分段的任务（htdemucs 每段 3.9 秒；以后 automix 的分轨也是）每段之间检查「还要不要」。没人要了就停在段边界，不再排下一段。
+2. **只留结果**：停下时保存「已经算完的部分」和「从哪里接着算」，丢掉别的：
+   - 鼓点：到 `until` 为止的鼓点列表（几 KB），加上续算需要的最小状态——下一段的起点、和下一段重叠的那一截鼓轨（overlap-add 要用，约 1 秒）、`drumHitStream` 已出的频谱帧位置。
+   - 解码出的整首音频、GPU 上的中间结果都不留。模型照执行器的预算释放（阶段 5）。
+3. **回来续算**：再要这首时，先用保存的鼓点立刻出效果，再重新解码（不到 1 秒），从断点那一段接着排队，直到整首完成、存盘，然后丢掉续算状态。
+4. **断点也有上限**：续算状态按歌的 key 放在内存 LRU 里（只留最近几首），不写盘；换歌很多次后被挤掉的，下次就从头分。
+5. **谁要、谁优先**：画面上正在显示的效果要的任务优先；被切走的任务暂停，不算「没人要」，换歌才算。automix 赶过渡的任务仍然排最前。
+
+这样切到商籁时，GPU 队列里只有商籁的拍点；切回时计，鼓面马上从已有的部分开始播，剩下的接着算。
 
 ## 分阶段（每步可单独验证、单独回退）
 
@@ -40,19 +64,13 @@
 |---|---|---|---|
 | 1 | 统一读文件和解码：一首只读一次、只解一次，各功能共用（LRU） | 只换取音频的入口 | 单测 + automix 实测一轮 |
 | 2 | 分析服务和统一队列：去重，按紧急程度排队，分段之间可插队；automix 赶过渡的任务优先 | 不改逻辑 | 单测 + 日志看等待时间 |
-| 3 | 拍点复用（规则 2） | 结果不变，智能动感读它的 | 7 首拍点比对 |
-| 4 | htdemucs 复用（规则 1）：automix 分轨请求先查头尾四轨缓存，没有再走 GPU，最后 CPU | 分轨来源变，用法不变 | GPU 四轨对 MNN 红线（每轨 ≤ 0.01 dB）+ automix 过渡实测 |
-| 5 | 模型常驻：每个执行器一份预算，用完的模型按预算释放（含「鼓轨分完就释放 htdemucs」） | 无 | 实测内存 |
+| 2b | 切换与中断（上一节）：分段任务可暂停，只留结果和断点，回来续算；替换 PR #734 的临时做法 | 无 | 单测（暂停 / 续算结果与一口气分完逐位一致）+ 时计来回切实测 |
+| 3 | htdemucs 复用（复用规则）：automix 分轨请求先查头尾四轨缓存，没有再走 GPU，最后 CPU | 分轨来源变，用法不变 | GPU 四轨对 MNN 红线（每轨 ≤ 0.01 dB）+ automix 过渡实测 |
+| 4 | 模型常驻：每个执行器一份预算，用完的模型按预算释放（含「鼓轨分完就释放 htdemucs」） | 无 | 实测内存 |
 
-预计效果：解码 3 → 1 次；装了 final0 时拍点 2 → 1 次；有 GPU 的机器 htdemucs 2 → 1 次，automix 不再占 CPU 那约 530 MB 的峰值。htdemucs 的 GPU 模型内置进安装包后，有 GPU 的机器做 automix 也不必下载 190 MB 的 CPU 模型（`htdemucs-v3.mnn` 只留给没 GPU 的机器）。
-
-## 相关、同样搁置中的事
-
-- **htdemucs 打进安装包**：代码没改。要做的是：`modelPaths.cjs` 把 `htdemucs_gpu` 从 `MODEL_NAMES` 挪到 `BUNDLED_MODEL_NAMES`；从 `shared/modelManifest.json` 去掉它；照 `packaging/beat-this-small/` 写一个钉住 tag + sha256 的取文件脚本，并接进 `build/beforePack.cjs` 和 `build/fetchModels.mjs`；`package.json` 的 extraResources filter 加 `htdemucs-wgsl.bin`；`automix-models-present` 要能答内置模型；设置页去掉它的下载项；改 `options.beatEffectNeedsDrums` 文案和 `test/unit/electron/modelPaths.test.ts`。安装包大约 +92 MB。
-- **上传**：新建公开仓库 `lantudou/folia-htdemucs-wgsl` 被自动模式拦了（没有绕过）。README、LICENSE（MIT，Meta）、SHA256SUMS 已备在 `~/.claude/jobs/ebf17ecc/tmp/htw-release/`（job 目录，删 job 会一起没）。文件：`htdemucs-wgsl.bin`，91838176 字节，sha256 `27d5331a74a4e23b18172b3d59d0378e698fd79bc0d0fed3316da77e3a37d8d1`，release tag 打算用 `htdemucs-wgsl-v1`。
+预计效果：解码 3 → 1 次；有 GPU 的机器 htdemucs 2 → 1 次，automix 不再占 CPU 那约 530 MB 的峰值；切换画面不再有后台推理和重算。
 
 ## 待定（动手前问用户）
 
-1. 拍点统一用 final0（装了的话）可以吗？
-2. 阶段 3、4 会改 automix 拿数据的入口（逻辑不改），能接受吗？还是先只做 1、2、5？
-3. htdemucs 内置是并进这次重构，还是先单独做完？上传由用户自己执行，还是给放行规则？
+1. 阶段 3 会改 automix 拿分轨数据的入口（逻辑不改），能接受吗？还是先只做 1、2、2b、4？
+2. 2b 的续算状态只放内存（重启后从头分），还是也写盘？写盘要多存约 1 秒鼓轨和帧位置，复杂度高一些。
