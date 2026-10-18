@@ -5,6 +5,9 @@ import { translateHomeMessage } from '../core/home/homeSources';
 import { importFolder, resyncAllFolders, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../../services/localMusicService';
 import { getLocalLibraryAvailability } from '../../services/localLibraryAvailability';
 import { importLocalPlaylistFile } from '../../services/localPlaylistFileService';
+import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
+import { usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
+import { toPersonalFmRequestOptions } from '../../services/onlineMusic/fmModes';
 import { omni } from '../../services/onlineMusic/omni';
 import {
     createLocalGridViewCollection,
@@ -39,7 +42,14 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
         window.addEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
         return () => window.removeEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
     },
-    getPersonalFm: () => omni.getPersonalFm(),
+    getPersonalFm: async selection => {
+        if (!selection) return omni.getPersonalFm();
+        const providerId = useOnlineProviderAccountStore.getState().activeProviderId;
+        const catalog = await omni.getPersonalFmCatalog(providerId);
+        usePersonalFmModeStore.getState().setCatalog(providerId, catalog);
+        const applied = usePersonalFmModeStore.getState().setProviderSelection(providerId, selection);
+        return omni.getPersonalFm(toPersonalFmRequestOptions(applied));
+    },
     playPersonalFm: (song, queue) => getSurface().onPlaySong(song, queue, true),
     describeOnlineCollection: (collection, providerId) => createOnlineGridViewCollection(collection, providerId),
     describeLocalGroup: group => createLocalGridViewCollection(group),

@@ -2,12 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/hooks/usePersonalFmModeController.test.ts
 // 和 useProviderLogin.test.ts 同样的做法：仓库的 vitest 跑在 node 环境，没有 jsdom 也没有
-// testing-library，为一个 hook 引进整套渲染依赖并不值得。被测 hook 只用到 useCallback / useMemo，
-// 就地复刻这两个即可驱动真实实现。
+// testing-library，为一个 hook 引进整套渲染依赖并不值得。被测 hook 用到 useCallback / useMemo / useRef，
+// 就地复刻它们即可驱动真实实现。
 
 vi.mock('react', () => ({
     useCallback: (callback: unknown) => callback,
     useMemo: (factory: () => unknown) => factory(),
+    useRef: (current: unknown) => ({ current }),
 }));
 
 const omniMock = vi.hoisted(() => ({
@@ -15,19 +16,26 @@ const omniMock = vi.hoisted(() => ({
     getProviderCapabilities: vi.fn(() => ({ personalFmModes: true })),
 }));
 vi.mock('../../../src/services/onlineMusic/omni', () => ({ omni: omniMock }));
+vi.mock('../../../src/hooks/usePersonalFmCatalog', async () => {
+    const { DEFAULT_PERSONAL_FM_CATALOG } = await import('../../../src/services/onlineMusic/fmModes');
+    return { usePersonalFmCatalog: () => DEFAULT_PERSONAL_FM_CATALOG };
+});
 
 const storeMock = vi.hoisted(() => ({
     selection: { mode: 'DEFAULT', scene: null } as { mode: string; scene: string | null },
     setSelection: vi.fn(),
+    setProviderSelection: vi.fn(),
 }));
 vi.mock('../../../src/stores/usePersonalFmModeStore', () => ({
+    selectProviderPersonalFm: (state: typeof storeMock) => state.selection,
     usePersonalFmModeStore: (selector: (state: typeof storeMock) => unknown) => selector(storeMock),
 }));
 vi.mock('../../../src/stores/useOnlineProviderAccountStore', () => ({
-    useOnlineProviderAccountStore: (selector: (state: { activeProviderId: string }) => unknown) => (
-        selector({ activeProviderId: 'netease' })
-    ),
+    useOnlineProviderAccountStore: Object.assign((selector: (state: { activeProviderId: string }) => unknown) => selector({ activeProviderId: 'netease' }),
+        { getState: () => ({ activeProviderId: 'netease' }) }),
 }));
+const playbackMock = vi.hoisted(() => ({ isFmMode: true, playQueue: [] as unknown[] }));
+vi.mock('../../../src/stores/usePlaybackStore', () => ({ usePlaybackStore: { getState: () => playbackMock } }));
 
 const { usePersonalFmModeController } = await import('../../../src/hooks/usePersonalFmModeController');
 const { useStatusMessageStore } = await import('../../../src/stores/useStatusMessageStore');
@@ -51,9 +59,13 @@ const createController = (overrides: { isFmMode?: boolean; currentSong?: unknown
 };
 
 beforeEach(() => {
+    playbackMock.isFmMode = true;
+    playbackMock.playQueue = [];
     useStatusMessageStore.setState({ message: null });
     storeMock.selection = { mode: 'DEFAULT', scene: null };
     storeMock.setSelection.mockReset();
+    storeMock.setProviderSelection.mockReset();
+    storeMock.setProviderSelection.mockImplementation((_id, selection) => storeMock.setSelection(selection));
     storeMock.setSelection.mockImplementation((selection: typeof storeMock.selection) => selection);
     omniMock.getPersonalFm.mockReset();
     omniMock.getPersonalFm.mockResolvedValue(SONGS);
@@ -103,5 +115,28 @@ describe('usePersonalFmModeController', () => {
         omniMock.getProviderCapabilities.mockReturnValueOnce({ personalFmModes: false });
         const { controller } = createController();
         expect(controller.isPersonalFmModeSupported).toBe(false);
+    });
+
+    it('leaves a playlist started while a mode request was in flight on air', async () => {
+        let release!: (songs: typeof SONGS) => void;
+        omniMock.getPersonalFm.mockImplementation(() => new Promise(resolve => { release = resolve; }));
+        const { controller, playSong } = createController();
+        const pending = controller.setPersonalFmSelection({ mode: 'FAMILIAR', scene: null });
+        playbackMock.isFmMode = false;
+        playbackMock.playQueue = ['a deliberately selected playlist'];
+        release(SONGS);
+        await pending;
+        expect(playSong).not.toHaveBeenCalled();
+    });
+
+    it('discards an older mode response after a newer mode has been picked', async () => {
+        let release!: (songs: typeof SONGS) => void;
+        omniMock.getPersonalFm.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+        const { controller, playSong } = createController();
+        const pending = controller.setPersonalFmSelection({ mode: 'FAMILIAR', scene: null });
+        await controller.setPersonalFmSelection({ mode: 'EXPLORE', scene: null });
+        release(SONGS);
+        await pending;
+        expect(playSong).toHaveBeenCalledTimes(1);
     });
 });

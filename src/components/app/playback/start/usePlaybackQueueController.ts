@@ -4,6 +4,7 @@ import type { MotionValue } from 'framer-motion';
 import { applyOnlineAudioSourceMetadata, loadOnlineSongLyrics } from '../../../../services/onlinePlayback';
 import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
+import { getPersonalFmSelection } from '../../../../stores/usePersonalFmModeStore';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../../../../services/onlineMusic/resourceCache';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs, refreshPrefetchAfterQueueEdit } from '../../../../services/prefetchService';
@@ -1079,7 +1080,14 @@ export function usePlaybackQueueController({
                 // Only songs not in the queue yet: a song twice would make finding the current one by its
                 // key jump back to the earlier place. A batch of nothing new is a top-up that did not come;
                 // the next track tops up again.
+                const providerId = currentSong ? getOnlineProviderIdForSong(currentSong) : undefined;
+                const selection = getPersonalFmSelection(providerId || undefined);
                 const fmSongs = freshFmSongs(playQueue, await omni.getPersonalFm());
+                const live = usePlaybackStore.getState();
+                const selectedNow = getPersonalFmSelection(providerId || undefined);
+                // A mode switch or a newly started queue overtakes a top-up already in flight.
+                if (!live.isFmMode || live.playQueue !== playQueue || !isSamePlaybackSong(live.currentSong, currentSong)
+                    || selection.mode !== selectedNow.mode || selection.scene !== selectedNow.scene) return;
                 if (fmSongs.length > 0) {
                     const nextQueue = [...playQueue, ...fmSongs];
                     setPlayQueue(nextQueue);

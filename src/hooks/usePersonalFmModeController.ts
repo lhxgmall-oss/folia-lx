@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import type React from 'react';
 import { omni } from '../services/onlineMusic/omni';
 import {
@@ -7,8 +7,11 @@ import {
     toPersonalFmRequestOptions,
     type PersonalFmSelection,
 } from '../services/onlineMusic/fmModes';
-import { usePersonalFmModeStore } from '../stores/usePersonalFmModeStore';
+import { usePersonalFmModeStore, selectProviderPersonalFm } from '../stores/usePersonalFmModeStore';
+import { usePersonalFmCatalog } from './usePersonalFmCatalog';
+import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
+import { usePlaybackStore } from '../stores/usePlaybackStore';
 import type { SongResult, StatusMessage } from '../types';
 import { setStatusMessage as setStatusMsg } from '../stores/useStatusMessageStore';
 
@@ -29,25 +32,33 @@ export function usePersonalFmModeController({
     playSong,
     t,
 }: UsePersonalFmModeControllerParams) {
-    const personalFmSelection = usePersonalFmModeStore(state => state.selection);
-    const setSelection = usePersonalFmModeStore(state => state.setSelection);
     const activeProviderId = useOnlineProviderAccountStore(state => state.activeProviderId);
+    const catalog = usePersonalFmCatalog(activeProviderId);
+    const personalFmSelection = usePersonalFmModeStore(state => selectProviderPersonalFm(state, activeProviderId));
+    const setSelection = usePersonalFmModeStore(state => state.setProviderSelection);
+    const request = useRef(0);
 
     const isPersonalFmModeSupported = useMemo(() => {
         try {
-            return Boolean(omni.getProviderCapabilities(activeProviderId).personalFmModes);
+            return Boolean(catalog && omni.getProviderCapabilities(activeProviderId).personalFmModes);
         } catch (error) {
             void error;
             return false;
         }
-    }, [activeProviderId]);
+    }, [activeProviderId, catalog]);
 
     const setPersonalFmSelection = useCallback(async (selection: PersonalFmSelection) => {
         const previous = personalFmSelection;
-        const applied = setSelection(selection);
-        const label = getPersonalFmSelectionLabel(applied, t);
+        const applied = setSelection(activeProviderId, selection);
+        const label = getPersonalFmSelectionLabel(applied, t, catalog);
+        const mine = ++request.current;
+        const queue = usePlaybackStore.getState().playQueue;
+        const stillCurrent = () => mine === request.current
+            && useOnlineProviderAccountStore.getState().activeProviderId === activeProviderId
+            && usePlaybackStore.getState().isFmMode && usePlaybackStore.getState().playQueue === queue;
 
-        if (!isFmMode || !currentSong) {
+        const source = currentSong ? getPlaybackSourceRef(currentSong) : null;
+        if (!isFmMode || !currentSong || source?.kind !== 'online' || source.providerId !== activeProviderId) {
             // Cutting off an album or playlist the user chose deliberately would be worse than
             // waiting: the mode takes effect the next time Personal FM starts.
             setStatusMsg({ type: 'info', text: `${t('personalFmMode.statusPending', 'Personal FM mode')}: ${label}` });
@@ -60,7 +71,9 @@ export function usePersonalFmModeController({
 
         try {
             const songs = await omni.getPersonalFm(toPersonalFmRequestOptions(applied));
+            if (!stillCurrent()) return;
             if (songs.length === 0) {
+                setSelection(activeProviderId, previous);
                 setStatusMsg({ type: 'error', text: t('personalFmMode.statusEmpty', 'This Personal FM mode returned nothing') });
                 return;
             }
@@ -70,16 +83,18 @@ export function usePersonalFmModeController({
             setStatusMsg({ type: 'info', text: `${t('personalFmMode.statusApplied', 'Personal FM switched to')} ${label}` });
             // The whole queue is replaced and playback jumps to the head: a new mode means a new
             // stream, so keeping the old one's leftovers around would only muddy it.
-            void playSong(songs[0], songs, true);
+            await playSong(songs[0], songs, true);
         } catch (error) {
+            if (!stillCurrent()) return;
+            setSelection(activeProviderId, previous);
             console.error('[PersonalFm] Failed to refresh queue for mode', error);
             setStatusMsg({ type: 'error', text: t('personalFmMode.statusFailed', 'Failed to switch the Personal FM mode') });
         }
-    }, [currentSong, isFmMode, personalFmSelection, playSong, setSelection, setStatusMsg, t]);
+    }, [activeProviderId, catalog, currentSong, isFmMode, personalFmSelection, playSong, setSelection, t]);
 
     const personalFmSelectionLabel = useMemo(
-        () => getPersonalFmSelectionLabel(personalFmSelection, t),
-        [personalFmSelection, t],
+        () => getPersonalFmSelectionLabel(personalFmSelection, t, catalog),
+        [catalog, personalFmSelection, t],
     );
 
     return { personalFmSelection, personalFmSelectionLabel, isPersonalFmModeSupported, setPersonalFmSelection };
