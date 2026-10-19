@@ -88,6 +88,23 @@ export type ActiveGlobalShortcut = {
     commandId: string;
 };
 
+/**
+ * What goes to the desktop portal on native Wayland: every command on the list, each with a fixed
+ * key. The desktop decides the real keys, so the key here is only the suggestion it may show, and
+ * the name the shortcut carries there (Hyprland lists it as `…-Ctrl+Alt+Shift+P`). The settings
+ * show this table, so the listener can tell which entry is which.
+ */
+export const PORTAL_GLOBAL_SHORTCUTS: ReadonlyArray<ActiveGlobalShortcut> = ([
+    ['p', 'playback-toggle'],
+    ['b', 'playback-prev'],
+    ['n', 'playback-next'],
+    ['u', 'playback-volume-up'],
+    ['d', 'playback-volume-down'],
+    ['m', 'playback-mute'],
+    ['l', 'playback-loop'],
+    ['s', 'playback-shuffle'],
+] as const).map(([key, commandId], slot) => ({ slot, accelerator: toGlobalShortcutAccelerator(key), commandId }));
+
 /** The command a pressed accelerator runs, or null when no current binding has it. */
 export const commandForGlobalShortcut = (
     active: ReadonlyArray<ActiveGlobalShortcut>,

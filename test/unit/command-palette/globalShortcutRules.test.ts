@@ -3,6 +3,7 @@ import { COMMAND_PALETTE_COMMANDS } from '../../../src/components/command-palett
 import {
     commandForGlobalShortcut,
     GLOBAL_SHORTCUT_COMMAND_IDS,
+    PORTAL_GLOBAL_SHORTCUTS,
     readGlobalShortcutKey,
     refuseGlobalShortcutKey,
     resolveActiveGlobalShortcuts,
@@ -95,5 +96,14 @@ describe('commandForGlobalShortcut', () => {
         const active = resolveActiveGlobalShortcuts(bindings);
         expect(commandForGlobalShortcut(active, 'Control+Alt+Shift+P')).toBe('playback-toggle');
         expect(commandForGlobalShortcut(active, 'Control+Alt+Shift+N')).toBeNull();
+    });
+});
+
+describe('PORTAL_GLOBAL_SHORTCUTS', () => {
+    it('offers every bindable command once, each on its own legal key', () => {
+        expect(PORTAL_GLOBAL_SHORTCUTS.map(shortcut => shortcut.commandId).sort()).toEqual([...GLOBAL_SHORTCUT_COMMAND_IDS].sort());
+        const keys = PORTAL_GLOBAL_SHORTCUTS.map(shortcut => shortcut.accelerator.slice(-1).toLowerCase());
+        expect(new Set(keys).size).toBe(keys.length);
+        keys.forEach((key, slot) => expect(refuseGlobalShortcutKey(key, slot, []), key).toBeNull());
     });
 });

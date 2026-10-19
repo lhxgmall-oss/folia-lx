@@ -12,12 +12,14 @@ type GlobalShortcutStatusState = {
     backend: GlobalShortcutBackend | null;
     /** Accelerators the system would not give us, usually because another program holds them. */
     refused: ReadonlyArray<string>;
+    setBackend: (backend: GlobalShortcutBackend) => void;
     publish: (answer: { backend: GlobalShortcutBackend; results: ReadonlyArray<{ accelerator: string; registered: boolean }> }) => void;
 };
 
 export const useGlobalShortcutStatusStore = create<GlobalShortcutStatusState>((set) => ({
     backend: null,
     refused: [],
+    setBackend: (backend) => set({ backend }),
     publish: (answer) => set({
         backend: answer.backend,
         refused: answer.results.filter(result => !result.registered).map(result => result.accelerator),

@@ -1,16 +1,44 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useInteractionSettingsStore } from '../../../stores/useInteractionSettingsStore';
-import { commandForGlobalShortcut, resolveActiveGlobalShortcuts } from './globalShortcutRules';
-import { useGlobalShortcutStatusStore } from './globalShortcutStatusStore';
+import { commandForGlobalShortcut, PORTAL_GLOBAL_SHORTCUTS, resolveActiveGlobalShortcuts, type ActiveGlobalShortcut } from './globalShortcutRules';
+import { useGlobalShortcutStatusStore, type GlobalShortcutBackend } from './globalShortcutStatusStore';
 
 // src/components/command-palette/globalShortcuts/useGlobalShortcuts.ts
-// Keeps the main process's registered shortcuts in step with the stored bindings, and runs the
-// bound command when one is pressed. Desktop only: on web `window.electron` is absent and this
-// does nothing.
+// Keeps the main process's registered shortcuts in step with the settings, and runs the bound
+// command when one is pressed. Natively that is the listener's five bindings; on the Wayland portal
+// it is the fixed table of every playback command, and only once the listener has asked for it.
+// Desktop only: on web `window.electron` is absent and this does nothing.
+
+const NO_SHORTCUTS: ReadonlyArray<ActiveGlobalShortcut> = [];
 
 export const useGlobalShortcuts = (runCommand: (commandId: string) => void) => {
     const bindings = useInteractionSettingsStore(state => state.globalShortcutBindings);
-    const active = useMemo(() => resolveActiveGlobalShortcuts(bindings), [bindings]);
+    const portalEnabled = useInteractionSettingsStore(state => state.globalShortcutPortalEnabled);
+    // Asked before anything is registered: on the portal the listener's bindings must not go out.
+    const [backend, setBackend] = useState<GlobalShortcutBackend | null>(null);
+    useEffect(() => {
+        let gone = false;
+        window.electron?.getGlobalShortcutBackend?.()
+            .then((answer) => {
+                if (!gone) {
+                    setBackend(answer);
+                    useGlobalShortcutStatusStore.getState().setBackend(answer);
+                }
+            })
+            .catch((error) => {
+                console.warn('[GlobalShortcut] backend query failed', error);
+            });
+        return () => {
+            gone = true;
+        };
+    }, []);
+
+    const active = useMemo(() => {
+        if (backend === 'portal') {
+            return portalEnabled ? PORTAL_GLOBAL_SHORTCUTS : NO_SHORTCUTS;
+        }
+        return resolveActiveGlobalShortcuts(bindings);
+    }, [backend, bindings, portalEnabled]);
     // A press is resolved against the bindings of that moment, so changing only the command of a
     // slot takes effect without registering the key again.
     const activeRef = useRef(active);
@@ -21,7 +49,7 @@ export const useGlobalShortcuts = (runCommand: (commandId: string) => void) => {
     const accelerators = active.map(shortcut => shortcut.accelerator).join(',');
     useEffect(() => {
         const setGlobalShortcuts = window.electron?.setGlobalShortcuts;
-        if (!setGlobalShortcuts) {
+        if (!setGlobalShortcuts || !backend) {
             return;
         }
         let superseded = false;
@@ -37,7 +65,7 @@ export const useGlobalShortcuts = (runCommand: (commandId: string) => void) => {
         return () => {
             superseded = true;
         };
-    }, [accelerators]);
+    }, [accelerators, backend]);
 
     useEffect(() => window.electron?.onGlobalShortcut?.((accelerator) => {
         const commandId = commandForGlobalShortcut(activeRef.current, accelerator);

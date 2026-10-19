@@ -237,6 +237,7 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('obs-browser-source-status-changed', listener);
         return () => ipcRenderer.removeListener('obs-browser-source-status-changed', listener);
     },
+    getGlobalShortcutBackend: () => ipcRenderer.invoke('global-shortcuts-backend'),
     setGlobalShortcuts: (accelerators) => ipcRenderer.invoke('global-shortcuts-set', accelerators),
     onGlobalShortcut: (callback) => {
         const listener = (_event, accelerator) => callback(accelerator);

@@ -18,6 +18,7 @@ const QUEUE_PALETTE_KEEP_OPEN_KEY = 'queue_palette_keep_open';
 const CUSTOM_SHORTCUT_LETTER_KEY = 'custom_shortcut_letter';
 const CUSTOM_SHORTCUT_COMMAND_KEY = 'custom_shortcut_command';
 const GLOBAL_SHORTCUT_BINDINGS_KEY = 'global_shortcut_bindings';
+const GLOBAL_SHORTCUT_PORTAL_KEY = 'global_shortcut_portal_enabled';
 
 /** How many system-wide shortcuts there are. The settings rows and the registering hook use the same count. */
 export const GLOBAL_SHORTCUT_SLOTS = 5;
@@ -87,6 +88,12 @@ export type InteractionSettingsState = {
     customShortcutLetter: string | null;
     customShortcutCommandId: string | null;
     globalShortcutBindings: GlobalShortcutBinding[];
+    /**
+     * Native Wayland only: whether the playback commands are handed to the desktop's shortcut
+     * portal. Off until the listener asks, because registering makes the desktop show its own
+     * prompt or list; the bindings above are not used there, the desktop picks the keys.
+     */
+    globalShortcutPortalEnabled: boolean;
 
     setGridActionButtonSlideTarget: (target: GridActionButtonSlideTarget) => void;
     handleToggleGridCommandPaletteHotkey: (enable: boolean) => void;
@@ -94,6 +101,7 @@ export type InteractionSettingsState = {
     setCustomShortcutLetter: (letter: string | null) => void;
     setCustomShortcutCommandId: (commandId: string | null) => void;
     setGlobalShortcutBinding: (slot: number, patch: Partial<GlobalShortcutBinding>) => void;
+    setGlobalShortcutPortalEnabled: (enable: boolean) => void;
 };
 
 export const useInteractionSettingsStore = create<InteractionSettingsState>((set) => ({
@@ -103,6 +111,7 @@ export const useInteractionSettingsStore = create<InteractionSettingsState>((set
     customShortcutLetter: readShortcutLetter(),
     customShortcutCommandId: getStoredString(CUSTOM_SHORTCUT_COMMAND_KEY, '') || null,
     globalShortcutBindings: readGlobalShortcutBindings(),
+    globalShortcutPortalEnabled: getStoredBoolean(GLOBAL_SHORTCUT_PORTAL_KEY, false),
 
     setGridActionButtonSlideTarget: (target) => {
         writeString(SLIDE_TARGET_KEY, target);
@@ -138,4 +147,8 @@ export const useInteractionSettingsStore = create<InteractionSettingsState>((set
         writeString(GLOBAL_SHORTCUT_BINDINGS_KEY, bindings.some(binding => binding.key || binding.commandId) ? JSON.stringify(bindings) : null);
         return { globalShortcutBindings: bindings };
     }),
+    setGlobalShortcutPortalEnabled: (enable) => {
+        setStoredBoolean(GLOBAL_SHORTCUT_PORTAL_KEY, enable);
+        set({ globalShortcutPortalEnabled: enable });
+    },
 }));

@@ -12,7 +12,8 @@ const { resolveLinuxOzonePlatform } = require('./windowAlwaysOnTopSupport.cjs');
 
 /** The only accelerators accepted: the fixed modifiers plus one letter or digit. */
 const ACCELERATOR_PATTERN = /^Control\+Alt\+Shift\+[A-Z0-9]$/;
-const MAX_SHORTCUTS = 5;
+/** Five chosen keys natively; on the Wayland portal every playback command, eight today. */
+const MAX_SHORTCUTS = 10;
 
 /** Whether shortcuts go through the desktop portal: true only on the native Wayland backend. */
 function usesGlobalShortcutsPortal(options) {

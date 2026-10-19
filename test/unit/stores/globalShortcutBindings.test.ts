@@ -76,4 +76,12 @@ describe('global shortcut bindings', () => {
         store.getState().setGlobalShortcutBinding(0, { key: null, commandId: null });
         expect(storage.has(KEY)).toBe(false);
     });
+
+    it('keeps the Wayland portal off until asked, and remembers the answer', async () => {
+        const store = await loadStore();
+        expect(store.getState().globalShortcutPortalEnabled).toBe(false);
+        store.getState().setGlobalShortcutPortalEnabled(true);
+        expect(storage.get('global_shortcut_portal_enabled')).toBe('true');
+        expect((await loadStore({ global_shortcut_portal_enabled: 'true' })).getState().globalShortcutPortalEnabled).toBe(true);
+    });
 });
