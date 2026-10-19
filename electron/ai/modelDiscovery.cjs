@@ -76,8 +76,10 @@ async function listAiModels(raw, { customFetch, timeoutMs = 30_000 } = {}) {
                 const id = typeof rawId === 'string' ? rawId.replace(/^models\//, '').trim() : '';
                 if (!id || id.length > 256 || /[\u0000-\u001f]/.test(id)) continue;
                 if (config.provider === 'gemini' && !/^[\w.-]+$/.test(id)) continue;
+                // A reflected key must not cross IPC, and redacted ids would no longer identify a model.
+                if (id.includes(config.apiKey)) continue;
                 const name = row.display_name ?? row.displayName ?? row.modelName ?? id;
-                models.set(id, { id, name: typeof name === 'string' ? name.slice(0, 256) : id });
+                models.set(id, { id, name: typeof name === 'string' ? name.split(config.apiKey).join('***').slice(0, 256) : id });
                 if (models.size > MAX_MODELS) return failure('invalid');
             }
             let cursor = null;

@@ -119,6 +119,46 @@ describe('discovery IPC credential boundary', () => {
         expect(await test.invoke(payload)).toEqual({ ok: false, errorKind: 'config' });
         expect(test.fetchWithOptionalSystemProxy).not.toHaveBeenCalled();
     });
+    it.each([
+        { provider: 'openai', catalogue: { data: [
+            { id: 'Bearer saved-secret' },
+            { id: 'one', display_name: 'Authorization: Bearer saved-secret; saved-secret' },
+        ] } },
+        { provider: 'openai', apiProtocol: 'anthropic', catalogue: { data: [
+            { id: 'saved-secret' },
+            { id: 'one', display_name: 'x-api-key: saved-secret' },
+        ] } },
+        { provider: 'gemini', catalogue: { models: [
+            { name: 'models/saved-secret', supportedGenerationMethods: ['generateContent'] },
+            { name: 'models/one', displayName: 'x-goog-api-key: saved-secret', supportedGenerationMethods: ['generateContent'] },
+        ] } },
+        { provider: 'openai', catalogue: { rows: [
+            { modelCode: 'saved-secret' },
+            { modelCode: 'one', modelName: 'Model saved-secret' },
+        ], total: 2 } },
+    ])('sanitises successful $provider catalogue fields before returning saved credentials to the renderer', async ({ catalogue, ...connection }) => {
+        const test = setup();
+        test.fetchWithOptionalSystemProxy.mockImplementation(async () => json(catalogue));
+        const result = await test.invoke({ ...payload, ...connection, apiKey: '' });
+        expect(result.ok).toBe(true);
+        expect(result.models).toHaveLength(1);
+        expect(result.models[0].id).toBe('one');
+        expect(result.models[0].name).toContain('***');
+        expect(JSON.stringify(result)).not.toContain('saved-secret');
+    });
+    it('returns an empty catalogue failure when all model ids contain the saved key', async () => {
+        const test = setup();
+        test.fetchWithOptionalSystemProxy.mockImplementation(async () => json({ data: [{ id: 'model-saved-secret' }] }));
+        expect(await test.invoke({ ...payload, apiKey: '' })).toEqual({ ok: false, errorKind: 'empty' });
+    });
+    it('redacts complete keys before truncating display names', async () => {
+        const test = setup();
+        test.fetchWithOptionalSystemProxy.mockImplementation(async () => json({ data: [
+            { id: 'one', display_name: 'x'.repeat(250) + 'saved-secret' },
+        ] }));
+        const result = await test.invoke({ ...payload, apiKey: '' });
+        expect(result).toEqual({ ok: true, models: [{ id: 'one', name: 'x'.repeat(250) + '***' }] });
+    });
     it('uses the saved key and proxy choice only in the main process', async () => {
         const test = setup();
         const result = await test.invoke({ ...payload, apiKey: '', useSystemProxy: false });
