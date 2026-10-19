@@ -35,7 +35,7 @@ const windowsWallpaperModule = require('./wallpaper/windowsWallpaperController.c
 const { createWindowsWallpaperTargetResolver } = require('./wallpaper/windowsWallpaperTarget.cjs');
 const { createWindowsWallpaperMouseInjector } = require('./wallpaper/windowsWallpaperMouse.cjs');
 const macWallpaperModule = require('./wallpaper/macWallpaperController.cjs');
-const { createMacWallpaperHitPanels, toScreenHitRects } = require('./wallpaper/macWallpaperHitPanels.cjs');
+const { MAX_HIT_PANELS, createMacWallpaperHitPanels, toScreenHitRects } = require('./wallpaper/macWallpaperHitPanels.cjs');
 const {
   WALLPAPER_DISPLAY_SETTING_KEY,
   normalizeWallpaperDisplayChoice,
@@ -1694,6 +1694,9 @@ function startMacWallpaperInteraction() {
       // ignore
     }
     isMacWallpaperInteractionEnabled = false;
+    // The grant may have been revoked mid-session: catchers without a tap would leave the
+    // controls dead to every click.
+    syncMacWallpaperHitPanels();
     notifyMacWallpaperInputMonitoringNeeded();
     return false;
   }
@@ -1705,6 +1708,7 @@ function startMacWallpaperInteraction() {
       console.warn('[WallpaperMac] event tap keeps failing, wallpaper is now non-interactive');
       isMacWallpaperInteractionEnabled = false;
       controller.stop();
+      syncMacWallpaperHitPanels();
       notifyMacWallpaperInputMonitoringNeeded();
       return false;
     }
@@ -6060,7 +6064,7 @@ ipcMain.on('wallpaper-hit-regions', (event, rects) => {
   if (process.platform !== 'darwin' || !isTrustedMainWindowContents(event.sender)) {
     return;
   }
-  macWallpaperHitRects = Array.isArray(rects) ? rects.slice(0, 16) : [];
+  macWallpaperHitRects = Array.isArray(rects) ? rects.slice(0, MAX_HIT_PANELS) : [];
   syncMacWallpaperHitPanels();
 });
 
