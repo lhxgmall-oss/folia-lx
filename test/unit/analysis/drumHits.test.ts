@@ -19,7 +19,7 @@ const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
 
 const { drumStemSegments, drumStemWindow, separateDrumStem, startDrumStem } = await import('@/services/analysis/drumStem');
-const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, drumHitsSettled, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
+const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, drumHitsSettled, forgetSettledDrumHits, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
 const { getFromCache } = await import('@/services/db');
 const stemRange = await import('@/services/analysis/stemRange');
 const { createDrumBandStream, streamNeedsFrom } = await import('@/services/analysis/drumHitStream');
@@ -300,6 +300,18 @@ describe('the drums automix leaves behind, from the PR #750 review', () => {
         await separateAndForget('kept-9');
         await vi.waitFor(() => expect(drumHitsSettled('kept-9')).toBe(true));
         expect(peekStemSegment('kept-9', 3)).toBeNull();
+    });
+
+    it('forgets which tracks settled once the stored analyses are cleared', async () => {
+        store.set(`${DRUM_HITS_PREFIX}kept-11`, stored(0.3));
+        await separateAndForget('kept-11');
+        await vi.waitFor(() => expect(drumHitsSettled('kept-11')).toBe(true));
+        store.delete(`${DRUM_HITS_PREFIX}kept-11`);
+        forgetSettledDrumHits();
+        expect(drumHitsSettled('kept-11')).toBe(false);
+        await separateAndForget('kept-11');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(peekStemSegment('kept-11', 3)).toHaveLength(1);
     });
 
     it('keeps them for a track with nothing stored', async () => {

@@ -303,6 +303,16 @@ const lookInStore = (key: string) => {
 };
 setStemDrumsKeptListener(lookInStore);
 
+/**
+ * Forgets which tracks settled and were looked up, for when the stored analyses are cleared (the
+ * settings' 分析 cache): a track judged in from a store that is now empty would otherwise have its
+ * drums go unkept for the rest of the session (from the review of the PR #750 fixes).
+ */
+export const forgetSettledDrumHits = (): void => {
+    settled.clear();
+    lookedUp.clear();
+};
+
 const keep = (key: string, hits: DrumHits) => {
     hitLists.delete(key);
     hitLists.set(key, hits);
