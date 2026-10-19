@@ -1,12 +1,9 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { JsonValue, ProviderErrorCode } from '../../../types/onlineMusic';
+import type { ProviderErrorCode } from '../../../types/onlineMusic';
+import type { QishuiOperation, QishuiParams, QishuiBridgeResult } from 'qishui-music-api';
 
 // Typed renderer boundary for the car bridge; credentials and player models stay in the main process.
-export type QishuiOperation = 'login_status' | 'logout' | 'login_qr_key' | 'login_qr_create' | 'login_qr_check' | 'login_qr_cancel'
-    | 'search' | 'search_playlists' | 'song_detail' | 'audio' | 'lyrics' | 'user_playlists' | 'playlist_detail' | 'playlist_tracks'
-    | 'artist_detail' | 'artist_songs' | 'feed' | 'feed_modes';
-export type QishuiParams = Record<string, JsonValue | undefined>;
-export type QishuiBridgeResult = { ok: true; data: unknown } | { ok: false; error: { code: ProviderErrorCode; message: string; upstreamCode?: string; stage?: string } };
+export type { QishuiOperation, QishuiParams, QishuiBridgeResult } from 'qishui-music-api';
 const STAGES = ['access-code', 'ticket', 'account'] as const;
 export type QishuiLoginStage = typeof STAGES[number];
 let lastFailure: { stage: QishuiLoginStage | null; code: ProviderErrorCode; upstreamCode?: string } | null = null;

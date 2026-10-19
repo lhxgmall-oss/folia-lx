@@ -42,7 +42,7 @@ UI / hooks / stores / app services
 
 ### 汽水音乐（桌面端）
 
-`qishui/qishuiProvider.ts` 接入车机协议已有的读取能力：抖音扫码授权、歌曲搜索、歌曲详情、逐字歌词、账号自建及收藏歌单、歌单翻页、歌手详情和热门歌曲、推荐流，以及场景电台。`electron/qishui/` 只暴露固定操作，登录态留在主进程；只存用户主动在 Folia 扫码授权的账号，不读取其他应用的凭据。操作系统不能安全保存凭据时，仅在本次运行内保留账号。
+`qishui/qishuiProvider.ts` 接入车机协议已有的读取能力：抖音扫码授权、歌曲搜索、歌曲详情、逐字歌词、账号自建及收藏歌单、歌单翻页、歌手详情和热门歌曲、推荐流，以及场景电台。协议、请求签名、扫码、目录分页和推荐状态在独立的 [`qishui-music-api`](https://github.com/GSQZ/qishui-music-api) 包维护，Folia 钉死版本并注入 Electron `net.fetch`。`electron/qishui/` 只保留三个宿主文件：`qishuiApiBridge.cjs` 管 IPC 操作白名单和音频地址登记，`session.cjs` 用 safeStorage 保存用户主动在 Folia 授权的会话及设备标识，`mediaCors.cjs` 管媒体跨域。凭据不交给渲染进程；操作系统不能安全保存时，仅在本次运行内保留账号。
 
 电台卡片带各自的场景选择；模式面板经 `omni.getPersonalFmCatalog` 读取平台自己的场景目录。场景使用车机返回的数字 ID，不套用默认目录的场景 ID。各平台分别保存选择，原有私人 FM 存储键保持不变；切换模式后自动补歌沿用新模式。上游的小场景图标由 `qishuiSceneCover.ts` 组合成有留白的封面。
 

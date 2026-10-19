@@ -1,8 +1,7 @@
-const { randomBytes } = require('node:crypto');
+const { createQishuiDeviceId, isQishuiDeviceId, isAccountId } = require('qishui-music-api');
 
 // Stores only accounts explicitly authorized in Folia; never imports another application's files.
 // Account IDs are opaque strings; unlike track IDs they are not necessarily decimal numbers.
-const isAccountId = value => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\s\x00-\x1f\x7f]/u.test(value);
 const SESSION_KEY = 'QISHUI_SESSION_V1';
 const DEVICE_KEY = 'QISHUI_DEVICE_ID';
 function createSessionRepository({ store, safeStorage, warn = console.warn }) {
@@ -10,8 +9,8 @@ function createSessionRepository({ store, safeStorage, warn = console.warn }) {
     let current = null;
     let revision = 0;
     let deviceId = store.get(DEVICE_KEY);
-    if (typeof deviceId !== 'string' || !/^\d{19}$/.test(deviceId)) {
-        deviceId = (randomBytes(8).readBigUInt64BE() % 9000000000000000000n + 1000000000000000000n).toString();
+    if (!isQishuiDeviceId(deviceId)) {
+        deviceId = createQishuiDeviceId();
         store.set(DEVICE_KEY, deviceId);
     }
     const canEncrypt = () => safeStorage?.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend?.() !== 'basic_text';

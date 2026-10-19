@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PERSONAL_FM_CATALOG, getPersonalFmSelectionLabel } from '@/services/onlineMusic/fmModes';
 import { usePersonalFmModeStore, getPersonalFmSelection } from '@/stores/usePersonalFmModeStore';
@@ -10,7 +9,6 @@ import { track } from './fixtures';
 
 // Actual scene IDs, provider-specific persistence and the car's nested feed flags stay aligned.
 vi.mock('@/services/onlineMusic/qishui/qishuiTransport', () => ({ requestQishui: vi.fn(), readQishuiSceneIcon: vi.fn(async () => 'data:image/png;base64,iVBORw0KGgo=') }));
-const { createFeed } = createRequire(import.meta.url)('../../../electron/qishui/feed.cjs');
 const sceneRows = Array.from({ length: 45 }, (_, i) => ({ id: String(i + 1), name: i === 32 ? '驾车' : `场景 ${i + 1}`, group: '场景音乐',
     coverUrl: { urls: ['https://p3-luna.douyinpic.com/img/'], uri: `scene-${i}.png`, template_prefix: 'tplv-test' } }));
 beforeEach(() => {
@@ -65,25 +63,5 @@ describe('Qishui radio modes', () => {
         state.setProviderSelection('qishui', { mode: 'SCENE_RCMD', scene: '33' });
         state.setCatalog('qishui', { ...catalog, scenes: [] });
         expect(getPersonalFmSelection('qishui')).toEqual({ mode: 'DEFAULT', scene: null });
-    });
-});
-describe('car stream request state', () => {
-    it('nests scene IDs and restarts on A-to-B-to-A switches, while continuation keeps the scene', async () => {
-        const bodies: any[] = [];
-        const platform = vi.fn(async (_path, body) => { bodies.push(body); return { items: [{ entity: { media: { track_entity: track() } } }], has_more: true }; });
-        const feed = createFeed({ platform });
-        await feed.songs({ scene: '33' }); await feed.songs({ scene: '33' }); await feed.songs({ scene: '8' }); await feed.songs({ scene: '33' });
-        expect(bodies.map(body => body.is_first_request)).toEqual([true, false, true, true]);
-        expect(bodies.map(body => body.with_client_cache)).toEqual([false, true, false, false]);
-        expect(bodies.map(body => body.feed_preference.scene_mode_id)).toEqual([33, 33, 8, 33]);
-        expect(bodies.every(body => body.cursor === undefined && body.scene_mode_id === undefined)).toBe(true);
-    });
-    it('drops an in-flight account stream if the listener signs out', async () => {
-        let release!: (value: unknown) => void;
-        const platform = vi.fn(() => new Promise(resolve => { release = resolve; }));
-        const feed = createFeed({ platform }); const pending = feed.songs({ scene: '33' });
-        await vi.waitFor(() => expect(platform).toHaveBeenCalled()); feed.clear();
-        release({ items: [], has_more: false });
-        await expect(pending).rejects.toMatchObject({ code: 'unavailable' });
     });
 });
