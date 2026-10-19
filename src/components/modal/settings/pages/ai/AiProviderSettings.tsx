@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AI_PROVIDER_PRESETS, DEFAULT_GEMINI_MODEL, getAiProviderPreset } from '../../../../../../shared/aiProviderPresets.mjs';
 import { openAIEndpointOf } from '../../../../../utils/openAIEndpoint';
 import { Button, FoldedGroup, NumberField, Reveal, Row, Select, TextField, Toggle, Value, option, parseNumberText, type SettingsGroupDef, type SettingsOptionDef } from '../../kit';
-import { AiConnectionTestReply, useAiConnectionTest } from '../AiConnectionTest';
+import { AiConnectionTestReply, AiConnectionTestStatus, useAiConnectionTest } from '../AiConnectionTest';
 import { useSettingsPage, type AiApiKeyName, type ElectronSettingsState } from '../settingsPageContext';
 import { AiModelPicker } from './AiModelPicker';
 
@@ -103,7 +103,10 @@ const AiProviderSettings: React.FC = () => {
             <Row option={O.proxy} hint={t('options.useSystemProxyAIDesc')}>
                 <Toggle checked={settings.USE_SYSTEM_PROXY_FOR_AI} onChange={enabled => setAi({ USE_SYSTEM_PROXY_FOR_AI: enabled })} />
             </Row>
-            <Row below={connection.result && <AiConnectionTestReply result={connection.result} />}>
+            <Row
+                label={connection.result && <AiConnectionTestStatus result={connection.result} />}
+                below={connection.result && <AiConnectionTestReply result={connection.result} />}
+            >
                 {electronSaveStatus === 'saved' && <Value>{t('options.settingsSaved')}</Value>}
                 <Button icon={Zap} tip={t('options.aiTestConnectionDesc')} onClick={() => void connection.run()} disabled={connection.running || !connectionReady}>
                     {t(connection.running ? 'options.aiTestRunning' : 'options.aiTestConnection')}
