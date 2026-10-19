@@ -50,7 +50,8 @@ const MAX_PROFILES = 200;
 
 /**
  * What became of the last request for a track that left no profile behind: dropped for being out of
- * scope, skipped for want of bytes, or failed. Only for `describeProfileState`.
+ * scope, or skipped for want of bytes. A failure needs no entry - it is a null profile. Only for
+ * `describeProfileState`.
  *
  * Kept because "no profile" alone could not tell a track never asked for from one asked for and
  * turned away, and the first is a bug while the second is the bandwidth rule working. Every local
@@ -119,6 +120,11 @@ let queue: Promise<unknown> = Promise.resolve();
  * Set by the prefetcher, which is the only thing that knows where the queue is. Checked when a task
  * reaches the front rather than when it is enqueued, because the point is precisely that the answer
  * changes while it waits.
+ *
+ * Keyed by the song, not by the analysis key. The analysis key changes when a transcode registers
+ * (getPlaybackAnalysisTarget), and the scope is set at the track change, before playback has found it
+ * cannot play the file - so a scope of analysis keys dropped the one request that reads the transcode,
+ * for a track that never left the scope.
  */
 let wanted: ReadonlySet<string> = new Set();
 
@@ -126,11 +132,11 @@ let wanted: ReadonlySet<string> = new Set();
  * Narrows analysis to these tracks. Anything queued for a track not in the list is dropped when its
  * turn comes; anything already running finishes, since a decode cannot be taken back mid-way.
  *
- * Dropping is safe to do at any time: nothing is remembered for a dropped track, so it is simply
- * measured on a later pass if it comes back into range.
+ * Dropping is safe to do at any time: nothing measured is remembered for a dropped track (only that
+ * it was dropped, for the log), so it is simply measured on a later pass if it comes back into range.
  */
 export const setAnalysisScope = (songs: readonly SongResult[]): void => {
-    wanted = new Set(songs.map(getPlaybackAnalysisKey));
+    wanted = new Set(songs.map(getPlaybackSongKey));
 };
 
 /**
@@ -189,12 +195,23 @@ export const getTrackProfile = (song: SongResult | null | undefined): TrackProfi
  * "never requested" is the one that points at a caller rather than at the track.
  */
 export const describeProfileState = (song: SongResult): string => {
-    const songKey = getPlaybackAnalysisKey(song);
-    const profile = profiles.get(songKey);
+    const analysisKey = getPlaybackAnalysisKey(song);
+    const state = describeKey(analysisKey);
+    if (state) return state;
+    // Transcoded since it was looked at: the original's key holds what became of that, and saying it
+    // keeps a track measured before its transcode from reading as one nobody asked about.
+    const songKey = getPlaybackSongKey(song);
+    const original = songKey === analysisKey ? null : describeKey(songKey);
+    return original ? `nothing measured from its transcode (the original file: ${original})` : 'never requested';
+};
+
+/** What `describeProfileState` says of one key, or null when nothing was ever asked of it. */
+const describeKey = (key: string): string | null => {
+    const profile = profiles.get(key);
     if (profile) return profile.partial ? 'measured (head only)' : 'measured';
-    if (inFlight.has(songKey)) return 'queued, not finished yet';
-    if (profiles.has(songKey)) return 'could not be measured';
-    return outcomes.get(songKey) ?? 'never requested';
+    if (inFlight.has(key)) return 'queued, not finished yet';
+    if (profiles.has(key)) return 'could not be measured';
+    return outcomes.get(key) ?? null;
 };
 
 interface ProfileRequest {
@@ -410,6 +427,9 @@ const readBytes = async (
 export const ensureTrackProfile = async (request: ProfileRequest): Promise<void> => {
     // Resolved together: the bytes read below must be the representation this key names.
     const { key: songKey, representation } = getPlaybackAnalysisTarget(request.song);
+    // The scope is kept by song (see `wanted`): a transcode registering moves `songKey` - which, despite
+    // its name, is the analysis key - and not this.
+    const scopeKey = getPlaybackSongKey(request.song);
     if (inFlight.has(songKey)) return;
     if (profiles.has(songKey) && !needsGrid(request, profiles.get(songKey))) {
         // Only asked, never stored from here: this runs on every track change, ahead of the
@@ -424,7 +444,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // Asked here, at the front of the queue, not when this was enqueued - see `wanted`. The
             // listener may have skipped past this track while it was waiting its turn, and the whole
             // point is to not spend a decode and a model pass on where they no longer are.
-            if (!wanted.has(songKey)) {
+            if (!wanted.has(scopeKey)) {
                 noteOutcome(songKey, 'dropped, not the current or the next track when its turn came');
                 return;
             }
@@ -477,7 +497,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // Asked a second time, because reading the bytes is the slow part: a full track off the
             // media cache or the network is seconds, and everything after this line - the decode, the
             // spectrogram, the beat model - is the expensive part it would be buying for nobody.
-            if (!wanted.has(songKey)) {
+            if (!wanted.has(scopeKey)) {
                 noteOutcome(songKey, 'dropped, not the current or the next track when its turn came');
                 return;
             }
@@ -602,6 +622,10 @@ export const recordPlayedTail = (
     /** What the deck played from. */
     src: string | null,
 ): void => {
+    // The song's own key, not the analysis key, and on purpose. A head-only profile is only ever made
+    // from the original file, before any transcode registers: a transcode is read whole, so the key
+    // naming it never holds a head-only profile to complete. What the deck played may be that
+    // transcode - lossless, on the original's timeline - so its ending is the original's ending.
     const songKey = getPlaybackSongKey(song);
     const known = profiles.get(songKey);
     if (!known || !known.partial) return;
@@ -652,6 +676,8 @@ export const clearTrackProfileRuntime = () => {
     skipped.clear();
     notTheSongDownloads.clear();
     notTheSongCopies.clear();
+    // What the requests came to goes with the profiles: kept, it would describe a session that is gone.
+    outcomes.clear();
     // Nothing is in range until a prefetch pass says so again, which is what a cleared session means.
     wanted = new Set();
 };
