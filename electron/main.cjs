@@ -42,6 +42,7 @@ const {
   readStageManagerDesktop,
   toScreenHitRects,
 } = require('./wallpaper/macWallpaperHitPanels.cjs');
+const { createMacDesktopClickGuard, isAccessibilityTrusted } = require('./wallpaper/macDesktopClickGuard.cjs');
 const {
   WALLPAPER_DISPLAY_SETTING_KEY,
   normalizeWallpaperDisplayChoice,
@@ -962,11 +963,15 @@ let macWallpaperSettleAttempts = 0;
 // reports the controls' rects (viewport CSS px).
 let macWallpaperHitPanelsInstance = null;
 let macWallpaperHitRects = [];
-// Stage Manager on with the desktop items hidden: one catcher over the whole wallpaper instead of
-// the controls only (macWallpaperHitPanels.cjs). Re-read on a slow timer while the catchers can be
-// up, so a change in System Settings is followed without a restart.
-let macWallpaperCoversWhole = false;
+// Stage Manager (issue #698). With the desktop items hidden while it is on: one catcher over the
+// whole wallpaper (macWallpaperHitPanels.cjs), no grant needed. With the icons shown: the click
+// guard helper (macDesktopClickGuard.cjs) once Folia holds the Accessibility grant, else the
+// catchers over the controls only and a one-time hint. Stage Manager's settings and the grant are
+// re-read on a slow timer while the wallpaper takes input, so changes apply without a restart.
+let macWallpaperStageState = { enabled: false, hidesDesktopItems: false, trusted: false };
 let macWallpaperStageManagerTimer = null;
+let macWallpaperClickGuardInstance = null;
+let macWallpaperAccessibilityHinted = false;
 const MAC_WALLPAPER_STAGE_MANAGER_POLL_MS = 3000;
 const MAC_WALLPAPER_TAP_RETRY_DELAY_MS = 2000;
 const MAC_WALLPAPER_TAP_FAILURE_THRESHOLD = 3;
@@ -1788,17 +1793,21 @@ function syncMacWallpaperHitPanels() {
       clearInterval(macWallpaperStageManagerTimer);
       macWallpaperStageManagerTimer = null;
     }
+    if (macWallpaperClickGuardInstance) {
+      macWallpaperClickGuardInstance.stop();
+    }
     if (macWallpaperHitPanelsInstance) {
       macWallpaperHitPanelsInstance.clear();
     }
     return;
   }
   if (!macWallpaperStageManagerTimer) {
-    macWallpaperCoversWhole = coversWholeWallpaper(readStageManagerDesktop());
+    macWallpaperStageState = readMacWallpaperStageState();
     macWallpaperStageManagerTimer = setInterval(() => {
-      const next = coversWholeWallpaper(readStageManagerDesktop());
-      if (next !== macWallpaperCoversWhole) {
-        macWallpaperCoversWhole = next;
+      const next = readMacWallpaperStageState();
+      const prev = macWallpaperStageState;
+      if (next.enabled !== prev.enabled || next.hidesDesktopItems !== prev.hidesDesktopItems || next.trusted !== prev.trusted) {
+        macWallpaperStageState = next;
         syncMacWallpaperHitPanels();
       }
     }, MAC_WALLPAPER_STAGE_MANAGER_POLL_MS);
@@ -1808,12 +1817,62 @@ function syncMacWallpaperHitPanels() {
   }
   try {
     const bounds = mainWindow.getBounds();
-    const rects = macWallpaperCoversWhole
-      ? [{ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }]
+    const frame = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+    const stage = macWallpaperStageState;
+    const coversWhole = coversWholeWallpaper(stage);
+    const wantsGuard = stage.enabled && !stage.hidesDesktopItems;
+    if (wantsGuard && stage.trusted) {
+      getMacWallpaperClickGuard().start(frame);
+    } else if (macWallpaperClickGuardInstance) {
+      macWallpaperClickGuardInstance.stop();
+    }
+    if (wantsGuard && !stage.trusted && !macWallpaperAccessibilityHinted) {
+      macWallpaperAccessibilityHinted = true;
+      getMacWallpaperClickGuard().requestAccess();
+      notifyMacWallpaperAccessibilitySuggested();
+    }
+    const rects = coversWhole
+      ? [frame]
       : toScreenHitRects(macWallpaperHitRects, bounds, mainWindow.webContents.getZoomFactor());
     getMacWallpaperHitPanels(controller).apply(rects);
   } catch (error) {
     console.warn('[WallpaperMac] hit panel sync failed:', error && error.message);
+  }
+}
+
+// Stage Manager's switch and "hide desktop items", plus whether Folia holds the Accessibility
+// grant the click guard needs. Both cheap: CFPreferences and AXIsProcessTrusted, no child process.
+function readMacWallpaperStageState() {
+  const stage = readStageManagerDesktop() || { enabled: false, hidesDesktopItems: false };
+  return {
+    enabled: stage.enabled === true,
+    hidesDesktopItems: stage.hidesDesktopItems === true,
+    trusted: stage.enabled === true && stage.hidesDesktopItems !== true && isAccessibilityTrusted(),
+  };
+}
+
+// Packaged: Resources/folia-desktop-click-guard (built by packaging/macos/build-desktop-click-guard.mjs).
+// FOLIA_DESKTOP_CLICK_GUARD_PATH overrides it for local runs.
+function resolveMacDesktopClickGuardPath() {
+  if (process.env.FOLIA_DESKTOP_CLICK_GUARD_PATH) {
+    return process.env.FOLIA_DESKTOP_CLICK_GUARD_PATH;
+  }
+  return path.join(process.resourcesPath, 'folia-desktop-click-guard');
+}
+
+function getMacWallpaperClickGuard() {
+  if (!macWallpaperClickGuardInstance) {
+    macWallpaperClickGuardInstance = createMacDesktopClickGuard({ helperPath: resolveMacDesktopClickGuardPath });
+  }
+  return macWallpaperClickGuardInstance;
+}
+
+// Stage Manager is on with the desktop icons shown and Folia lacks the Accessibility grant: clicks
+// on the bare wallpaper still send the stage aside. Asked once per session; never turns the
+// wallpaper off.
+function notifyMacWallpaperAccessibilitySuggested() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('wallpaper-accessibility-suggested', null);
   }
 }
 
@@ -6036,6 +6095,9 @@ app.on('before-quit', (event) => {
     if (macWallpaperStageManagerTimer) {
       clearInterval(macWallpaperStageManagerTimer);
       macWallpaperStageManagerTimer = null;
+    }
+    if (macWallpaperClickGuardInstance) {
+      macWallpaperClickGuardInstance.stop();
     }
     if (macWallpaperHitPanelsInstance) {
       macWallpaperHitPanelsInstance.destroy();
