@@ -134,7 +134,7 @@ describe('where a stem window is separated', () => {
         // The first window builds the model, at the quiet level: there is no deadline.
         await separate(nextSong());
         // Due 5 s (the margin) and 100 ms out: the quiet level's ~5.6 ms is on time while the model
-        // is built, and late by the 1.5 s rebuild once it is not - which takes the hurry level.
+        // is built, and late by the 0.6 s rebuild once it is not - which takes the hurry level.
         now += 59_000;
         await separate(nextSong(), now + 5000 + 100);
         now += 61_000;
@@ -149,17 +149,33 @@ describe('where a stem window is separated', () => {
         const { separateStems, ready } = setUp();
         await ready;
         // A window of 1024 samples is ~5.6 ms of CPU at the quiet level (two threads of eight cores),
-        // ~2.8 ms hurried (four), each after the 1.5 s build (none yet): due 5 s, 1.5 s and 4 ms out,
+        // ~2.8 ms hurried (four), each after the 0.6 s build (none yet): due 5 s, 0.6 s and 4 ms out,
         // only the hurried CPU is on time by the 5 s margin; the GPU is an hour late.
         // A still clock, so the few ms the decode takes do not eat the ms between the two levels.
         const now = 1_000_000;
         const clock = vi.spyOn(performance, 'now').mockReturnValue(now);
         gpu.finish = now + 3_600_000;
-        await separate(nextSong(), now + 5000 + 1500 + 4);
+        await separate(nextSong(), now + 5000 + 600 + 4);
         clock.mockRestore();
         expect(runHtdemucsGpu).not.toHaveBeenCalled();
         expect(separateStems).toHaveBeenCalledTimes(1);
         expect(separateStems.mock.calls[0]).toMatchObject([{ threads: cpuThreads(8, 'hurry', 'htdemucs') }]);
+    });
+
+    // Measured after PR #750, 2026-10-19: building the CPU model takes about 0.6 s, a worker the host
+    // had stopped included, where the estimate charged 1.5 s - after every idle release.
+    it('charges the CPU build what it measures, so the quiet level takes a window the old 1.5 s gave the late GPU', async () => {
+        const { separateStems, ready } = setUp();
+        await ready;
+        const now = 1_000_000;
+        const clock = vi.spyOn(performance, 'now').mockReturnValue(now);
+        gpu.finish = now + 3_600_000;
+        // Due 5 s (the margin) and 1 s out, the model not built: the quiet level is on time after a
+        // 0.6 s build. After a 1.5 s one neither level was, and the window went to the GPU an hour late.
+        await separate(nextSong(), now + 5000 + 1000);
+        clock.mockRestore();
+        expect(runHtdemucsGpu).not.toHaveBeenCalled();
+        expect(separateStems.mock.calls.map(([request]) => request.threads)).toEqual([cpuThreads(8, 'quiet', 'htdemucs')]);
     });
 
     it('stays on the GPU without a CPU model, however late', async () => {

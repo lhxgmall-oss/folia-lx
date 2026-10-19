@@ -533,8 +533,16 @@ const CPU_SECONDS_PER_SECOND = 0.12;
  * Building htdemucs on the CPU for another thread count (MNN fixes it per build): a 92 MB read and the network.
  * (From the PR #750 re-review, 2026-10-19: also charged for the reload after the worker's idle
  * release, which now follows every run on every machine.)
+ * (Measured after PR #750, 2026-10-19: was 1500, about three times what it takes. Charged after every
+ * idle release, the excess sent windows to the hurry level, or to the GPU, that the quiet CPU would have
+ * finished in time. End to end through host.cjs and worker.cjs on a Ryzen 7 9700X, over the same window
+ * with the model loaded: 0.42-0.57 s (median 0.50, one 1.75 s round aside, the machine slow then) with
+ * the worker running and only the model released, and 0.48-0.66 s (median 0.57) once the host has
+ * stopped the worker - the new utilityProcess reaches its first line in about 50 ms, and koffi binds
+ * folia_mnn in 6. The two are 0.1 s apart against a 5 s margin (DEADLINE_MARGIN_MS), so one number
+ * covers both: the second, rounded up.)
  */
-const CPU_REBUILD_MS = 1500;
+const CPU_REBUILD_MS = 600;
 /** The thread count the CPU htdemucs was last asked for: another one rebuilds it. */
 let lastCpuThreads: number | null = null;
 /**
