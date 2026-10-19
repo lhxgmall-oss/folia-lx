@@ -127,7 +127,7 @@ describe('codemap module graph', () => {
     afterAll(() => rmSync(root, { recursive: true, force: true }));
 
     const files: Record<string, string> = {
-        'src/services/themePreferences.ts': 'export const preferDark = true;\n',
+        'src/services/themePreferences.ts': 'export const preferDark = true;\nexport type Theme = string;\n',
         'src/types/visualizerModes.ts': 'export type VisualizerMode = string;\n',
         'src/utils/appearancePlan.ts': source(
             'import {',
@@ -147,6 +147,27 @@ describe('codemap module graph', () => {
             "} from 'react';",
             'export const Panel = () => useState(0);',
         ),
+        // 同一个模块：只有 import type / 另有值导入 / 另有动态 import() / 另经 glob 拉进来
+        'src/utils/themeTypesOnly.ts': source(
+            "import type { Theme } from '../services/themePreferences';",
+            'export type {',
+            '    Theme as AppTheme,',
+            "} from '../services/themePreferences';",
+        ),
+        'src/utils/themeMixed.ts': source(
+            "import type { Theme } from '../services/themePreferences';",
+            "import { preferDark } from '../services/themePreferences';",
+            "export const theme: Theme = preferDark ? 'dark' : 'light';",
+        ),
+        'src/utils/themeLazy.ts': source(
+            "import type { Theme } from '../services/themePreferences';",
+            "export const loadTheme = (): Promise<Theme> => import('../services/themePreferences').then(m => String(m.preferDark));",
+        ),
+        'src/components/plugins/alpha.ts': 'export type Plugin = string;\nexport const plugin: Plugin = "alpha";\n',
+        'src/components/pluginRegistry.ts': source(
+            "import type { Plugin } from './plugins/alpha';",
+            "export const plugins = import.meta.glob<{ plugin: Plugin }>('./plugins/*.ts', { eager: true });",
+        ),
     };
     for (const [file, text] of Object.entries(files)) {
         mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
@@ -164,5 +185,19 @@ describe('codemap module graph', () => {
         expect(graph.typeOnly.has(edgeKey('src/services/visualizerPersistence.ts', 'src/types/visualizerModes.ts'))).toBe(true);
 
         expect([...graph.uiSeeds]).toEqual(['src/components/Panel.tsx']);
+    });
+
+    it('marks an edge type-only only when every import along it is `import type`', () => {
+        const graph = buildModuleGraph(root);
+        const typeOnly = (from: string, to: string) => graph.typeOnly.has(edgeKey(from, to));
+        const preferences = 'src/services/themePreferences.ts';
+
+        expect(typeOnly('src/utils/themeTypesOnly.ts', preferences)).toBe(true);
+        // 另有一条值导入、动态 import() 或 glob，这条依赖在运行时就成立，分层检查不能跳过它
+        expect(typeOnly('src/utils/themeMixed.ts', preferences)).toBe(false);
+        expect(typeOnly('src/utils/themeLazy.ts', preferences)).toBe(false);
+        expect(graph.dynamic.has(edgeKey('src/utils/themeLazy.ts', preferences))).toBe(true);
+        expect(graph.globEdges.has(edgeKey('src/components/pluginRegistry.ts', 'src/components/plugins/alpha.ts'))).toBe(true);
+        expect(typeOnly('src/components/pluginRegistry.ts', 'src/components/plugins/alpha.ts')).toBe(false);
     });
 });
