@@ -588,6 +588,7 @@ export default {
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
       "settings-options": { "title": "Open Options", "description": "Open the options center" },
+      "settings-ai-provider": { "title": "AI provider settings", "description": "Choose an AI provider and model" },
       "settings-appearance": { "title": "Appearance settings", "description": "Open visual and appearance settings" },
       "settings-general": { "title": "General settings", "description": "Open general app preferences" },
       "settings-playback": { "title": "Playback settings", "description": "Open playback behavior settings" },

@@ -20,7 +20,10 @@ async function sendAnthropic({
     apiUrl, apiKey, model, systemPrompt, sourcePrompt, schema, schemaName,
     temperature, maxTokens = 8192, customFetch, timeoutMs = 120_000,
 }) {
-    if (!model || typeof model !== 'string') throw new Error('Select an Anthropic model in settings');
+    model = typeof model === 'string' ? model.trim() : '';
+    if (!model || model.length > 256 || /[\s\u0000-\u001f\u007f]/.test(model)) {
+        throw new Error('Select a valid Anthropic model in settings');
+    }
     const toolName = schemaName || 'response';
     const body = {
         model,

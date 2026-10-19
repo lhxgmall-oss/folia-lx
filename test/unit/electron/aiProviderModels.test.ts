@@ -131,7 +131,41 @@ describe('discovery IPC credential boundary', () => {
     });
 });
 
+describe('custom provider URL requirements', () => {
+    it.each(['', '   '])('blocks connection tests, discovery and saved completions before fetch for URL %j', async apiUrl => {
+        const customFetch = vi.fn();
+        const input = { ...payload, apiUrl, model: 'custom-model', requireApiUrl: true };
+        expect(await client.runAiConnectionTest(input, { customFetch })).toMatchObject({ ok: false, errorKind: 'invalid' });
+        expect(await listAiModels(input, { customFetch })).toEqual({ ok: false, errorKind: 'invalid' });
+        const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'custom',
+            OPENAI_API_URL: apiUrl, OPENAI_API_KEY: 'test-secret', OPENAI_API_MODEL: 'custom-model' });
+        await expect(client.runAiJsonCompletion({ store, systemPrompt: 'system', sourcePrompt: 'source', customFetch }))
+            .rejects.toThrow('API URL is required');
+        expect(customFetch).not.toHaveBeenCalled();
+    });
+});
+
 describe('selected model completion', () => {
+    it('trims a saved Anthropic model exactly as the connection test does', async () => {
+        const models: string[] = [];
+        const customFetch = async (_url: string, init: any) => {
+            models.push(JSON.parse(init.body).model);
+            return json({ content: [{ type: 'text', text: '{}' }] });
+        };
+        const model = '  claude-selected\t';
+        const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic',
+            OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_KEY: 'test-secret', OPENAI_API_MODEL: model });
+        expect(await client.runAiConnectionTest({ ...payload, apiProtocol: 'anthropic', model }, { customFetch })).toMatchObject({ ok: true });
+        await client.runAiJsonCompletion({ store, systemPrompt: 'theme', sourcePrompt: 'source', customFetch });
+        await client.runAiJsonCompletion({ store, systemPrompt: 'segmentation', sourcePrompt: 'source', customFetch });
+        expect(models).toEqual(['claude-selected', 'claude-selected', 'claude-selected']);
+    });
+    it.each([undefined, null, 12, '', '   ', 'a'.repeat(257), 'claude bad', 'claude\ninvalid'])('rejects invalid Anthropic model %j before fetch', async model => {
+        const { sendAnthropic } = require('../../../electron/ai/anthropicClient.cjs');
+        const customFetch = vi.fn();
+        await expect(sendAnthropic({ apiKey: 'test-secret', model, sourcePrompt: 'hello', customFetch })).rejects.toThrow('valid Anthropic model');
+        expect(customFetch).not.toHaveBeenCalled();
+    });
     it('retries native Claude once without temperature only when that parameter is rejected', async () => {
         const { sendAnthropic } = require('../../../electron/ai/anthropicClient.cjs');
         const bodies: any[] = [];

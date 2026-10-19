@@ -33,6 +33,8 @@ declare global {
     /** Typed key; empty means "use the saved key", which only the main process can read. */
     apiKey: string;
     apiUrl?: string;
+    /** Custom connections must never fall back to a built-in endpoint. */
+    requireApiUrl?: boolean;
     model?: string;
     stream?: boolean;
     useSystemProxy?: boolean;

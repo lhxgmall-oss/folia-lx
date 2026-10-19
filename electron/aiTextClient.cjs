@@ -511,6 +511,9 @@ async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeout
  * name still fails on the first request instead of being retried three times.
  */
 async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS, maxTokens, disableReasoning }) {
+  if (store.get('AI_PROVIDER_PRESET') === 'custom' && !String(store.get('OPENAI_API_URL') || '').trim()) {
+    throw new Error('API URL is required for a custom AI provider');
+  }
   const { getAiProviderPreset } = await import('../shared/aiProviderPresets.mjs');
   if (getAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: store.get('AI_PROVIDER_PRESET'), OPENAI_API_URL: store.get('OPENAI_API_URL') }).protocol === 'anthropic') {
     const apiKey = store.get('OPENAI_API_KEY');
@@ -778,6 +781,9 @@ function validateAiConnectionTestInput(raw) {
   }
   if (apiKey === null || apiUrl === null || model === null) {
     return { error: 'A setting value is too long or has the wrong type.' };
+  }
+  if (provider === 'openai' && raw.requireApiUrl === true && !apiUrl) {
+    return { error: 'API URL is required for a custom AI provider.' };
   }
   if (apiUrl) {
     let parsed;

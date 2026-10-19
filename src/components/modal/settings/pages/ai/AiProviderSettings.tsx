@@ -47,11 +47,13 @@ const AiProviderSettings: React.FC = () => {
     const usableSavedKey = savedAiApiKeys[keyName] && !mismatchedEndpoint;
     const setAi = (patch: Partial<ElectronSettingsState>) => setElectronSettings(previous => ({ ...previous, ...patch }));
     const model = gemini ? settings.GEMINI_API_MODEL || DEFAULT_GEMINI_MODEL : settings.OPENAI_API_MODEL || '';
+    const connectionReady = Boolean(model.trim()) && (preset.id !== 'custom' || Boolean(apiUrl?.trim()));
     const payload: AiConnectionTestPayload = {
         provider: gemini ? 'gemini' : 'openai',
         apiProtocol: preset.protocol === 'anthropic' ? 'anthropic' : 'openai',
         apiKey: key,
         apiUrl: gemini ? undefined : apiUrl,
+        requireApiUrl: preset.id === 'custom',
         model,
         stream: preset.protocol === 'openai' && settings.OPENAI_API_STREAM,
         useSystemProxy: settings.USE_SYSTEM_PROXY_FOR_AI,
@@ -103,10 +105,10 @@ const AiProviderSettings: React.FC = () => {
             </Row>
             <Row below={connection.result && <AiConnectionTestReply result={connection.result} />}>
                 {electronSaveStatus === 'saved' && <Value>{t('options.settingsSaved')}</Value>}
-                <Button icon={Zap} tip={t('options.aiTestConnectionDesc')} onClick={() => void connection.run()} disabled={connection.running || !model.trim()}>
+                <Button icon={Zap} tip={t('options.aiTestConnectionDesc')} onClick={() => void connection.run()} disabled={connection.running || !connectionReady}>
                     {t(connection.running ? 'options.aiTestRunning' : 'options.aiTestConnection')}
                 </Button>
-                <Button variant="primary" onClick={() => void onSaveElectronSettings()} disabled={electronSaveStatus === 'saving' || !model.trim()}>
+                <Button variant="primary" onClick={() => void onSaveElectronSettings()} disabled={electronSaveStatus === 'saving' || !connectionReady}>
                     {t(electronSaveStatus === 'saving' ? 'options.settingsSaving' : 'options.save')}
                 </Button>
             </Row>
