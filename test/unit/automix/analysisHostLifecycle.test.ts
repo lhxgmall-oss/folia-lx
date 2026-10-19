@@ -12,6 +12,9 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 // the worker to release htdemucs - in that process, not by killing it - and only then does the idle
 // timer apply again. And a worker that dies under a request is re-forked and asked once more, so a
 // restart is invisible to the caller.
+// (From the PR #750 re-review, 2026-10-19: an idle worker is stopped with automix on too - no
+// htdemucs is kept now, the worker lets it go a minute after each run - and switching automix off
+// still tells a running worker to release it, in its own process.)
 //
 // This exercises the host with utilityProcess stubbed to a worker whose replies we control.
 
@@ -100,18 +103,32 @@ describe('analysis host lifecycle', () => {
         expect(forks[0].killed).toBe(true);
     });
 
-    it('keeps the worker however long it idles while automix is on, and releases in-process when it goes off', async () => {
+    // From the PR #750 re-review, 2026-10-19: was "keeps the worker however long it idles while automix
+    // is on, and releases in-process when it goes off" - the first half is the rule that changed.
+    it('stops an idle worker while automix is on too, and releases in-process when it goes off', async () => {
         setAutomix(true);
         await separate();
-        await wait(IDLE_MS * 4);
-        expect(forks[0].killed).toBe(false);
+        await wait(IDLE_MS * 3);
+        // Stopped, and nothing told it to release first: the worker lets htdemucs go on its own.
+        expect(forks[0].sent).toEqual(['htdemucs']);
+        expect(forks[0].killed).toBe(true);
 
+        await separate();
+        expect(forks).toHaveLength(2);
         setAutomix(false);
         await wait(0);
         // Released by message, in the worker's own process - not by killing it.
-        expect(forks[0].sent).toEqual(['htdemucs', 'release']);
-        expect(forks[0].killed).toBe(false);
+        expect(forks[1].sent).toEqual(['htdemucs', 'release']);
+        expect(forks[1].killed).toBe(false);
         // ...after which the ordinary idle rule applies again.
+        // (From the PR #750 re-review, 2026-10-19: it applied all along; the release does not change it.)
+        await wait(IDLE_MS * 3);
+        expect(forks[1].killed).toBe(true);
+    });
+
+    it('does not disarm the idle timer when automix is switched on', async () => {
+        await separate();
+        setAutomix(true);
         await wait(IDLE_MS * 3);
         expect(forks[0].killed).toBe(true);
     });

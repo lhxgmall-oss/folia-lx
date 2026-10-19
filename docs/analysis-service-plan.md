@@ -185,6 +185,11 @@ htdemucs 是一段一段算的（约 3.9 秒一段，相邻重叠 1/4，再拼�
 - CPU（`electron/analysis/worker.cjs`）：有 GPU 的机器上，CPU 只是回退，加载的 htdemucs（约 400 MB）闲置 1 分钟就释放；没有 GPU 的机器照旧在 automix 开着时常驻。
 - 每个模型加载时日志写出它在 GPU 上占多少。
 
+PR #750 复审后的更正（2026-10-19）：
+- CPU 的 htdemucs 在哪台机器上都不常驻了（维护者在复审里的要求：宁可还内存，也不省重新加载的那一点时间）：每次分完，1 分钟没有新请求就在 worker 进程里释放（`worker.cjs` 的 `STEMS_IDLE_MS`，原来的 `FALLBACK_IDLE_MS` 只管 GPU 机器上的回退），没有 GPU 的机器也一样，请求不再带 `resident`。上面这条的「没有 GPU 的机器照旧在 automix 开着时常驻」、「阶段 3、4 审查后的修正」里的「CPU 模型照旧常驻」、下表阶段 4 那行括号里的话都不再成立。
+- 主进程在 automix 开着时也停掉闲置的 worker（`host.cjs` 闲置 2 分钟，比 worker 的 1 分钟长，所以先起作用的是 1 分钟）；关掉 automix 时照旧让正在运行的 worker 立即释放 htdemucs。
+- 代价是重新加载约 0.5 秒（实测 2 线程 516 ms、3 线程 500 ms）；释放让 worker 的 rss 从 487 MB 降到 137 MB。automix 的 CPU 估时（`stems.ts` 的 `cpuBuiltFor`）在上次分完 1 分钟后按要重新加载算。
+
 ## 分阶段（每步可单独验证、单独回退）
 
 | 阶段 | 内容 | 对 automix | 验证 |

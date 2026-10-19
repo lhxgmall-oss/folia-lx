@@ -32,6 +32,8 @@ const os = require('os');
 // What runs here:
 //   - htdemucs. Loaded on first use and KEPT while automix is switched on, released in this process
 //     when the host says automix was switched off - see `release` below.
+//     (From the PR #750 re-review, 2026-10-19: no longer kept, on any machine - released
+//     STEMS_IDLE_MS after every run as well as when automix is switched off; see `stems` below.)
 //   - beat_this, only as the CPU fallback for automix's beat grid. The renderer runs it on its own GPU
 //     first (src/services/analysis/beatThisGpu.ts); what reaches this file is what that could not take.
 
@@ -79,6 +81,10 @@ const MAX_HTDEMUCS_THREADS = Math.max(1, os.cpus().length);
  * read and the network built over it, asked for the moment a track starts; holding ~400MB while the
  * feature that needs it is on is the trade the listener made by switching it on. Switching it off is what gives the
  * memory back - the host sends 'release' and `release` below frees it in this process.
+ * (From the PR #750 re-review, 2026-10-19: not kept any more, a machine without a GPU included - the
+ * maintainer would rather have the memory back than save the reload. It is released STEMS_IDLE_MS
+ * after each run ends, and on 'release' as before. A reload is about half a second - measured 516 ms
+ * at two threads, 500 ms at three - and releasing took this process from 487 MB to 137 MB rss.)
  */
 let stems = null;
 
@@ -188,9 +194,12 @@ const MAX_SAMPLES = 40 * MODEL_RATE;
  * deadline it would have missed). Keeping ~400 MB for the rest of the session on the strength of
  * one such window is the waste phase 4 is about; a machine without a GPU (`resident` true or absent)
  * keeps it while automix is on, as before.
+ * (From the PR #750 re-review, 2026-10-19: after every run now, on every machine, and a request's
+ * `resident` is ignored - so it is STEMS_IDLE_MS rather than FALLBACK_IDLE_MS. The host stops an
+ * idle worker only after two minutes (host.cjs IDLE_MS), so this minute is the one that counts.)
  */
-const FALLBACK_IDLE_MS = 60_000;
-let fallbackTimer = null;
+const STEMS_IDLE_MS = 60_000;
+let stemsIdleTimer = null;
 /**
  * Bumped by every htdemucs request: a release the timer queued is dropped when a request came after
  * it was armed (found by review: a queued run, a resident one included, could not stop it).
@@ -203,8 +212,8 @@ let stemsGeneration = 0;
  * not only to the allocator (folia_mnn_free).
  */
 const release = () => {
-    if (fallbackTimer) clearTimeout(fallbackTimer);
-    fallbackTimer = null;
+    if (stemsIdleTimer) clearTimeout(stemsIdleTimer);
+    stemsIdleTimer = null;
     if (!stems) return true;
     const before = rssMb();
     stems.model.release();
@@ -246,8 +255,8 @@ const runHtdemucs = async (request) => {
     const threads = Number.isInteger(asked) && asked >= 1 ? Math.min(asked, MAX_HTDEMUCS_THREADS) : HTDEMUCS_THREADS;
     const loaded = loadStems(threads);
     if (!loaded) return null;
-    if (fallbackTimer) clearTimeout(fallbackTimer);
-    fallbackTimer = null;
+    if (stemsIdleTimer) clearTimeout(stemsIdleTimer);
+    stemsIdleTimer = null;
     const generation = (stemsGeneration += 1);
     try {
         return await htdemucs.separate(loaded.model, Float32Array.from(left), Float32Array.from(right));
@@ -256,18 +265,19 @@ const runHtdemucs = async (request) => {
     } finally {
         // Idle from when the run ends, not when it started (review: a slow run had its release queued
         // right behind it).
-        if (request?.resident === false && generation === stemsGeneration) {
-            fallbackTimer = setTimeout(() => {
-                fallbackTimer = null;
+        // (From the PR #750 re-review, 2026-10-19: armed after every run, whatever `resident` says.)
+        if (generation === stemsGeneration) {
+            stemsIdleTimer = setTimeout(() => {
+                stemsIdleTimer = null;
                 // Queued like a request, so it never lands in the middle of a separation; dropped
                 // there if another request came meanwhile.
                 queue = queue.then(() => {
                     if (generation !== stemsGeneration) return;
-                    console.log(`[htdemucs] the CPU fallback idle ${FALLBACK_IDLE_MS / 1000}s`);
+                    console.log(`[htdemucs] idle for ${STEMS_IDLE_MS / 1000}s since its last run`);
                     release();
                 }, () => undefined);
-            }, FALLBACK_IDLE_MS);
-            if (fallbackTimer.unref) fallbackTimer.unref();
+            }, STEMS_IDLE_MS);
+            if (stemsIdleTimer.unref) stemsIdleTimer.unref();
         }
     }
 };

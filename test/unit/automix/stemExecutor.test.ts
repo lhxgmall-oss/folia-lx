@@ -47,8 +47,11 @@ const nextSong = (): SongResult => {
     return { id: `s${songs}`, name: `track ${songs}`, sourceRef: { kind: 'online', providerId: 'kugou', mediaId: `s${songs}` } } as unknown as SongResult;
 };
 
+/** What the renderer sends the analysis worker for one window (src/vite-env.d.ts separateStems). */
+type SeparateRequest = { left: Float32Array; right: Float32Array; threads?: number };
+
 const setUp = ({ withGpu = true, withCpu = true } = {}) => {
-    const separateStems = vi.fn(async () => ({ drums: rows(), bass: rows(), vocals: rows() }));
+    const separateStems = vi.fn(async (_request: SeparateRequest) => ({ drums: rows(), bass: rows(), vocals: rows() }));
     (globalThis as { window?: object }).window = {
         electron: {
             ...(withCpu ? { separateStems } : {}),
@@ -103,7 +106,9 @@ describe('where a stem window is separated', () => {
         await separate(nextSong());
         expect(separateStems).toHaveBeenCalledTimes(1);
         // A GPU machine's fallback: not kept loaded (phase 4).
-        expect(separateStems.mock.calls[0]).toMatchObject([{ threads: cpuThreads(8, 'quiet', 'htdemucs'), resident: false }]);
+        // (From the PR #750 re-review, 2026-10-19: no run is, so no `resident` is sent.)
+        expect(separateStems.mock.calls[0]).toMatchObject([{ threads: cpuThreads(8, 'quiet', 'htdemucs') }]);
+        expect(separateStems.mock.calls[0][0]).not.toHaveProperty('resident');
     });
 
     it('runs on the CPU without a GPU', async () => {
@@ -113,7 +118,31 @@ describe('where a stem window is separated', () => {
         expect(runHtdemucsGpu).not.toHaveBeenCalled();
         expect(separateStems).toHaveBeenCalledTimes(1);
         // The CPU is this machine's separator: kept loaded while automix is on, as before.
-        expect(separateStems.mock.calls[0]).toMatchObject([{ resident: true }]);
+        // (From the PR #750 re-review, 2026-10-19: not kept here either - the worker releases it a
+        // minute after the run - so no `resident` is sent.)
+        expect(separateStems.mock.calls[0][0]).not.toHaveProperty('resident');
+    });
+
+    // From the PR #750 re-review, 2026-10-19: the worker releases the CPU model a minute after every
+    // run, a machine without a GPU included, so the estimate counts the rebuild again after that.
+    it('counts the rebuild once the worker has let the CPU model go, without a GPU too', async () => {
+        const { separateStems, ready } = setUp({ withGpu: false });
+        await ready;
+        // A clock the test moves, standing still in between.
+        let now = 1_000_000;
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        // The first window builds the model, at the quiet level: there is no deadline.
+        await separate(nextSong());
+        // Due 5 s (the margin) and 100 ms out: the quiet level's ~5.6 ms is on time while the model
+        // is built, and late by the 1.5 s rebuild once it is not - which takes the hurry level.
+        now += 59_000;
+        await separate(nextSong(), now + 5000 + 100);
+        now += 61_000;
+        await separate(nextSong(), now + 5000 + 100);
+        clock.mockRestore();
+        const quiet = cpuThreads(8, 'quiet', 'htdemucs');
+        expect(separateStems.mock.calls.map(([request]) => request.threads))
+            .toEqual([quiet, quiet, cpuThreads(8, 'hurry', 'htdemucs')]);
     });
 
     it('takes the CPU, hurried, when the GPU would be late for the deadline and the quiet CPU too', async () => {
@@ -158,13 +187,16 @@ describe('where a stem window is separated, from review', () => {
         resetStemExecutorForTests();
     });
 
-    it('does not send windows to a GPU that turned out unusable, and keeps the CPU model loaded there', async () => {
+    // From the PR #750 re-review, 2026-10-19: was "..., and keeps the CPU model loaded there" - it is
+    // not kept anywhere now, so the request carries no `resident`.
+    it('does not send windows to a GPU that turned out unusable, nor keeps the CPU model loaded there', async () => {
         const { separateStems, ready } = setUp();
         await ready;
         gpu.usable = false;
         await separate(nextSong());
         expect(runHtdemucsGpu).not.toHaveBeenCalled();
-        expect(separateStems.mock.calls[0]).toMatchObject([{ resident: true }]);
+        expect(separateStems).toHaveBeenCalledTimes(1);
+        expect(separateStems.mock.calls[0][0]).not.toHaveProperty('resident');
     });
 
     it('gives a window under way the deadline a later call brings, at its next GPU segment', async () => {
