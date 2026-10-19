@@ -49,9 +49,11 @@ const nextSong = (): SongResult => {
 
 /** What the renderer sends the analysis worker for one window (src/vite-env.d.ts separateStems). */
 type SeparateRequest = { left: Float32Array; right: Float32Array; threads?: number };
+/** What the worker answers: the stems, and how long it spent building the model when it says. */
+type SeparateAnswer = Record<'drums' | 'bass' | 'vocals', ReturnType<typeof rows>> & { buildMs?: number };
 
-const setUp = ({ withGpu = true, withCpu = true } = {}) => {
-    const separateStems = vi.fn(async (_request: SeparateRequest) => ({ drums: rows(), bass: rows(), vocals: rows() }));
+const setUp = ({ withGpu = true, withCpu = true, cores = 8 } = {}) => {
+    const separateStems = vi.fn(async (_request: SeparateRequest): Promise<SeparateAnswer> => ({ drums: rows(), bass: rows(), vocals: rows() }));
     (globalThis as { window?: object }).window = {
         electron: {
             ...(withCpu ? { separateStems } : {}),
@@ -62,7 +64,7 @@ const setUp = ({ withGpu = true, withCpu = true } = {}) => {
             decodeAudioData() { return Promise.resolve(decoded); }
         },
     };
-    vi.stubGlobal('navigator', withGpu ? { gpu: {}, hardwareConcurrency: 8 } : { hardwareConcurrency: 8 });
+    vi.stubGlobal('navigator', withGpu ? { gpu: {}, hardwareConcurrency: cores } : { hardwareConcurrency: cores });
     return { separateStems, ready: refreshModelAvailability() };
 };
 
@@ -135,6 +137,8 @@ describe('where a stem window is separated', () => {
         await separate(nextSong());
         // Due 5 s (the margin) and 100 ms out: the quiet level's ~5.6 ms is on time while the model
         // is built, and late by the 0.6 s rebuild once it is not - which takes the hurry level.
+        // (Measured after PR #750, 2026-10-19: ~9.9 ms at the quiet level and ~7.0 ms hurried; the
+        // hurry level is taken because it is sooner, the same rebuild before either.)
         now += 59_000;
         await separate(nextSong(), now + 5000 + 100);
         now += 61_000;
@@ -151,11 +155,14 @@ describe('where a stem window is separated', () => {
         // A window of 1024 samples is ~5.6 ms of CPU at the quiet level (two threads of eight cores),
         // ~2.8 ms hurried (four), each after the 0.6 s build (none yet): due 5 s, 0.6 s and 4 ms out,
         // only the hurried CPU is on time by the 5 s margin; the GPU is an hour late.
+        // (Measured after PR #750, 2026-10-19: ~9.9 ms quiet and ~7.0 ms hurried before this machine
+        // has measured a run - 0.3 s a second at four threads, the square root of 4/threads either
+        // side - so due 8 ms after the build.)
         // A still clock, so the few ms the decode takes do not eat the ms between the two levels.
         const now = 1_000_000;
         const clock = vi.spyOn(performance, 'now').mockReturnValue(now);
         gpu.finish = now + 3_600_000;
-        await separate(nextSong(), now + 5000 + 600 + 4);
+        await separate(nextSong(), now + 5000 + 600 + 8);
         clock.mockRestore();
         expect(runHtdemucsGpu).not.toHaveBeenCalled();
         expect(separateStems).toHaveBeenCalledTimes(1);
@@ -176,6 +183,76 @@ describe('where a stem window is separated', () => {
         clock.mockRestore();
         expect(runHtdemucsGpu).not.toHaveBeenCalled();
         expect(separateStems.mock.calls.map(([request]) => request.threads)).toEqual([cpuThreads(8, 'quiet', 'htdemucs')]);
+    });
+
+    // Measured after PR #750, 2026-10-19: a second of window took a Ryzen 7 9700X twice the M4's figure,
+    // and a worker that had built for fewer threads ran a build for more on the fewer. So the estimate
+    // learns from each window's wait, at each thread count, and hurries only when that is sooner.
+    it('learns what a second of window takes from the wait, at each thread count, and hurries only when sooner', async () => {
+        const { separateStems, ready } = setUp({ withGpu: false });
+        await ready;
+        let now = 1_000_000;
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        // Every window is waited on for 605 ms, 600 of them building the model: 5 ms of separating,
+        // faster than the guess's ~9.9 ms at two threads, as on an M4.
+        separateStems.mockImplementation(async () => {
+            now += 605;
+            return { drums: rows(), bass: rows(), vocals: rows(), buildMs: 600 };
+        });
+        // The quiet level, with no deadline: two threads measured.
+        await separate(nextSong());
+        // A minute on, the model released. Due 5 s and 604 ms out: the quiet level is late by its
+        // measured 5 ms after the 0.6 s build, and four threads, not measured yet, are taken from
+        // two's measurement (~3.5 ms, sooner) rather than from the guess (~7.0 ms, which is not).
+        now += 61_000;
+        await separate(nextSong(), now + 5000 + 604);
+        // Four threads measured at 5 ms too, no faster than two: the same deadline stays quiet.
+        now += 61_000;
+        await separate(nextSong(), now + 5000 + 604);
+        clock.mockRestore();
+        const quiet = cpuThreads(8, 'quiet', 'htdemucs');
+        expect(separateStems.mock.calls.map(([request]) => request.threads))
+            .toEqual([quiet, cpuThreads(8, 'hurry', 'htdemucs'), quiet]);
+    });
+
+    // Measured after PR #750, 2026-10-19: the build is charged apart (CPU_REBUILD_MS), so the worker
+    // says how long it took and the estimate learns from the rest of the wait.
+    it('learns from the wait less the build, which the estimate charges apart', async () => {
+        const { separateStems, ready } = setUp({ withGpu: false });
+        await ready;
+        let now = 1_000_000;
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        separateStems.mockImplementation(async () => {
+            now += 605;
+            return { drums: rows(), bass: rows(), vocals: rows(), buildMs: 600 };
+        });
+        await separate(nextSong());
+        // A minute on, the model released. Due 5 s and 700 ms out: 5 ms of separating after the 0.6 s
+        // build is on time. With the build counted in, the window would take 0.6 s after a 0.6 s build,
+        // late - and four threads, taken from that, sooner.
+        now += 61_000;
+        await separate(nextSong(), now + 5000 + 700);
+        clock.mockRestore();
+        const quiet = cpuThreads(8, 'quiet', 'htdemucs');
+        expect(separateStems.mock.calls.map(([request]) => request.threads)).toEqual([quiet, quiet]);
+    });
+
+    // Measured after PR #750, 2026-10-19: hurrying needs the model built for the other count, 0.6 s,
+    // which the few ms a short window's threads save do not pay for. Sixteen logical cores, as on the
+    // Ryzen 7 9700X: four threads quiet, eight hurried.
+    it('does not hurry into a rebuild that costs more than the threads save', async () => {
+        const { separateStems, ready } = setUp({ withGpu: false, cores: 16 });
+        await ready;
+        const now = 1_000_000;
+        const clock = vi.spyOn(performance, 'now').mockReturnValue(now);
+        // Built for four threads by the first window.
+        await separate(nextSong());
+        // Due 5 s and 5 ms out: four threads, built, take ~7.0 ms - late; eight would take ~4.9 ms
+        // after a 0.6 s build for that count. Late was reason enough to hurry before.
+        await separate(nextSong(), now + 5000 + 5);
+        clock.mockRestore();
+        const quiet = cpuThreads(16, 'quiet', 'htdemucs');
+        expect(separateStems.mock.calls.map(([request]) => request.threads)).toEqual([quiet, quiet]);
     });
 
     it('stays on the GPU without a CPU model, however late', async () => {

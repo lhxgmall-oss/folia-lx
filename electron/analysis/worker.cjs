@@ -75,6 +75,28 @@ const HTDEMUCS_THREADS = 4;
 const MAX_HTDEMUCS_THREADS = Math.max(1, os.cpus().length);
 
 /**
+ * The threads MNN's thread pool in this process was made for, or null before any build asked for more
+ * than one. There is one pool per process, made by the first build with more than one thread - of
+ * either model - and never grown (MNN 3.6.1, CPURuntime::_resetThreadPool and ThreadPool::init), so a
+ * later build asking for more runs on this many.
+ * (Measured after PR #750, 2026-10-19, Ryzen 7 9700X, a 30 s window: a worker that had built htdemucs
+ * for four threads took 8.8 s rebuilt for eight - its four-thread time; eight in a worker of their own
+ * took 6.3-6.5 s - and one built for two took 12.6-12.8 s rebuilt for four, where four alone took
+ * 7.9-9.1 s.)
+ */
+let poolThreads = null;
+/** The threads a build asking for `threads` gets in this process; the first with more than one makes the pool. */
+const grantedThreads = (threads) => {
+    if (threads <= 1) return 1;
+    if (poolThreads === null) poolThreads = threads;
+    return Math.min(threads, poolThreads);
+};
+/** What a load line says about the threads: how many were asked for, and how many run when fewer. */
+const threadsText = (threads, granted) => (granted < threads
+    ? `${threads} threads, running on the ${granted} this process's thread pool was made for`
+    : `${threads} threads`);
+
+/**
  * htdemucs, once loaded: `{ model, file, threads }`, or null.
  *
  * Kept for as long as automix is switched on, however long the gap between tracks. A reload is a 92MB
@@ -156,7 +178,8 @@ const runBeatThis = async (chunks) => {
     } catch (error) {
         return decline('beat-this', `could not load ${file}: ${error?.message || error}`);
     }
-    console.log(`[beat_this] loaded on the CPU (${THREADS} threads, ${mnn.isa()}), rss ${rssMb()}MB`);
+    const granted = grantedThreads(THREADS);
+    console.log(`[beat_this] loaded on the CPU (${threadsText(THREADS, granted)}, ${mnn.isa()}), rss ${rssMb()}MB`);
     try {
         const beat = [];
         const downbeat = [];
@@ -233,7 +256,8 @@ const loadStems = (threads = HTDEMUCS_THREADS) => {
     try {
         const started = Date.now();
         stems = { model: mnn.loadHtdemucs(file, { threads }), file, threads };
-        console.log(`[htdemucs] loaded on the CPU (${threads} threads, ${mnn.isa()}) in ${Date.now() - started}ms, rss ${rssMb()}MB`);
+        const granted = grantedThreads(threads);
+        console.log(`[htdemucs] loaded on the CPU (${threadsText(threads, granted)}, ${mnn.isa()}) in ${Date.now() - started}ms, rss ${rssMb()}MB`);
         return stems;
     } catch (error) {
         return decline('htdemucs', `could not load ${file}: ${error?.message || error}`);
@@ -253,13 +277,18 @@ const runHtdemucs = async (request) => {
     }
     const asked = Number(request?.threads);
     const threads = Number.isInteger(asked) && asked >= 1 ? Math.min(asked, MAX_HTDEMUCS_THREADS) : HTDEMUCS_THREADS;
+    // How long this request spent building the model, 0 when it was built: sent with the stems, so the
+    // renderer's CPU estimate (src/services/automix/stems.ts) can learn from the rest of its wait.
+    const building = Date.now();
     const loaded = loadStems(threads);
     if (!loaded) return null;
+    const buildMs = Date.now() - building;
     if (stemsIdleTimer) clearTimeout(stemsIdleTimer);
     stemsIdleTimer = null;
     const generation = (stemsGeneration += 1);
     try {
-        return await htdemucs.separate(loaded.model, Float32Array.from(left), Float32Array.from(right));
+        const separated = await htdemucs.separate(loaded.model, Float32Array.from(left), Float32Array.from(right));
+        return { ...separated, buildMs };
     } catch (error) {
         return decline('htdemucs', error?.message || String(error));
     } finally {

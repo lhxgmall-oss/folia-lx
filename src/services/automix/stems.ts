@@ -11,7 +11,7 @@ import { canRunBeatThis } from '../analysis/beatThis';
 import { modelCanRun, noteModelFailed } from '../analysis/modelAvailability';
 import { profilesSettled } from './profileService';
 import { estimateGpuFinish, gpuStemsUsable } from '../analysis/beatThisGpu';
-import { chooseCpuThreads, chooseExecutor, cpuThreads, type Executor } from '../analysis/scheduler';
+import { chooseCpuThreads, chooseExecutor, cpuThreads, EWMA, type Executor } from '../analysis/scheduler';
 import { forgetStemRange, segmentsOver, separateStemRange, stemRangeSpan, wantStemRange } from '../analysis/stemRange';
 // The one edge back the other way is `import type`, so it is erased and this is not a cycle.
 import { envelopeOf, lastVocalMoment } from './stemGesture';
@@ -527,8 +527,55 @@ type StemParts = Record<'drums' | 'bass' | 'vocals', { left: Float32Array; right
  * CPU seconds per second of window at four threads: a 30 s window in 3.2-3.6 s on an M4 with MNN
  * (electron/analysis/worker.cjs). Was 0.35, the onnxruntime figure STEM_WINDOW_SEC still quotes;
  * found by review, three times too slow, which made the hurry level look needed when it was not.
+ * (Measured after PR #750, 2026-10-19: was 0.12, half what a Ryzen 7 9700X takes - its worker ran a
+ * 30 s window at four threads in 6.9-7.3 s in one session and 7.9-9.1 s (median 8.7) in another the
+ * same evening, and the stems take another 0.3 s to cross from the worker - so some 3.5 s of a window
+ * went unestimated, in the late direction. One figure cannot hold for every machine, nor for one
+ * machine at every moment, so this is now only the guess before this one has measured a window
+ * (cpuSecondsPerSecond): the slower session's 9.0 s for 30, because a guess too fast is a transition
+ * without its stems.)
  */
-const CPU_SECONDS_PER_SECOND = 0.12;
+const CPU_SECONDS_PER_SECOND = 0.3;
+/**
+ * A second of window at `threads` against one at four, as the threads are granted: the square root of
+ * 4/threads. (Measured after PR #750, 2026-10-19, on the Ryzen 7 9700X: a 30 s window in a worker of
+ * its own at each count, medians of six runs - 16.0 s at one thread, 12.2 at two, 10.0 at three, 8.7
+ * at four, 7.2 at six, 6.4 at eight: 1.85, 1.41, 1.16, 0.83 and 0.73 times four's, where the square
+ * root says 2, 1.41, 1.15, 0.82 and 0.71. Was 4/threads below four and no faster above - twice four's
+ * time at two threads; single model runs had made eight look barely faster than four.)
+ */
+const threadCost = (threads: number) => Math.sqrt(4 / threads);
+/**
+ * CPU seconds per second of window as this machine measured them, by the thread count asked for: a
+ * moving average of each CPU window's wait less the model's build (the worker's `buildMs`, which
+ * CPU_REBUILD_MS stands for), weighted as the scheduler's GPU units are, the first measurement
+ * replacing the guess outright. The wait rather than the worker's run, because the stems crossing two
+ * processes each way are part of it: 0.3 s for a 30 s window between the main process and the worker
+ * alone (measured with the curve above). By the count asked for rather than the count run: a worker
+ * that built for fewer threads first runs a later build on that many (electron/analysis/worker.cjs
+ * poolThreads), and what the estimate needs is what asking for a count gets. Forgotten at a restart,
+ * as the GPU's averages are.
+ */
+const measuredCpuSeconds = new Map<number, number>();
+/** CPU seconds per second of window at `threads`: as measured there, else as at the nearest count measured, else the guess. */
+const cpuSecondsPerSecond = (threads: number): number => {
+    const measured = measuredCpuSeconds.get(threads);
+    if (measured !== undefined) return measured;
+    let nearest: number | null = null;
+    for (const count of measuredCpuSeconds.keys()) {
+        if (nearest === null || Math.abs(count - threads) < Math.abs(nearest - threads)) nearest = count;
+    }
+    return nearest === null
+        ? CPU_SECONDS_PER_SECOND * threadCost(threads)
+        : measuredCpuSeconds.get(nearest)! * (threadCost(threads) / threadCost(nearest));
+};
+/** Notes `ms` of a CPU window's wait, the build left out, over `seconds` of window at `threads`. */
+const noteCpuRun = (threads: number, seconds: number, ms: number) => {
+    if (!(ms > 0) || !(seconds > 0)) return;
+    const sample = ms / 1000 / seconds;
+    const previous = measuredCpuSeconds.get(threads);
+    measuredCpuSeconds.set(threads, previous === undefined ? sample : previous + EWMA * (sample - previous));
+};
 /**
  * Building htdemucs on the CPU for another thread count (MNN fixes it per build): a 92 MB read and the network.
  * (From the PR #750 re-review, 2026-10-19: also charged for the reload after the worker's idle
@@ -575,18 +622,19 @@ export const clearStemDeadlines = (): void => {
     }
 };
 
-/** Test-only: forgets the CPU's last thread count and every deadline. */
+/** Test-only: forgets the CPU's last thread count, what its runs measured, and every deadline. */
 export const resetStemExecutorForTests = (): void => {
     lastCpuThreads = null;
     lastCpuEndedAt = -Infinity;
+    measuredCpuSeconds.clear();
     deadlines.clear();
 };
 
 /**
  * Where a window is separated and how hard (see the header): the GPU unless it is missing or late,
- * and on the CPU the quiet threads unless they would be late.
+ * and on the CPU the quiet threads unless they would be late. With the CPU's estimate (ms), for the log.
  */
-const chooseStemExecutor = (deadline: number | undefined, total: number, start: number, length: number): { executor: Executor; threads: number } => {
+const chooseStemExecutor = (deadline: number | undefined, total: number, start: number, length: number): { executor: Executor; threads: number; cpuMs: number } => {
     const gpuAvailable = canSeparateStemsOnGpu();
     const cpuAvailable = canSeparateStemsOnCpu();
     const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency > 0 ? navigator.hardwareConcurrency : 4;
@@ -594,16 +642,19 @@ const chooseStemExecutor = (deadline: number | undefined, total: number, start: 
     // Fewer threads than four, proportionally longer; another count than the last, a rebuild first.
     // (From the PR #750 re-review, 2026-10-19: and the same count too once a minute has passed since
     // the last CPU run - the worker has let the model go by then; see cpuBuiltFor.)
+    // (Measured after PR #750, 2026-10-19: a second of window at a count is what this machine's runs
+    // at that count took - see cpuSecondsPerSecond.)
     const now = performance.now();
-    const cpuMs = (threads: number) => (length / STEM_SAMPLE_RATE) * CPU_SECONDS_PER_SECOND * 1000 * Math.max(1, 4 / threads)
+    const cpuMs = (threads: number) => (length / STEM_SAMPLE_RATE) * cpuSecondsPerSecond(threads) * 1000
         + (cpuBuiltFor(threads, now) ? 0 : CPU_REBUILD_MS);
     const units = segmentsOver(total, start, start + length).length;
     const gpuFinish = gpuAvailable ? estimateGpuFinish('htdemucs', units, 'background', deadline) : Infinity;
     // The level first, so the CPU is judged on time at the level it would run at.
-    const level = chooseCpuThreads({ deadline, quietFinish: now + cpuMs(quietThreads) });
+    const hurryThreads = cpuThreads(cores, 'hurry', 'htdemucs');
+    const level = chooseCpuThreads({ deadline, quietFinish: now + cpuMs(quietThreads), hurryFinish: now + cpuMs(hurryThreads) });
     const threads = cpuThreads(cores, level, 'htdemucs');
     const executor = !cpuAvailable ? 'gpu' : chooseExecutor({ gpuAvailable, deadline, gpuFinish, cpuFinish: now + cpuMs(threads) });
-    return { executor, threads };
+    return { executor, threads, cpuMs: cpuMs(threads) };
 };
 
 /**
@@ -705,11 +756,13 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             return;
         }
         const modelStarted = performance.now();
-        const { executor, threads } = chooseStemExecutor(deadlines.get(key), cut.total, start, windowLength);
+        const { executor, threads, cpuMs } = chooseStemExecutor(deadlines.get(key), cut.total, start, windowLength);
         let parts: StemParts | null = null;
         // On the GPU the time includes the scheduler's queue (the picture's segments, its frames), so
         // it is not the model's alone: said so, rather than read as what the machine can do.
-        let ranOn = executor === 'gpu' ? 'the GPU, queue included' : `the CPU (${threads} threads)`;
+        // On the CPU beside what it was estimated at, so a paste of the log shows how far the estimate is.
+        const cpuEstimate = `${(cpuMs / 1000).toFixed(1)}s estimated`;
+        let ranOn = executor === 'gpu' ? 'the GPU, queue included' : `the CPU (${threads} threads, ${cpuEstimate})`;
         if (executor === 'gpu') {
             // Said before it runs, so a segment the drum hits separate meanwhile is kept for it.
             wantStemRange(target.key, start, start + windowLength, cut.total);
@@ -741,7 +794,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             // The GPU could not (no device, a failed run): the CPU, as before phase 3, when it can.
             if (!parts && canSeparateStemsOnCpu()) {
                 console.log(`[Automix] the GPU could not separate the ${request.role} of "${request.song.name}", trying the CPU`);
-                ranOn = `the CPU (${threads} threads, after the GPU)`;
+                ranOn = `the CPU (${threads} threads, after the GPU, ${cpuEstimate})`;
             }
         }
         let triedCpu = false;
@@ -757,13 +810,18 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             // minute after it, where the CPU is the separator too - so no `resident` is sent.)
             lastCpuThreads = threads;
             let answer: Awaited<ReturnType<typeof separate>>;
+            const asked = performance.now();
             try {
                 answer = await separate({ left: left.slice(), right: right.slice(), threads });
             } finally {
                 lastCpuEndedAt = performance.now();
             }
             if (answer && 'declined' in answer) declined = answer.declined;
-            else parts = answer;
+            else if (answer) {
+                parts = answer;
+                // The wait less the model's build (CPU_REBUILD_MS's part): what the CPU estimate learns from.
+                if (typeof answer.buildMs === 'number') noteCpuRun(threads, windowLength / STEM_SAMPLE_RATE, lastCpuEndedAt - asked - answer.buildMs);
+            }
         }
         if (!parts) {
             // The GPU's own failures are its runtime's to note (analysis/beatThisGpu.ts); only the

@@ -76,8 +76,8 @@ export interface SchedulerOptions {
 
 /** A unit's or a load's time, before any has been measured: rough M4 figures, replaced by the first measurement. */
 const FIRST_GUESS_MS: Record<string, number> = { htdemucs: 190, beat_this: 500, percussive: 50, load: 1500 };
-/** Weight of the newest measurement in the moving average. */
-const EWMA = 0.2;
+/** Weight of the newest measurement in the moving average. Automix's CPU estimate weighs its runs the same (automix/stems.ts). */
+export const EWMA = 0.2;
 const URGENCY_RANK: Record<Urgency, number> = { transition: 0, onScreen: 1, background: 2 };
 /**
  * A background unit that has waited this long ranks with what is on screen (first come first served
@@ -329,9 +329,18 @@ export const cpuThreads = (cores: number, level: CpuThreadLevel, model: 'beat_th
     return model === 'htdemucs' ? Math.min(4, quiet) : quiet;
 };
 
-/** Quiet when it is estimated on time at the quiet level, else hurry. */
-export const chooseCpuThreads = ({ deadline, quietFinish }: { deadline?: number; quietFinish: number }): CpuThreadLevel => (
-    deadline === undefined || quietFinish + DEADLINE_MARGIN_MS < deadline ? 'quiet' : 'hurry'
+/**
+ * Quiet when it is estimated on time at the quiet level, else hurry.
+ * (Measured after PR #750, 2026-10-19: else hurry only when that is estimated to finish sooner, the
+ * rebuild for the other count included - more threads are not always sooner. A worker that built for
+ * the quiet level first runs a hurried build on the quiet level's threads (MNN makes one thread pool
+ * per process, at the first count it is asked for: electron/analysis/worker.cjs poolThreads): on a
+ * Ryzen 7 9700X such a worker took 8.8 s for a 30 s window at eight threads, four's time, where eight
+ * of its own took 6.4. Sooner rather than on time, because a window late for its deadline is still
+ * read late and may yet be used (automix/stems.ts getStemsByKey).)
+ */
+export const chooseCpuThreads = ({ deadline, quietFinish, hurryFinish }: { deadline?: number; quietFinish: number; hurryFinish: number }): CpuThreadLevel => (
+    deadline === undefined || quietFinish + DEADLINE_MARGIN_MS < deadline || hurryFinish >= quietFinish ? 'quiet' : 'hurry'
 );
 
 export interface FrameWatch {
