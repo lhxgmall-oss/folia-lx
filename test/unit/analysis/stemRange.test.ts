@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
 
-const { forgetStemRange, peekStemSegment, resetStemSegmentsForTests, segmentsOver, separateStemRange, setStemDrumsWanted, stemRangeSpan, wantStemRange } = await import('@/services/analysis/stemRange');
+const { dropStemDrums, forgetStemRange, peekStemSegment, resetStemSegmentsForTests, segmentsOver, separateStemRange, setStemDrumsWanted, stemRangeSpan, wantStemRange } = await import('@/services/analysis/stemRange');
 const { separateDrumStem } = await import('@/services/analysis/drumStem');
 
 /** A stand-in model: four different, non-linear stems per segment, so the sums and weights matter. */
@@ -212,6 +212,18 @@ describe('stem ranges, from the PR #750 review', () => {
         expect(await separateStemRange({ key: 'b', left, right, offset: 0, total, from: 30, to: 50, options })).not.toBeNull();
         expect(peekStemSegment('a', 3)).toHaveLength(1);
         setStemDrumsWanted(key => key !== 'a');
+        expect(peekStemSegment('a', 3)).toBeNull();
+        expect(peekStemSegment('b', 3)).toHaveLength(1);
+    });
+
+    it('drops the drums kept for a track whose hits come in, and only those', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        wantStemRange('a', 30, 50, total);
+        wantStemRange('b', 30, 50, total);
+        expect(await separateStemRange({ key: 'a', left, right, offset: 0, total, from: 30, to: 50, options })).not.toBeNull();
+        expect(await separateStemRange({ key: 'b', left, right, offset: 0, total, from: 30, to: 50, options })).not.toBeNull();
+        dropStemDrums('a');
         expect(peekStemSegment('a', 3)).toBeNull();
         expect(peekStemSegment('b', 3)).toHaveLength(1);
     });

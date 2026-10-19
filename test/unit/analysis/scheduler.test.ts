@@ -22,7 +22,8 @@ const held = (name: string, started: string[]) => {
     };
 };
 
-const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+// Two tasks: the scheduler picks the next unit a task after the last one answered (scheduler.ts).
+const flush = () => new Promise(resolve => setTimeout(resolve, 0)).then(() => new Promise(resolve => setTimeout(resolve, 0)));
 
 describe('the scheduler', () => {
     it('runs a deadline first, then what is on screen, then background, in order within each', async () => {
@@ -356,5 +357,25 @@ describe('where and how hard a task runs', () => {
         expect(chooseCpuThreads({ quietFinish: 1e9 })).toBe('quiet');
         expect(chooseCpuThreads({ deadline: 60_000, quietFinish: 60_000 - DEADLINE_MARGIN_MS - 1 })).toBe('quiet');
         expect(chooseCpuThreads({ deadline: 60_000, quietFinish: 60_000 })).toBe('hurry');
+    });
+});
+
+describe('tasks that submit their next unit once the last one answers', () => {
+    // From the PR #750 review: picked in the same microtask chain as the answer, the queue held only
+    // the other task's units, and two such tasks took strict turns whatever their urgencies.
+    it('still go by urgency, not in turns', async () => {
+        const scheduler = createScheduler({ log: () => undefined });
+        const ran: string[] = [];
+        const task = async (name: string, urgency: 'onScreen' | 'background', units: number) => {
+            for (let unit = 0; unit < units; unit += 1) {
+                await scheduler.submit({ kind: 'htdemucs', urgency, run: async () => { ran.push(name); return unit; } });
+                // A few awaits of its own before the next unit, as the stem segments' do.
+                await Promise.resolve();
+                await Promise.resolve();
+                await Promise.resolve();
+            }
+        };
+        await Promise.all([task('A', 'background', 3), task('D', 'onScreen', 3)]);
+        expect(ran.join('')).toBe('ADDDAA');
     });
 });

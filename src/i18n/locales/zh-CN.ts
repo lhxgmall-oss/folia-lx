@@ -774,6 +774,7 @@ export default {
       "visualizer-diorama": { "title": "切换到可视化：镜台", "description": "切换到镜台可视化" },
       "visualizer-pendolo": { "title": "切换到可视化：时计", "description": "切换到时计可视化" },
       "visualizer-sonnet": { "title": "切换到可视化：商籁", "description": "切换到商籁可视化" },
+      "smart-beat-toggle": { "title": "智能动感模式 开 / 关", "description": "开关智能动感模式（商籁、镜台按节拍，时计按鼓点驱动画面）" },
       "smart-beat-off": { "title": "智能动感模式：关闭", "description": "关闭智能动感模式，所有画面保持原样" },
       "smart-beat-cached": { "title": "智能动感模式：只用已分析", "description": "只用分析过的歌驱动动感效果，不分析新歌、不占用 GPU" },
       "smart-beat-on": { "title": "智能动感模式：开启", "description": "开启智能动感模式（商籁、镜台按节拍，时计按鼓点驱动画面），没分析过的歌当场分析" },

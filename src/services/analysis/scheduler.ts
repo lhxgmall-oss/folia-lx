@@ -249,7 +249,12 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
         void pending.then(
             (value) => { finish(value !== null && value !== undefined); entry.settle(value); },
             (error) => { finish(false); entry.fail(error); },
-        ).finally(pump);
+        // The next unit is picked a task later, not in the same microtask chain (from the PR #750
+        // review): a task that goes on submits its next unit only after a few awaits of its own, so
+        // picked at once, the queue held only the other task's units and two tasks took strict turns,
+        // whatever their deadlines and urgencies. The main window is not throttled
+        // (backgroundThrottling: false).
+        ).finally(() => { setTimeout(pump, 0); });
     };
 
     return {

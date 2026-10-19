@@ -405,6 +405,8 @@ export type CommandPaletteVisualizerContext = {
     toggleVideoLayer: () => void;
     /** 智能动感模式 (the beat FX in every mode and background that draws them): off, stored results only, or on. */
     setSmartBeatMode: (mode: SmartBeatMode) => void;
+    /** 智能动感模式 on / off, as v0.7.21 shipped it: any mode that plays goes off, off goes fully on. */
+    toggleSmartBeat: () => void;
     /** Opens the file picker for the video layer; resolves to the picked name, or null when cancelled. */
     pickVideoLayerFile: () => Promise<string | null>;
     /**

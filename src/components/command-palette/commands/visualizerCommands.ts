@@ -85,6 +85,9 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),
         execute: () => false,
     }),
+    // 智能动感模式's on / off toggle, as v0.7.21 shipped it (from the PR #750 review): kept, and visible,
+    // so the shortcuts and pinned slots bound to its id keep working (pinned slots only resolve visible commands).
+    createToggleCommand('smart-beat-toggle', 'visualizer', 'Smart beat mode on / off', 'Turn the beat effects (Sonnet and Diorama on the beats, Pendolo on the drums) on or off', SMART_BEAT_KEYWORDS, context => context.visualizer.toggleSmartBeat()),
     // 智能动感模式, one command per mode (SmartBeatMode), listed off -> stored only -> on as in its settings.
     createToggleCommand('smart-beat-off', 'visualizer', 'Smart beat mode: Off', 'Turn the beat effects off; every picture as it was', [...SMART_BEAT_KEYWORDS, 'off', '关闭', '关'], context => context.visualizer.setSmartBeatMode('off')),
     createToggleCommand('smart-beat-cached', 'visualizer', 'Smart beat mode: Analysed only', 'Play the beat effects from tracks already analysed only; nothing new is analysed', [...SMART_BEAT_KEYWORDS, 'cached', 'cache only', 'analysed only', '只用已分析', '缓存', '半开'], context => context.visualizer.setSmartBeatMode('cached')),

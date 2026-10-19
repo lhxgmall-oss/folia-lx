@@ -4,6 +4,7 @@ import { BEAT_THIS_FPS, BEAT_THIS_SAMPLE_RATE, MEL_BANDS, melBandCentresHz, type
 import { DRUM_HITS_PREFIX } from './beatGridKeys';
 import { createDrumBandStream, streamNeedsFrom, type DrumBands } from './drumHitStream';
 import { drumStemSegments, separateDrumStem, startDrumStem, type DrumStemProgress } from './drumStem';
+import { dropStemDrums } from './stemRange';
 import { HTDEMUCS_GPU_SEGMENT } from './beatThisGpu';
 import { modelCanRun } from './modelAvailability';
 import { decodeAtRate } from './trackAudio';
@@ -268,6 +269,18 @@ export const setWantedDrumTrack = (key: string | null): void => {
 /** The drum hits of `key`, or null when the track has none (yet, or drumless). */
 export const getDrumHits = (key: string | null): DrumHits | null => (key ? hitLists.get(key) ?? null : null);
 
+/**
+ * Keys whose analysis is in (separated to the end, or read from the store), drumless ones included:
+ * nothing separates them again, so automix's drums for them are not kept (stemRange.ts, from the PR
+ * #750 review). Kept apart from `hitLists`, which holds no drumless track and only MAX_TRACKS; a key is
+ * a short string, so this keeps many more.
+ */
+const settled = new Set<string>();
+const MAX_SETTLED = 1024;
+
+/** Whether `key`'s drum hits are in, whole: its separation will not run again. */
+export const drumHitsSettled = (key: string): boolean => settled.has(key);
+
 const keep = (key: string, hits: DrumHits) => {
     hitLists.delete(key);
     hitLists.set(key, hits);
@@ -287,6 +300,14 @@ const remember = (key: string, analysis: DrumAnalysis, note: string) => {
     // A track whose head looked drummed may still be judged drumless as a whole: its live hits go.
     if (drumless) hitLists.delete(key);
     else keep(key, analysis.hits);
+    settled.delete(key);
+    settled.add(key);
+    while (settled.size > MAX_SETTLED) {
+        const oldest = settled.keys().next().value;
+        if (oldest === undefined) break;
+        settled.delete(oldest);
+    }
+    dropStemDrums(key);
 };
 
 /**

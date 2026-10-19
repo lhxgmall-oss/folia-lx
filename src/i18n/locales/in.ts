@@ -774,6 +774,7 @@ export default {
       "visualizer-diorama": { "title": "Visualizer: Diorama", "description": "Alihkan ke visualizer Diorama" },
       "visualizer-pendolo": { "title": "Visualizer: Pendolo", "description": "Alihkan ke visualizer Pendolo" },
       "visualizer-sonnet": { "title": "Visualizer: Sonnet", "description": "Alihkan ke PV lirik Jepang Sonnet" },
+      "smart-beat-toggle": { "title": "Mode ketukan pintar aktif / nonaktif", "description": "Aktifkan atau nonaktifkan efek ketukan (Sonnet dan Diorama mengikuti ketukan, Pendolo mengikuti drum)" },
       "smart-beat-off": { "title": "Mode ketukan pintar: Nonaktif", "description": "Matikan efek ketukan; semua gambar seperti semula" },
       "smart-beat-cached": { "title": "Mode ketukan pintar: Hanya yang sudah dianalisis", "description": "Efek ketukan hanya dari lagu yang sudah dianalisis; lagu baru tidak dianalisis, GPU tidak dipakai" },
       "smart-beat-on": { "title": "Mode ketukan pintar: Aktif", "description": "Aktifkan efek ketukan (Sonnet dan Diorama mengikuti ketukan, Pendolo mengikuti drum), lagu yang belum dianalisis dianalisis saat itu" },

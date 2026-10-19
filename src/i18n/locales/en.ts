@@ -774,6 +774,7 @@ export default {
       "visualizer-diorama": { "title": "Visualizer: Diorama", "description": "Switch to Diorama visualizer" },
       "visualizer-pendolo": { "title": "Visualizer: Pendolo", "description": "Switch to Pendolo visualizer" },
       "visualizer-sonnet": { "title": "Visualizer: Sonnet", "description": "Switch to the Sonnet Japanese lyric PV" },
+      "smart-beat-toggle": { "title": "Smart beat mode on / off", "description": "Turn the beat effects (Sonnet and Diorama on the beats, Pendolo on the drums) on or off" },
       "smart-beat-off": { "title": "Smart beat mode: Off", "description": "Turn the beat effects off; every picture as it was" },
       "smart-beat-cached": { "title": "Smart beat mode: Analysed only", "description": "Play the beat effects from tracks already analysed only; nothing new is analysed, the GPU is not used" },
       "smart-beat-on": { "title": "Smart beat mode: On", "description": "Turn the beat effects on (Sonnet and Diorama on the beats, Pendolo on the drums), analysing a track not analysed yet" },

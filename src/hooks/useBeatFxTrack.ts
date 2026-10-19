@@ -8,7 +8,7 @@ import { beginBeatFxTrack, getBeatFxHeard, setBeatFxEvents, setBeatFxIntensities
 import { loadBeatFxTrackBeats, loadBeatFxTrackDrums } from '../services/beatFx/beatFxSource';
 import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../services/playbackRecovery/representationRegistry';
 import { modelsPresent, subscribeModelAvailability } from '../services/analysis/modelAvailability';
-import { getDrumHits, setWantedDrumTrack } from '../services/analysis/drumHits';
+import { drumHitsSettled, setWantedDrumTrack } from '../services/analysis/drumHits';
 import { setStemDrumsWanted } from '../services/analysis/stemRange';
 
 // src/hooks/useBeatFxTrack.ts
@@ -54,15 +54,15 @@ export function useBeatFxTrack(): boolean {
 
     // Whether a track's drum hits may still be separated, on any picture (时计 may come on later): only
     // then are the drums automix's segments leave behind kept (services/analysis/stemRange.ts), and only
-    // for a track whose hits are not all in yet.
+    // for a track whose hits are not all in yet. "All in" is drumHits.ts' settled set, drumless tracks
+    // included (from the PR #750 review: the hit lists in memory hold neither those nor more than 24).
+    // A track whose hits are stored but not read this session still counts as not in: the test is
+    // synchronous, and its drums go once they are read (dropStemDrums) or by the cache's own limit.
     const drumsMayRun = useVisualizerSettingsStore(state => smartBeatMayAnalyse(state.smartBeat)
         && resolveBeatEffectSetting(state.smartBeat, BEAT_EFFECT_IDS.pendoloDrumhead).on) && drumModel;
     useEffect(() => {
         setStemDrumsWanted(drumsMayRun
-            ? (key) => {
-                const hits = getDrumHits(key);
-                return !hits || hits.until !== undefined;
-            }
+            ? (key) => !drumHitsSettled(key)
             : () => false);
     }, [drumsMayRun]);
 

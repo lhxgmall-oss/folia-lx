@@ -396,6 +396,13 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                 return;
             }
             skipped.delete(songKey);
+            // Asked a second time, because reading the bytes is the slow part: a full track off the
+            // media cache or the network is seconds, and everything after this line - the decode, the
+            // spectrogram, the beat model - is the expensive part it would be buying for nobody.
+            // Asked before the bytes are kept too (from the PR #750 review): a dropped song's bytes would
+            // push the current or next song's out of the shared cache.
+            if (!wanted.has(songKey)) return;
+
             // The whole song, read or downloaded under this file's rules, is kept for 智能动感模式 and
             // the stems (analysis/trackBytes.ts), so neither reads or streams it again. Only kept from
             // here, never taken: this read's download is also the media-cache write above, which a
@@ -409,12 +416,13 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                     .then((notTheSong) => { if (!notTheSong) putTrackBytes(songKey, copy); })
                     .catch(() => undefined);
             }
-            // Asked a second time, because reading the bytes is the slow part: a full track off the
-            // media cache or the network is seconds, and everything after this line - the decode, the
-            // spectrogram, the beat model - is the expensive part it would be buying for nobody.
-            if (!wanted.has(songKey)) return;
 
-            const buffer = await decodeTrackAtRate(songKey, PROFILE_SAMPLE_RATE, result.bytes, decodeAtRate, 'automix profile', 'own');
+            // A head-only read is not the track its key names: decoded on its own, so a whole-track
+            // decode of the same key and rate cannot join it and store the head's beats as the track's
+            // (from the PR #750 review).
+            const buffer = result.partial
+                ? await decodeAtRate(result.bytes, PROFILE_SAMPLE_RATE)
+                : await decodeTrackAtRate(songKey, PROFILE_SAMPLE_RATE, result.bytes, decodeAtRate, 'automix profile', 'own');
             const channels = buffer ? toMidSide(buffer) : null;
             // The beat grid, from a model rather than autocorrelation, when this build has one. Asked
             // for here rather than inside `analyseTrack` because it is the impure step - it crosses

@@ -31,6 +31,10 @@ import { HTDEMUCS_GPU_SEGMENT, runHtdemucsGpu, type GpuRunOptions, type StemChan
 // track (`setStemDrumsWanted`, set from 智能动感模式's settings by hooks/useBeatFxTrack.ts): with the
 // mode off or on stored results only, 仿真鼓面 off, or the track's hits already in, automix kept up to
 // MAX_BYTES of drums no one would read.
+// Second round of it: "the track's hits already in" is drumHits.ts' settled set (a finished separation
+// or a stored analysis read, drumless ones too), not the hit lists in memory, which hold no drumless
+// track and only the last 24; and a track that settles has its kept drums dropped then
+// (`dropStemDrums`).
 //
 // The GPU is deterministic and every caller cuts its segment's input from the same decode (one per
 // key and rate, analysis/trackBytes.ts), so a segment taken from here is the segment the caller would
@@ -152,6 +156,13 @@ export const setStemDrumsWanted = (test: (key: string) => boolean): void => {
 };
 
 /** A kept segment's stems (all four, or the drums alone), marked as just used; null when not kept. */
+/** Drops the drums kept for `key` (its drum hits are in: nothing will read them). */
+export const dropStemDrums = (key: string): void => {
+    for (const [id, entry] of [...kept]) {
+        if (entry.stems.length === 1 && id.slice(0, id.lastIndexOf('#')) === key) drop(id);
+    }
+};
+
 export const peekStemSegment = (key: string, index: number, total?: number): StemChannels[] | null => {
     const id = segmentKey(key, index);
     const found = kept.get(id);
