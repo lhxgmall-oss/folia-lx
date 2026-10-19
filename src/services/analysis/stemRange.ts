@@ -146,16 +146,16 @@ const drop = (id: string) => {
 /** Whether the drum hits of a key may still be separated, so its drums are worth keeping. */
 let drumsWanted: (key: string) => boolean = () => true;
 
-/**
- * Says for which keys the drum hits may still run (see the header); the drums kept for a key it now
- * says no to are dropped at once.
- */
 /** Told the first time drums are kept for a key, so the drum hits can see whether they are stored. */
 let drumsKept: (key: string) => void = () => undefined;
 export const setStemDrumsKeptListener = (listener: (key: string) => void): void => {
     drumsKept = listener;
 };
 
+/**
+ * Says for which keys the drum hits may still run (see the header); the drums kept for a key it now
+ * says no to are dropped at once.
+ */
 export const setStemDrumsWanted = (test: (key: string) => boolean): void => {
     drumsWanted = test;
     for (const [id, entry] of [...kept]) {
@@ -163,7 +163,6 @@ export const setStemDrumsWanted = (test: (key: string) => boolean): void => {
     }
 };
 
-/** A kept segment's stems (all four, or the drums alone), marked as just used; null when not kept. */
 /** Drops the drums kept for `key` (its drum hits are in: nothing will read them). */
 export const dropStemDrums = (key: string): void => {
     for (const [id, entry] of [...kept]) {
@@ -171,6 +170,7 @@ export const dropStemDrums = (key: string): void => {
     }
 };
 
+/** A kept segment's stems (all four, or the drums alone), marked as just used; null when not kept. */
 export const peekStemSegment = (key: string, index: number, total?: number): StemChannels[] | null => {
     const id = segmentKey(key, index);
     const found = kept.get(id);
