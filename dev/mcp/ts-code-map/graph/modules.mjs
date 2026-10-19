@@ -120,8 +120,8 @@ export function buildModuleGraph(root) {
         // `import type { X } from` 只在编译期存在，运行时没有这条依赖，不该和值导入混为一谈。
         // 动态 import() 在依赖上同样成立，但只有静态那条是**急切**的：动态的那条由 bundler 切成独立 chunk，
         // 不进首屏。区分它才能回答「这个模块开机要拉多少」。
-        // 一对文件之间全是 `import type` 才算仅类型：同一个模块既 `import type` 又值导入（含动态 import()、
-        // glob）很常见，那条边在运行时照样成立，标成仅类型的话分层检查和 UI 传染都会跳过它。
+        // 一对文件之间全是 `import type`（类型位置的 import() 也算）才算仅类型：同一个模块既 `import type`
+        // 又值导入（含动态 import()、glob）很常见，那条边在运行时照样成立，标成仅类型的话分层检查和 UI 传染都会跳过它。
         const valueTargets = new Set();
         for (const { specifier: spec, typeOnly: isTypeImport, dynamic: isDynamic } of scanModuleSpecifiers(text, file)) {
             if (UI_PACKAGES.test(spec) && !isTypeImport) uiSeeds.add(file);

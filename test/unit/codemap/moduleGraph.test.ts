@@ -114,6 +114,28 @@ describe('codemap module specifiers', () => {
         ))).toEqual(['./afterEscapes', './afterClass', './afterCrlf']);
     });
 
+    it('takes type-position import() as type-only and keeps calls on import() dynamic', () => {
+        expect(specifiersOf(source(
+            "type Pixi = typeof import('./pixi');",
+            "let cue: import('./cues').Cue[];",
+            "let layer: import('./layers').Scene.Layer<Options<Deep>, (a: A) => B> | undefined;",
+            "const lazy = import('./lazy').then(m => m.default);",
+            "const generic = import('./generic').then<Module, (reason: unknown) => never>(m => m);",
+            "const optional = import('./optional').then?.(m => m);",
+            "const awaited = (await import('./awaited')).default;",
+            "const data = import('./data.json', { with: { type: 'json' } });",
+        ))).toEqual([
+            './pixi (type)',
+            './cues (type)',
+            './layers (type)',
+            './lazy (dynamic)',
+            './generic (dynamic)',
+            './optional (dynamic)',
+            './awaited (dynamic)',
+            './data.json (dynamic)',
+        ]);
+    });
+
     it('stops an export list at its brace when the next statement starts without a semicolon', () => {
         expect(specifiersOf(source(
             'export { a }',
@@ -159,6 +181,11 @@ describe('codemap module graph', () => {
             "import { preferDark } from '../services/themePreferences';",
             "export const theme: Theme = preferDark ? 'dark' : 'light';",
         ),
+        'src/utils/themeTypePositions.ts': source(
+            "import type { Theme } from '../services/themePreferences';",
+            "type Preferences = typeof import('../services/themePreferences');",
+            "export type Pair = [Theme, import('../services/themePreferences').Theme, Preferences];",
+        ),
         'src/utils/themeLazy.ts': source(
             "import type { Theme } from '../services/themePreferences';",
             "export const loadTheme = (): Promise<Theme> => import('../services/themePreferences').then(m => String(m.preferDark));",
@@ -193,6 +220,9 @@ describe('codemap module graph', () => {
         const preferences = 'src/services/themePreferences.ts';
 
         expect(typeOnly('src/utils/themeTypesOnly.ts', preferences)).toBe(true);
+        // 类型位置的 import() 和 `import type` 一样只在编译期存在
+        expect(typeOnly('src/utils/themeTypePositions.ts', preferences)).toBe(true);
+        expect(graph.dynamic.has(edgeKey('src/utils/themeTypePositions.ts', preferences))).toBe(false);
         // 另有一条值导入、动态 import() 或 glob，这条依赖在运行时就成立，分层检查不能跳过它
         expect(typeOnly('src/utils/themeMixed.ts', preferences)).toBe(false);
         expect(typeOnly('src/utils/themeLazy.ts', preferences)).toBe(false);

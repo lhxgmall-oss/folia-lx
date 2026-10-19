@@ -2,7 +2,8 @@
 
 /**
  * 读出一个文件里 import / export 的模块说明符：静态 import（含 `import type` 和只为副作用的
- * `import 'x'`）、`export ... from` / `export type ... from`，以及动态 `import('x')`。
+ * `import 'x'`）、`export ... from` / `export type ... from`、动态 `import('x')`，
+ * 以及类型位置的 `typeof import('x')`、`import('x').T`。
  *
  * 以前是逐行正则（`[^;\n]*?`），写成多行的 `import {\n  a,\n} from '...'` 整条进不了模块图，
  * 分层检查也就看不见经由它的依赖。现在先切词再按词读语句：换行只是空白，
@@ -49,8 +50,9 @@ const isNamePart = ch => (ch >= 97 && ch <= 122) || (ch >= 65 && ch <= 90) || is
 
 /**
  * 一个文件里的全部模块说明符，按出现顺序。
- * `typeOnly`：语句级的 `import type` / `export type`，运行时不存在；`{ type A }` 这种逐个标的不算。
- * `dynamic`：`import('x')`，bundler 会切成独立 chunk。
+ * `typeOnly`：语句级的 `import type` / `export type` 和类型位置的 `import('x')`，运行时不存在；
+ * `{ type A }` 这种逐个标的不算。
+ * `dynamic`：真的动态 `import('x')`，bundler 会切成独立 chunk。
  *
  * @param {string} text 源码
  * @param {string} [file] 文件路径，只用来判断 `</` 是不是 JSX 的闭合标签
@@ -216,22 +218,51 @@ export function scanModuleSpecifiers(text, file = '') {
         value = '';
     };
 
-    /** 往后看 `count` 个词，看完退回原处。 */
-    const peek = count => {
+    /** 往后读几个词做判断，读完退回原处。 */
+    const lookAhead = read => {
         const saved = { pos, kind, value, previousKind, previousValue, braces: [...braces] };
-        const seen = [];
-        for (let i = 0; i < count; i++) {
-            next();
-            seen.push({ kind, value });
-        }
+        const result = read();
         ({ pos, kind, value, previousKind, previousValue } = saved);
         braces.splice(0, braces.length, ...saved.braces);
-        return seen;
+        return result;
     };
 
     const isWord = word => kind === NAME && value === word;
     const isPunct = mark => kind === PUNCT && value === mark;
     const record = (typeOnly, dynamic) => found.push({ specifier: value, typeOnly, dynamic });
+
+    /** 跳过从当前 `<` 开始的一段类型参数；`=>` 里的 `>` 不算收尾。 */
+    const skipTypeArguments = () => {
+        let depth = 0;
+        do {
+            if (isPunct('<')) depth++;
+            else if (isPunct('>') && !(previousKind === PUNCT && previousValue === '=')) depth--;
+            next();
+        } while (depth > 0 && kind !== EOF);
+    };
+
+    /**
+     * 当前词是 `import(` 后面的字符串，看它怎么用：
+     * - `'type'`：后面接 `.名字` 而不是调用（`import('./x').T`、`import('./x').A.B<C>[]`），这是 TS 的类型写法，
+     *   只在编译期存在；运行时对 import() 返回的 Promise 取属性没有意义。
+     * - `'dynamic'`：真的动态 import，包括 `.then(...)`、`.then?.(...)`、`.then<T>(...)` 这些调用，和带 options 的写法。
+     * - `null`：拼出来的路径（`'./x/' + name`），不是确定的模块。
+     */
+    const importUsage = () => lookAhead(() => {
+        next();
+        if (isPunct(',')) return 'dynamic';
+        if (!isPunct(')')) return null;
+        next();
+        if (!isPunct('.')) return 'dynamic';
+        while (isPunct('.')) {
+            next();
+            if (kind !== NAME) return 'dynamic';
+            next();
+        }
+        if (isPunct('<')) skipTypeArguments();
+        if (isPunct('?.')) next();
+        return isPunct('(') ? 'dynamic' : 'type';
+    });
 
     /**
      * 读 `from` 前面的子句，读到 `from '...'` 就记一条。子句只由名字、`{ ... }`、`,`、`*`、`as` 组成，
@@ -268,20 +299,23 @@ export function scanModuleSpecifiers(text, file = '') {
     };
 
     /** `type` 是修饰词还是默认导入的名字：`import type { A }`、`import type A from` 是前者，`import type from './x'` 是后者。 */
-    const typeIsModifier = () => {
-        const [after, second] = peek(2);
-        if (after.kind === PUNCT) return after.value === '{' || after.value === '*';
-        if (after.kind !== NAME) return false;
-        return after.value !== 'from' || second.kind !== STRING; // `import type from from './x'`
-    };
+    const typeIsModifier = () => lookAhead(() => {
+        next();
+        if (kind === PUNCT) return value === '{' || value === '*';
+        if (kind !== NAME) return false;
+        if (value !== 'from') return true;
+        next();
+        return kind !== STRING; // `import type from from './x'`
+    });
 
     const readImport = () => {
+        const typeQuery = previousKind === NAME && previousValue === 'typeof'; // `typeof import('./x')` 也是类型写法
         next();
         if (isPunct('(')) {
             next();
             if (kind !== STRING && kind !== TEMPLATE) return;
-            const [after] = peek(1); // 拼出来的路径（`'./x/' + name`）不是确定的模块
-            if (after.kind === PUNCT && (after.value === ')' || after.value === ',')) record(false, true);
+            const usage = importUsage();
+            if (usage) record(typeQuery || usage === 'type', !typeQuery && usage === 'dynamic');
             next();
             return;
         }
@@ -303,8 +337,11 @@ export function scanModuleSpecifiers(text, file = '') {
         next();
         let typeOnly = false;
         if (isWord('type')) {
-            const [after] = peek(1);
-            if (after.kind !== PUNCT || (after.value !== '{' && after.value !== '*')) return; // `export type X = ...`
+            const reExports = lookAhead(() => {
+                next();
+                return isPunct('{') || isPunct('*');
+            });
+            if (!reExports) return; // `export type X = ...`
             typeOnly = true;
             next();
         }

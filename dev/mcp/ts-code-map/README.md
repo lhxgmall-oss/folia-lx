@@ -97,8 +97,10 @@ node dev/mcp/ts-code-map/cli.mjs doctor   # 环境检查：tsgo / git / rg 是�
   有 58 个这样的 import，其中 48 个是只为副作用的 `import './x.css'`；都是资源，不是解析失败）。
 - 读 import 只切词、不建语法树，`/` 是除号还是正则按前一个词猜（`)`、`]`、`}` 后面一律当除号）；
   JSX 文本也按普通代码切词，里面落单的引号只影响到行尾，落单的反引号会一直吞到下一个反引号。
-- 类型位置的 `import('./x').T`、`typeof import('./x')` 只在编译期存在，但切词分不出它在不在类型位置，
-  眼下和真的动态 `import()` 一样按值导入算（全仓 374 处）。
+- 类型位置的 `import()` 靠前后的词认：前一个词是 `typeof`，或 `import('./x')` 后面接 `.名字` 而不是调用，
+  就和 `import type` 一样算仅类型（全仓约 370 处）；带 options 的 `import('./x', {...}).T` 认不出，按动态 import 算。
+  测试里经 `vi.mock` / `vi.importActual` 的字符串加载的模块不算 import，这类边如果只剩类型注解里的
+  `typeof import()`，会标成仅类型。
 
 - `callees` 默认略过 `node_modules/` 和 `.d.ts` 里的条目（否则 `Array.filter`、`Array.find`
   这类会淹掉真正的项目内调用），略过数量会在输出末尾说明。
@@ -124,8 +126,9 @@ node dev/mcp/ts-code-map/cli.mjs doctor   # 环境检查：tsgo / git / rg 是�
    运行时根本不存在。不区分的话，「谁依赖这个模块」会被严重高估——例如 `src/stores` 看起来
    import 了 `src/components/UnifiedPanel.tsx`（像是违反分层），实际只是 `import type { PanelTab }`。
    反过来，一对文件之间只要还有一条值导入（含动态 `import()`、glob），这条边就是运行时依赖：
-   全是 `import type` 才算纯类型边。早先只要有一条 `import type` 就整条算纯类型，全仓 158 条
-   既 `import type` 又值导入的边因此被分层检查和 UI 传染跳过。
+   全是 `import type`（或类型位置的 `import('./x').T`、`typeof import('./x')`）才算纯类型边。
+   早先只要有一条 `import type` 就整条算纯类型，全仓 158 条既 `import type` 又值导入的边因此被
+   分层检查和 UI 传染跳过。
 2. **别写死剥 `b/` 前缀。** 这个仓库开了 `diff.mnemonicPrefix`，`git diff` 的前缀是 `w/` 而不是
    `b/`，写死会得到错的路径。统一加 `--no-prefix`。
 3. **import 要按词读，不能逐行正则。** 早先的正则（`[^;\n]*?`）不跨行，写成多行的
