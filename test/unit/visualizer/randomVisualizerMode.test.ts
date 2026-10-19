@@ -181,6 +181,28 @@ describe('per-song random lyric styles', () => {
         expect(state().randomVisualizerModePerSong).toBe(true);
     });
 
+    it.each([
+        { pool: ['sonnet'], expected: ['sonnet'] },
+        { pool: ['unknown', 'sonnet', 'sonnet'], expected: ['sonnet'] },
+        { pool: [], expected: BUILTIN_VISUALIZER_MODES },
+    ])('decodes a standalone minified random-style pool: $pool', ({ pool, expected }) => {
+        expect(decompressConfig(JSON.stringify({ rvm: pool }))).toEqual({ randomVisualizerModes: expected });
+    });
+
+    it('selectively imports a standalone minified pool without changing the active style or its tuning', () => {
+        state().handleSetClassicTuning({ wordSpacing: 1.3 });
+        const tunings = collectVisualizerTunings(state() as unknown as Record<string, unknown>);
+        const mode = state().visualizerMode;
+        const { config, plan } = planConfigImport('{"rvm":["sonnet"]}', controls);
+        expect(plan.changes.map(change => change.key)).toEqual(['randomVisualizerModes']);
+
+        applyImportedConfig(config, ['randomVisualizerModes'], controls);
+        expect(state().randomVisualizerModes).toEqual(['sonnet']);
+        expect(state().randomVisualizerModePerSong).toBe(false);
+        expect(state().visualizerMode).toBe(mode);
+        expect(collectVisualizerTunings(state() as unknown as Record<string, unknown>)).toEqual(tunings);
+    });
+
     it('filters invalid imported ids and leaves the pool alone when an old config omits it', () => {
         expect(decompressConfig(JSON.stringify({ randomVisualizerModes: ['sonnet', 'mod:test:style', 'sonnet', false] })).randomVisualizerModes)
             .toEqual(['sonnet']);

@@ -619,6 +619,7 @@ export const decompressConfig = (str: string): any => {
         || parsed.t !== undefined
         || parsed.vm !== undefined
         || parsed.rvms !== undefined
+        || parsed.rvm !== undefined
         || parsed.ccb !== undefined
         || parsed.dvgb !== undefined
         || parsed.dvv !== undefined
