@@ -789,12 +789,15 @@ declare global {
          * after a minute idle, on every machine, and the worker ignores the field.)
          */
         request: { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer>; threads?: number },
-      ) => Promise<Record<
+      ) => Promise<(Record<
         'drums' | 'bass' | 'vocals',
         // Never shared memory: this crosses the IPC boundary by structured clone, which always
         // reconstitutes a plain ArrayBuffer on this side.
         { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> }
-      > | { declined: string } | null>;
+      > & {
+        /** How long the worker spent building the model for this request (ms), 0 when it was built: automix's CPU estimate learns from the rest of the wait. */
+        buildMs?: number;
+      }) | { declined: string } | null>;
       /**
        * Which model files are on disk, answered without loading them.
        *

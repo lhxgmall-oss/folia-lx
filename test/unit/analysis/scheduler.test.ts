@@ -354,9 +354,16 @@ describe('where and how hard a task runs', () => {
     });
 
     it('hurries only when the quiet level would be late', () => {
-        expect(chooseCpuThreads({ quietFinish: 1e9 })).toBe('quiet');
-        expect(chooseCpuThreads({ deadline: 60_000, quietFinish: 60_000 - DEADLINE_MARGIN_MS - 1 })).toBe('quiet');
-        expect(chooseCpuThreads({ deadline: 60_000, quietFinish: 60_000 })).toBe('hurry');
+        expect(chooseCpuThreads({ quietFinish: 1e9, hurryFinish: 0 })).toBe('quiet');
+        expect(chooseCpuThreads({ deadline: 60_000, quietFinish: 60_000 - DEADLINE_MARGIN_MS - 1, hurryFinish: 0 })).toBe('quiet');
+        expect(chooseCpuThreads({ deadline: 60_000, quietFinish: 60_000, hurryFinish: 59_999 })).toBe('hurry');
+    });
+
+    // Measured after PR #750, 2026-10-19: more threads are not always sooner - a rebuild for the other
+    // count, a worker whose one MNN thread pool was made for fewer - so late alone does not hurry.
+    it('stays quiet when the hurry level would not finish sooner', () => {
+        expect(chooseCpuThreads({ deadline: 60_000, quietFinish: 60_000, hurryFinish: 60_000 })).toBe('quiet');
+        expect(chooseCpuThreads({ deadline: 60_000, quietFinish: 60_000, hurryFinish: 61_000 })).toBe('quiet');
     });
 });
 

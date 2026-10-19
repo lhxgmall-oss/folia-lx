@@ -76,8 +76,8 @@ export interface SchedulerOptions {
 
 /** A unit's or a load's time, before any has been measured: rough M4 figures, replaced by the first measurement. */
 const FIRST_GUESS_MS: Record<string, number> = { htdemucs: 190, beat_this: 500, percussive: 50, load: 1500 };
-/** Weight of the newest measurement in the moving average. */
-const EWMA = 0.2;
+/** Weight of the newest measurement in the moving average. Automix's CPU estimate weighs its runs the same (automix/stems.ts). */
+export const EWMA = 0.2;
 const URGENCY_RANK: Record<Urgency, number> = { transition: 0, onScreen: 1, background: 2 };
 /**
  * A background unit that has waited this long ranks with what is on screen (first come first served
@@ -321,7 +321,7 @@ export type CpuThreadLevel = 'quiet' | 'hurry';
 /**
  * The CPU threads per level: quiet - a quarter of the logical cores, at least one, htdemucs at most
  * four (the user, 2026-10-17: four fill a four-core machine) - and hurry, about half of them, no
- * more: more was measured slower (electron/analysis/worker.cjs).
+ * more: more was measured slower (electron/analysis/threads.cjs).
  */
 export const cpuThreads = (cores: number, level: CpuThreadLevel, model: 'beat_this' | 'htdemucs'): number => {
     const quiet = Math.max(1, Math.floor(cores / 4));
@@ -329,9 +329,22 @@ export const cpuThreads = (cores: number, level: CpuThreadLevel, model: 'beat_th
     return model === 'htdemucs' ? Math.min(4, quiet) : quiet;
 };
 
-/** Quiet when it is estimated on time at the quiet level, else hurry. */
-export const chooseCpuThreads = ({ deadline, quietFinish }: { deadline?: number; quietFinish: number }): CpuThreadLevel => (
-    deadline === undefined || quietFinish + DEADLINE_MARGIN_MS < deadline ? 'quiet' : 'hurry'
+/**
+ * Quiet when it is estimated on time at the quiet level, else hurry.
+ * (Measured after PR #750, 2026-10-19: else hurry only when that is estimated to finish sooner, the
+ * rebuild for the other count included - more threads are not always sooner. A worker that built for
+ * the quiet level first runs a hurried build on the quiet level's threads (MNN makes one thread pool
+ * per process, at the first count it is asked for: electron/analysis/worker.cjs poolThreads): on a
+ * Ryzen 7 9700X such a worker took 8.8 s for a 30 s window at eight threads, four's time, where eight
+ * of its own took 6.4. Sooner rather than on time, because a window late for its deadline is still
+ * read late and may yet be used (automix/stems.ts getStemsByKey).)
+ * (Measured later the same evening: the hurried build gets its own threads now - the host sends a
+ * build for another count to a worker of its own (electron/analysis/host.cjs) - 6.6 s for that window
+ * after one at four, against 8.6 s on the shared pool. Sooner stays the rule: the new worker builds the
+ * model first, CPU_REBUILD_MS in automix/stems.ts.)
+ */
+export const chooseCpuThreads = ({ deadline, quietFinish, hurryFinish }: { deadline?: number; quietFinish: number; hurryFinish: number }): CpuThreadLevel => (
+    deadline === undefined || quietFinish + DEADLINE_MARGIN_MS < deadline || hurryFinish >= quietFinish ? 'quiet' : 'hurry'
 );
 
 export interface FrameWatch {
