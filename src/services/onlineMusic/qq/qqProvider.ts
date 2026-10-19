@@ -344,9 +344,19 @@ const readPlayRestriction = (entry: any): QqPlayRestriction | null => {
     };
 };
 
+// 有档连不上、又有档回了空链接时，隔这么久把连不上的档再要一次。
+export const QQ_FAILED_TIER_RETRY_DELAY_MS = 1000;
+// 从第一档开始算，过了这么久就不再重试：每一档都可能要等上几十秒，不能让点一首歌一直转圈。
+export const QQ_FAILED_TIER_RETRY_BUDGET_MS = 20_000;
+
+const waitBeforeTierRetry = (ms: number): Promise<void> => new Promise(resolve => {
+    globalThis.setTimeout(resolve, ms);
+});
+
 /**
  * 按音质降档请求 music_play，任意一档拿到 URL 就返回。登录失效、到了时限、要求稍后再试，和后端没在跑或没配好的
- * 失败马上抛出：再要下一档只会得到同样的回答。network 和别的 5xx 继续降档。
+ * 失败马上抛出：再要下一档只会得到同样的回答。network 和别的 5xx 继续降档；有档回了空链接时，连不上的档再要一次，
+ * 仍要不到整首才要试听片段，试听也没有就照原来的失败报。
  */
 const getAudioSource = async (song: SongResult, quality: AudioQualityPreference) => {
     const songmid = getQqSongMid(song);
@@ -370,8 +380,14 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
     let likelyCause: 'subscription' | 'region' | undefined;
     // The first request that failed: what is said when no level was answered at all.
     let firstFailure: unknown;
+    const tiers = QQ_QUALITY_FALLBACKS[quality];
+    const lastTier = tiers[tiers.length - 1];
+    // 这一轮没要到回答（连不上、5xx）的档位，重试时只再要它们。
+    let failedTiers: typeof tiers = [];
+    const startedAt = Date.now();
 
-    for (const candidate of QQ_QUALITY_FALLBACKS[quality]) {
+    // 要一档：拿到链接就交出来，没给链接或请求失败交 null。可能原因只认最后一档（标准音质）的回答。
+    const askTier = async (candidate: typeof tiers[number], round: 'first' | 'retry') => {
         try {
             const response = await requestQq<any>('music_play', {
                 songmid,
@@ -394,23 +410,26 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
             if (entry && typeof entry === 'object') {
                 sawEmptyPlayLink = true;
                 const restriction = readPlayRestriction(entry);
-                likelyCause = restriction?.hintKey ? QQ_LIKELY_CAUSE_BY_HINT[restriction.hintKey] : undefined;
+                if (candidate === lastTier) likelyCause = restriction?.hintKey ? QQ_LIKELY_CAUSE_BY_HINT[restriction.hintKey] : undefined;
                 console.warn('[QQProvider] playback:no-play-link', {
+                    round,
                     candidateQuality: candidate.resolvedQuality,
                     upstreamCode: restriction?.upstreamCode,
                     codes: restriction?.codes || undefined,
                     hint: restriction?.hintKey,
                 });
-            } else {
+            } else if (candidate === lastTier) {
                 likelyCause = undefined;
             }
         } catch (error) {
-            likelyCause = undefined;
+            if (candidate === lastTier) likelyCause = undefined;
             if (error instanceof OnlineProviderError && error.code === 'auth-required') throw error;
             // Not answered in time: the next level would wait as long again, on the same network.
             if (error instanceof OnlineRequestTimeout) throw error;
             firstFailure ??= error;
+            failedTiers.push(candidate);
             console.warn('[QQProvider] playback:quality-failed', {
+                round,
                 requestedQuality: quality,
                 candidateQuality: candidate.resolvedQuality,
                 ...errorFields(error),
@@ -419,20 +438,43 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
             if (said?.case === 'local-service-stopped' || said?.case === 'not-configured' || said?.httpStatus === 429
                 || (error instanceof OnlineProviderError && error.retryAfterMs !== undefined)) throw error;
         }
+        return null;
+    };
+
+    for (const candidate of tiers) {
+        const source = await askTier(candidate, 'first');
+        if (source) return source;
     }
+
+    // 有的档回了空链接、有的档连不上：连不上的那几档隔一会儿再要一次，拿到就播整首。
+    // 一次网络抖动不能把整首歌换成试听片段。只重试一次，而且离开始太久就不再等。
+    // 一档都没回答时不在这里重试：抛出去以后，播放那边会自己再要（autoRetryDelaysMs）。
+    if (failedTiers.length > 0 && sawEmptyPlayLink && Date.now() - startedAt < QQ_FAILED_TIER_RETRY_BUDGET_MS) {
+        const retrying = failedTiers;
+        failedTiers = [];
+        await waitBeforeTierRetry(QQ_FAILED_TIER_RETRY_DELAY_MS);
+        for (const candidate of retrying) {
+            const source = await askTier(candidate, 'retry');
+            if (source) return source;
+        }
+    }
+    const stillFailing = failedTiers.length > 0;
 
     console.warn('[QQProvider] playback:no-source', {
         requestedQuality: quality,
         hasMediaMid: Boolean(mediaId),
         // `true` means the upstream answered normally but issued no stream for this account.
         upstreamRefusedPlayLink: sawEmptyPlayLink,
+        stillFailing,
     });
-    if (firstFailure !== undefined && !sawEmptyPlayLink) throw firstFailure;
-    // 有会话、所有音质都没给链接：这个账号可能只能听试听片段，不限后端说的可能原因。没会话时后端不给试听。
+    // 有会话、整首要不到、又有档回了空链接：这个账号可能只能听试听片段，不限后端说的可能原因。没会话时后端不给试听。
+    // 重试后还有档连不上时也先试试听：有一分钟可听，比报错停下来好。
     if (sawEmptyPlayLink && hasQqSession()) {
         const preview = await requestQqPreviewSource(songmid, mediaId);
         if (preview) return preview;
     }
+    // 还有档连不上：照「连不上」报，播放那边会再要。只有每一档都回答了、都没给链接，才算这首没有音源。
+    if (stillFailing) throw firstFailure;
     // 没有会话、而后端只是没给链接：登录后可能能放（只是可能，不能当成登录失效）。形态坏掉的回答不是没给链接。
     throw new OnlineProviderError('not-playable', 'QQMusicApi gave no play link for this song', 'qq', {
         likelyCause: likelyCause ?? (sawEmptyPlayLink && !hasQqSession() ? 'sign-in' : undefined),
