@@ -6,7 +6,7 @@ import {
 import { mergeUrlBackgroundList } from './urlBackground';
 import { normalizeFontWeight } from './fontStacks';
 import type { UrlBackgroundItem } from '../types';
-import { resolveSmartBeatSettings, type SmartBeatPatch } from '../stores/visualizerSettingsPersistence';
+import { resolveSmartBeatSettings, type SmartBeatPatch } from '../services/beatFx/smartBeatSettings';
 
 // src/utils/appearanceImportPlan.ts
 // What an imported config would actually change, computed before anything is applied. Pure: the
