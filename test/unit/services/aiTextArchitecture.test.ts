@@ -18,7 +18,7 @@ const DOOR = 'src/services/aiText.ts';
 
 const NAMES = {
     route: /\/api\/(?:generate-theme|segment-lyrics)/,
-    bridge: /\b(?:generateTheme|segmentLyrics|testAiConnection)\b/,
+    bridge: /\b(?:generateTheme|segmentLyrics|testAiConnection|listAiModels)\b/,
     address: /generativelanguage\.googleapis\.com|api\.openai\.com|api\.deepseek\.com/,
     setting: /\b(?:GEMINI|OPENAI)_API_\w+|\b(?:VITE_)?AI_PROVIDER\b/i,
 };
@@ -35,7 +35,7 @@ const ALLOWED: Record<string, Kind[]> = {
     'src/components/modal/SettingsModal.tsx': ['setting'],
     // The type of the form's state, which the dialog hands to the page that draws the form.
     'src/components/modal/settings/pages/settingsPageContext.ts': ['setting'],
-    'src/components/modal/settings/pages/AppearancePage.tsx': ['setting', 'address'],
+    'src/components/modal/settings/pages/ai/AiProviderSettings.tsx': ['setting'],
     // Upstream's endpoint check for a stored AI key (is the key still meant for this address).
     'src/utils/openAIEndpoint.ts': ['setting', 'address'],
     // Upstream's wall tools ask the bridge for a theme directly; to move behind services/aiText.

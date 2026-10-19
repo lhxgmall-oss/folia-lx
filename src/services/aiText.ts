@@ -161,6 +161,16 @@ export const requestLyricSegmentation = async (lines: string[], signal?: AbortSi
   return (payload as { lines?: unknown }).lines;
 };
 
+/** Whether model discovery can run here; saved credentials stay in the desktop main process. */
+export const canListAiModels = (): boolean => Boolean(window.electron?.listAiModels);
+
+/** Loads the current connection's models without exposing its saved key to the renderer. */
+export const fetchAiModels = (payload: AiConnectionTestPayload): Promise<AiModelListResult> => (
+  window.electron?.listAiModels
+    ? window.electron.listAiModels(payload)
+    : Promise.resolve({ ok: false, errorKind: 'config' })
+);
+
 /** Whether the connection test can run here. It is desktop only: there is no web route for it. */
 export const canRunAiConnectionTest = (): boolean => Boolean(window.electron?.testAiConnection);
 

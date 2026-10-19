@@ -18,8 +18,17 @@ const DEFAULT_OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/comp
 const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
 const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
+const { sendAnthropic } = require('./ai/anthropicClient.cjs');
 const GEMINI_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
+
+const DEFAULT_GEMINI_MODEL = 'gemini-3-flash-preview';
+const resolveGeminiModel = (raw) => {
+  const model = typeof raw === 'string' && raw.trim() ? raw.trim().replace(/^models\//, '') : DEFAULT_GEMINI_MODEL;
+  if (!/^[\w.-]{1,256}$/.test(model)) throw new Error('Select a valid Gemini model in settings');
+  return model;
+};
+const geminiEndpointFor = (model) => GEMINI_ENDPOINT.replace('/models/' + DEFAULT_GEMINI_MODEL + ':', '/models/' + model + ':');
 
 // Nothing on this path had a deadline before. A base URL pointing at something unreachable — a
 // local server that is not running, a proxy that black-holes the connection — left the renderer
@@ -502,6 +511,16 @@ async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeout
  * name still fails on the first request instead of being retried three times.
  */
 async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS, maxTokens, disableReasoning }) {
+  const { getAiProviderPreset } = await import('../shared/aiProviderPresets.mjs');
+  if (getAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: store.get('AI_PROVIDER_PRESET'), OPENAI_API_URL: store.get('OPENAI_API_URL') }).protocol === 'anthropic') {
+    const apiKey = store.get('OPENAI_API_KEY');
+    if (!apiKey) throw new Error('OPENAI_API_KEY is not configured in settings');
+    return (await sendAnthropic({
+      apiUrl: store.get('OPENAI_API_URL'), apiKey, model: store.get('OPENAI_API_MODEL'),
+      systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs, maxTokens,
+      temperature: resolveOpenAICompatibleTemperature(store.get('OPENAI_API_TEMPERATURE')),
+    })).content;
+  }
   const apiKey = store.get('OPENAI_API_KEY');
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured in settings');
@@ -573,8 +592,7 @@ async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt
 }
 
 /**
- * One request to Gemini, answered with the text of the model's reply. The model name is fixed
- * here: the settings UI only exposes an API key for this provider, not a model field.
+ * One request to Gemini, using the selected model or the existing default for older settings.
  *
  * With `timeoutMs` the request runs under that deadline, and a failure to send or to read says
  * what timed out; without it there is no deadline and a failure is handed on as it came. `log`
@@ -586,16 +604,22 @@ async function sendGemini({ store, systemPrompt, sourcePrompt, generationConfig,
     throw new Error('GEMINI_API_KEY is not configured in settings');
   }
 
+  const model = resolveGeminiModel(store.get('GEMINI_API_MODEL'));
+  // The old thinking budget was tuned for the fixed default model; other models choose their own.
+  if (model !== DEFAULT_GEMINI_MODEL && generationConfig?.thinkingConfig) {
+    const { thinkingConfig, ...rest } = generationConfig;
+    generationConfig = rest;
+  }
   const timed = typeof timeoutMs === 'number';
   const failure = (error, label) => (timed ? describeFetchFailure(error, timeoutMs, label) : error);
   if (log) {
-    console.log('[ai] POST gemini-3-flash-preview');
+    console.log('[ai] POST ' + model);
   }
   const startedAt = Date.now();
 
   let response;
   try {
-    response = await customFetch(GEMINI_ENDPOINT, {
+    response = await customFetch(geminiEndpointFor(model), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -744,7 +768,14 @@ function validateAiConnectionTestInput(raw) {
   };
   const apiKey = readString('apiKey');
   const apiUrl = provider === 'openai' ? readString('apiUrl') : '';
-  const model = provider === 'openai' ? readString('model') : '';
+  const model = readString('model');
+  const apiProtocol = raw.apiProtocol ?? 'openai';
+  if (apiProtocol !== 'openai' && apiProtocol !== 'anthropic') {
+    return { error: 'Unknown API protocol.' };
+  }
+  if (provider === 'gemini' && model && !/^(?:models\/)?[\w.-]{1,256}$/.test(model)) {
+    return { error: 'Invalid Gemini model.' };
+  }
   if (apiKey === null || apiUrl === null || model === null) {
     return { error: 'A setting value is too long or has the wrong type.' };
   }
@@ -764,6 +795,7 @@ function validateAiConnectionTestInput(raw) {
       provider,
       apiKey,
       apiUrl,
+      apiProtocol,
       model,
       stream: provider === 'openai' && raw.stream === true,
     },
@@ -796,7 +828,7 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
   if (validated.error) {
     return { ok: false, durationMs: 0, errorKind: 'invalid', error: validated.error };
   }
-  const { provider, apiKey, apiUrl: rawApiUrl, model: rawModel, stream } = validated.config;
+  const { provider, apiKey, apiUrl: rawApiUrl, model: rawModel, apiProtocol, stream } = validated.config;
   const startedAt = now();
   const finish = (result) => ({ durationMs: now() - startedAt, ...result });
   const redact = (message) => {
@@ -825,18 +857,30 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
     });
   }
 
+  if (provider === 'openai' && apiProtocol === 'anthropic') {
+    try {
+      const reply = await sendAnthropic({ apiUrl: rawApiUrl, apiKey, model: rawModel, sourcePrompt: AI_TEST_PROMPT,
+        maxTokens: AI_TEST_MAX_TOKENS, customFetch, timeoutMs });
+      return finish({ ok: true, status: reply.status, model: reply.model, text: truncateText(redact(reply.content), AI_TEST_MAX_REPLY_CHARS) });
+    } catch (error) {
+      return failure(error, { ...(error.status ? { status: error.status } : {}),
+        errorKind: error.status ? 'http' : /Timeout|Abort/.test(error.name) ? 'timeout' : 'network' });
+    }
+  }
+
   if (provider === 'gemini') {
-    console.log('[ai-test] POST gemini-3-flash-preview');
+    const model = resolveGeminiModel(rawModel);
+    console.log('[ai-test] POST ' + model);
     let response;
     try {
-      response = await customFetch(GEMINI_ENDPOINT, {
+      response = await customFetch(geminiEndpointFor(model), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: AI_TEST_PROMPT }] }],
           // thinkingBudget 0 as in SEGMENTATION_GEMINI_GENERATION_CONFIG: gemini-3-flash-preview
           // thinks by default and would spend the budget before answering "hello".
-          generationConfig: { maxOutputTokens: AI_TEST_MAX_TOKENS, thinkingConfig: { thinkingBudget: 0 } },
+          generationConfig: { maxOutputTokens: AI_TEST_MAX_TOKENS, ...(model === DEFAULT_GEMINI_MODEL ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
         }),
         signal: timeoutSignal(timeoutMs),
       });
@@ -868,7 +912,7 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
     const text = Array.isArray(parts)
       ? parts.filter((part) => part && typeof part.text === 'string').map((part) => part.text).join('')
       : '';
-    const modelName = data && typeof data.modelVersion === 'string' ? data.modelVersion : 'gemini-3-flash-preview';
+    const modelName = data && typeof data.modelVersion === 'string' ? data.modelVersion : model;
     if (!text.trim()) {
       const reason = candidate && candidate.finishReason === 'MAX_TOKENS' ? 'reasoning' : 'empty';
       return finish({ ok: true, status: response.status, model: modelName, text: '', emptyReason: reason });

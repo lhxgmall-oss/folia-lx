@@ -28,7 +28,7 @@ export const useAiConnectionTest = (payload: AiConnectionTestPayload, keySaved?:
         requestSeqRef.current += 1;
         setRunning(false);
         setResult(null);
-    }, [payload.provider, payload.apiKey, payload.apiUrl, payload.model, payload.stream, payload.useSystemProxy, keySaved]);
+    }, [payload.provider, payload.apiProtocol, payload.apiKey, payload.apiUrl, payload.model, payload.stream, payload.useSystemProxy, keySaved]);
 
     const run = async () => {
         if (running || !canRunAiConnectionTest()) {

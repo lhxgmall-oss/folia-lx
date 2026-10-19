@@ -1,0 +1,195 @@
+import { createRequire } from 'node:module';
+import { describe, expect, it, vi } from 'vitest';
+import { AI_PROVIDER_PRESETS, getAiProviderPreset } from '../../../shared/aiProviderPresets.mjs';
+
+// Provider catalogues, native protocols and legacy settings are tested without network access.
+const require = createRequire(import.meta.url);
+const { listAiModels } = require('../../../electron/ai/modelDiscovery.cjs');
+const { registerAiModelDiscovery } = require('../../../electron/ai/modelDiscoveryIpc.cjs');
+const client = require('../../../electron/aiTextClient.cjs');
+const payload = { provider: 'openai', apiKey: 'test-secret', apiUrl: 'https://relay.example/v1' };
+const json = (value: unknown, status = 200) => Response.json(value, { status });
+const storeWith = (settings: Record<string, unknown>) => ({ get: (name: string) => settings[name] });
+
+describe('provider presets and migration', () => {
+    it('includes the requested providers and keeps custom last', () => {
+        expect(AI_PROVIDER_PRESETS.map(p => p.id)).toEqual(['qwen', 'anthropic', 'deepseek', 'gemini', 'kimi', 'openai', 'tencentcloud', 'mimo', 'glm', 'custom']);
+    });
+    it('preserves old compatible connections and never guesses a native Anthropic migration', () => {
+        expect(getAiProviderPreset({}).id).toBe('gemini');
+        expect(getAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'deepseek', OPENAI_API_URL: 'https://custom.example/v1' }).id).toBe('custom');
+        expect(getAiProviderPreset({ AI_PROVIDER: 'openai', OPENAI_API_URL: 'https://api.deepseek.com/v1/chat/completions/' }).id).toBe('deepseek');
+        expect(getAiProviderPreset({ AI_PROVIDER: 'openai', OPENAI_API_URL: 'https://api.anthropic.com/v1' }).id).toBe('custom');
+        expect(getAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic' }).protocol).toBe('anthropic');
+        expect(getAiProviderPreset({ AI_PROVIDER: 'gemini', AI_PROVIDER_PRESET: 'anthropic' }).id).toBe('gemini');
+    });
+});
+
+describe('model discovery', () => {
+    it.each(AI_PROVIDER_PRESETS.filter(p => p.protocol === 'openai' && p.id !== 'custom'))('uses the %s base path and Bearer authentication', async preset => {
+        const customFetch = vi.fn().mockResolvedValue(json(preset.id === 'glm'
+            ? { rows: [{ modelCode: 'model-one', modelName: 'One' }], total: 1 }
+            : { data: [{ id: 'model-one' }] }));
+        const result = await listAiModels({ ...payload, apiUrl: preset.baseUrl }, { customFetch });
+        const url = new URL(customFetch.mock.calls[0][0]);
+        expect(url.origin).toBe(new URL(preset.baseUrl).origin);
+        expect(url.pathname).toBe(preset.id === 'glm' ? '/api/fine-tuning/model_center/list' : new URL(preset.baseUrl).pathname + '/models');
+        expect(customFetch.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: 'Bearer test-secret' }, redirect: 'error' });
+        expect(result).toMatchObject({ ok: true, models: [{ id: 'model-one' }] });
+    });
+    it('filters Gemini non-chat models, normalises names and follows page tokens on the same host', async () => {
+        const customFetch = vi.fn()
+            .mockResolvedValueOnce(json({ models: [
+                { name: 'models/gemini-one', displayName: 'One', supportedGenerationMethods: ['generateContent'] },
+                { name: 'models/embed', supportedGenerationMethods: ['embedContent'] },
+                { name: 'models/../unsafe', supportedGenerationMethods: ['generateContent'] },
+            ], nextPageToken: 'https://other.example/?secret=anything' }))
+            .mockResolvedValueOnce(json({ models: [{ name: 'models/gemini-two', supportedGenerationMethods: ['generateContent'] }] }));
+        expect(await listAiModels({ provider: 'gemini', apiKey: 'test-secret' }, { customFetch })).toEqual({
+            ok: true, models: [{ id: 'gemini-one', name: 'One' }, { id: 'gemini-two', name: 'gemini-two' }],
+        });
+        expect(new URL(customFetch.mock.calls[1][0]).hostname).toBe('generativelanguage.googleapis.com');
+        expect(customFetch.mock.calls[0][1].headers).toEqual({ 'x-goog-api-key': 'test-secret' });
+        expect(customFetch.mock.calls[0][0]).not.toContain('test-secret');
+    });
+    it('uses native Anthropic headers and pagination, without Bearer auth', async () => {
+        const customFetch = vi.fn()
+            .mockResolvedValueOnce(json({ data: [{ id: 'claude-one', display_name: 'Claude One' }], has_more: true, last_id: 'claude-one' }))
+            .mockResolvedValueOnce(json({ data: [{ id: 'claude-two' }], has_more: false }));
+        const result = await listAiModels({ ...payload, apiProtocol: 'anthropic', apiUrl: 'https://api.anthropic.com/v1/messages' }, { customFetch });
+        expect(result.models).toHaveLength(2);
+        expect(customFetch.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models');
+        expect(customFetch.mock.calls[1][0]).toContain('after_id=claude-one');
+        expect(customFetch.mock.calls[0][1].headers).toMatchObject({ 'x-api-key': 'test-secret', 'anthropic-version': '2023-06-01' });
+        expect(customFetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
+    });
+    it('deduplicates models and ignores malformed rows', async () => {
+        const customFetch = vi.fn().mockResolvedValue(json({ data: [null, {}, { id: 'a' }, { id: 'a' }, { id: 'bad\u0000id' }, { id: 12 }] }));
+        expect(await listAiModels(payload, { customFetch })).toEqual({ ok: true, models: [{ id: 'a', name: 'a' }] });
+    });
+    it.each([401, 403, 500])('returns a fixed failure for HTTP %i without echoing response bodies', async status => {
+        const result = await listAiModels(payload, { customFetch: async () => new Response('test-secret Authorization: secret', { status }) });
+        expect(result).toEqual({ ok: false, status, errorKind: status === 500 ? 'http' : 'auth' });
+        expect(JSON.stringify(result)).not.toContain('secret');
+    });
+    it.each([null, {}, { data: [] }, { data: 'wrong' }])('handles an invalid or empty catalogue: %s', async data => {
+        const result = await listAiModels(payload, { customFetch: async () => json(data) });
+        expect(result).toEqual({ ok: false, errorKind: Array.isArray(data?.data) ? 'empty' : 'invalid' });
+    });
+    it('rejects invalid JSON and oversized streamed bodies', async () => {
+        for (const text of ['not json', 'x'.repeat(2_000_001)]) {
+            expect(await listAiModels(payload, { customFetch: async () => new Response(text) })).toEqual({ ok: false, errorKind: 'invalid' });
+        }
+    });
+    it('bounds pagination and rejects repeating cursors', async () => {
+        const customFetch = vi.fn().mockImplementation(async () => json({ data: [{ id: 'a' }], has_more: true, last_id: 'a' }));
+        expect(await listAiModels(payload, { customFetch })).toEqual({ ok: false, errorKind: 'invalid' });
+        expect(customFetch).toHaveBeenCalledTimes(2);
+    });
+    it('fails before requesting with missing keys or invalid connection values', async () => {
+        const customFetch = vi.fn();
+        expect(await listAiModels({ ...payload, apiKey: '' }, { customFetch })).toEqual({ ok: false, errorKind: 'config' });
+        expect(await listAiModels({ ...payload, apiUrl: 'file:///secret' }, { customFetch })).toEqual({ ok: false, errorKind: 'invalid' });
+        expect(customFetch).not.toHaveBeenCalled();
+    });
+    it('reports timeout and transport errors without credentials', async () => {
+        const customFetch = (_url: string, init: any) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('test-secret'))));
+        expect(await listAiModels(payload, { customFetch, timeoutMs: 5 })).toEqual({ ok: false, errorKind: 'timeout' });
+        expect(await listAiModels(payload, { customFetch: async () => { throw new Error('test-secret'); } })).toEqual({ ok: false, errorKind: 'network' });
+    });
+});
+
+describe('discovery IPC credential boundary', () => {
+    const setup = (resolved: unknown = { apiKey: 'saved-secret' }) => {
+        let handler: any;
+        const resolveTestApiKey = vi.fn().mockReturnValue(resolved);
+        const fetchWithOptionalSystemProxy = vi.fn().mockImplementation(async () => json({ data: [{ id: 'one' }] }));
+        registerAiModelDiscovery({
+            ipcMain: { handle: (_name: string, fn: unknown) => { handler = fn; } },
+            aiCredentials: { resolveTestApiKey }, store: storeWith({ USE_SYSTEM_PROXY_FOR_AI: true }),
+            isTrustedMainWindowContents: (sender: string) => sender === 'main',
+            fetchWithOptionalSystemProxy,
+        });
+        return { invoke: (value: unknown, sender = 'main') => handler({ sender }, value), resolveTestApiKey, fetchWithOptionalSystemProxy };
+    };
+    it('blocks untrusted windows and keys bound to another endpoint', async () => {
+        const test = setup({ error: 'endpoint mismatch' });
+        expect(await test.invoke(payload, 'other')).toEqual({ ok: false, errorKind: 'invalid' });
+        expect(test.resolveTestApiKey).not.toHaveBeenCalled();
+        expect(await test.invoke(payload)).toEqual({ ok: false, errorKind: 'config' });
+        expect(test.fetchWithOptionalSystemProxy).not.toHaveBeenCalled();
+    });
+    it('uses the saved key and proxy choice only in the main process', async () => {
+        const test = setup();
+        const result = await test.invoke({ ...payload, apiKey: '', useSystemProxy: false });
+        expect(test.resolveTestApiKey).toHaveBeenCalledWith('openai', '', payload.apiUrl);
+        expect(test.fetchWithOptionalSystemProxy.mock.calls[0][1].headers.Authorization).toBe('Bearer saved-secret');
+        expect(test.fetchWithOptionalSystemProxy.mock.calls[0][2]).toBe(false);
+        expect(JSON.stringify(result)).not.toContain('secret');
+        await test.invoke({ ...payload, apiKey: '' });
+        expect(test.fetchWithOptionalSystemProxy.mock.calls[1][2]).toBe(true);
+    });
+});
+
+describe('selected model completion', () => {
+    it('retries native Claude once without temperature only when that parameter is rejected', async () => {
+        const { sendAnthropic } = require('../../../electron/ai/anthropicClient.cjs');
+        const bodies: any[] = [];
+        const customFetch = vi.fn().mockImplementation(async (_url: string, init: any) => {
+            bodies.push(JSON.parse(init.body));
+            return bodies.length === 1
+                ? json({ error: { type: 'invalid_request_error', message: 'temperature: non-default values are not supported' } }, 400)
+                : json({ content: [{ type: 'text', text: 'ok' }] });
+        });
+        await sendAnthropic({ apiKey: 'test-secret', model: 'claude-selected', sourcePrompt: 'hello', temperature: 0.7, customFetch });
+        expect(bodies[0].temperature).toBe(0.7);
+        expect(bodies[1].temperature).toBeUndefined();
+        expect(customFetch).toHaveBeenCalledTimes(2);
+        const denied = vi.fn().mockImplementation(async () => json({ error: { type: 'authentication_error', message: 'test-secret' } }, 401));
+        await expect(sendAnthropic({ apiKey: 'test-secret', model: 'claude-selected', sourcePrompt: 'hello', temperature: 0.7, customFetch: denied })).rejects.toThrow('HTTP 401');
+        expect(denied).toHaveBeenCalledTimes(1);
+    });
+    it('uses the selected Gemini model for both real theme and segmentation requests', async () => {
+        const calls: { url: string; body: any }[] = [];
+        const customFetch = async (url: string, init: any) => {
+            calls.push({ url, body: JSON.parse(init.body) });
+            return json({ candidates: [{ content: { parts: [{ text: '{}' }] } }] });
+        };
+        const store = storeWith({ GEMINI_API_KEY: 'test-secret', GEMINI_API_MODEL: 'models/gemini-selected' });
+        await client.runGeminiThemeCompletion({ store, systemPrompt: 'system', sourcePrompt: 'source', responseSchema: {}, customFetch });
+        await client.runAiJsonCompletion({ store, systemPrompt: 'system', sourcePrompt: 'source', customFetch,
+            geminiGenerationConfig: { responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } } });
+        expect(calls.map(call => call.url)).toEqual(Array(2).fill('https://generativelanguage.googleapis.com/v1beta/models/gemini-selected:generateContent'));
+        expect(calls[1].body.generationConfig.thinkingConfig).toBeUndefined();
+    });
+    it('routes native Anthropic schemas through forced tool output and keeps the selected model', async () => {
+        const calls: any[] = [];
+        const customFetch = async (url: string, init: any) => {
+            calls.push({ url, init, body: JSON.parse(init.body) });
+            return json({ model: 'claude-selected', content: [{ type: 'tool_use', name: 'result', input: { lines: [] } }] });
+        };
+        const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic', OPENAI_API_KEY: 'test-secret',
+            OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_MODEL: 'claude-selected', OPENAI_API_STREAM: true });
+        expect(await client.runAiJsonCompletion({ store, systemPrompt: 'system', sourcePrompt: 'source',
+            schema: { type: 'object' }, schemaName: 'result', customFetch })).toBe('{"lines":[]}');
+        expect(calls[0].url).toBe('https://api.anthropic.com/v1/messages');
+        expect(calls[0].body).toMatchObject({ model: 'claude-selected', system: 'system',
+            tool_choice: { type: 'tool', name: 'result' }, tools: [{ name: 'result', input_schema: { type: 'object' } }] });
+        expect(calls[0].body.stream).toBeUndefined();
+    });
+    it('tests the unsaved selected Gemini model and Anthropic protocol', async () => {
+        const calls: any[] = [];
+        const customFetch = async (url: string, init: any) => {
+            calls.push({ url, init, body: JSON.parse(init.body) });
+            return url.includes('googleapis')
+                ? json({ candidates: [{ content: { parts: [{ text: 'Hi' }] } }] })
+                : json({ content: [{ type: 'text', text: 'Hi test-secret' }] });
+        };
+        await client.runAiConnectionTest({ provider: 'gemini', apiKey: 'test-secret', model: 'gemini-selected' }, { customFetch });
+        const result = await client.runAiConnectionTest({ ...payload, apiProtocol: 'anthropic', model: 'claude-selected' }, { customFetch });
+        expect(calls[0].url).toContain('/gemini-selected:generateContent');
+        expect(calls[0].body.generationConfig.thinkingConfig).toBeUndefined();
+        expect(calls[1].url).toBe('https://relay.example/v1/messages');
+        expect(result).toMatchObject({ ok: true, model: 'claude-selected', text: 'Hi ***' });
+    });
+});

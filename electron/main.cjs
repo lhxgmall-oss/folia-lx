@@ -89,6 +89,7 @@ const {
   runAiJsonCompletion,
   runGeminiThemeCompletion,
 } = require('./aiTextClient.cjs');
+const { registerAiModelDiscovery } = require('./ai/modelDiscoveryIpc.cjs');
 const { createAiCredentialStore, isAiCredentialKey, isReservedAiCredentialKey } = require('./aiCredentialStore.cjs');
 const {
   SEGMENTATION_GEMINI_GENERATION_CONFIG,
@@ -7318,6 +7319,8 @@ ipcMain.handle('generate-theme', async (event, lyricsText, options = {}) => {
     throw new Error(e instanceof Error ? e.message : String(e));
   }
 });
+
+registerAiModelDiscovery({ ipcMain, aiCredentials, store, isTrustedMainWindowContents, fetchWithOptionalSystemProxy });
 
 // "Test connection" button in AI settings: sends "hello" using the values currently in the form
 // (not the saved ones, nothing is persisted) over the same fetch/proxy path as real AI requests.
