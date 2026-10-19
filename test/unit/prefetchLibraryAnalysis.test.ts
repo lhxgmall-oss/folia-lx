@@ -133,14 +133,14 @@ describe('prefetchNearbySongs on a library queue', () => {
 
     // The request made at the track change went out under the original's key; a transcode registering
     // later moves the analysis to its own key, and only this asks about it before the track leaves.
-    it('analyses a track in scope again when its transcode registers', async () => {
+    it('analyses the current track again when its transcode registers', async () => {
         const queue = [local('a', 'Alpha'), local('b', 'Bravo'), local('c', 'Charlie')];
         await run(queue[0], queue);
         ensureTrackProfile.mockClear();
 
-        transcodeOf('b');
+        transcodeOf('a');
 
-        expect(ensureTrackProfile.mock.calls.map(([{ song, audioUrl }]) => [song.name, audioUrl])).toEqual([['Bravo', null]]);
+        expect(ensureTrackProfile.mock.calls.map(([{ song, audioUrl }]) => [song.name, audioUrl])).toEqual([['Alpha', null]]);
     });
 
     it('leaves a transcode of a track out of scope, or of another revision of its file, alone', async () => {

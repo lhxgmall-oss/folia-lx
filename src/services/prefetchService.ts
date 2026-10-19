@@ -108,11 +108,12 @@ let analysisScopeSongs: readonly SongResult[] = [];
 
 // A transcode registering for a track in scope moves its analysis to the transcode's key, and nothing
 // asks about that key on its own: the request made at the track change went out under the original's
-// key and read the file the browser could not play, and the next prefetch pass is the next track
-// change, by when this track has left the scope. So it is asked here - a read of the transcode, which
-// is on this machine, or of the profile an earlier session stored under its key. Matched on the source
-// revision as well as the song, as the registry matches it, and compared here rather than looked up:
-// a lookup that misses the revision drops the registration (representationRegistry.ts).
+// key and read the file the browser could not play, and the next prefetch pass comes with a queue
+// edit, a shuffle or the next track change - usually the last, by when this track has left the scope.
+// So it is asked here - a read of the transcode, which is on this machine, or of the profile an
+// earlier session stored under its key. Matched on the source revision as well as the song, as the
+// registry matches it, and compared here rather than looked up: a lookup that misses the revision
+// drops the registration (representationRegistry.ts).
 onPlaybackRepresentationRegistered(representation => {
     const song = analysisScopeSongs.find(candidate => (
         getPlaybackSongKey(candidate) === representation.songKey
@@ -518,10 +519,10 @@ export const prefetchNearbySongs = async (
 
     // Told before anything is asked for, so the analyser can drop work it has queued for tracks that
     // are no longer either half of the next transition. This function is called when a track
-    // starts playing, when a session is restored and when the queue is shuffled - analysis is serial,
-    // so a stale entry does not merely waste itself, it delays the track the listener just chose.
-    // It is not called when the queue is edited or the repeat mode changes: the scope follows those
-    // at the next track change.
+    // starts playing, when a session is restored, when the queue is shuffled and when an edit changes
+    // what is next (refreshPrefetchAfterQueueEdit) - analysis is serial, so a stale entry does not merely
+    // waste itself, it delays the track the listener just chose. It is not called when the repeat mode
+    // changes: the scope follows that at the next track change.
     // The next half is the track automix would blend into, by the same function automix asks: in
     // repeat-all the last track's is the queue's first, and the last Personal FM track has none.
     const nextSong = nextTransitionSong(

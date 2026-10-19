@@ -5,9 +5,10 @@ import type { PlaybackRepresentation } from '@/types/playbackRecovery';
 // test/unit/automix/transcodeAnalysisKey.test.ts
 // A track the browser cannot play is transcoded, and from that moment its analysis key names the
 // transcode (representationRegistry.ts). Pinned here: a request made after the transcode registers is
-// not dropped by a scope set before it, the log says what became of the original rather than "never
-// requested", and the tail a deck played completes the head-only profile of the original - the only
-// key a head-only profile is ever made under.
+// not dropped by a scope set before it or after it, the log says what became of the original rather
+// than "never requested", and the tail a deck played completes the head-only profile of the original -
+// the only key a head-only profile is ever made under. A Navidrome track, because a head-only profile
+// comes from a read of a stream's front; a local file is always read whole.
 
 const { stored, saveToCache } = vi.hoisted(() => ({
     stored: new Map<string, unknown>(),
@@ -35,12 +36,14 @@ const song = {
     artists: [],
     album: { id: 'album', name: 'Album' },
     durationMs: 200_000,
-    sourceRef: { kind: 'local', mediaId: 'x' },
+    isNavidrome: true,
+    navidromeData: { id: 'x' },
+    sourceRef: { kind: 'navidrome', mediaId: 'x' },
     playbackSourceRevision: 'rev-1',
-} as SongResult;
+} as unknown as SongResult;
 
 const transcode: PlaybackRepresentation = {
-    songKey: 'local:x',
+    songKey: 'navidrome:x',
     sourceRevision: 'rev-1',
     representationId: 'transcode:abc',
     kind: 'transcoded',
@@ -49,8 +52,8 @@ const transcode: PlaybackRepresentation = {
     timelineOffsetSec: 0,
 };
 
-/** A head-only profile of the original, stored by an earlier read of the file's front. */
-const storeHeadOnlyOriginal = () => stored.set('automix_profile_local:x', {
+/** A head-only profile of the original, stored by an earlier read of the stream's front. */
+const storeHeadOnlyOriginal = () => stored.set('automix_profile_navidrome:x', {
     version: TRACK_PROFILE_VERSION, partial: true, duration: 40, gridless: true, bpm: null, loudness: -9,
 });
 
@@ -88,6 +91,18 @@ describe('the analysis of a track that is transcoded', () => {
         expect(describeProfileState(song)).not.toMatch(/^dropped/);
     });
 
+    // Keyed by the analysis key, a scope set after the transcode names the transcode while the request
+    // is checked by song - or the other way round. Either half alone drops it.
+    it('reads the transcode when the scope is set again after it registers', async () => {
+        registerPlaybackRepresentation(transcode);
+        setAnalysisScope([song]);
+
+        await analyse();
+
+        expect(fetch).toHaveBeenCalledWith('folia-transcode://abc');
+        expect(describeProfileState(song)).not.toMatch(/^dropped/);
+    });
+
     it('says what became of the original until the transcode is measured', async () => {
         storeHeadOnlyOriginal();
         setAnalysisScope([song]);
@@ -96,7 +111,7 @@ describe('the analysis of a track that is transcoded', () => {
 
         registerPlaybackRepresentation(transcode);
 
-        expect(describeProfileState(song)).toBe('not yet measured as its transcode (the original file: measured (head only))');
+        expect(describeProfileState(song)).toBe('nothing measured from its transcode (the original file: measured (head only))');
     });
 
     it('completes the original\'s head-only profile from a deck that played the transcode', async () => {
@@ -110,7 +125,7 @@ describe('the analysis of a track that is transcoded', () => {
         recordPlayedTail(song, heard, hop, 200, transcode.url);
 
         expect(saveToCache).toHaveBeenCalledExactlyOnceWith(
-            'automix_profile_local:x',
+            'automix_profile_navidrome:x',
             expect.objectContaining({ partial: false, duration: 200 }),
         );
     });

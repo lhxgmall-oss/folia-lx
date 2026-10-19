@@ -50,7 +50,8 @@ const MAX_PROFILES = 200;
 
 /**
  * What became of the last request for a track that left no profile behind: dropped for being out of
- * scope, skipped for want of bytes, or failed. Only for `describeProfileState`.
+ * scope, or skipped for want of bytes. A failure needs no entry - it is a null profile. Only for
+ * `describeProfileState`.
  *
  * Kept because "no profile" alone could not tell a track never asked for from one asked for and
  * turned away, and the first is a bug while the second is the bandwidth rule working. Every local
@@ -131,8 +132,8 @@ let wanted: ReadonlySet<string> = new Set();
  * Narrows analysis to these tracks. Anything queued for a track not in the list is dropped when its
  * turn comes; anything already running finishes, since a decode cannot be taken back mid-way.
  *
- * Dropping is safe to do at any time: nothing is remembered for a dropped track, so it is simply
- * measured on a later pass if it comes back into range.
+ * Dropping is safe to do at any time: nothing measured is remembered for a dropped track (only that
+ * it was dropped, for the log), so it is simply measured on a later pass if it comes back into range.
  */
 export const setAnalysisScope = (songs: readonly SongResult[]): void => {
     wanted = new Set(songs.map(getPlaybackSongKey));
@@ -201,7 +202,7 @@ export const describeProfileState = (song: SongResult): string => {
     // keeps a track measured before its transcode from reading as one nobody asked about.
     const songKey = getPlaybackSongKey(song);
     const original = songKey === analysisKey ? null : describeKey(songKey);
-    return original ? `not yet measured as its transcode (the original file: ${original})` : 'never requested';
+    return original ? `nothing measured from its transcode (the original file: ${original})` : 'never requested';
 };
 
 /** What `describeProfileState` says of one key, or null when nothing was ever asked of it. */
@@ -426,7 +427,8 @@ const readBytes = async (
 export const ensureTrackProfile = async (request: ProfileRequest): Promise<void> => {
     // Resolved together: the bytes read below must be the representation this key names.
     const { key: songKey, representation } = getPlaybackAnalysisTarget(request.song);
-    // The scope is kept by song (see `wanted`): a transcode registering moves `songKey`, not this.
+    // The scope is kept by song (see `wanted`): a transcode registering moves `songKey` - which, despite
+    // its name, is the analysis key - and not this.
     const scopeKey = getPlaybackSongKey(request.song);
     if (inFlight.has(songKey)) return;
     if (profiles.has(songKey) && !needsGrid(request, profiles.get(songKey))) {
