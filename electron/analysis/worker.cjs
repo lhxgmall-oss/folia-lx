@@ -1,8 +1,8 @@
 const { resolveModelFile } = require('./modelPaths.cjs');
 const mnn = require('./mnn.cjs');
 const htdemucs = require('./htdemucs.cjs');
+const { THREADS, HTDEMUCS_THREADS, htdemucsThreads } = require('./threads.cjs');
 const fs = require('fs');
-const os = require('os');
 
 // electron/analysis/worker.cjs
 // Both analysis models on the CPU, in a process that owns no window.
@@ -44,35 +44,8 @@ const os = require('os');
  */
 const MODEL_DIRS = process.argv.slice(2);
 
-/**
- * How many cores beat_this may use.
- *
- * Not a timidity knob - more was measured to be SLOWER. On onnxruntime, whose default was one thread per
- * logical core, this 24-core machine ran an htdemucs segment in 3547ms against 1438ms at twelve threads:
- * the pool spent its time contending with itself. Measured, per segment:
- *
- *   default(24)  3547ms  51% of the machine        4  1873ms  32%
- *   12           1438ms  66%                       2  2908ms  19%
- *   6            1602ms  42%
- *
- * A quarter of the cores, because the number that matters is the FRACTION of the machine left for the
- * renderer's frames and the audio thread, and that fraction should not depend on how big the machine is.
- */
-const THREADS = Math.max(1, Math.floor(os.cpus().length / 4));
-
-/**
- * How many cores htdemucs may use: four, what the Python runner it replaced ran with
- * (htdemucs_runner.py's intra_op_num_threads), so a separation costs the machine what it did before.
- * At four, MNN with the FoliaDConv operator separates a 30s window in 3.2-3.6s on an M4 against the
- * runner's 3.7-4.1s; separation has minutes of lead time, it needs to be invisible, not fast.
- */
-const HTDEMUCS_THREADS = 4;
-// @note Since the analysis service's phase 3 a request may say how many threads (the renderer's
-// scheduler picks a level, analysis/scheduler.ts cpuThreads: quiet - a quarter of the cores, at most
-// four - or hurry, about half, for a transition that would otherwise be late). MNN fixes a model's
-// threads when it is built, so a different count rebuilds it (its load time is logged); four stays
-// the count for a request that does not say.
-const MAX_HTDEMUCS_THREADS = Math.max(1, os.cpus().length);
+// How many cores beat_this (THREADS) and htdemucs (HTDEMUCS_THREADS, or what a request asks for) may
+// use is in threads.cjs, with why: host.cjs reads the same counts to choose the worker a request goes to.
 
 /**
  * The threads MNN's thread pool in this process was made for, or null before any build asked for more
@@ -83,6 +56,11 @@ const MAX_HTDEMUCS_THREADS = Math.max(1, os.cpus().length);
  * for four threads took 8.8 s rebuilt for eight - its four-thread time; eight in a worker of their own
  * took 6.3-6.5 s - and one built for two took 12.6-12.8 s rebuilt for four, where four alone took
  * 7.9-9.1 s.)
+ * (Measured after PR #750, 2026-10-19, later the same evening: and the other way round, a worker that
+ * had built for eight kept 7.7 cores busy rebuilt for four, where four in a worker of their own kept
+ * 3.9 busy - the pool's other threads spin for as long as a model runs. host.cjs has sent a build for
+ * another count to a worker of its own since (threads.cjs poolFits), so a load line saying either is
+ * the host and MNN disagreeing.)
  */
 let poolThreads = null;
 /** The threads a build asking for `threads` gets in this process; the first with more than one makes the pool. */
@@ -91,10 +69,15 @@ const grantedThreads = (threads) => {
     if (poolThreads === null) poolThreads = threads;
     return Math.min(threads, poolThreads);
 };
-/** What a load line says about the threads: how many were asked for, and how many run when fewer. */
-const threadsText = (threads, granted) => (granted < threads
-    ? `${threads} threads, running on the ${granted} this process's thread pool was made for`
-    : `${threads} threads`);
+/**
+ * What a load line says about the threads: how many were asked for, and how many run when fewer.
+ * (Measured after PR #750, 2026-10-19: or how many more the pool has, spinning beside the build.)
+ */
+const threadsText = (threads, granted) => {
+    if (granted < threads) return `${threads} threads, running on the ${granted} this process's thread pool was made for`;
+    if (threads > 1 && poolThreads > threads) return `${threads} threads, beside the other ${poolThreads - threads} of this process's thread pool`;
+    return `${threads} threads`;
+};
 
 /**
  * htdemucs, once loaded: `{ model, file, threads }`, or null.
@@ -275,8 +258,7 @@ const runHtdemucs = async (request) => {
     if (!left.length || left.length > MAX_SAMPLES) {
         return decline('htdemucs', `${left.length} samples, outside 1..${MAX_SAMPLES}`);
     }
-    const asked = Number(request?.threads);
-    const threads = Number.isInteger(asked) && asked >= 1 ? Math.min(asked, MAX_HTDEMUCS_THREADS) : HTDEMUCS_THREADS;
+    const threads = htdemucsThreads(request);
     // How long this request spent building the model, 0 when it was built: sent with the stems, so the
     // renderer's CPU estimate (src/services/automix/stems.ts) can learn from the rest of its wait.
     const building = Date.now();

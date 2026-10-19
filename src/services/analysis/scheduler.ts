@@ -321,7 +321,7 @@ export type CpuThreadLevel = 'quiet' | 'hurry';
 /**
  * The CPU threads per level: quiet - a quarter of the logical cores, at least one, htdemucs at most
  * four (the user, 2026-10-17: four fill a four-core machine) - and hurry, about half of them, no
- * more: more was measured slower (electron/analysis/worker.cjs).
+ * more: more was measured slower (electron/analysis/threads.cjs).
  */
 export const cpuThreads = (cores: number, level: CpuThreadLevel, model: 'beat_this' | 'htdemucs'): number => {
     const quiet = Math.max(1, Math.floor(cores / 4));
@@ -338,6 +338,10 @@ export const cpuThreads = (cores: number, level: CpuThreadLevel, model: 'beat_th
  * Ryzen 7 9700X such a worker took 8.8 s for a 30 s window at eight threads, four's time, where eight
  * of its own took 6.4. Sooner rather than on time, because a window late for its deadline is still
  * read late and may yet be used (automix/stems.ts getStemsByKey).)
+ * (Measured later the same evening: the hurried build gets its own threads now - the host sends a
+ * build for another count to a worker of its own (electron/analysis/host.cjs) - 6.6 s for that window
+ * after one at four, against 8.6 s on the shared pool. Sooner stays the rule: the new worker builds the
+ * model first, CPU_REBUILD_MS in automix/stems.ts.)
  */
 export const chooseCpuThreads = ({ deadline, quietFinish, hurryFinish }: { deadline?: number; quietFinish: number; hurryFinish: number }): CpuThreadLevel => (
     deadline === undefined || quietFinish + DEADLINE_MARGIN_MS < deadline || hurryFinish >= quietFinish ? 'quiet' : 'hurry'

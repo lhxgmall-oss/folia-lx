@@ -555,6 +555,10 @@ const threadCost = (threads: number) => Math.sqrt(4 / threads);
  * that built for fewer threads first runs a later build on that many (electron/analysis/worker.cjs
  * poolThreads), and what the estimate needs is what asking for a count gets. Forgotten at a restart,
  * as the GPU's averages are.
+ * (Measured after PR #750, 2026-10-19, later the same evening: the two are one count now - the host
+ * sends a build for another count to a worker of its own (electron/analysis/host.cjs, threads.cjs
+ * poolFits) - and a hurried window after a quiet one measures the hurry level: 6.6 s for 30 s at eight
+ * threads on the Ryzen 7 9700X, where the shared pool gave it four's 8.6.)
  */
 const measuredCpuSeconds = new Map<number, number>();
 /** CPU seconds per second of window at `threads`: as measured there, else as at the nearest count measured, else the guess. */
@@ -588,6 +592,12 @@ const noteCpuRun = (threads: number, seconds: number, ms: number) => {
  * stopped the worker - the new utilityProcess reaches its first line in about 50 ms, and koffi binds
  * folia_mnn in 6. The two are 0.1 s apart against a 5 s margin (DEADLINE_MARGIN_MS), so one number
  * covers both: the second, rounded up.)
+ * (Measured later the same evening: another count is the second case now - the host starts a worker
+ * of its own for it (electron/analysis/host.cjs) - and costs about the same. Over 30 s windows on the
+ * same machine, six of each: the new worker built htdemucs in 498-543 ms (median 530), where
+ * rebuilding for another count in the old one had taken 532-663 ms (median 630), the old model's
+ * release included; the request that started the new worker took 265-707 ms longer than the next one
+ * at its count, whose runs themselves differed by up to 0.5 s.)
  */
 const CPU_REBUILD_MS = 600;
 /** The thread count the CPU htdemucs was last asked for: another one rebuilds it. */
@@ -603,7 +613,13 @@ let lastCpuThreads: number | null = null;
 let lastCpuEndedAt = -Infinity;
 /** The worker's FALLBACK_IDLE_MS. (From the PR #750 re-review, 2026-10-19: STEMS_IDLE_MS there now.) */
 const CPU_STEMS_IDLE_MS = 60_000;
-/** Whether the CPU htdemucs is built for `threads` still, as far as this side can tell. */
+/**
+ * Whether the CPU htdemucs is built for `threads` still, as far as this side can tell.
+ * (Measured after PR #750, 2026-10-19: what it cannot tell is a beat_this run on the CPU between two
+ * windows that asks for another thread count - a quarter of the cores, against htdemucs' four at the
+ * quiet level from 20 cores up, or its hurry level from 8 - which the host runs in a worker of its own,
+ * so the next window builds htdemucs again: CPU_REBUILD_MS left out, inside DEADLINE_MARGIN_MS.)
+ */
 const cpuBuiltFor = (threads: number, now: number) => threads === lastCpuThreads
     && now - lastCpuEndedAt < CPU_STEMS_IDLE_MS;
 /**

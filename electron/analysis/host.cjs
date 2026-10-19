@@ -1,5 +1,6 @@
 const { modelsPresent, resolveModelFile } = require('./modelPaths.cjs');
 const { unpackWeights } = require('./packedWeights.cjs');
+const { poolFits, requestThreads } = require('./threads.cjs');
 const { runtimeLine } = require('../debug/debugHost.cjs');
 const fs = require('fs');
 const path = require('path');
@@ -24,6 +25,12 @@ const path = require('path');
 // machine - the worker releases it a minute after each run (worker.cjs STEMS_IDLE_MS) - so an idle
 // worker is stopped with automix on as well. Switching automix off still has a running worker
 // release htdemucs at once.)
+// (Measured after PR #750, 2026-10-19: one decision about the models is made here after all - which
+// worker process a request goes to. MNN makes one thread pool per process, sized by the first build
+// that asks for more than one thread, so a request for another count waits until the worker has
+// answered everything sent to it and then goes to a new one: see `flush`, and threads.cjs poolFits
+// for what sharing a pool cost - a hurried 30 s window after a quiet one took 8.6 s on the quiet
+// level's four threads, and takes 6.6 s on its own eight.)
 
 /**
  * How long the worker is kept with nothing to do, while automix is switched off.
@@ -47,10 +54,25 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
     const modelsDirs = () => [getModelsDir?.()].filter(Boolean);
 
     let child = null;
+    /**
+     * The threads MNN's thread pool in `child` was made for, or null while nothing sent to it has asked
+     * for more than one. Set when such a request is sent rather than when it is answered, so a request
+     * behind it is judged against the pool it will meet (threads.cjs poolFits). A request the worker
+     * declined before building counts as having made the pool: the worst that does is a worker replaced
+     * for nothing, never a build on a pool of another size.
+     */
+    let childPool = null;
     let idleTimer = null;
     let quitting = false;
     let nextId = 0;
+    /** What settles each request sent to `child` and not answered yet, by id. */
     const pending = new Map();
+    /**
+     * Requests not sent yet, in the order they were asked: the first wants another thread pool than
+     * `child`'s and waits for `pending` to empty, the rest wait behind it, so the worker still runs
+     * requests in the order they came. See `flush`.
+     */
+    const held = [];
     /** Whether automix is switched on, as the renderer last said. See the top of this file. */
     let automixEnabled = false;
 
@@ -58,9 +80,12 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
         const dying = child;
         child = null;
-        for (const resolve of pending.values()) resolve(CRASHED);
+        // Out of `pending` before any of them is settled: settling one sends what was held, to a new
+        // worker, and so into `pending`.
+        const orphans = [...pending.values()];
         pending.clear();
         if (dying) dying.kill();
+        for (const settle of orphans) settle(CRASHED);
     };
 
     const touch = () => {
@@ -70,7 +95,7 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
         // (From the PR #750 re-review, 2026-10-19: idle whichever way automix is switched - no
         // htdemucs is kept now, so there is no point in keeping the process for it.)
         idleTimer = setTimeout(() => {
-            if (pending.size) { touch(); return; }
+            if (pending.size || held.length) { touch(); return; }
             console.log('[analysis] worker idle, stopping');
             stop();
         }, idleMs);
@@ -96,6 +121,7 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
             env: { ...process.env },
         });
         child = started;
+        childPool = null;
 
         const forward = (stream) => stream?.on('data', (chunk) => {
             const text = String(chunk);
@@ -120,14 +146,63 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
         return started;
     };
 
-    const send = (kind, payload) => new Promise((resolve) => {
+    /**
+     * Sends a held request to the worker, starting one if none is running, and notes the pool it makes.
+     * A fork or a post that throws fails that request alone, as it did when `send` posted directly:
+     * this also runs inside the worker's message and exit handlers, where a throw would be uncaught.
+     */
+    const post = ({ id, kind, payload, threads, settle, fail }) => {
+        try {
+            spawn().postMessage({ id, kind, payload });
+        } catch (error) {
+            fail(error);
+            return;
+        }
+        pending.set(id, settle);
+        if (childPool === null && threads > 1) childPool = threads;
+    };
+
+    /**
+     * Sends the held requests in order, for as long as each fits the worker's thread pool.
+     *
+     * One that does not fit waits until the worker has answered everything sent to it - this runs again
+     * at every answer - and only then is the worker replaced, the request going to the new one. The
+     * wait is what keeps the swap invisible: a worker stopped under a request answers it CRASHED, `ask`
+     * asks once more only, and a second CRASHED is answered null - a window without its stems, a track
+     * on the estimator's beats. The new worker starts cold, which costs about what rebuilding for
+     * another count in the old one did (automix/stems.ts CPU_REBUILD_MS).
+     */
+    const flush = () => {
+        while (held.length) {
+            const next = held[0];
+            if (child && !poolFits(childPool, next.threads)) {
+                if (pending.size) return;
+                console.log(`[analysis] ${next.kind} asks for ${next.threads} threads and the worker's thread pool has ${childPool}: replacing the worker`);
+                const replaced = child;
+                child = null;
+                replaced.kill();
+            }
+            held.shift();
+            post(next);
+        }
+    };
+
+    const send = (kind, payload) => new Promise((resolve, reject) => {
         const id = nextId += 1;
-        pending.set(id, (value) => {
-            pending.delete(id);
-            resolve(value);
+        held.push({
+            id,
+            kind,
+            payload,
+            threads: requestThreads(kind, payload),
+            settle: (value) => {
+                pending.delete(id);
+                resolve(value);
+                flush();
+            },
+            fail: reject,
         });
         touch();
-        spawn().postMessage({ id, kind, payload });
+        flush();
     });
 
     /**
@@ -140,6 +215,8 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
      * that track. A crash that repeats is still answered null: twice in a row is the runtime, not a
      * restart. (Models were once a download, and a finished download restarted the worker; they ship
      * with the app now, but the retry still covers a crash.)
+     * (Measured after PR #750, 2026-10-19: replacing the worker for another thread pool never spends
+     * this retry - `flush` waits until nothing is under the worker it replaces.)
      */
     const ask = async (kind, payload) => {
         let answer = await send(kind, payload);
