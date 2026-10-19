@@ -35,7 +35,13 @@ const windowsWallpaperModule = require('./wallpaper/windowsWallpaperController.c
 const { createWindowsWallpaperTargetResolver } = require('./wallpaper/windowsWallpaperTarget.cjs');
 const { createWindowsWallpaperMouseInjector } = require('./wallpaper/windowsWallpaperMouse.cjs');
 const macWallpaperModule = require('./wallpaper/macWallpaperController.cjs');
-const { MAX_HIT_PANELS, createMacWallpaperHitPanels, toScreenHitRects } = require('./wallpaper/macWallpaperHitPanels.cjs');
+const {
+  MAX_HIT_PANELS,
+  coversWholeWallpaper,
+  createMacWallpaperHitPanels,
+  readStageManagerDesktop,
+  toScreenHitRects,
+} = require('./wallpaper/macWallpaperHitPanels.cjs');
 const {
   WALLPAPER_DISPLAY_SETTING_KEY,
   normalizeWallpaperDisplayChoice,
@@ -956,6 +962,12 @@ let macWallpaperSettleAttempts = 0;
 // reports the controls' rects (viewport CSS px).
 let macWallpaperHitPanelsInstance = null;
 let macWallpaperHitRects = [];
+// Stage Manager on with the desktop items hidden: one catcher over the whole wallpaper instead of
+// the controls only (macWallpaperHitPanels.cjs). Re-read on a slow timer while the catchers can be
+// up, so a change in System Settings is followed without a restart.
+let macWallpaperCoversWhole = false;
+let macWallpaperStageManagerTimer = null;
+const MAC_WALLPAPER_STAGE_MANAGER_POLL_MS = 3000;
 const MAC_WALLPAPER_TAP_RETRY_DELAY_MS = 2000;
 const MAC_WALLPAPER_TAP_FAILURE_THRESHOLD = 3;
 const MAC_WALLPAPER_DRAG_FLUSH_MS = 16;
@@ -1755,7 +1767,8 @@ function getMacWallpaperHitPanels(controller) {
   return macWallpaperHitPanelsInstance;
 }
 
-// Puts the click catchers over the controls the renderer last reported, or takes them all down.
+// Puts the click catchers over the controls the renderer last reported (or one over the whole
+// wallpaper while Stage Manager hides the desktop items), or takes them all down.
 // They are only up while the tap runs: a catcher takes the click away from Finder, and only the
 // tap hands it on to the wallpaper, so without it the controls would go dead.
 function syncMacWallpaperHitPanels() {
@@ -1771,13 +1784,33 @@ function syncMacWallpaperHitPanels() {
     && mainWindow
     && !mainWindow.isDestroyed();
   if (!live) {
+    if (macWallpaperStageManagerTimer) {
+      clearInterval(macWallpaperStageManagerTimer);
+      macWallpaperStageManagerTimer = null;
+    }
     if (macWallpaperHitPanelsInstance) {
       macWallpaperHitPanelsInstance.clear();
     }
     return;
   }
+  if (!macWallpaperStageManagerTimer) {
+    macWallpaperCoversWhole = coversWholeWallpaper(readStageManagerDesktop());
+    macWallpaperStageManagerTimer = setInterval(() => {
+      const next = coversWholeWallpaper(readStageManagerDesktop());
+      if (next !== macWallpaperCoversWhole) {
+        macWallpaperCoversWhole = next;
+        syncMacWallpaperHitPanels();
+      }
+    }, MAC_WALLPAPER_STAGE_MANAGER_POLL_MS);
+    if (typeof macWallpaperStageManagerTimer.unref === 'function') {
+      macWallpaperStageManagerTimer.unref();
+    }
+  }
   try {
-    const rects = toScreenHitRects(macWallpaperHitRects, mainWindow.getBounds(), mainWindow.webContents.getZoomFactor());
+    const bounds = mainWindow.getBounds();
+    const rects = macWallpaperCoversWhole
+      ? [{ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }]
+      : toScreenHitRects(macWallpaperHitRects, bounds, mainWindow.webContents.getZoomFactor());
     getMacWallpaperHitPanels(controller).apply(rects);
   } catch (error) {
     console.warn('[WallpaperMac] hit panel sync failed:', error && error.message);
@@ -6000,6 +6033,10 @@ app.on('before-quit', (event) => {
     isMacWallpaperInteractionEnabled = false;
     macWallpaperSavedState = null;
     const macController = getMacWallpaperController();
+    if (macWallpaperStageManagerTimer) {
+      clearInterval(macWallpaperStageManagerTimer);
+      macWallpaperStageManagerTimer = null;
+    }
     if (macWallpaperHitPanelsInstance) {
       macWallpaperHitPanelsInstance.destroy();
     }

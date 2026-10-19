@@ -16,6 +16,13 @@
 // so they cost next to no memory. Desktop icons under a panel cannot be clicked while it is up;
 // the panels only exist while the controls they cover are shown. Everything is fail-soft: any FFI
 // failure leaves the wallpaper as it was before this module existed (clicks reach Finder).
+//
+// Covering only the controls leaves the rest of the wallpaper (lyrics, empty space, and all of it
+// when the controls are set to always hidden) a Finder desktop click, and every such click still
+// sends the stage aside. When Stage Manager is on AND hides the desktop items while it is on
+// (System Settings > Desktop & Dock > Show Items > In Stage Manager, off), there are no icons to
+// click on the desktop, so one catcher covers the whole wallpaper (readStageManagerDesktop). Read
+// through CFPreferences, no child process. Otherwise only the controls are covered.
 
 const NS_WINDOW_STYLE_MASK_NONACTIVATING_PANEL = 1 << 7; // borderless (0) | nonactivatingPanel
 const NS_BACKING_STORE_BUFFERED = 2;
@@ -51,6 +58,11 @@ function toScreenHitRects(rects, windowBounds, zoom = 1) {
 // (origin bottom-left of the primary display, y up). Pure.
 function toCocoaFrame(rect, primaryHeight) {
   return { x: rect.x, y: primaryHeight - (rect.y + rect.height), w: rect.width, h: rect.height };
+}
+
+// Whether the catchers cover the whole wallpaper instead of the controls only. Pure.
+function coversWholeWallpaper(stageManager) {
+  return !!(stageManager && stageManager.enabled && stageManager.hidesDesktopItems);
 }
 
 function sameRects(a, b) {
@@ -94,10 +106,41 @@ function initFfi() {
       msgSend_v_rect_bool: objc.func('objc_msgSend', 'void', ['void*', 'void*', 'FOLIA_NSRect', 'bool']),
       msgSend_init: objc.func('objc_msgSend', 'void*', ['void*', 'void*', 'FOLIA_NSRect', 'unsigned long', 'unsigned long', 'bool']),
     };
+    const cf = koffi.load('/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation');
+    ffiState.cf = {
+      CFStringCreateWithCString: cf.func('void *CFStringCreateWithCString(void *alloc, const char *s, uint32 encoding)'),
+      CFPreferencesAppSynchronize: cf.func('bool CFPreferencesAppSynchronize(void *app)'),
+      CFPreferencesGetAppBooleanValue: cf.func('bool CFPreferencesGetAppBooleanValue(void *key, void *app, _Out_ uint8 *valid)'),
+    };
   } catch (e) {
     ffiState = { ok: false, reason: e && e.message };
   }
   return ffiState;
+}
+
+// Stage Manager's switch and its "hide desktop items" setting (com.apple.WindowManager
+// GloballyEnabled / HideDesktop), re-read from disk each call. null when unreadable.
+const kCFStringEncodingUTF8 = 0x08000100;
+let stageManagerKeys = null;
+function readStageManagerDesktop() {
+  const s = initFfi();
+  if (!s.ok) return null;
+  try {
+    if (!stageManagerKeys) {
+      // Created once and kept for the process (CF Create rule: we own these three strings).
+      const str = (text) => s.cf.CFStringCreateWithCString(null, text, kCFStringEncodingUTF8);
+      stageManagerKeys = { app: str('com.apple.WindowManager'), enabled: str('GloballyEnabled'), hide: str('HideDesktop') };
+    }
+    const { app, enabled, hide } = stageManagerKeys;
+    s.cf.CFPreferencesAppSynchronize(app); // pick up a change System Settings made since
+    const valid = [0];
+    return {
+      enabled: s.cf.CFPreferencesGetAppBooleanValue(enabled, app, valid) && valid[0] !== 0,
+      hidesDesktopItems: s.cf.CFPreferencesGetAppBooleanValue(hide, app, valid) && valid[0] !== 0,
+    };
+  } catch (e) {
+    return null;
+  }
 }
 
 // Creates the catcher pool. `level` is the NSWindow level (one above the Finder icons);
@@ -200,5 +243,7 @@ module.exports = {
   MIN_HIT_PANEL_SIZE,
   toScreenHitRects,
   toCocoaFrame,
+  coversWholeWallpaper,
+  readStageManagerDesktop,
   createMacWallpaperHitPanels,
 };

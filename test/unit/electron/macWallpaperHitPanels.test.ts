@@ -11,6 +11,7 @@ const {
     MAX_HIT_PANELS,
     toScreenHitRects,
     toCocoaFrame,
+    coversWholeWallpaper,
 } = require('../../../electron/wallpaper/macWallpaperHitPanels.cjs');
 
 const WINDOW = { x: 0, y: 0, width: 1512, height: 982 };
@@ -50,5 +51,14 @@ describe('toCocoaFrame', () => {
     it('keeps displays above the primary at positive Cocoa y', () => {
         expect(toCocoaFrame({ x: 0, y: -1080, width: 100, height: 100 }, 982))
             .toEqual({ x: 0, y: 1962, w: 100, h: 100 });
+    });
+});
+
+describe('coversWholeWallpaper', () => {
+    it('only while Stage Manager is on and hides the desktop items', () => {
+        expect(coversWholeWallpaper({ enabled: true, hidesDesktopItems: true })).toBe(true);
+        expect(coversWholeWallpaper({ enabled: true, hidesDesktopItems: false })).toBe(false);
+        expect(coversWholeWallpaper({ enabled: false, hidesDesktopItems: true })).toBe(false);
+        expect(coversWholeWallpaper(null)).toBe(false);
     });
 });

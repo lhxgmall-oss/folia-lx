@@ -181,6 +181,7 @@ Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
 - **台前调度与接点面板（#698）**：listen-only tap 只是旁听，点击照样落到 Finder 的桌面窗口；开着台前调度时，系统把这当成「点了桌面」，把别的程序窗口弹到前面。所以控件显示在屏幕上时，主进程在每个控件上方各放一个**完全透明、无边框、不激活应用的 NSPanel**（`electron/wallpaper/macWallpaperHitPanels.cjs`，koffi 直接建 AppKit 窗口，不开渲染进程）。它的层级比 Finder 图标高一层、低于所有普通窗口。点击落在 Folia 自己的面板上，不会激活 Folia，Finder 收不到，台前调度也就不会反应（macOS 15.3 开着台前调度实测）；tap 照样看到这次点击，`isDesktopPoint` 把 Folia 自己在负层级的窗口当桌面放行，所以转发不变。不吞点击，也不需要辅助功能权限（对比 PR #709）。
   - 盖哪里：渲染端 `src/hooks/useMacWallpaperHitRegions.ts` 订阅现成的播放页浮层布局（`services/playerOverlayLayout.ts`，控件自己登记、80ms 去抖），取 `kind === 'control'` 的矩形，有变化才经 `wallpaper-hit-regions` 发给主进程；主进程按窗口原点与页面缩放换成屏幕点（`toScreenHitRects`），最多 `MAX_HIT_PANELS` 个。
   - 盖得到的：底部胶囊、右下角面板开关和展开的面板、播放提示卡片。盖不到的：只有播放页登记了这份布局，主页没有；左上角返回按钮；monet / pendolo 点歌词行跳转。点这些地方仍然转发，只是台前调度照常反应。
+  - 盖满整张壁纸：台前调度开着、且设置成在台前调度中隐藏桌面项目（`com.apple.WindowManager` 的 `GloballyEnabled` 与 `HideDesktop`，`readStageManagerDesktop` 经 CFPreferences 读，不起子进程，盖着期间每 3 秒重读一次）时，桌面上没有图标可点，就用一个面板盖住整张壁纸：歌词、空白处、控件设成始终隐藏时的整张壁纸，点哪里都不再触发台前调度。代价：这时点壁纸不再是「显示桌面」，右键也不再出 Finder 的桌面菜单。桌面小组件和面板谁在上面没有实测过。其余情况只盖控件。
   - 什么时候在：只在 tap 运行时存在（面板把点击从 Finder 那里拿走，只有 tap 会把它交给壁纸；没有 tap 时面板会让控件点不动）。控件自动隐藏后面板跟着撤掉，下面的桌面图标照常能点；控件显示期间，被盖住的图标点不到。退出壁纸模式时收起，退出应用时释放。
 - **键盘不转发**：与 Windows 交互边界一致，壁纸模式下键盘不可达；退出/控制走托盘等入口。
 - **Dock**：`wallpaper_mac_autohide_dock`（mac 专属，**默认开**）。位置感知：仅在 Dock 位于屏幕底部时，壁纸会话期间自动隐藏 Dock、置 `autohide-delay=0`（贴边立即唤出）；左/右侧 Dock 不动。开关是显式覆盖：关闭后即使 Dock 在底部也不隐藏。退出壁纸/退出应用恢复用户原值；marker 防崩溃残留，下次启动对账恢复。
