@@ -39,6 +39,8 @@ const models = new Map<ModelName, BeatThisWgsl>();
 let htdemucs: HtdemucsWgsl | null = null;
 let device: GPUDevice | null = null;
 let deviceLabel = '';
+/** The adapter's vendor and architecture alone, without deviceLabel's precision suffix. */
+let deviceName = '';
 let f16 = false;
 /** Why the device went away, once it has; every later request is answered with it. */
 let lost: string | null = null;
@@ -58,7 +60,8 @@ const openDevice = async (): Promise<GPUDevice> => {
         models.clear();
         htdemucs = null;
     });
-    deviceLabel = `${adapter.info.vendor} ${adapter.info.architecture}${f16 ? ' f16' : ''}`;
+    deviceName = `${adapter.info.vendor} ${adapter.info.architecture}`;
+    deviceLabel = `${deviceName}${f16 ? ' f16' : ''}`;
     device = opened;
     return opened;
 };
@@ -89,7 +92,9 @@ self.onmessage = async (event: MessageEvent<Request>) => {
                         return;
                     }
                 }
-                self.postMessage({ id: request.id, result: deviceLabel, bytes: htdemucs?.bytes });
+                // deviceLabel's ' f16' is beat_this's 'storage' mode; htdemucs is built in f32 (above), so its load log says f32.
+                // (From the PR #750 re-review, 2026-10-19: the log said f16 for the f32 htdemucs.)
+                self.postMessage({ id: request.id, result: `${deviceName} f32`, bytes: htdemucs?.bytes });
                 return;
             }
             if (!models.has(request.model)) {

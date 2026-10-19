@@ -143,9 +143,9 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
     const rankOf = (entry: Entry, at: number) => (
         entry.request.urgency === 'background' && at - entry.queuedAt >= BACKGROUND_AGE_MS ? URGENCY_RANK.onScreen : URGENCY_RANK[entry.request.urgency]
     );
-    /** Negative when `a` goes before `b`. */
     /** A deadline close enough to go first: within DEADLINE_HORIZON_MS of slack. */
     const pressing = (request: UnitRequest<unknown>, at: number) => hasDeadline(request) && slackOf(request, at) < DEADLINE_HORIZON_MS;
+    /** Negative when `a` goes before `b`. */
     const compare = (a: Entry, b: Entry, at: number) => {
         const deadlineA = pressing(a.request, at);
         const deadlineB = pressing(b.request, at);
