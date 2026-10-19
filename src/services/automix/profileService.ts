@@ -242,7 +242,9 @@ const PREFIX_BYTES = 1_572_864;
 
 /** Either the bytes, or the reason there are none - which is the more useful answer most days. */
 type BytesResult =
-    | { bytes: ArrayBuffer; partial: boolean }
+    // `held`: already held to the whole-song rule on the way in (or a local file, which is the song),
+    // so the hand-over to the shared bytes need not check it again (from the PR #750 review, B6).
+    | { bytes: ArrayBuffer; partial: boolean; held?: boolean }
     | { skipped: string };
 
 /**
@@ -335,14 +337,14 @@ const readBytes = async (
     if (cached) {
         const notTheSong = await whyNotTheSong(song, null, cached);
         if (notTheSong) return { skipped: noteNotTheSong(notTheSongCopies, copyKey, `the copy in the media cache is ${notTheSong}`) };
-        return { bytes: await cached.arrayBuffer(), partial: false };
+        return { bytes: await cached.arrayBuffer(), partial: false, held: true };
     }
 
     if (!audioUrl) {
         // A local track with no URL in hand (the prefetcher has none to give for a local file) is read
         // off its own file handle (analysis/trackAudio.ts).
         const file = await readLocalTrackFile(song);
-        if (file) return { bytes: file, partial: false };
+        if (file) return { bytes: file, partial: false, held: true };
         return { skipped: 'not cached yet and no URL to read it from' };
     }
     // Before any read: a clip its provider marked is not downloaded only to be refused.
@@ -411,6 +413,7 @@ const readBytes = async (
             // the level the quality option asks for later.
             await saveSongAudioLevel(song, level);
             console.log(`[Automix] "${song.name}" saved to the media cache from the analysis read, fetched at ${level ?? 'an unknown level'}`);
+            return { bytes: await blob.arrayBuffer(), partial: false, held: true };
         }
         return { bytes: await blob.arrayBuffer(), partial: false };
     } catch (error) {
@@ -514,12 +517,18 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // Only a file that would be kept is copied, and that copy is the one kept (from the PR #750
             // review: a copy for the cache, then another inside it, and a file over the cache's limit
             // copied only to be thrown away).
+            // Checked here only when the read did not check it already (`held`): a file its provider
+            // keeps, the playback representation, or a blob: / file: URL (from the PR #750 review, B6).
             if (!result.partial && trackBytesFit(result.bytes.byteLength)) {
                 const copy = result.bytes.slice(0);
-                const song = request.song;
-                void whyNotTheSong(song, null, new Blob([copy]))
-                    .then((notTheSong) => { if (!notTheSong) giveTrackBytes(songKey, copy); })
-                    .catch(() => undefined);
+                if (result.held) {
+                    giveTrackBytes(songKey, copy);
+                } else {
+                    const song = request.song;
+                    void whyNotTheSong(song, null, new Blob([copy]))
+                        .then((notTheSong) => { if (!notTheSong) giveTrackBytes(songKey, copy); })
+                        .catch(() => undefined);
+                }
             }
 
             // A head-only read is not the track its key names: decoded on its own, so a whole-track

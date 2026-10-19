@@ -280,6 +280,16 @@ describe('the automix profile and the shared bytes', () => {
         await vi.waitFor(() => expect(peekTrackBytes(getPlaybackAnalysisKey(song))?.byteLength).toBe(32 * 1024));
     });
 
+    it('still checks a file its provider keeps before handing it over: a clip is not', async () => {
+        const song = songOf('b4');
+        ownCache.add('b4');
+        playLength = 30;
+        setAnalysisScope([song]);
+        await ensureTrackProfile({ song, wantGrid: false, audioUrl: 'https://cdn.test/kept.mp3', enableMediaCache: true });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(peekTrackBytes(getPlaybackAnalysisKey(song))).toBeNull();
+    });
+
     it('hands over nothing for a song dropped while it was read', async () => {
         const song = songOf('b2');
         setAnalysisScope([song]);
