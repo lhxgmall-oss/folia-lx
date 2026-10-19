@@ -20,6 +20,10 @@ const path = require('path');
 // switching automix OFF is what gives the memory back: the worker is told to release htdemucs, in its own
 // process, and only after that does the idle timer apply again. The renderer reports the switch
 // (`automix-enabled`); until it has, automix counts as off.
+// (From the PR #750 re-review, 2026-10-19: no exception any more. htdemucs is not kept on any
+// machine - the worker releases it a minute after each run (worker.cjs STEMS_IDLE_MS) - so an idle
+// worker is stopped with automix on as well. Switching automix off still has a running worker
+// release htdemucs at once.)
 
 /**
  * How long the worker is kept with nothing to do, while automix is switched off.
@@ -27,6 +31,8 @@ const path = require('path');
  * Two minutes: long enough that the two windows of one transition share a loaded session - they are
  * requested seconds apart - and short enough that a paused player is not holding half a gigabyte.
  * With automix on there is no such timer at all - see the top of this file.
+ * (From the PR #750 re-review, 2026-10-19: with automix on too. The worker has released htdemucs by
+ * then, a minute after its last run (STEMS_IDLE_MS there), so this gives back the rest of the process.)
  */
 const IDLE_MS = 120_000;
 
@@ -61,7 +67,8 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
         if (idleTimer) clearTimeout(idleTimer);
         idleTimer = null;
         // Never idle while automix is on: the loaded htdemucs is the point. See setAutomixEnabled.
-        if (automixEnabled) return;
+        // (From the PR #750 re-review, 2026-10-19: idle whichever way automix is switched - no
+        // htdemucs is kept now, so there is no point in keeping the process for it.)
         idleTimer = setTimeout(() => {
             if (pending.size) { touch(); return; }
             console.log('[analysis] worker idle, stopping');
@@ -158,16 +165,14 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
      * On: the idle timer is disarmed for as long as it stays on. Off: a running worker is told to release
      * htdemucs - queued behind whatever it is doing, so a separation in flight finishes first - and the
      * idle timer is armed again. A worker that is not running has nothing to release and is not started.
+     * (From the PR #750 re-review, 2026-10-19: on disarms nothing now - the idle timer runs either
+     * way. Off still sends the release, so the memory comes back at once rather than at the worker's
+     * idle minute; that is what this channel is kept for.)
      */
     const setAutomixEnabled = (enabled) => {
         if (enabled === automixEnabled) return;
         automixEnabled = enabled;
-        if (enabled) {
-            touch();
-            return;
-        }
-        if (child) void send('release', null);
-        else touch();
+        if (!enabled && child) void send('release', null);
     };
     ipcMain.on('automix-enabled', (_event, enabled) => setAutomixEnabled(enabled === true));
 
