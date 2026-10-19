@@ -14,7 +14,7 @@ import { analyseTrackOffThread, melSpectrogramOffThread } from './analysisOffThr
 import { analyseBeatGrid, canRunBeatThis } from '../analysis/beatThis';
 import { getTrackBeatGrid } from '../analysis/beatGrid';
 import { decodeAtRate, readLocalTrackFile, toMidSide } from '../analysis/trackAudio';
-import { decodeTrackAtRate, putTrackBytes } from '../analysis/trackBytes';
+import { decodeTrackAtRate, giveTrackBytes, trackBytesFit } from '../analysis/trackBytes';
 import {
     measureEdges,
     PROFILE_SAMPLE_RATE,
@@ -409,11 +409,14 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // copy handed over from elsewhere would skip.
             // A file its provider keeps was not held to the whole-song rule on the way in: held here,
             // on a copy taken now (the decode below detaches the read), without holding the decode up.
-            if (!result.partial) {
+            // Only a file that would be kept is copied, and that copy is the one kept (from the PR #750
+            // review: a copy for the cache, then another inside it, and a file over the cache's limit
+            // copied only to be thrown away).
+            if (!result.partial && trackBytesFit(result.bytes.byteLength)) {
                 const copy = result.bytes.slice(0);
                 const song = request.song;
                 void whyNotTheSong(song, null, new Blob([copy]))
-                    .then((notTheSong) => { if (!notTheSong) putTrackBytes(songKey, copy); })
+                    .then((notTheSong) => { if (!notTheSong) giveTrackBytes(songKey, copy); })
                     .catch(() => undefined);
             }
 

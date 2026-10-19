@@ -24,12 +24,31 @@
 //
 // decodeAudioData detaches the buffer it is handed, so the bytes kept here are never handed out:
 // every caller gets its own copy (`slice(0)`), a memcpy of a few MB.
+//
+// From the PR #750 review: the bytes go after IDLE_MS untouched (the models have their idle release;
+// these stayed with automix and 智能动感模式 off), and a caller with a copy of its own hands it over
+// (`giveTrackBytes`) after asking whether it fits (`trackBytesFit`), instead of copying a file that
+// is then thrown away.
 
 /** The bytes kept, across tracks. A few tracks' files: enough for the current and the next. */
 const MAX_BYTES = 64 * 1024 * 1024;
 
+/** Untouched this long (nothing kept or read), the bytes go: no analyser has asked for a while. */
+const IDLE_MS = 15 * 60 * 1000;
+
 const kept = new Map<string, ArrayBuffer>();
 let keptBytes = 0;
+let idleTimer: ReturnType<typeof setTimeout> | null = null;
+/** Pushes the idle release back; called on every keep and read. */
+const touch = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        idleTimer = null;
+        if (kept.size) console.info(`[TrackAudio] shared bytes released (idle ${IDLE_MS / 60_000} min), ${(keptBytes / 1048576).toFixed(1)} MB back`);
+        kept.clear();
+        keptBytes = 0;
+    }, IDLE_MS);
+};
 const reading = new Map<string, Promise<ArrayBuffer | null>>();
 const decoding = new Map<string, Promise<AudioBuffer | null>>();
 /** When each key was last decoded, for the log line: how far apart the analysers ask. */
@@ -39,8 +58,12 @@ const MAX_DECODE_TIMES = 64;
 /** Where a caller's bytes came from, for the log. */
 export type TrackBytesSource = 'kept' | 'joined' | 'read';
 
+/** Whether bytes this long would be kept at all. */
+export const trackBytesFit = (byteLength: number): boolean => byteLength > 0 && byteLength <= MAX_BYTES;
+
 const keep = (key: string, bytes: ArrayBuffer) => {
-    if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) return;
+    if (!trackBytesFit(bytes.byteLength)) return;
+    touch();
     const previous = kept.get(key);
     if (previous) {
         keptBytes -= previous.byteLength;
@@ -60,6 +83,7 @@ const keep = (key: string, bytes: ArrayBuffer) => {
 export const peekTrackBytes = (key: string): ArrayBuffer | null => {
     const found = kept.get(key);
     if (!found) return null;
+    touch();
     kept.delete(key);
     kept.set(key, found);
     return found.slice(0);
@@ -71,6 +95,11 @@ export const peekTrackBytes = (key: string): ArrayBuffer | null => {
  */
 export const putTrackBytes = (key: string, bytes: ArrayBuffer): void => {
     keep(key, bytes.slice(0));
+};
+
+/** As `putTrackBytes`, for a copy the caller made for this and no longer touches: kept as it is. */
+export const giveTrackBytes = (key: string, bytes: ArrayBuffer): void => {
+    keep(key, bytes);
 };
 
 /**
@@ -149,6 +178,8 @@ export const decodeTrackAtRate = (
 
 /** Test-only: forgets everything kept and in flight. */
 export const resetTrackBytesForTests = (): void => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = null;
     kept.clear();
     keptBytes = 0;
     reading.clear();

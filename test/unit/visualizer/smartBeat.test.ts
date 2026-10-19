@@ -178,6 +178,24 @@ describe('智能动感模式 setting', () => {
         });
         expect(plan.changes).toContainEqual(expect.objectContaining({ key: 'smartBeat', group: 'visualizer' }));
     });
+
+    // From the PR #750 review: diffed raw, the legacy switch showed as an "enabled" row, and a mode this
+    // build does not know as a change that never lands.
+    const planFor = (smartBeat: unknown) => buildImportPlan({
+        incoming: { smartBeat, visualizerTunings: {} },
+        current: { smartBeat: { ...DEFAULT_SMART_BEAT_SETTINGS, mode: 'off', enabled: false } },
+        switches: { isCustomThemePreferred: false, songThemeAutoSwitchEnabled: false, songThemeAutoGenerateEnabled: false },
+        isCustomThemeActive: true,
+    });
+
+    it('lists the mode alone in the import plan, not the switch older builds read', () => {
+        const row = planFor({ mode: 'cached', enabled: false, effects: {} }).changes.find(change => change.key === 'smartBeat');
+        expect(row?.children?.map(child => [child.key, child.from, child.to])).toEqual([['mode', 'off', 'cached']]);
+    });
+
+    it('offers no change for a mode this build does not know', () => {
+        expect(planFor({ mode: 'turbo', effects: {} }).changes.find(change => change.key === 'smartBeat')).toBeUndefined();
+    });
 });
 
 describe('when the beat clock runs', () => {

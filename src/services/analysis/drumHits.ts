@@ -41,6 +41,9 @@ import { decodeTrackAtRate } from './trackBytes';
 // separated the track again from the start. Under 智能动感模式's `cached` nothing separates: only a
 // stored analysis is read (`loadStoredDrumHits`), and switching to it stops a separation as leaving the
 // track does - its hits so far go with it (the `finally` in separateAndRead).
+// (From the PR #750 review: the two sentences above on a picture switch are PR #734's; since the
+// analysis service's 2b a picture switch stops the separation again, and it keeps where it was and
+// the hits so far (DrumResume) to carry on from - see the note at the end of hooks/useBeatFxTrack.ts.)
 //
 // A track separating now has hits before it is done: the stem is read as its head is finished
 // (drumHitStream.ts), and about once a second (LIVE_EVERY_MS) the hits so far are picked again and

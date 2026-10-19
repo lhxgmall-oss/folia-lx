@@ -543,6 +543,10 @@ const deadlines = new Map<string, number>();
 /** No window is due while nothing plays: a paused transition is not coming (useAutomixDecks). */
 export const clearStemDeadlines = (): void => {
     deadlines.clear();
+    // A parked request's too: woken by the media cache while paused, it would bring its deadline back.
+    for (const [key, request] of [...parked]) {
+        if (request.deadline !== undefined) parked.set(key, { ...request, deadline: undefined });
+    }
 };
 
 /** Test-only: forgets the CPU's last thread count and every deadline. */
@@ -652,7 +656,9 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             // next is either `separating` again or nothing, and both say more than repeating this.
             explainOnce(key, `[Automix] waiting to separate the ${request.role} of "${request.song.name}":`
                 + ' the file is not in the media cache yet');
-            parked.set(key, request);
+            // With the deadline as it stands, not as first asked: a pause may have cleared it since, and
+            // a request woken from here would write the stale one back (from the PR #750 review).
+            parked.set(key, { ...request, deadline: deadlines.get(key) });
             return;
         }
 

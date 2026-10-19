@@ -34,6 +34,8 @@
 // beats or drum hits before automix's background profile, a request whose track was left is dropped
 // before it runs, and every run's time is measured. Each request is one unit there - an htdemucs
 // segment, a beat_this run over a track's chunks (about half a second), a percussive pass.
+// (From the PR #750 review: "dropped before it runs" holds for 时计's drum segments only, which carry
+// `stillWanted`; a beat_this or percussive request runs once submitted, whichever track is playing.)
 //
 // Residency (analysis service plan, phase 4): each model is released on its own once idle -
 // htdemucs (350 MB on the GPU, measured on an M4: a track's segments come in a burst when it starts)

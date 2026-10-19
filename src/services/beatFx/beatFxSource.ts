@@ -221,6 +221,8 @@ export type BeatFxTrackDrums = 'hits' | 'none' | 'retry';
  * 'retry' when the bytes are not to be had yet (an online track whose stream URL playback has not
  * resolved). The track asked for is the one a separation may run for; the caller says when it is
  * left (`setWantedDrumTrack(null)`) - on a track change or the switch going off, not a picture switch.
+ * (Since the analysis service's 2b, a picture switch too: the separation stops and keeps where it was,
+ * DrumResume in drumHits.ts; from the PR #750 review.)
  * `storedOnly` (智能动感模式's `cached`): the cache alone, 'hits' or 'none', and no track is wanted.
  */
 export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false } = {}): { key: string; drums: Promise<BeatFxTrackDrums> } => {

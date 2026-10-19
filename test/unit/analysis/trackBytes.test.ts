@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { decodeTrackAtRate, loadTrackBytes, peekTrackBytes, putTrackBytes, resetTrackBytesForTests } from '@/services/analysis/trackBytes';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { decodeTrackAtRate, giveTrackBytes, loadTrackBytes, peekTrackBytes, putTrackBytes, resetTrackBytesForTests, trackBytesFit } from '@/services/analysis/trackBytes';
 
 // test/unit/analysis/trackBytes.test.ts
 // One read of a track's bytes for every analyser, a copy for each so a decode (which detaches its
@@ -104,5 +104,30 @@ describe('track decode', () => {
         ]);
         expect(decode).toHaveBeenCalledTimes(2);
         expect([low?.sampleRate, high?.sampleRate]).toEqual([22050, 44100]);
+    });
+});
+
+describe('the shared bytes, from the PR #750 review', () => {
+    beforeEach(() => resetTrackBytesForTests());
+    afterEach(() => vi.useRealTimers());
+
+    it('lets the bytes go after 15 minutes untouched, and a read pushes that back', () => {
+        vi.useFakeTimers();
+        putTrackBytes('a', new ArrayBuffer(8));
+        vi.advanceTimersByTime(14 * 60_000);
+        expect(peekTrackBytes('a')).not.toBeNull();
+        vi.advanceTimersByTime(14 * 60_000);
+        expect(peekTrackBytes('a')).not.toBeNull();
+        vi.advanceTimersByTime(15 * 60_000 + 1);
+        expect(peekTrackBytes('a')).toBeNull();
+    });
+
+    it('keeps a handed-over copy as it is, and says what does not fit', () => {
+        const own = new ArrayBuffer(8);
+        giveTrackBytes('a', own);
+        expect(peekTrackBytes('a')?.byteLength).toBe(8);
+        expect(trackBytesFit(0)).toBe(false);
+        expect(trackBytesFit(64 * 1024 * 1024)).toBe(true);
+        expect(trackBytesFit(64 * 1024 * 1024 + 1)).toBe(false);
     });
 });
