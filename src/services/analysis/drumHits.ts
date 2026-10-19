@@ -4,7 +4,7 @@ import { BEAT_THIS_FPS, BEAT_THIS_SAMPLE_RATE, MEL_BANDS, melBandCentresHz, type
 import { DRUM_HITS_PREFIX } from './beatGridKeys';
 import { createDrumBandStream, streamNeedsFrom, type DrumBands } from './drumHitStream';
 import { drumStemSegments, separateDrumStem, startDrumStem, type DrumStemProgress } from './drumStem';
-import { dropStemDrums } from './stemRange';
+import { dropStemDrums, setStemDrumsKeptListener } from './stemRange';
 import { HTDEMUCS_GPU_SEGMENT } from './beatThisGpu';
 import { modelCanRun } from './modelAvailability';
 import { decodeAtRate } from './trackAudio';
@@ -283,6 +283,25 @@ const MAX_SETTLED = 1024;
 
 /** Whether `key`'s drum hits are in, whole: its separation will not run again. */
 export const drumHitsSettled = (key: string): boolean => settled.has(key);
+
+/** Keys already looked up in the store for `lookInStore`, so each is read at most once. */
+const lookedUp = new Set<string>();
+
+/**
+ * Drums kept for a track not settled this session (stemRange.ts): its analysis may be stored from an
+ * earlier one. Read once; if it is, it settles like any read from the store, and the drums go.
+ */
+const lookInStore = (key: string) => {
+    if (settled.has(key) || lookedUp.has(key)) return;
+    lookedUp.add(key);
+    while (lookedUp.size > MAX_SETTLED) {
+        const oldest = lookedUp.keys().next().value;
+        if (oldest === undefined) break;
+        lookedUp.delete(oldest);
+    }
+    void loadStoredDrumHits(key);
+};
+setStemDrumsKeptListener(lookInStore);
 
 const keep = (key: string, hits: DrumHits) => {
     hitLists.delete(key);

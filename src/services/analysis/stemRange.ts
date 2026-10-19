@@ -35,6 +35,8 @@ import { HTDEMUCS_GPU_SEGMENT, runHtdemucsGpu, type GpuRunOptions, type StemChan
 // or a stored analysis read, drumless ones too), not the hit lists in memory, which hold no drumless
 // track and only the last 24; and a track that settles has its kept drums dropped then
 // (`dropStemDrums`).
+// Third: a track whose analysis is stored but not read this session is not in that set, so the first
+// time its drums are kept, the drum hits are told (`setStemDrumsKeptListener`) and look in the store.
 //
 // The GPU is deterministic and every caller cuts its segment's input from the same decode (one per
 // key and rate, analysis/trackBytes.ts), so a segment taken from here is the segment the caller would
@@ -148,6 +150,12 @@ let drumsWanted: (key: string) => boolean = () => true;
  * Says for which keys the drum hits may still run (see the header); the drums kept for a key it now
  * says no to are dropped at once.
  */
+/** Told the first time drums are kept for a key, so the drum hits can see whether they are stored. */
+let drumsKept: (key: string) => void = () => undefined;
+export const setStemDrumsKeptListener = (listener: (key: string) => void): void => {
+    drumsKept = listener;
+};
+
 export const setStemDrumsWanted = (test: (key: string) => boolean): void => {
     drumsWanted = test;
     for (const [id, entry] of [...kept]) {
@@ -209,7 +217,10 @@ export const forgetStemRange = (key: string, from: number, to: number, total: nu
         const id = segmentKey(key, index);
         const found = kept.get(id);
         if (!found || found.stems.length === 1 || inWantedRange(key, index, total)) continue;
-        if (drumsWanted(key)) keep(id, drumsOnly(found.stems), total);
+        if (drumsWanted(key)) {
+            keep(id, drumsOnly(found.stems), total);
+            drumsKept(key);
+        }
         else drop(id);
     }
 };
@@ -256,7 +267,10 @@ export const separateStemSegment = async (
     if (!stems) return null;
     if (key && id) {
         if (inWantedRange(key, index, total, own) && stems.length === STEM_SOURCES.length) keep(id, stems, total);
-        else if (by === 'stems' && drumsWanted(key)) keep(id, drumsOnly(stems), total);
+        else if (by === 'stems' && drumsWanted(key)) {
+            keep(id, drumsOnly(stems), total);
+            drumsKept(key);
+        }
     }
     return stems;
 };

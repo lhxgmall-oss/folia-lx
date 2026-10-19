@@ -19,8 +19,9 @@ const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
 
 const { drumStemSegments, drumStemWindow, separateDrumStem, startDrumStem } = await import('@/services/analysis/drumStem');
-const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
+const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, drumHitsSettled, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
 const { getFromCache } = await import('@/services/db');
+const stemRange = await import('@/services/analysis/stemRange');
 const { createDrumBandStream, streamNeedsFrom } = await import('@/services/analysis/drumHitStream');
 const { melSpectrogram } = await import('@/services/analysis/beatThis');
 const { DRUM_HITS_PREFIX, isBeatGridKey, isDrumHitsKey } = await import('@/services/analysis/beatGridKeys');
@@ -262,5 +263,49 @@ describe('drum hits while separating', () => {
         const head = pickBandHits(bands, 150);
         expect(head.times.length).toBeGreaterThan(0);
         expect(Math.max(...head.times)).toBeLessThan(3);
+    });
+});
+
+describe('the drums automix leaves behind, from the PR #750 review', () => {
+    const { forgetStemRange, peekStemSegment, separateStemRange, wantStemRange } = stemRange;
+    // Four different stems per segment, as the GPU gives automix.
+    const fourStems = async (left: Float32Array, right: Float32Array) => {
+        const stems = [0.8, -0.3, 0.5, 1.1].map(gain => ({ left: left.map(v => gain * v), right: right.map(v => gain * v) }));
+        return { left: stems[0].left, right: stems[0].right, stems };
+    };
+    const stored = (share: number) => ({
+        hits: { times: Float64Array.from([0.5]), strengths: Float32Array.from([1]), kinds: Uint8Array.from([0]) },
+        drumEnergy: new Float32Array(100).fill(share),
+        mixEnergy: new Float32Array(100).fill(1),
+    });
+    const separateAndForget = async (key: string) => {
+        const total = 50;
+        const left = Float32Array.from({ length: total }, (_, i) => Math.sin(i));
+        const right = Float32Array.from({ length: total }, (_, i) => Math.cos(i));
+        wantStemRange(key, 30, 50, total);
+        await separateStemRange({ key, left, right, offset: 0, total, from: 30, to: 50, options: { urgency: 'background' } });
+        forgetStemRange(key, 30, 50, total);
+    };
+
+    beforeEach(() => {
+        runHtdemucsGpu.mockReset();
+        runHtdemucsGpu.mockImplementation(fourStems);
+        stemRange.resetStemSegmentsForTests();
+        // As hooks/useBeatFxTrack.ts sets it while the drum hits may run.
+        stemRange.setStemDrumsWanted(key => !drumHitsSettled(key));
+    });
+
+    it('drops them once the track\'s analysis turns out to be stored, drumless or not', async () => {
+        store.set(`${DRUM_HITS_PREFIX}kept-9`, stored(0.001));
+        await separateAndForget('kept-9');
+        await vi.waitFor(() => expect(drumHitsSettled('kept-9')).toBe(true));
+        expect(peekStemSegment('kept-9', 3)).toBeNull();
+    });
+
+    it('keeps them for a track with nothing stored', async () => {
+        await separateAndForget('kept-10');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(drumHitsSettled('kept-10')).toBe(false);
+        expect(peekStemSegment('kept-10', 3)).toHaveLength(1);
     });
 });
