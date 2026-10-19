@@ -1029,6 +1029,55 @@ describe('qqProvider', () => {
                 expect(levelsAsked()).toEqual(['flac', '320', '128', 'preview']);
             });
 
+            // 不是「连不上」的失败再要也一样：照旧往下降档，但不重试，旁边有档回了空链接就直接要试听。
+            it.each([
+                ['an upstream refusal the backend wrapped in a 500', () => new OnlineProviderError(
+                    'network', 'QQMusicApi request failed: 500', 'qq', { error: 'get-music-play failed (HTTP 200, global=0, code=104003)' }, 500,
+                )],
+                ['a 502 the backend sorted as a refusal', () => new OnlineProviderError(
+                    'network', 'QQMusicApi request failed: 502', 'qq', { errorKey: 'upstream.business', kind: 'upstream-business', upstreamCode: 104003 }, 502,
+                )],
+                ['a 403', () => new OnlineProviderError('network', 'QQMusicApi request failed: 403', 'qq', undefined, 403)],
+                ['an answer that could not be read', () => new OnlineProviderError('invalid-response', 'QQMusicApi music_play body unreadable', 'qq')],
+            ])('does not retry %s', async (_label, thrown) => {
+                requestMock
+                    .mockResolvedValueOnce(EMPTY_PLAY_LINK)
+                    .mockRejectedValueOnce(thrown())
+                    .mockResolvedValueOnce(EMPTY_PLAY_LINK)
+                    .mockResolvedValueOnce(PREVIEW_CLIP);
+
+                const { value } = await settle(qqProvider.playback!.getAudioSource(SONG, 'lossless')) as { value: unknown };
+                expect(value).toMatchObject({ preview: true });
+                expect(levelsAsked()).toEqual(['flac', '320', '128', 'preview']);
+            });
+
+            it('retries a 502 the backend sorted as not reaching QQ', async () => {
+                requestMock
+                    .mockResolvedValueOnce(EMPTY_PLAY_LINK)
+                    .mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi request failed: 502', 'qq', { errorKey: 'network.timeout' }, 502))
+                    .mockResolvedValueOnce(EMPTY_PLAY_LINK)
+                    .mockResolvedValueOnce(PLAYABLE);
+
+                const { value } = await settle(qqProvider.playback!.getAudioSource(SONG, 'lossless')) as { value: unknown };
+                expect(value).toMatchObject({ quality: 'high' });
+                expect(levelsAsked()).toEqual(['flac', '320', '128', '320']);
+            });
+
+            // 先碰到平台拒绝、后面的档连不上：最后报的是连不上的那个错，播放那边才会再要。
+            it('throws the level that could not be reached, not an earlier refusal, where it still fails', async () => {
+                const reachFailure = unreachable();
+                requestMock
+                    .mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi request failed: 403', 'qq', undefined, 403))
+                    .mockRejectedValueOnce(reachFailure)
+                    .mockResolvedValueOnce(EMPTY_PLAY_LINK)
+                    .mockRejectedValueOnce(unreachable())
+                    .mockResolvedValueOnce(EMPTY_PLAY_LINK);
+
+                const { failure } = await settle(qqProvider.playback!.getAudioSource(SONG, 'lossless')) as { failure: unknown };
+                expect(failure).toBe(reachFailure);
+                expect(levelsAsked()).toEqual(['flac', '320', '128', '320', 'preview']);
+            });
+
             it('never retries a request the backend asked to wait on', async () => {
                 const wait = new OnlineProviderError('network', 'QQMusicApi request failed: 429', 'qq', { retryAfterMs: 25_000 }, 429, 25_000);
                 requestMock.mockResolvedValueOnce(EMPTY_PLAY_LINK).mockRejectedValueOnce(wait);

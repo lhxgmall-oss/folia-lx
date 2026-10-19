@@ -11,6 +11,7 @@ import type {
     LoginDiagnosticLine,
     LoginMethod,
     LoginState,
+    OnlineFailureDetail,
 } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { createProviderSongMetadata } from '../../../utils/songMetadata';
@@ -35,6 +36,7 @@ import { requestQqPreviewSource } from './qqPreview';
 import { noteQqBackendDeclaration, qqBackendSessionMode, resetQqBackendDeclaration } from './qqBackendDeclaration';
 import { keepQqSessionFresh, resetQqSessionRefresh, stopQqSessionRefresh } from './qqSessionRefresh';
 import { OnlineRequestTimeout } from '../failure/onlineRequestLimit';
+import { onlineFailureOf } from '../failure/onlineFailureCase';
 import { errorFields, errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/qq/qqProvider.ts
@@ -353,6 +355,11 @@ const waitBeforeTierRetry = (ms: number): Promise<void> => new Promise(resolve =
     globalThis.setTimeout(resolve, ms);
 });
 
+// 和播放那边自动重来用的是同一条规则（failure/onlineFailureCase.ts）：只有「连不上」（断网、没带拒绝码的 5xx）才值得再要一次。
+const isQqUnreachable = (error: unknown, said: OnlineFailureDetail | null): boolean => (
+    onlineFailureOf({ operation: 'audio', providerId: 'qq' }, { error, ...(said ? { detail: said } : {}) }).case === 'unreachable'
+);
+
 /**
  * 按音质降档请求 music_play，任意一档拿到 URL 就返回。登录失效、到了时限、要求稍后再试，和后端没在跑或没配好的
  * 失败马上抛出：再要下一档只会得到同样的回答。network 和别的 5xx 继续降档；有档回了空链接时，连不上的档再要一次，
@@ -382,8 +389,9 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
     let firstFailure: unknown;
     const tiers = QQ_QUALITY_FALLBACKS[quality];
     const lastTier = tiers[tiers.length - 1];
-    // 这一轮没要到回答（连不上、5xx）的档位，重试时只再要它们。
+    // 这一轮连不上的档位，重试时只再要它们；每一档记着第一次连不上时的错，重试后仍连不上就照它报。
     let failedTiers: typeof tiers = [];
+    const unreachableErrors = new Map<typeof tiers[number], unknown>();
     const startedAt = Date.now();
 
     // 要一档：拿到链接就交出来，没给链接或请求失败交 null。可能原因只认最后一档（标准音质）的回答。
@@ -427,16 +435,21 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
             // Not answered in time: the next level would wait as long again, on the same network.
             if (error instanceof OnlineRequestTimeout) throw error;
             firstFailure ??= error;
-            failedTiers.push(candidate);
+            const said = describeQqFailure('audio', error);
+            const unreachable = isQqUnreachable(error, said);
             console.warn('[QQProvider] playback:quality-failed', {
                 round,
                 requestedQuality: quality,
                 candidateQuality: candidate.resolvedQuality,
+                unreachable,
                 ...errorFields(error),
             });
-            const said = describeQqFailure('audio', error);
             if (said?.case === 'local-service-stopped' || said?.case === 'not-configured' || said?.httpStatus === 429
                 || (error instanceof OnlineProviderError && error.retryAfterMs !== undefined)) throw error;
+            if (unreachable) {
+                failedTiers.push(candidate);
+                if (!unreachableErrors.has(candidate)) unreachableErrors.set(candidate, error);
+            }
         }
         return null;
     };
@@ -448,6 +461,7 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
 
     // 有的档回了空链接、有的档连不上：连不上的那几档隔一会儿再要一次，拿到就播整首。
     // 一次网络抖动不能把整首歌换成试听片段。只重试一次，而且离开始太久就不再等。
+    // 平台拒绝、回答坏掉、4xx 不算连不上，不重试：再要也一样，只会多打几次请求。
     // 一档都没回答时不在这里重试：抛出去以后，播放那边会自己再要（autoRetryDelaysMs）。
     if (failedTiers.length > 0 && sawEmptyPlayLink && Date.now() - startedAt < QQ_FAILED_TIER_RETRY_BUDGET_MS) {
         const retrying = failedTiers;
@@ -467,14 +481,16 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
         upstreamRefusedPlayLink: sawEmptyPlayLink,
         stillFailing,
     });
+    // 没有一档回过空链接：照第一次的失败报，和以前一样。
+    if (firstFailure !== undefined && !sawEmptyPlayLink) throw firstFailure;
     // 有会话、整首要不到、又有档回了空链接：这个账号可能只能听试听片段，不限后端说的可能原因。没会话时后端不给试听。
     // 重试后还有档连不上时也先试试听：有一分钟可听，比报错停下来好。
     if (sawEmptyPlayLink && hasQqSession()) {
         const preview = await requestQqPreviewSource(songmid, mediaId);
         if (preview) return preview;
     }
-    // 还有档连不上：照「连不上」报，播放那边会再要。只有每一档都回答了、都没给链接，才算这首没有音源。
-    if (stillFailing) throw firstFailure;
+    // 还有档连不上：照那一档第一次连不上的错报，播放那边会再要。别的失败旁边有档回了空链接，算这首没有音源。
+    if (stillFailing) throw unreachableErrors.get(failedTiers[0]);
     // 没有会话、而后端只是没给链接：登录后可能能放（只是可能，不能当成登录失效）。形态坏掉的回答不是没给链接。
     throw new OnlineProviderError('not-playable', 'QQMusicApi gave no play link for this song', 'qq', {
         likelyCause: likelyCause ?? (sawEmptyPlayLink && !hasQqSession() ? 'sign-in' : undefined),
