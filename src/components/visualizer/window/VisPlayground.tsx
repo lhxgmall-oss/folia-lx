@@ -15,7 +15,7 @@ import { useFoliumRegistryEntries } from '@/mods/runtime/registry';
 import { colorWithAlpha } from '../colorMix';
 import { type PreviewPlaceholderId } from '../PreviewPlaceholder';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel, getVisualizerRegistryEntry } from '../registry';
-import VisPlaygroundPreviewHotspots, { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
+import VisPlaygroundPreviewHotspots, { type VisPlaygroundEditSection, type VisPlaygroundHotspotSection } from './VisPlaygroundPreviewHotspots';
 import VisPlaygroundSampleStage from './VisPlaygroundSampleStage';
 import VisPlaygroundSettingsPanel from './VisPlaygroundSettingsPanel';
 import FontPicker, { type LocalFontEntry } from './FontPicker';
@@ -286,7 +286,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
     useEffect(() => { setActiveEditSection(initialEditSection); }, [initialEditSection]);
 
     const visualizerEntry = getVisualizerRegistryEntry(visualizerMode);
-    const hotspotLabels = useMemo<Record<Exclude<VisPlaygroundEditSection, 'common'>, string>>(() => ({
+    const hotspotLabels = useMemo<Record<VisPlaygroundHotspotSection, string>>(() => ({
         background: t('options.previewBackgroundHotspot'),
         visualizer: t('options.previewVisualizerHotspot'),
         subtitle: t('options.previewSubtitleHotspot'),

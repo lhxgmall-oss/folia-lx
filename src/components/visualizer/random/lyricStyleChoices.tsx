@@ -19,6 +19,13 @@ export const drawLyricStyleChoiceGlyph = (mode: VisualizerMode) => (
     mode === RANDOM_VISUALIZER_CHOICE ? <Shuffle size={18} /> : <VisualizerModeGlyph mode={mode} size={18} />
 );
 
+/** A style in the random pool's pickers: its glyph, not a live picture, so opening one draws nothing heavy. */
+export const drawRandomPoolChoice = (mode: VisualizerMode) => (
+    <span className="grid h-full w-full place-items-center text-[color:var(--st-t2)]">
+        <VisualizerModeGlyph mode={mode} size={22} />
+    </span>
+);
+
 export const selectLyricStyleChoice = (mode: VisualizerMode, select: (mode: VisualizerMode) => void, notify = true) => {
     if (mode === RANDOM_VISUALIZER_CHOICE) {
         useVisualizerSettingsStore.getState().handleToggleRandomVisualizerModePerSong(true, { notify });
