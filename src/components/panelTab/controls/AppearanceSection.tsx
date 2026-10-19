@@ -15,11 +15,11 @@ import { openCommandPaletteCommand } from '../../../stores/useAppViewStore';
 import { useLyricSegmentationStore } from '../../../stores/useLyricSegmentationStore';
 import { LYRIC_SEGMENTATION_COMMAND_ID } from '../../command-palette/commands/lyricSegmentationCommand';
 import ModeStepperRow from './ModeStepperRow';
-import { BackgroundModeGlyph, VisualizerModeGlyph } from '../../visualizer/modeGlyphs';
+import { BackgroundModeGlyph } from '../../visualizer/modeGlyphs';
 import { panelMakesImages, panelPictureTheme } from './panelPictures';
 import BackgroundPicture from '../../visualizer/preview/BackgroundPicture';
 import { LyricPreviewProvider, type LyricPreviewLook } from '../../visualizer/preview/LyricPreviewContext';
-import LyricStylePicture from '../../visualizer/preview/LyricStylePicture';
+import { drawLyricStyleChoice, drawLyricStyleChoiceGlyph, RANDOM_VISUALIZER_CHOICE, selectLyricStyleChoice } from '../../visualizer/random/lyricStyleChoices';
 import { usePreviewClock } from '../../visualizer/preview/usePreviewClock';
 import { backgroundTuningActions, getVisualizerTuning } from '../../visualizer/tuningRegistry';
 import type { VisualizerTuningSettings } from '../../visualizer/tuningDefinition';
@@ -56,9 +56,7 @@ interface AppearanceSectionProps {
 
 const ANIMATION_INTENSITIES: Theme['animationIntensity'][] = ['calm', 'normal', 'chaotic'];
 
-const drawStyle = (mode: VisualizerMode, state: PictureState) => <LyricStylePicture mode={mode} {...state} />;
 const drawBackground = (mode: VisualizerBackgroundMode, state: PictureState) => <BackgroundPicture mode={mode} {...state} />;
-const drawStyleGlyph = (mode: VisualizerMode) => <VisualizerModeGlyph mode={mode} size={18} />;
 const drawBackgroundGlyph = (mode: VisualizerBackgroundMode) => <BackgroundModeGlyph mode={mode} size={18} />;
 
 type PictureTheme = { theme: Theme; isDaylight: boolean };
@@ -82,14 +80,18 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     // says which, so adding such a mode does not mean editing a list here.
     const usesWordSegmentation = Boolean(getVisualizerRegistryEntry(visualizerMode).usesWordSegmentation);
     const hasSavedSegmentation = useLyricSegmentationStore(state => Boolean(state.record));
+    const randomEnabled = useVisualizerSettingsStore(state => state.randomVisualizerModePerSong);
     const visualizerBackgroundMode = useVisualizerSettingsStore(state => state.visualizerBackgroundMode);
     const setVisualizerBackgroundMode = useVisualizerSettingsStore(state => state.handleSetVisualizerBackgroundMode);
 
     const visualizerOptions = useMemo(
-        () => VISUALIZER_REGISTRY.map(entry => ({
-            value: entry.mode,
-            label: getVisualizerModeLabel(entry.mode, t),
-        })),
+        () => [
+            ...VISUALIZER_REGISTRY.map(entry => ({
+                value: entry.mode,
+                label: getVisualizerModeLabel(entry.mode, t),
+            })),
+            { value: RANDOM_VISUALIZER_CHOICE, label: t('ui.visualizerRandom') },
+        ],
         [t],
     );
     const visualizerModes = useMemo(() => visualizerOptions.map(option => option.value), [visualizerOptions]);
@@ -203,12 +205,12 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                     making={panelMakesImages({ playing: isPlaying, pickerOpen: openPicker !== null })}
                 >
                     <ModeStepperRow<VisualizerMode>
-                        value={visualizerMode}
+                        value={randomEnabled ? RANDOM_VISUALIZER_CHOICE : visualizerMode}
                         options={visualizerOptions}
-                        onSelect={onVisualizerModeChange}
+                        onSelect={mode => selectLyricStyleChoice(mode, onVisualizerModeChange)}
                         onStep={stepVisualizerMode}
-                        renderGlyph={drawStyleGlyph}
-                        renderPicture={drawStyle}
+                        renderGlyph={drawLyricStyleChoiceGlyph}
+                        renderPicture={drawLyricStyleChoice}
                         caption={t('ui.animationMode')}
                         moreLabel={t('ui.moreSettings')}
                         onOpenMore={openVisualizerSettings}
@@ -221,7 +223,13 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                                 onClick={cycleAnimationIntensity}
                             />
                         )}
-                        params={(usesWordSegmentation || hasStyleQuickControls) && (
+                        params={randomEnabled ? (
+                            <QuickControlChip
+                                label={getVisualizerModeLabel(visualizerMode, t)}
+                                title={t('options.randomVisualizerCurrentStyle')}
+                                onClick={openVisualizerSettings}
+                            />
+                        ) : (usesWordSegmentation || hasStyleQuickControls) && (
                             <>
                                 {usesWordSegmentation && (
                                     <QuickControlToggle

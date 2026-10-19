@@ -826,6 +826,7 @@ export default {
     }
   },
   "ui": {
+    "visualizerRandom": "随机",
     "noTrack": "无音轨",
     "selectPlaceholder": "请选择...",
     "previousTrack": "上一首",
@@ -1737,6 +1738,10 @@ export default {
     "lyricMatchPriorityDesc": "在多个歌词源都存在高置信度匹配时，优先选择该歌词源的结果。"
   },
   "options": {
+    "randomVisualizerModes": "参与随机的样式",
+    "randomVisualizerSelectAll": "全选",
+    "randomVisualizerCurrentStyle": "当前样式",
+    "randomVisualizerAtLeastOne": "至少选择一种样式",
     "ponderHints": "思索教程提示",
     "ponderHintsDesc": "指针停在可教学的控件上时提示长按 G。",
     "ponderHintsAlways": "始终显示",
