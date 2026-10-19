@@ -1,88 +1,98 @@
 import { createRequire } from 'module';
-import { EventEmitter } from 'events';
 import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/macDesktopClickGuard.test.ts
-// The macOS Stage Manager click guard's process handling (issue #698): the region it is told, how
-// it stops, and when an exit is retried. The Swift helper itself needs a real macOS session.
+// The macOS Stage Manager click guard's JavaScript side (issue #698): the region it hands the
+// library, how start results map to failures, and stop. The Swift library itself needs a real
+// macOS session.
 
 const require = createRequire(import.meta.url);
-const { MAX_RESTARTS, formatRegion, createMacDesktopClickGuard } = require('../../../electron/wallpaper/macDesktopClickGuard.cjs');
+const { createMacDesktopClickGuard } = require('../../../electron/wallpaper/macDesktopClickGuard.cjs');
 
-const fakeProcess = () => {
-    const proc = new EventEmitter() as EventEmitter & { stdin: any; stdout: EventEmitter & { setEncoding: () => void }; kill: () => void; written: string[] };
-    proc.written = [];
-    proc.stdin = { destroyed: false, write: (s: string) => proc.written.push(s), end: vi.fn(), on: vi.fn() };
-    proc.stdout = Object.assign(new EventEmitter(), { setEncoding: () => {} });
-    proc.kill = vi.fn();
-    return proc;
+const fakeLibrary = (startCode = 0) => {
+    const calls: string[] = [];
+    const lib = {
+        start: vi.fn(() => { calls.push('start'); return startCode; }),
+        setRegion: vi.fn((x: number, y: number, w: number, h: number) => { calls.push(`region ${x} ${y} ${w} ${h}`); }),
+        clearRegion: vi.fn(() => { calls.push('clear'); }),
+        stop: vi.fn(() => { calls.push('stop'); }),
+        trusted: vi.fn(() => true),
+        requestAccess: vi.fn(() => { calls.push('prompt'); }),
+    };
+    return { lib, calls };
 };
 
-const setup = () => {
-    const procs: ReturnType<typeof fakeProcess>[] = [];
-    const timers: Array<() => void> = [];
+const setup = (startCode = 0) => {
+    const { lib, calls } = fakeLibrary(startCode);
+    const loadLibrary = vi.fn(() => lib);
     const guard = createMacDesktopClickGuard({
-        helperPath: '/helper',
+        libraryPath: '/lib.dylib',
+        loadLibrary,
         existsSync: () => true,
-        spawn: () => { const p = fakeProcess(); procs.push(p); return p; },
-        setTimer: (fn: () => void) => { timers.push(fn); return {}; },
-        clearTimer: () => {},
         logWarn: () => {},
     });
-    return { guard, procs, timers };
+    return { guard, lib, calls, loadLibrary };
 };
 
-describe('formatRegion', () => {
-    it('writes the frame, or none', () => {
-        expect(formatRegion({ x: 0, y: -1080, width: 1920, height: 1080 })).toBe('region 0 -1080 1920 1080');
-        expect(formatRegion(null)).toBe('region none');
-        expect(formatRegion({ x: Number.NaN, y: 0, width: 1, height: 1 })).toBe('region none');
-    });
-});
+const frame = { x: 0, y: 0, width: 1440, height: 900 };
 
 describe('createMacDesktopClickGuard', () => {
-    it('spawns once and keeps the helper on the wallpaper frame', () => {
-        const { guard, procs } = setup();
-        guard.start({ x: 0, y: 0, width: 100, height: 50 });
-        guard.start({ x: 0, y: 0, width: 200, height: 50 });
-        expect(procs).toHaveLength(1);
-        expect(procs[0].written).toEqual(['region 0 0 100 50\n', 'region 0 0 200 50\n']);
+    it('sets the region before starting the tap, and starts it once', () => {
+        const { guard, calls, loadLibrary } = setup();
+        expect(guard.start(frame)).toBe(true);
+        expect(guard.start({ ...frame, width: 1280 })).toBe(true);
+        expect(calls).toEqual(['region 0 0 1440 900', 'start', 'region 0 0 1280 900']);
+        expect(guard.isRunning()).toBe(true);
+        expect(loadLibrary).toHaveBeenCalledTimes(1);
     });
 
-    it('stops by closing stdin, and does not come back', () => {
-        const { guard, procs, timers } = setup();
-        guard.start({ x: 0, y: 0, width: 100, height: 50 });
+    it('stops the tap and clears the region, and starts again afterwards', () => {
+        const { guard, calls } = setup();
+        guard.start(frame);
         guard.stop();
-        expect(procs[0].stdin.end).toHaveBeenCalled();
-        procs[0].emit('exit', 0);
-        expect(timers).toHaveLength(0);
         expect(guard.isRunning()).toBe(false);
+        expect(calls.slice(-2)).toEqual(['stop', 'clear']);
+        expect(guard.start(frame)).toBe(true);
+        expect(calls.slice(-2)).toEqual(['region 0 0 1440 900', 'start']);
     });
 
-    it('retries a crash a few times, then stays off', () => {
-        const { guard, procs, timers } = setup();
-        guard.start({ x: 0, y: 0, width: 100, height: 50 });
-        for (let i = 0; i < MAX_RESTARTS; i++) {
-            procs[procs.length - 1].emit('exit', 1);
-            timers.shift()!();
-        }
-        expect(procs).toHaveLength(MAX_RESTARTS + 1);
-        procs[procs.length - 1].emit('exit', 1);
-        expect(timers).toHaveLength(0);
+    it('reports a missing grant and a tap that could not be created', () => {
+        const untrusted = setup(3);
+        expect(untrusted.guard.start(frame)).toBe(false);
+        expect(untrusted.guard.lastFailure()).toBe('untrusted');
+        expect(untrusted.guard.isRunning()).toBe(false);
+        expect(untrusted.calls.at(-1)).toBe('clear');
+
+        const failed = setup(4);
+        expect(failed.guard.start(frame)).toBe(false);
+        expect(failed.guard.lastFailure()).toBe('tap-failed');
     });
 
-    it('does not retry a helper without the grant', () => {
-        const { guard, procs, timers } = setup();
-        guard.start({ x: 0, y: 0, width: 100, height: 50 });
-        procs[0].stdout.emit('data', 'untrusted\n');
-        procs[0].emit('exit', 3);
-        expect(timers).toHaveLength(0);
-        expect(guard.lastExit()).toBe('untrusted');
+    it('clears the region for an invalid rect', () => {
+        const { guard, calls } = setup();
+        guard.start(frame);
+        guard.setRegion(null);
+        expect(calls.at(-1)).toBe('clear');
     });
 
-    it('does nothing without the helper binary', () => {
-        const guard = createMacDesktopClickGuard({ helperPath: '/missing', existsSync: () => false, spawn: vi.fn() });
-        expect(guard.start({ x: 0, y: 0, width: 1, height: 1 })).toBe(false);
-        expect(guard.lastExit()).toBe('missing');
+    it('stays off when the library is missing or fails to load', () => {
+        const missing = createMacDesktopClickGuard({ libraryPath: '/missing', existsSync: () => false, loadLibrary: vi.fn() });
+        expect(missing.start(frame)).toBe(false);
+        expect(missing.lastFailure()).toBe('missing');
+        expect(missing.requestAccess()).toBe(false);
+        missing.stop();
+
+        const loadLibrary = vi.fn(() => { throw new Error('bad image'); });
+        const broken = createMacDesktopClickGuard({ libraryPath: '/lib.dylib', existsSync: () => true, loadLibrary, logWarn: () => {} });
+        expect(broken.start(frame)).toBe(false);
+        expect(broken.start(frame)).toBe(false);
+        expect(broken.lastFailure()).toBe('load-failed');
+        expect(loadLibrary).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks macOS for the grant through the library', () => {
+        const { guard, calls } = setup();
+        expect(guard.requestAccess()).toBe(true);
+        expect(calls).toEqual(['prompt']);
     });
 });

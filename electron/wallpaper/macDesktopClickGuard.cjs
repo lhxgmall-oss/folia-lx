@@ -1,24 +1,31 @@
 // electron/wallpaper/macDesktopClickGuard.cjs
-// Runs folia-desktop-click-guard (packaging/macos/desktop-click-guard/main.swift) for the macOS
-// wallpaper while Stage Manager is on and the desktop icons are shown (issue #698): the helper
-// keeps a click on the bare wallpaper away from Finder, so Stage Manager does not send the stage
-// aside, and leaves clicks on icons alone. Folia's own listen-only tap still forwards the click into
-// the wallpaper. The helper needs the Accessibility grant (attributed to Folia, which spawns it);
-// without it Folia falls back to the click catchers over the controls (macWallpaperHitPanels.cjs).
+// Drives libfolia_click_guard.dylib (packaging/macos/desktop-click-guard/ClickGuard.swift) for the
+// macOS wallpaper while Stage Manager is on and the desktop icons are shown (issue #698): the
+// library keeps a click on the bare wallpaper away from Finder, so Stage Manager does not send the
+// stage aside, and leaves clicks on icons alone. Folia's own listen-only tap still forwards the
+// click into the wallpaper.
 //
-// Lifecycle: start(region) spawns it, setRegion() keeps it on the wallpaper's frame, stop() closes
-// its stdin (it exits on EOF; the system drops its tap with the process). An unexpected exit is
-// retried a few times with a delay, then left off for the session. No Electron imports: the spawn
-// and the trust check are injectable for headless tests.
+// The library is loaded into Folia's main process through koffi, so the Accessibility grant its
+// active tap needs is Folia's own (a helper process was judged by its own identity and stayed
+// untrusted). Its tap runs on a native thread and decides in native code; no JavaScript is on the
+// click path. Without the grant Folia falls back to the click catchers over the controls
+// (macWallpaperHitPanels.cjs). No Electron imports: the library loader is injectable for headless
+// tests.
 
 const fs = require('fs');
 
-const RESTART_DELAY_MS = 2000;
-const MAX_RESTARTS = 3;
-
-function formatRegion(rect) {
-  if (!rect || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return 'region none';
-  return `region ${rect.x} ${rect.y} ${rect.width} ${rect.height}`;
+// Binds the library's C entry points through koffi. Throws when the file cannot be loaded.
+function loadClickGuardLibrary(file) {
+  const koffi = require('koffi');
+  const lib = koffi.load(file);
+  return {
+    start: lib.func('int32_t folia_click_guard_start(void)'),
+    setRegion: lib.func('void folia_click_guard_set_region(double x, double y, double w, double h)'),
+    clearRegion: lib.func('void folia_click_guard_clear_region(void)'),
+    stop: lib.func('void folia_click_guard_stop(void)'),
+    trusted: lib.func('bool folia_click_guard_trusted(void)'),
+    requestAccess: lib.func('void folia_click_guard_request_access(void)'),
+  };
 }
 
 let trustFn = null;
@@ -38,125 +45,79 @@ function isAccessibilityTrusted() {
   }
 }
 
+function isRect(rect) {
+  return !!rect && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite);
+}
+
+const START_RESULTS = { 0: null, 3: 'untrusted', 4: 'tap-failed' };
+
 function createMacDesktopClickGuard({
-  helperPath,
-  spawn = require('child_process').spawn,
+  libraryPath,
+  loadLibrary = loadClickGuardLibrary,
   existsSync = fs.existsSync,
-  setTimer = setTimeout,
-  clearTimer = clearTimeout,
   logWarn = console.warn.bind(console),
 }) {
-  let child = null;
-  let wanted = false;
-  let region = null;
-  let restarts = 0;
-  let restartTimer = null;
-  let gaveUp = false; // kept exiting: off for the session
-  let lastExit = null; // 'untrusted' | 'tap-failed' | 'crashed' | null
+  let lib = null;
+  let loadFailed = false;
+  let running = false;
+  let lastFailure = null; // 'missing' | 'load-failed' | 'untrusted' | 'tap-failed' | null
 
-  function send(line) {
-    if (!child || !child.stdin || child.stdin.destroyed) return;
-    try {
-      child.stdin.write(`${line}\n`);
-    } catch (e) {
-      // the exit handler takes care of a dead helper
+  function getLibrary() {
+    if (lib || loadFailed) return lib;
+    const file = typeof libraryPath === 'function' ? libraryPath() : libraryPath;
+    if (!file || !existsSync(file)) {
+      lastFailure = 'missing';
+      return null;
     }
+    try {
+      lib = loadLibrary(file);
+    } catch (e) {
+      loadFailed = true;
+      lastFailure = 'load-failed';
+      logWarn('[WallpaperMac] click guard library failed to load:', e && e.message);
+    }
+    return lib;
   }
 
-  function spawnHelper() {
-    const file = typeof helperPath === 'function' ? helperPath() : helperPath;
-    if (!file || !existsSync(file)) {
-      lastExit = 'missing';
+  function setRegion(rect) {
+    if (!lib) return;
+    if (isRect(rect)) lib.setRegion(rect.x, rect.y, rect.width, rect.height);
+    else lib.clearRegion();
+  }
+
+  // Sets the region first (the tap reads it from its first event), then starts the tap if it is
+  // not running. Returns whether the guard is running.
+  function start(region) {
+    const l = getLibrary();
+    if (!l) return false;
+    setRegion(region);
+    if (running) return true;
+    const code = l.start();
+    const failure = Object.prototype.hasOwnProperty.call(START_RESULTS, code) ? START_RESULTS[code] : 'tap-failed';
+    if (failure) {
+      if (failure !== lastFailure) logWarn('[WallpaperMac] click guard not started:', failure);
+      lastFailure = failure;
+      l.clearRegion();
       return false;
     }
-    let proc;
-    try {
-      proc = spawn(file, [], { stdio: ['pipe', 'pipe', 'ignore'] });
-    } catch (e) {
-      logWarn('[WallpaperMac] click guard spawn failed:', e && e.message);
-      lastExit = 'crashed';
-      return false;
-    }
-    child = proc;
-    let said = null;
-    proc.stdout?.setEncoding?.('utf8');
-    proc.stdout?.on?.('data', (chunk) => {
-      for (const line of String(chunk).split('\n')) {
-        const word = line.trim();
-        if (word === 'untrusted' || word === 'tap-failed') said = word;
-        if (word === 'ready') restarts = 0;
-      }
-    });
-    proc.stdin?.on?.('error', () => {});
-    proc.on('error', () => {});
-    proc.on('exit', () => {
-      if (child === proc) child = null;
-      lastExit = said || 'crashed';
-      if (!wanted || said) return; // asked to stop, or it cannot run: no retry
-      if (restarts >= MAX_RESTARTS) {
-        gaveUp = true;
-        logWarn('[WallpaperMac] click guard keeps exiting; off for this session');
-        return;
-      }
-      restarts += 1;
-      restartTimer = setTimer(() => {
-        restartTimer = null;
-        if (wanted && !child) start(region);
-      }, RESTART_DELAY_MS);
-      if (typeof restartTimer?.unref === 'function') restartTimer.unref();
-    });
-    send(formatRegion(region));
+    running = true;
+    lastFailure = null;
     return true;
   }
 
-  function start(nextRegion) {
-    wanted = true;
-    region = nextRegion || null;
-    if (child) {
-      send(formatRegion(region));
-      return true;
-    }
-    if (gaveUp) return false;
-    return spawnHelper();
-  }
-
-  function setRegion(nextRegion) {
-    region = nextRegion || null;
-    send(formatRegion(region));
-  }
-
   function stop() {
-    wanted = false;
-    if (restartTimer) {
-      clearTimer(restartTimer);
-      restartTimer = null;
-    }
-    const proc = child;
-    child = null;
-    if (!proc) return;
-    try {
-      proc.stdin?.end?.(); // EOF: the helper exits on its own
-    } catch (e) {
-      // ignore
-    }
-    try {
-      proc.kill?.();
-    } catch (e) {
-      // ignore
-    }
+    if (!lib) return;
+    if (running) lib.stop();
+    running = false;
+    lib.clearRegion();
   }
 
-  // Shows macOS' Accessibility prompt for Folia (the helper's responsible app), then exits.
+  // Shows macOS' Accessibility prompt for Folia.
   function requestAccess() {
-    const file = typeof helperPath === 'function' ? helperPath() : helperPath;
-    if (!file || !existsSync(file)) return false;
-    try {
-      const proc = spawn(file, ['--prompt'], { stdio: 'ignore' });
-      proc.on?.('error', () => {});
-      return true;
-    } catch (e) {
-      return false;
-    }
+    const l = getLibrary();
+    if (!l) return false;
+    l.requestAccess();
+    return true;
   }
 
   return {
@@ -164,14 +125,13 @@ function createMacDesktopClickGuard({
     setRegion,
     requestAccess,
     stop,
-    isRunning: () => !!child,
-    lastExit: () => lastExit,
+    isRunning: () => running,
+    lastFailure: () => lastFailure,
   };
 }
 
 module.exports = {
-  MAX_RESTARTS,
-  formatRegion,
   isAccessibilityTrusted,
+  loadClickGuardLibrary,
   createMacDesktopClickGuard,
 };

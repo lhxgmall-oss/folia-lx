@@ -965,7 +965,7 @@ let macWallpaperHitPanelsInstance = null;
 let macWallpaperHitRects = [];
 // Stage Manager (issue #698). With the desktop items hidden while it is on: one catcher over the
 // whole wallpaper (macWallpaperHitPanels.cjs), no grant needed. With the icons shown: the click
-// guard helper (macDesktopClickGuard.cjs) once Folia holds the Accessibility grant, else the
+// guard library (macDesktopClickGuard.cjs) once Folia holds the Accessibility grant, else the
 // catchers over the controls only and a one-time hint. Stage Manager's settings and the grant are
 // re-read on a slow timer while the wallpaper takes input, so changes apply without a restart.
 let macWallpaperStageState = { enabled: false, hidesDesktopItems: false, trusted: false };
@@ -1821,10 +1821,19 @@ function syncMacWallpaperHitPanels() {
     const stage = macWallpaperStageState;
     const coversWhole = coversWholeWallpaper(stage);
     const wantsGuard = stage.enabled && !stage.hidesDesktopItems;
+    let guardRunning = false;
     if (wantsGuard && stage.trusted) {
-      getMacWallpaperClickGuard().start(frame);
+      guardRunning = getMacWallpaperClickGuard().start(frame);
     } else if (macWallpaperClickGuardInstance) {
       macWallpaperClickGuardInstance.stop();
+    }
+    // Granted while Folia was running: macOS can report the grant but refuse the tap until Folia
+    // restarts. Same one-time hint, which says to restart Folia.
+    const staleGrant = wantsGuard && stage.trusted && !guardRunning
+      && macWallpaperClickGuardInstance?.lastFailure() === 'tap-failed';
+    if (staleGrant && !macWallpaperAccessibilityHinted) {
+      macWallpaperAccessibilityHinted = true;
+      notifyMacWallpaperAccessibilitySuggested();
     }
     if (wantsGuard && !stage.trusted && !macWallpaperAccessibilityHinted) {
       macWallpaperAccessibilityHinted = true;
@@ -1851,18 +1860,18 @@ function readMacWallpaperStageState() {
   };
 }
 
-// Packaged: Resources/folia-desktop-click-guard (built by packaging/macos/build-desktop-click-guard.mjs).
+// Packaged: Resources/libfolia_click_guard.dylib (built by packaging/macos/build-desktop-click-guard.mjs).
 // FOLIA_DESKTOP_CLICK_GUARD_PATH overrides it for local runs.
 function resolveMacDesktopClickGuardPath() {
   if (process.env.FOLIA_DESKTOP_CLICK_GUARD_PATH) {
     return process.env.FOLIA_DESKTOP_CLICK_GUARD_PATH;
   }
-  return path.join(process.resourcesPath, 'folia-desktop-click-guard');
+  return path.join(process.resourcesPath, 'libfolia_click_guard.dylib');
 }
 
 function getMacWallpaperClickGuard() {
   if (!macWallpaperClickGuardInstance) {
-    macWallpaperClickGuardInstance = createMacDesktopClickGuard({ helperPath: resolveMacDesktopClickGuardPath });
+    macWallpaperClickGuardInstance = createMacDesktopClickGuard({ libraryPath: resolveMacDesktopClickGuardPath });
   }
   return macWallpaperClickGuardInstance;
 }
