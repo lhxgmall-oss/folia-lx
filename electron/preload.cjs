@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('wallpaper-displays-changed', listener);
         return () => ipcRenderer.removeListener('wallpaper-displays-changed', listener);
     },
+    setWallpaperHitRegions: (rects) => ipcRenderer.send('wallpaper-hit-regions', rects),
     setPlaybackDisplaySleepBlockingActive: (active) => ipcRenderer.invoke('playback-display-sleep-set-active', active),
     setAppLocale: (localeKey) => ipcRenderer.invoke('set-app-locale', localeKey),
     getCacheDirectory: () => ipcRenderer.invoke('get-cache-directory'),

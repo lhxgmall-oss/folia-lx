@@ -35,6 +35,7 @@ const windowsWallpaperModule = require('./wallpaper/windowsWallpaperController.c
 const { createWindowsWallpaperTargetResolver } = require('./wallpaper/windowsWallpaperTarget.cjs');
 const { createWindowsWallpaperMouseInjector } = require('./wallpaper/windowsWallpaperMouse.cjs');
 const macWallpaperModule = require('./wallpaper/macWallpaperController.cjs');
+const { createMacWallpaperHitPanels, toScreenHitRects } = require('./wallpaper/macWallpaperHitPanels.cjs');
 const {
   WALLPAPER_DISPLAY_SETTING_KEY,
   normalizeWallpaperDisplayChoice,
@@ -950,6 +951,11 @@ let macWallpaperEnterPollElapsed = 0;
 let macWallpaperEnterPollTimer = null;
 let macWallpaperSettleTimer = null;
 let macWallpaperSettleAttempts = 0;
+// Click catchers over the wallpaper's controls, so a click on them never reaches Finder's desktop
+// and Stage Manager does not react to it (issue #698; macWallpaperHitPanels.cjs). The renderer
+// reports the controls' rects (viewport CSS px).
+let macWallpaperHitPanelsInstance = null;
+let macWallpaperHitRects = [];
 const MAC_WALLPAPER_TAP_RETRY_DELAY_MS = 2000;
 const MAC_WALLPAPER_TAP_FAILURE_THRESHOLD = 3;
 const MAC_WALLPAPER_DRAG_FLUSH_MS = 16;
@@ -1108,6 +1114,9 @@ function scheduleMacWallpaperFrameSettleVerify() {
     } catch (error) {
       // ignore
     }
+    // The window may have moved to another display at the same size: the renderer reports no new
+    // rects then, so the catchers follow the frame here.
+    syncMacWallpaperHitPanels();
   }, MAC_WALLPAPER_FRAME_SETTLE_DELAY_MS);
 }
 
@@ -1444,6 +1453,8 @@ function exitMacWallpaperMode() {
   }
   const wasActive = isMacWallpaperActive;
   isMacWallpaperActive = false;
+  macWallpaperHitRects = [];
+  syncMacWallpaperHitPanels(); // takes the click catchers down
   if (!mainWindow || mainWindow.isDestroyed()) {
     macWallpaperSavedState = null;
     if (wasActive) {
@@ -1711,6 +1722,7 @@ function startMacWallpaperInteraction() {
     return false;
   }
   macWallpaperTapFailures = 0;
+  syncMacWallpaperHitPanels();
   return true;
 }
 
@@ -1723,6 +1735,48 @@ function stopMacWallpaperInteraction() {
     } catch (error) {
       // ignore
     }
+  }
+  syncMacWallpaperHitPanels();
+}
+
+function getMacWallpaperHitPanels(controller) {
+  if (!macWallpaperHitPanelsInstance) {
+    macWallpaperHitPanelsInstance = createMacWallpaperHitPanels({
+      // One above the Finder icons (the wallpaper sits one below them): above the desktop,
+      // below every normal window, the Dock and the menu bar.
+      level: controller.desktopLevel() + 2,
+      primaryHeight: () => screen.getPrimaryDisplay().bounds.height,
+    });
+  }
+  return macWallpaperHitPanelsInstance;
+}
+
+// Puts the click catchers over the controls the renderer last reported, or takes them all down.
+// They are only up while the tap runs: a catcher takes the click away from Finder, and only the
+// tap hands it on to the wallpaper, so without it the controls would go dead.
+function syncMacWallpaperHitPanels() {
+  if (process.platform !== 'darwin') {
+    return;
+  }
+  const controller = getMacWallpaperController();
+  const live = isMacWallpaperActive
+    && isMacWallpaperInteractionEnabled
+    && !macWallpaperPendingEnter
+    && controller
+    && controller.isRunning()
+    && mainWindow
+    && !mainWindow.isDestroyed();
+  if (!live) {
+    if (macWallpaperHitPanelsInstance) {
+      macWallpaperHitPanelsInstance.clear();
+    }
+    return;
+  }
+  try {
+    const rects = toScreenHitRects(macWallpaperHitRects, mainWindow.getBounds(), mainWindow.webContents.getZoomFactor());
+    getMacWallpaperHitPanels(controller).apply(rects);
+  } catch (error) {
+    console.warn('[WallpaperMac] hit panel sync failed:', error && error.message);
   }
 }
 
@@ -5942,6 +5996,9 @@ app.on('before-quit', (event) => {
     isMacWallpaperInteractionEnabled = false;
     macWallpaperSavedState = null;
     const macController = getMacWallpaperController();
+    if (macWallpaperHitPanelsInstance) {
+      macWallpaperHitPanelsInstance.destroy();
+    }
     if (macController) {
       try {
         macController.stop();
@@ -5995,6 +6052,16 @@ ipcMain.handle('wallpaper-display-set', (event, displayId) => {
     return null;
   }
   return setWallpaperDisplayChoice(displayId);
+});
+
+// macOS wallpaper mode: the rects (viewport CSS px) of the controls on screen, for the click
+// catchers that keep those clicks away from Finder and so from Stage Manager (issue #698).
+ipcMain.on('wallpaper-hit-regions', (event, rects) => {
+  if (process.platform !== 'darwin' || !isTrustedMainWindowContents(event.sender)) {
+    return;
+  }
+  macWallpaperHitRects = Array.isArray(rects) ? rects.slice(0, 16) : [];
+  syncMacWallpaperHitPanels();
 });
 
 ipcMain.handle('playback-display-sleep-set-active', (event, active) => {

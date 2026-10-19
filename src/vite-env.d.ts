@@ -831,6 +831,8 @@ declare global {
       setWallpaperDisplay?: (displayId: number | null) => Promise<ElectronWallpaperDisplaysState | null>;
       /** A display was connected, removed or changed, or the choice changed. */
       onWallpaperDisplaysChanged?: (callback: (state: ElectronWallpaperDisplaysState) => void) => () => void;
+      /** macOS wallpaper mode: the on-screen controls' rects (viewport CSS px), covered by click catchers so Finder and Stage Manager never see those clicks. */
+      setWallpaperHitRegions?: (rects: Array<{ left: number; top: number; width: number; height: number }>) => void;
       setPlaybackDisplaySleepBlockingActive: (active: boolean) => Promise<boolean>;
       setAppLocale: (localeKey: 'en' | 'zh-CN' | 'zh-TW' | 'in') => Promise<string>;
       getCacheDirectory: () => Promise<ElectronCacheDirectoryResult>;
