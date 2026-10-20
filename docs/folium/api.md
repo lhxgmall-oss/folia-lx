@@ -2,7 +2,7 @@
 
 # Folium API 参考
 
-当前契约版本：**Folium 1.6**。
+当前契约版本：**Folium 1.7**。
 
 本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)
 （client 入口）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），
@@ -56,7 +56,7 @@ type FoliumContextKind = 'main' | 'export'
 ### FoliumHostInfo
 
 The host's versions (`folium.host`), for display and logs. Every member of this contract is there from
-Folium 1.6 on; an older 1.x host lacks some of them.
+Folium 1.7 on; an older 1.x host lacks some of them.
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
@@ -1699,7 +1699,7 @@ What `api.render.exportVideo` resolves to.
 The Folium version this host implements; mods read it at runtime as `folium.host.folium`.
 
 ```ts
-const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 6 })
+const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 7 })
 ```
 
 ### FoliumId
