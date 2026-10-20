@@ -35,6 +35,7 @@ import { FOLIUM_THEME_HELPERS } from './sharedHelpers';
 import { FOLIUM_HOST_VERSION } from './shared';
 import { FOLIUM_EVENT_TYPES } from './eventTypes';
 import { addFoliumRpcListener, FOLIUM_RPC_NAME_PATTERN } from './rpcMessages';
+import { createFoliumAccountService } from './account';
 
 // src/mods/folium/api.ts
 // Builds the `folium` object one mod's client entry receives. Everything is
@@ -310,6 +311,7 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         rpc,
         lyrics: createFoliumLyricsService(context),
         theme: FOLIUM_THEME_HELPERS,
+        account: createFoliumAccountService(context),
         every: scope.every,
         onDispose: scope.onDispose,
         experimental,

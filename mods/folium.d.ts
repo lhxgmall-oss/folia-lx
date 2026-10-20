@@ -1024,6 +1024,14 @@ export interface FoliumNotificationEvents {
         readonly phase: 'play' | 'restore' | 'mid-playback';
         readonly willAutoSkip: boolean;
     };
+    /**
+     * Folium 1.7: someone signed in to an online source, signed out, or another account took the place of
+     * the one there (`accountKey` changed); the payload is the source's new state, as
+     * `folium.account.getState(providerId)` reads it. One event per source for all the changes of one
+     * task; a source whose status and key end where they began fires none, and a new nickname or avatar
+     * alone fires none either. Not emitted in the export window.
+     */
+    'account.changed': FoliumAccountState;
 }
 
 /**
@@ -1338,6 +1346,43 @@ export interface FoliumLyricsService extends FoliumLyricsHelpers {
 export interface FoliumNetService {
     /** Fetch through the host (no CORS limits); needs the `net.fetch` permission. */
     fetch(url: string, init?: FoliumFetchInit): Promise<FoliumFetchResponse>;
+}
+
+/**
+ * Folium 1.7: who is signed in to one online source, as `folium.account.getState()` and the
+ * `account.changed` event give it. Frozen.
+ */
+export interface FoliumAccountState {
+    /** The source: an Omni provider id, as `FoliumSong.source` names it. */
+    readonly providerId: string;
+    /**
+     * `signed-in`: an account is signed in. `signed-out`: nobody is, or the source has no accounts at all
+     * (a mod's own source). `unknown`: the host has not found out yet, e.g. at start while it asks the
+     * platform, or the platform could not be asked.
+     */
+    readonly status: 'signed-in' | 'signed-out' | 'unknown';
+    /** What the host shows of the account: its nickname and avatar, nothing else. Null unless signed in. */
+    readonly user: { readonly nickname: string; readonly avatarUrl?: string } | null;
+    /**
+     * An opaque key of the signed-in account, null unless signed in. The same account always has the same
+     * key on this installation, across restarts; another account has another key. Key data of your own on
+     * it, and drop what was kept under another key. It is no user id: it cannot be turned back into one.
+     */
+    readonly accountKey: string | null;
+}
+
+/**
+ * Folium 1.7: `folium.account`, the sign-in state of the online sources. Needs no permission; it carries
+ * no user id, cookie or token. Unavailable in the export window: `getState` throws
+ * `account-unavailable-in-export-context`. An older host has no `folium.account`: check
+ * `folium.host.folium.minor >= 7` first.
+ */
+export interface FoliumAccountService {
+    /**
+     * The state of one source; without `providerId`, of the source the host has selected now. Null for a
+     * provider id the host does not know. Follow changes with the `account.changed` event.
+     */
+    getState(providerId?: string): FoliumAccountState | null;
 }
 
 // ---------------------------------------------------------------- Experimental
@@ -1655,6 +1700,8 @@ export interface FoliumClientApi {
     readonly lyrics: FoliumLyricsService;
     /** The theme helpers builtin modes use. */
     readonly theme: FoliumThemeHelpers;
+    /** Folium 1.7: who is signed in to the online sources. */
+    readonly account: FoliumAccountService;
     /**
      * Calls `listener` every `ms` milliseconds (at least 16) until the mod stops; the host stops
      * it then.
