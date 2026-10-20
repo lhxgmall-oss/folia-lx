@@ -187,6 +187,25 @@ describe('platform.raw request', () => {
         await expect(failureOf(stopped.request('netease', 'listen_data_total'))).resolves.toBe('aborted');
     });
 
+    it('aborts the requests under way when the mod stops, with or without a signal', async () => {
+        const releases: Array<() => void> = [];
+        const platform = createFoliumPlatformService(mod(), () => false, (release) => releases.push(release));
+        const seen: AbortSignal[] = [];
+        send.mockImplementation((_endpoint: string, _params: unknown, signal: AbortSignal) => {
+            seen.push(signal);
+            return new Promise(() => {});
+        });
+        const bare = failureOf(platform.request('netease', 'listen_data_total'));
+        const withSignal = failureOf(platform.request('netease', 'listen_data_total', {}, { signal: new AbortController().signal }));
+        await Promise.resolve();
+        expect(releases).toHaveLength(1);
+        releases.forEach((release) => release());
+        await expect(bare).resolves.toBe('aborted');
+        await expect(withSignal).resolves.toBe('aborted');
+        expect(seen).toHaveLength(2);
+        expect(seen.every((signal) => signal.aborted)).toBe(true);
+    });
+
     it('turns the platform\'s failures into the contract\'s codes', async () => {
         const platform = createFoliumPlatformService(mod());
         const failWith = (error: unknown) => send.mockRejectedValueOnce(error);

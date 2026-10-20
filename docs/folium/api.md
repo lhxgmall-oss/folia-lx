@@ -1648,7 +1648,7 @@ session ran out. `vip-required`: the platform answers that only paying accounts 
 too many requests, from this mod (the host allows 60 a minute and 4 at a time) or as the platform says.
 `network`: the platform could not be reached or did not answer in time. `account-changed`: the account
 signed out or changed while the request was under way, so the answer was dropped. `aborted`: the
-request's `signal` aborted, or the mod stopped.
+request's `signal` aborted, or the mod stopped (a request still under way then is aborted by the host).
 
 ```ts
 type FoliumPlatformErrorCode = | `permission-denied:${string}` | 'endpoint-denied' | 'unsupported' | 'not-signed-in' | 'session-expired' | 'vip-required' | 'rate-limited' | 'network' | 'account-changed' | 'aborted'

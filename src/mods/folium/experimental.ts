@@ -124,10 +124,12 @@ installOmniResultHooks({
 /**
  * The `folium.experimental` object for one mod (only the names it opted into are reachable).
  * `stopped` is the activation's own check (api.ts): after a teardown every call here is refused.
+ * `onRelease` receives what to do when the activation ends (platform.raw aborts its requests then).
  */
 export const createFoliumExperimental = (
     mod: ModRuntimeInfo,
     stopped: FoliumStoppedCheck = () => false,
+    onRelease: (release: () => void) => void = () => {},
 ): Record<string, unknown> => ({
     [FOLIUM_EXPERIMENTAL.omniProviders]: Object.freeze({
         register: (def: FoliumOmniProviderDef) => (
@@ -163,5 +165,5 @@ export const createFoliumExperimental = (
                 : registerRemoteActions(mod.id, def)
         ),
     }),
-    [FOLIUM_EXPERIMENTAL.platformRaw]: createFoliumPlatformService(mod, stopped),
+    [FOLIUM_EXPERIMENTAL.platformRaw]: createFoliumPlatformService(mod, stopped, onRelease),
 });

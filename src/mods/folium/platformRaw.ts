@@ -80,13 +80,23 @@ const untilAborted = <T>(work: Promise<T>, signal: AbortSignal): Promise<T> => n
     work.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
 });
 
-/** `folium.experimental['platform.raw']` for one mod. `stopped` refuses calls after the activation was torn down. */
+/**
+ * `folium.experimental['platform.raw']` for one mod. `stopped` refuses calls after the activation was torn
+ * down; `onRelease` receives the function that ends it, which aborts the requests still under way.
+ */
 export const createFoliumPlatformService = (
     mod: ModRuntimeInfo,
     stopped: FoliumStoppedCheck = () => false,
+    onRelease: (release: () => void) => void = () => {},
 ): FoliumPlatformService => {
     const started: number[] = [];
     let inFlight = 0;
+    // The requests under way, aborted when the activation ends: each then rejects with `aborted`.
+    const underWay = new Set<AbortController>();
+    onRelease(() => {
+        underWay.forEach((controller) => controller.abort(new DOMException('The mod stopped', 'AbortError')));
+        underWay.clear();
+    });
     // Endpoints this mod has called, for the log line said once per endpoint.
     const told = new Set<string>();
 
@@ -146,18 +156,20 @@ export const createFoliumPlatformService = (
         const generation = omni.getActiveRequestGeneration();
         const before = readFoliumAccountState(providerId);
         const signedIn = before?.status === 'signed-in';
+        // Aborted by the caller's signal or by the end of the activation, whichever comes first.
         const controller = new AbortController();
         const abort = () => controller.abort(signal?.reason);
         signal?.addEventListener('abort', abort, { once: true });
+        underWay.add(controller);
         started.push(now);
         inFlight += 1;
         try {
             const work = omni.requestProviderRaw(providerId, endpoint, sent, controller.signal);
             let body: JsonValue;
             try {
-                body = await (signal ? untilAborted(work, signal) : work);
+                body = await untilAborted(work, controller.signal);
             } catch (error) {
-                if (signal?.aborted) throw platformError('aborted');
+                if (controller.signal.aborted) throw platformError('aborted');
                 if ((error as { code?: unknown } | null)?.code === 'aborted') throw error;
                 const code = codeOfFailure(error, signedIn);
                 console.warn(`[Folium:${mod.id}] platform.raw ${providerId} ${endpoint}: ${code}`, error);
@@ -171,6 +183,7 @@ export const createFoliumPlatformService = (
             return Object.freeze({ body, accountKey: after?.accountKey ?? null });
         } finally {
             inFlight -= 1;
+            underWay.delete(controller);
             signal?.removeEventListener('abort', abort);
         }
     };

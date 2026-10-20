@@ -963,7 +963,7 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
   | `rate-limited` | 太频繁：宿主限每个模组每分钟 60 次、同时 4 个，或平台自己说太频繁 |
   | `network` | 连不上平台或没有按时回答 |
   | `account-changed` | 请求途中退出、换号或换了平台，回答已丢弃 |
-  | `aborted` | `options.signal` 中止（底层请求随之中止），或模组已经停掉 |
+  | `aborted` | `options.signal` 中止（底层请求随之中止），或模组已经停掉（停掉时还在途中的请求由宿主中止） |
 - 调用的接口 Omni 已经有对应能力时，开发者日志里提示改用 Omni（每个接口第一次调用时一条）。宿主的日志只记平台、接口名和结论，不记参数。
 - 只在主窗口可用，导出窗口里访问会抛错。启用确认窗口和模组面板的展开行用一句话写明模组能以用户的账号读取（或改动）哪个平台的数据。
 
