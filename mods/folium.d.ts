@@ -362,8 +362,19 @@ export interface FoliumParsedLyrics {
  * Field kinds: a slider (a number), a text box (a string), a switch (a boolean), a choice among `options`
  * (the chosen option's `value`), or a colour, shown as the app's own colour picker (a `#rrggbb` string,
  * in lower case).
+ *
+ * Folium 1.7: `secret`, a key or token the user types in (an API key). Settings sections only. The form shows
+ * a masked input that never shows a saved value, only whether one is set, and a button to clear it. The
+ * value is not one of the section's values (`settings.get()` leaves it out, `settings.set` ignores it, a
+ * `defaultValue` is ignored): the host keeps it in the main process, encrypted, and the mod reads it through
+ * `folium.secrets` / `api.secrets` (FoliumSecretAccess). It never enters the stored
+ * settings values (`folia_folium_params_v1`), the visual config export and import, the export window or the
+ * logs. Anywhere else (visualizer and background settings, tunings, command params) a `secret` field is
+ * dropped like a field of an unknown type, and the mod's row says so. A Folium 1.6 host drops it in
+ * settings sections too (a section left with no field then fails to register), so check
+ * `folium.host.folium.minor >= 7` before declaring one.
  */
-export type FoliumSettingType = 'number' | 'text' | 'boolean' | 'select' | 'color';
+export type FoliumSettingType = 'number' | 'text' | 'boolean' | 'select' | 'color' | 'secret';
 
 /** One choice of a `select` field. */
 export interface FoliumSettingOption {
@@ -409,7 +420,7 @@ export interface FoliumSetting {
     max?: number;
     /** `number`: slider step. Default 1 when both bounds are integers, else 0.01. */
     step?: number;
-    /** `text`: placeholder. */
+    /** `text` and `secret`: placeholder. */
     placeholder?: string;
     /** `select`: the choices; values outside them are rejected. */
     options?: FoliumSettingOption[];
@@ -420,13 +431,16 @@ export type FoliumSettingValues = Readonly<Record<string, unknown>>;
 
 /** Read/write access to one schema's persisted values (defaults already merged). */
 export interface FoliumSettingAccess {
-    /** The fields, as registered (invalid declarations dropped). */
+    /** The fields, as registered (invalid declarations dropped), `secret` fields included. */
     readonly schema: readonly FoliumSetting[];
-    /** Current values, defaults merged. The same object until a value changes. */
+    /**
+     * Current values, defaults merged. The same object until a value changes. `secret` fields are not in
+     * it; read them through `folium.secrets`.
+     */
     get(): FoliumSettingValues;
     /** Validated against the schema: unknown keys are dropped, numbers clamped, selects checked. */
     set(patch: Record<string, unknown>): void;
-    /** Restores every default. */
+    /** Restores every default. Stored `secret` values stay; clear them with `folium.secrets.set(key, null)`. */
     reset(): void;
     /** Calls `listener` after any value changes, whoever changed it (the user, `set`, `reset`, an import). */
     onChange(listener: () => void): FoliumDisposer;
@@ -802,7 +816,7 @@ export interface FoliumSettingsSectionDef {
     label: FoliumLabel;
     /** Shown under the title. */
     description?: FoliumLabel;
-    /** The fields. */
+    /** The fields. Folium 1.7: only here may a field be a `secret`. */
     settings: FoliumSetting[];
     /** Replaces the host-rendered form; values still follow `settings`. */
     settingsPanel?: FoliumMount<FoliumSettingsPanelContext>;
@@ -1551,6 +1565,36 @@ export interface FoliumStorage {
     keys(): Promise<string[]>;
 }
 
+/**
+ * Folium 1.7: `folium.secrets` (client) and `api.secrets` (main entry), the values of this mod's `secret`
+ * settings fields. One store per mod, shared by both entries and the settings form, keyed by the field's
+ * `key`; a mod reaches only its own. A key that no settings section of this mod declares as `secret` is
+ * refused with `secret-undeclared:<key>`. The main entry learns the keys when the client registers the
+ * section, so before that (in the first run) it can use only keys that already hold a value. A value is a
+ * string of at most 8 KB (UTF-8); a longer one is refused with `secret-too-large:8192`.
+ *
+ * The host keeps the values in the main process, encrypted with the system's credential store (DPAPI on
+ * Windows, Keychain on macOS, libsecret or kwallet on Linux), in a file of its own beside the mod's data
+ * file, and never logs them. Where the system has no such store (Linux falling back to `basic_text`), it
+ * keeps them in memory only, for this run, and the settings form says so. No permission is needed.
+ *
+ * In the export window `get`, `has` and `set` reject with `secrets-unavailable-in-export-context`, and
+ * `subscribe` never fires.
+ */
+export interface FoliumSecretAccess {
+    /** The stored value, or null when none is set (or the credential store cannot decrypt it right now). */
+    get(key: string): Promise<string | null>;
+    /** Whether a value is stored, without handing it over. */
+    has(key: string): Promise<boolean>;
+    /** Stores `value`; null or an empty string clears it. */
+    set(key: string, value: string | null): Promise<void>;
+    /**
+     * Calls `listener` with the key, never the value, after a value is saved or cleared, whoever did it (the
+     * settings form, the client or the main entry). The host stops it when the mod stops.
+     */
+    subscribe(listener: (key: string) => void): FoliumDisposer;
+}
+
 /** `folium.rpc`: calls into this mod's main entry, and (Folium 1.7) hears the messages it sends. */
 export interface FoliumRpc {
     /**
@@ -1603,6 +1647,8 @@ export interface FoliumClientApi {
     readonly net: FoliumNetService;
     /** This mod's data file. */
     readonly storage: FoliumStorage;
+    /** Folium 1.7: the values of this mod's `secret` settings fields. */
+    readonly secrets: FoliumSecretAccess;
     /** Calls into this mod's main entry. */
     readonly rpc: FoliumRpc;
     /** The lyric helpers builtin modes use, and the displayed song's lyrics. */
@@ -1659,6 +1705,11 @@ export interface FoliumMainApi {
      * see one state. Needs the `filesystem.data` permission.
      */
     readonly storage: FoliumMainStorage;
+    /**
+     * Folium 1.7: the values of this mod's `secret` settings fields, the same store the client entry's
+     * `folium.secrets` reads and writes. A listener given to `subscribe` stops when the mod stops.
+     */
+    readonly secrets: FoliumSecretAccess;
     /** Folders to write into: this mod's own folder and the user's folders. */
     readonly paths: FoliumMainPaths;
     /**

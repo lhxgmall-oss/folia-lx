@@ -30,6 +30,7 @@ import { stylesRegistry } from './registries/styles';
 import { addFoliumEventHandler } from './events';
 import { bindFoliumStageRegistry } from './registries/stageRegistry';
 import { createFoliumLyricsService, createFoliumNetService, createFoliumPlaybackService, createFoliumUiService } from './services';
+import { createFoliumSecrets, declareFoliumSecretKeys } from './secrets';
 import { FOLIUM_THEME_HELPERS } from './sharedHelpers';
 import { FOLIUM_HOST_VERSION } from './shared';
 import { FOLIUM_EVENT_TYPES } from './eventTypes';
@@ -185,12 +186,14 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
 
     // What a kind's `register` returns beyond the plain handle. Only a settings section adds
     // to it: the handle carries the section's values so the mod can read what the user set.
+    // Its `secret` keys go to the main process from the main window (folium/secrets.ts).
     const completeHandle: Partial<Record<FoliumKindName, (handle: FoliumRegistryHandle, registered: boolean) => FoliumRegistryHandle>> = {
         settingsSections: (handle, registered): FoliumSettingsSectionHandle => {
             if (!registered) {
                 return Object.freeze({ ...handle, settings: NO_SETTINGS });
             }
             const stored = settingsSectionsRegistry.get(handle.id);
+            if (context === 'main') declareFoliumSecretKeys(modId, stored!.def.secretKeys);
             // A view for this activation: the store outlives the mod, so its listeners
             // run through the gate and are dropped when the client is torn down.
             const settings = gateFoliumSettingAccess(stored!.def.access, modId, `settings section ${handle.id}`);
@@ -302,6 +305,8 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         ui: createFoliumUiService(mod, context),
         net: createFoliumNetService(mod, context),
         storage: createStorage(modId, context),
+        // Folium 1.7: only this mod's own `secret` values, like storage only its own data file.
+        secrets: createFoliumSecrets(modId, context, onRelease),
         rpc,
         lyrics: createFoliumLyricsService(context),
         theme: FOLIUM_THEME_HELPERS,

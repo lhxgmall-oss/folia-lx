@@ -11,7 +11,7 @@
 //
 // Stability rule (mods/README.md): inside folium 2.x this file only grows.
 
-import type { FoliumDisposer, FoliumHostInfo, FoliumLogger, FoliumPlaybackSnapshot, FoliumStorage } from './contract';
+import type { FoliumDisposer, FoliumHostInfo, FoliumLogger, FoliumPlaybackSnapshot, FoliumSecretAccess, FoliumStorage } from './contract';
 
 // ---------------------------------------------------------------- Main API
 
@@ -45,6 +45,11 @@ export interface FoliumMainApi {
      * see one state. Needs the `filesystem.data` permission.
      */
     readonly storage: FoliumMainStorage;
+    /**
+     * Folium 1.7: the values of this mod's `secret` settings fields, the same store the client entry's
+     * `folium.secrets` reads and writes. A listener given to `subscribe` stops when the mod stops.
+     */
+    readonly secrets: FoliumSecretAccess;
     /** Folders to write into: this mod's own folder and the user's folders. */
     readonly paths: FoliumMainPaths;
     /**

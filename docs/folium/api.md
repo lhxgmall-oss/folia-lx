@@ -11,7 +11,7 @@
 
 ## 目录
 
-- **客户端入口**：[权限一览](#权限一览) · [FoliumContextKind](#foliumcontextkind) · [FoliumHostInfo](#foliumhostinfo) · [FoliumStorage](#foliumstorage) · [FoliumRpc](#foliumrpc) · [FoliumLogger](#foliumlogger) · [FoliumClientApi](#foliumclientapi) · [FoliumClientModule](#foliumclientmodule)
+- **客户端入口**：[权限一览](#权限一览) · [FoliumContextKind](#foliumcontextkind) · [FoliumHostInfo](#foliumhostinfo) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLogger](#foliumlogger) · [FoliumClientApi](#foliumclientapi) · [FoliumClientModule](#foliumclientmodule)
 - **注册表与条目**：[注册表一览](#注册表一览) · [FoliumVisualizerDef](#foliumvisualizerdef) · [FoliumTuningDef](#foliumtuningdef) · [FoliumCommandContext](#foliumcommandcontext) · [FoliumCommandDef](#foliumcommanddef) · [FoliumBackgroundContext](#foliumbackgroundcontext) · [FoliumBackgroundDef](#foliumbackgrounddef) · [FoliumStageSlot](#foliumstageslot) · [FoliumStageLayerDef](#foliumstagelayerdef) · [FoliumSettingsSectionDef](#foliumsettingssectiondef) · [FoliumPlayerPanelTabDef](#foliumplayerpaneltabdef) · [FoliumHomeTabDef](#foliumhometabdef) · [FoliumProgressContext](#foliumprogresscontext) · [FoliumProgressButtonSlot](#foliumprogressbuttonslot) · [FoliumProgressButtonDef](#foliumprogressbuttondef) · [FoliumProgressLayerDef](#foliumprogresslayerdef) · [FoliumStyleDef](#foliumstyledef) · [FoliumRegistryHandle](#foliumregistryhandle) · [FoliumSettingsSectionHandle](#foliumsettingssectionhandle) · [FoliumRegistry](#foliumregistry) · [FoliumRegistries](#foliumregistries)
 - **宿主容器与上下文**：[FoliumMount](#foliummount) · [FoliumSize](#foliumsize) · [FoliumMountHelpers](#foliummounthelpers) · [FoliumPanelContext](#foliumpanelcontext) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext) · [FoliumClock](#foliumclock) · [FoliumSurface](#foliumsurface) · [FoliumAudioBands](#foliumaudiobands) · [FoliumAudio](#foliumaudio) · [FoliumDisplay](#foliumdisplay) · [FoliumStageContext](#foliumstagecontext)
 - **事件**：[事件一览](#事件一览) · [FoliumEventPriority](#foliumeventpriority) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumNotificationEvents](#foliumnotificationevents) · [FoliumLyricsTransformEvent](#foliumlyricstransformevent) · [FoliumBeforePlayEvent](#foliumbeforeplayevent) · [FoliumOmniLyricsEvent](#foliumomnilyricsevent) · [FoliumOmniAudioEvent](#foliumomniaudioevent) · [FoliumHookEvents](#foliumhookevents) · [FoliumEventMap](#foliumeventmap) · [FoliumEvents](#foliumevents)
@@ -76,6 +76,32 @@ permission; values must be JSON-serializable.
 | `delete()` | `(key: string): Promise<void>` | Removes the key. |
 | `keys()` | `(): Promise<string[]>` | All keys. |
 
+### FoliumSecretAccess
+
+Folium 1.7: `folium.secrets` (client) and `api.secrets` (main entry), the values of this mod's `secret`
+settings fields. One store per mod, shared by both entries and the settings form, keyed by the field's
+`key`; a mod reaches only its own. A key that no settings section of this mod declares as `secret` is
+refused with `secret-undeclared:<key>`. The main entry learns the keys when the client registers the
+section, so before that (in the first run) it can use only keys that already hold a value. A value is a
+string of at most 8 KB (UTF-8); a longer one is refused with `secret-too-large:8192`.
+
+The host keeps the values in the main process, encrypted with the system's credential store (DPAPI on
+Windows, Keychain on macOS, libsecret or kwallet on Linux), in a file of its own beside the mod's data
+file, and never logs them. Where the system has no such store (Linux falling back to `basic_text`), it
+keeps them in memory only, for this run, and the settings form says so. No permission is needed.
+
+In the export window `get`, `has` and `set` reject with `secrets-unavailable-in-export-context`, and
+`subscribe` never fires.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `get()` | `(key: string): Promise<string \| null>` | The stored value, or null when none is set (or the credential store cannot decrypt it right now). |
+| `has()` | `(key: string): Promise<boolean>` | Whether a value is stored, without handing it over. |
+| `set()` | `(key: string, value: string \| null): Promise<void>` | Stores `value`; null or an empty string clears it. |
+| `subscribe()` | `(listener: (key: string) => void): FoliumDisposer` | Calls `listener` with the key, never the value, after a value is saved or cleared, whoever did it (the settings form, the client or the main entry). The host stops it when the mod stops. |
+
+相关：[FoliumDisposer](#foliumdisposer)
+
 ### FoliumRpc
 
 `folium.rpc`: calls into this mod's main entry, and (Folium 1.7) hears the messages it sends.
@@ -113,6 +139,7 @@ The object a client entry's `activate(folium)` receives.
 | `readonly ui` | `FoliumUiService` | Toasts, panels, files, embeds, icons. |
 | `readonly net` | `FoliumNetService` | Network access through the host. |
 | `readonly storage` | `FoliumStorage` | This mod's data file. |
+| `readonly secrets` | `FoliumSecretAccess` | Folium 1.7: the values of this mod's `secret` settings fields. |
 | `readonly rpc` | `FoliumRpc` | Calls into this mod's main entry. |
 | `readonly lyrics` | `FoliumLyricsService` | The lyric helpers builtin modes use, and the displayed song's lyrics. |
 | `readonly theme` | `FoliumThemeHelpers` | The theme helpers builtin modes use. |
@@ -120,7 +147,7 @@ The object a client entry's `activate(folium)` receives.
 | `onDispose()` | `(disposer: FoliumDisposer): void` | Runs `disposer` when the mod stops, after the disposer `activate` returned; at once when the mod has already stopped. |
 | `readonly experimental` | `Readonly<Record<string, unknown>>` | Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. |
 
-相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumDisposer](#foliumdisposer)
+相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumDisposer](#foliumdisposer)
 
 ### FoliumClientModule
 
@@ -289,7 +316,7 @@ every context.
 | `id` | `string` | Local id. |
 | `label` | `FoliumLabel` | Section title. |
 | `description?` | `FoliumLabel` | Shown under the title. |
-| `settings` | `FoliumSetting[]` | The fields. |
+| `settings` | `FoliumSetting[]` | The fields. Folium 1.7: only here may a field be a `secret`. |
 | `settingsPanel?` | `FoliumMount<FoliumSettingsPanelContext>` | Replaces the host-rendered form; values still follow `settings`. |
 
 相关：[FoliumLabel](#foliumlabel) · [FoliumSetting](#foliumsetting) · [FoliumMount](#foliummount) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext)
@@ -1022,8 +1049,19 @@ Field kinds: a slider (a number), a text box (a string), a switch (a boolean), a
 (the chosen option's `value`), or a colour, shown as the app's own colour picker (a `#rrggbb` string,
 in lower case).
 
+Folium 1.7: `secret`, a key or token the user types in (an API key). Settings sections only. The form shows
+a masked input that never shows a saved value, only whether one is set, and a button to clear it. The
+value is not one of the section's values (`settings.get()` leaves it out, `settings.set` ignores it, a
+`defaultValue` is ignored): the host keeps it in the main process, encrypted, and the mod reads it through
+`folium.secrets` / `api.secrets` (FoliumSecretAccess). It never enters the stored
+settings values (`folia_folium_params_v1`), the visual config export and import, the export window or the
+logs. Anywhere else (visualizer and background settings, tunings, command params) a `secret` field is
+dropped like a field of an unknown type, and the mod's row says so. A Folium 1.6 host drops it in
+settings sections too (a section left with no field then fails to register), so check
+`folium.host.folium.minor >= 7` before declaring one.
+
 ```ts
-type FoliumSettingType = 'number' | 'text' | 'boolean' | 'select' | 'color'
+type FoliumSettingType = 'number' | 'text' | 'boolean' | 'select' | 'color' | 'secret'
 ```
 
 ### FoliumSettingOption
@@ -1063,7 +1101,7 @@ shape the schema declares: a JSDoc `@type` cast in plain JS, or
 | `min?` | `number` | `number`: lower bound (values are clamped). |
 | `max?` | `number` | `number`: upper bound (values are clamped). |
 | `step?` | `number` | `number`: slider step. Default 1 when both bounds are integers, else 0.01. |
-| `placeholder?` | `string` | `text`: placeholder. |
+| `placeholder?` | `string` | `text` and `secret`: placeholder. |
 | `options?` | `FoliumSettingOption[]` | `select`: the choices; values outside them are rejected. |
 
 相关：[FoliumSettingType](#foliumsettingtype) · [FoliumLabel](#foliumlabel) · [FoliumSettingOption](#foliumsettingoption)
@@ -1082,10 +1120,10 @@ Read/write access to one schema's persisted values (defaults already merged).
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
-| `readonly schema` | `readonly FoliumSetting[]` | The fields, as registered (invalid declarations dropped). |
-| `get()` | `(): FoliumSettingValues` | Current values, defaults merged. The same object until a value changes. |
+| `readonly schema` | `readonly FoliumSetting[]` | The fields, as registered (invalid declarations dropped), `secret` fields included. |
+| `get()` | `(): FoliumSettingValues` | Current values, defaults merged. The same object until a value changes. `secret` fields are not in it; read them through `folium.secrets`. |
 | `set()` | `(patch: Record<string, unknown>): void` | Validated against the schema: unknown keys are dropped, numbers clamped, selects checked. |
-| `reset()` | `(): void` | Restores every default. |
+| `reset()` | `(): void` | Restores every default. Stored `secret` values stay; clear them with `folium.secrets.set(key, null)`. |
 | `onChange()` | `(listener: () => void): FoliumDisposer` | Calls `listener` after any value changes, whoever changed it (the user, `set`, `reset`, an import). |
 
 相关：[FoliumSetting](#foliumsetting) · [FoliumSettingValues](#foliumsettingvalues) · [FoliumDisposer](#foliumdisposer)
@@ -1561,13 +1599,14 @@ rejects with that error.
 | `readonly host` | `FoliumHostInfo` | Host versions; the same as the client entry's `folium.host`. |
 | `readonly log` | `FoliumLogger` | Logging; `error` entries show in the mods panel under the mod. |
 | `readonly storage` | `FoliumMainStorage` | This mod's data file: the same file the client entry's `folium.storage` reads and writes, so both sides see one state. Needs the `filesystem.data` permission. |
+| `readonly secrets` | `FoliumSecretAccess` | Folium 1.7: the values of this mod's `secret` settings fields, the same store the client entry's `folium.secrets` reads and writes. A listener given to `subscribe` stops when the mod stops. |
 | `readonly paths` | `FoliumMainPaths` | Folders to write into: this mod's own folder and the user's folders. |
 | `onDispose()` | `(disposer: FoliumDisposer): void` | Runs `disposer` when the mod stops: it is turned off, reloaded, or the app quits. Release here what `activate` started: timers, watchers, listeners, child processes. Cleanups run last registered first (the function `activate` returned counts as registered when `activate` returned), and one that throws does not stop the others. After the mod has stopped, `disposer` runs at once. Returns nothing. |
 | `readonly runtime` | `FoliumMainRuntime` | What the app is playing. |
 | `readonly rpc` | `FoliumMainRpc` | Answers calls from this mod's client entry, and (Folium 1.7) sends it messages. |
 | `readonly render` | `FoliumMainRender` | Video export. |
 
-相关：[FoliumManifest](#foliummanifest) · [FoliumHostInfo](#foliumhostinfo) · [FoliumLogger](#foliumlogger) · [FoliumMainStorage](#foliummainstorage) · [FoliumMainPaths](#foliummainpaths) · [FoliumDisposer](#foliumdisposer) · [FoliumMainRuntime](#foliummainruntime) · [FoliumMainRpc](#foliummainrpc) · [FoliumMainRender](#foliummainrender)
+相关：[FoliumManifest](#foliummanifest) · [FoliumHostInfo](#foliumhostinfo) · [FoliumLogger](#foliumlogger) · [FoliumMainStorage](#foliummainstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumMainPaths](#foliummainpaths) · [FoliumDisposer](#foliumdisposer) · [FoliumMainRuntime](#foliummainruntime) · [FoliumMainRpc](#foliummainrpc) · [FoliumMainRender](#foliummainrender)
 
 ### FoliumManifest
 

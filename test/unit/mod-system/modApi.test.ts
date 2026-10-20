@@ -303,3 +303,25 @@ describe('mod api lifecycle', () => {
         expect(registerDisposer).toHaveBeenCalledWith(handler);
     });
 });
+
+describe('mod api secrets (Folium 1.7)', () => {
+    it('hands api.secrets to the store bound to this mod, without asking for a permission', async () => {
+        const off = vi.fn();
+        const secrets = {
+            get: vi.fn(async () => 'value'),
+            has: vi.fn(async () => true),
+            set: vi.fn(async () => undefined),
+            subscribe: vi.fn(() => off),
+        };
+        const api = createApi([], { secrets });
+        expect(Object.isFrozen(api.secrets)).toBe(true);
+        await expect(api.secrets.get('apiKey')).resolves.toBe('value');
+        await expect(api.secrets.has('apiKey')).resolves.toBe(true);
+        await api.secrets.set('apiKey', null);
+        const listener = () => {};
+        expect(api.secrets.subscribe(listener)).toBe(off);
+        expect(secrets.get).toHaveBeenCalledWith('apiKey');
+        expect(secrets.set).toHaveBeenCalledWith('apiKey', null);
+        expect(secrets.subscribe).toHaveBeenCalledWith(listener);
+    });
+});

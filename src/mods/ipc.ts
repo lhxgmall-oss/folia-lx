@@ -6,6 +6,7 @@ import type {
     ModRpcMessage,
     ModRuntimeInfo,
     ModRuntimeSnapshot,
+    ModSecretChange,
     ModSetEnabledResult,
     ModStorageUsageResult,
     ModsListPayload,
@@ -124,6 +125,19 @@ export const invokeModStorage = async (
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
     bridge()?.invokeModStorage(modId, operation, key, value) ?? { ok: false, error: 'no-electron-bridge' };
 
+/**
+ * Folium 1.7: a mod's `secret` settings values, kept in the main process (electron/modSystem/modSecrets.cjs).
+ * `declare` passes the `secret` keys of a settings section the mod registered (`key` is the list);
+ * `state` answers a ModSecretsState.
+ */
+export const invokeModSecrets = async (
+    modId: string,
+    operation: 'get' | 'has' | 'set' | 'declare' | 'state',
+    key?: string | readonly string[],
+    value?: string | null,
+): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
+    bridge()?.invokeModSecrets(modId, operation, key, value) ?? { ok: false, error: 'no-electron-bridge' };
+
 /** folium.net.fetch: runs in the main process (permission `net.fetch`). */
 export const invokeModNetFetch = async (
     modId: string,
@@ -212,3 +226,7 @@ export const subscribeModLogs = (callback: (entry: ModLogEntry) => void): (() =>
 /** Messages main entries push with `api.rpc.send`; folium/rpcMessages.ts hands each to its own mod. */
 export const subscribeModRpcMessages = (callback: (message: ModRpcMessage) => void): (() => void) =>
     bridge()?.onModRpcMessage?.(callback) ?? (() => {});
+
+/** Folium 1.7: a mod's `secret` value was saved or cleared, by anyone; the key only. */
+export const subscribeModSecretChanges = (callback: (change: ModSecretChange) => void): (() => void) =>
+    bridge()?.onModSecretChanged?.(callback) ?? (() => {});

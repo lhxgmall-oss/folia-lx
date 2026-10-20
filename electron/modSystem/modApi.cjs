@@ -157,6 +157,7 @@ const createModDataStore = (dataDir, { maxBytes = DATA_MAX_BYTES } = {}) => {
  *   emitLog(level, message, details),
  *   getPlaybackSnapshot(),      // Folium DTO, or null before the renderer pushed one
  *   registerDisposer(fn),       // run when the mod is disabled, reloaded, or the app quits
+ *   secrets: { get, has, set, subscribe },  // api.secrets, bound to this mod (modSecrets.cjs)
  *   registerRpc(name, fn),      // callable from this mod's client entry
  *   sendToClient(name, json),   // pushes checked JSON text to this mod's client in the main window
  *   requestExport(spec),        // runs the export; its permission is checked here, not there
@@ -229,6 +230,17 @@ const createModApi = (context) => {
             // Always present, permission or not, so `'paths' in api.storage` detects it.
             paths: Object.freeze(storagePaths),
         },
+        /*
+         * Folium 1.7: the values of the mod's `secret` settings fields, shared with its client's
+         * folium.secrets. No permission: a mod reaches only its own. Read from the context at the
+         * call, so the store is only met when a mod uses it.
+         */
+        secrets: Object.freeze({
+            get: (key) => context.secrets.get(key),
+            has: (key) => context.secrets.has(key),
+            set: (key, value) => context.secrets.set(key, value),
+            subscribe: (listener) => context.secrets.subscribe(listener),
+        }),
         /*
          * The user's folders are asked for when read: Electron throws for a folder
          * the system does not have, and that must not keep the mod from starting.
