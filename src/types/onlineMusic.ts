@@ -100,7 +100,11 @@ export interface ProviderAudioSource {
      * playback and the media cache ask.
      */
     preview?: boolean;
-    /** The preview file's zero position in the whole song, for reading its full-song lyrics. */
+    /**
+     * Where the preview clip starts inside the song, in milliseconds. Only meaningful with `preview`;
+     * absent means the clip starts at the song's start. Playback reads it with the URL
+     * (`omni.previewClipStartMsOfAudioSource`) to line the lyrics up with the clip.
+     */
     clipStartMs?: number;
 }
 

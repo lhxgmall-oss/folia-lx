@@ -63,7 +63,7 @@ describe('readIncomingLyricClock', () => {
         expect(readIncomingLyricClock(6, 0, null)).toEqual({ lyricTimeSec: 6, lineIndex: -1 });
     });
     it('reads full-song lyrics at a preview file position without changing the manual offset', () => {
-        expect(readIncomingLyricClock(1, 500, lines, 5000)).toEqual({ lyricTimeSec: 5.5, lineIndex: 1 });
+        expect(readIncomingLyricClock(1 + 5000 / 1000, 500, lines)).toEqual({ lyricTimeSec: 5.5, lineIndex: 1 });
         expect(readIncomingLyricClock(1, 500, lines)).toEqual({ lyricTimeSec: 0.5, lineIndex: 0 });
     });
 });

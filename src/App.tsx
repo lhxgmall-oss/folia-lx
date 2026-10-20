@@ -1622,8 +1622,10 @@ export default function App() {
         refreshObsBrowserSourceStatus,
     } = useObsBrowserSourcePublisher({
         isElectronWindow,
+        audioRef,
+        getDisplayAudioElement: automix.getDisplayElement,
         stageSource,
-        coverUrl,
+        coverUrl: displayCoverUrl,
         offsetMs: effectiveLyricTimelineOffsetMs,
         theme: visualizerTheme,
         subtitleTheme: visualizerSubtitleTheme,

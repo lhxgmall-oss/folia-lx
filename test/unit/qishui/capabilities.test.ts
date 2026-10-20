@@ -118,10 +118,10 @@ describe('Qishui explicit playability checks', () => {
         const preview = await omni.getAudioSource(song(), 'standard');
         expect(preview).toMatchObject({ preview: true, clipStartMs: 30000 });
         expect(omni.isPreviewAudioSource(preview!.url)).toBe(true);
-        expect(omni.getAudioClipStartMs(preview!.url)).toBe(30000);
+        expect(omni.previewClipStartMsOfAudioSource(preview!.url)).toBe(30000);
         const full = await omni.getAudioSource(song(), 'standard');
-        expect(omni.getAudioClipStartMs(full!.url)).toBe(0);
-        expect(omni.getAudioClipStartMs('https://unknown.test/clip')).toBe(0);
+        expect(omni.previewClipStartMsOfAudioSource(full!.url)).toBe(0);
+        expect(omni.previewClipStartMsOfAudioSource('https://unknown.test/clip')).toBe(0);
     });
     it('distinguishes an explicit pass from restriction, unknown codes and missing tracks', async () => {
         request.mockResolvedValue({ ok: true, data: { statuses: [

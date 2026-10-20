@@ -91,14 +91,16 @@ const audioQualityFor = (providerId: OmniProviderId, preference: AudioQualityPre
 };
 
 // What is known of each URL handed out by `getAudioSource`, newest last: the level it was asked for
-// at, and whether its provider said it plays a preview clip of the song. The media cache asks by URL
-// when it saves a song's bytes: the preference may have moved since the URL was fetched, and the URL
-// is where the bytes came from. Playback asks by URL whether what it plays is a clip, wherever it
-// got the URL from (the prefetch pass, or its own request). In memory and bounded; a URL that has
-// dropped out is of an unknown level and not known to be a clip.
+// at, whether its provider said it plays a preview clip of the song, and where that clip starts.
+// The media cache asks by URL when it saves a song's bytes: the preference may have moved since the
+// URL was fetched, and the URL is where the bytes came from. Playback asks by URL whether what it
+// plays is a clip, and where the clip begins in the song, wherever it got the URL from (the prefetch
+// pass, or its own request). In memory and bounded; a URL that has dropped out is of an unknown
+// level and not known to be a clip.
 const AUDIO_SOURCE_LEVEL_LIMIT = 200;
-type HandedOutAudioSource = { level: AudioQualityPreference; preview: boolean; clipStartMs: number };
+type HandedOutAudioSource = { level: AudioQualityPreference; preview: boolean; clipStartMs?: number };
 const audioSourceLevels = new Map<string, HandedOutAudioSource>();
+let audioSourceMetadataVersion = 0;
 // One spelling per URL: the form playback holds (`toSafePlaybackUrl`), written as the URL parser
 // writes it - a deck that has played out reports its element's `currentSrc`, which is that form.
 const audioSourceLevelKey = (url: string): string => {
@@ -117,6 +119,7 @@ const noteAudioSourceLevel = (url: string, handedOut: HandedOutAudioSource): voi
         const oldestKey = audioSourceLevels.keys().next().value;
         if (oldestKey !== undefined) audioSourceLevels.delete(oldestKey);
     }
+    audioSourceMetadataVersion++;
 };
 
 const activeProviderId = (): OmniProviderId => {
@@ -843,7 +846,8 @@ export const omni = {
             noteAudioSourceLevel(source.url, {
                 level: listed?.includes(source.quality) ? source.quality : level,
                 preview: Boolean(source.preview),
-                clipStartMs: source.preview && Number.isFinite(source.clipStartMs) && source.clipStartMs! > 0 ? source.clipStartMs! : 0,
+                ...(source.preview && Number.isFinite(source.clipStartMs) && source.clipStartMs! > 0
+                    ? { clipStartMs: source.clipStartMs } : {}),
             });
         }
         // Extension layers (Folium omni hooks) may swap the URL; the ReplayGain above stays the provider's.
@@ -862,9 +866,16 @@ export const omni = {
         return audioSourceLevels.get(audioSourceLevelKey(url))?.preview === true;
     },
 
-    /** The preview file starts here in the whole song; unknown and full-song URLs start at zero. */
-    getAudioClipStartMs(url: string): number {
-        return audioSourceLevels.get(audioSourceLevelKey(url))?.clipStartMs ?? 0;
+    // Cheap invalidation for playback's small per-URL cache: a provider may reuse a URL with
+    // different metadata, and the bounded registry may evict a previously remembered URL.
+    audioSourceMetadataVersion(): number {
+        return audioSourceMetadataVersion;
+    },
+
+    // Where a URL handed out by `getAudioSource` starts inside its song, for a preview clip; 0 for a
+    // whole song, any other URL, and one handed out too long ago to be remembered.
+    previewClipStartMsOfAudioSource(url: string): number {
+        return Math.max(0, audioSourceLevels.get(audioSourceLevelKey(url))?.clipStartMs ?? 0);
     },
 
     // Asked once per track, including for local and Navidrome songs, so an unsupported source is a
