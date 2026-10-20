@@ -1664,7 +1664,7 @@ export default {
     "ponderDescription": "Learn Folia's basic controls and operating model",
     "version": "Version"
   },
-  "qishui": { "recommended": "Recommended for you" },
+  "qishui": { "recentPlayed": "Recently played on Qishui", "recommended": "Recommended for you" },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",

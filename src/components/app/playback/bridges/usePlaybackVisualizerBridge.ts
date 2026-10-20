@@ -18,6 +18,7 @@ import { getTransitionHandoffProgress } from '../../../../services/automix/trans
 import { tickBeatFx } from '../../../../services/beatFx/beatFxLive';
 import { useBeatFxTrack } from '../../../../hooks/useBeatFxTrack';
 import { readIncomingLyricClock } from './incomingLyricClock';
+import { omni } from '../../../../services/onlineMusic/omni';
 
 // src/components/app/playback/bridges/usePlaybackVisualizerBridge.ts
 
@@ -132,7 +133,7 @@ export function usePlaybackVisualizerBridge({
         // and a set here would snap it to the end first.
         const incoming = audioRef.current;
         if (state.transitionEnd !== 'handedOver' || !incoming) return;
-        const clock = readIncomingLyricClock(incoming.currentTime, incomingOffsetMsRef.current, state.lyrics?.lines);
+        const clock = readIncomingLyricClock(incoming.currentTime, incomingOffsetMsRef.current, state.lyrics?.lines, omni.getAudioClipStartMs(incoming.currentSrc));
         displayOffsetMsRef.current = incomingOffsetMsRef.current;
         currentTime.set(incoming.currentTime);
         lyricCurrentTime.set(clock.lyricTimeSec);
@@ -200,7 +201,7 @@ export function usePlaybackVisualizerBridge({
             const time = audioElement.currentTime;
             currentTime.set(time);
 
-            const effectiveLyricTime = time - displayOffsetMsRef.current / 1000;
+            const effectiveLyricTime = time + (omni.getAudioClipStartMs(audioElement.currentSrc) - displayOffsetMsRef.current) / 1000;
             lyricCurrentTime.set(effectiveLyricTime);
 
             if (lyrics) {
@@ -303,7 +304,7 @@ export function usePlaybackVisualizerBridge({
         const incomingElement = heldElement ? audioRef.current : null;
         if (incomingElement && incomingElement !== heldElement) {
             handoffProgress.set(getTransitionHandoffProgress());
-            const incomingClock = readIncomingLyricClock(incomingElement.currentTime, incomingOffsetMsRef.current, incomingLyrics?.lines);
+            const incomingClock = readIncomingLyricClock(incomingElement.currentTime, incomingOffsetMsRef.current, incomingLyrics?.lines, omni.getAudioClipStartMs(incomingElement.currentSrc));
             handoffLyricCurrentTime.set(incomingClock.lyricTimeSec);
             if (incomingClock.lineIndex !== handoffLineIndexRef.current) {
                 handoffLineIndexRef.current = incomingClock.lineIndex;

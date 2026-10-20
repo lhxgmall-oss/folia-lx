@@ -34,7 +34,7 @@ const AUTH_MEMBERS: Record<string, string[]> = {
     ],
     qishui: [
         'cancelLogin', 'checkLogin', 'createQr', 'describeLoginFailure', 'getLoginDiagnostics', 'getLoginStatus',
-        'getLoginTexts', 'getLoginTtlMs', 'logout', 'startLogin',
+        'getLoginTexts', 'getLoginTtlMs', 'logout', 'signInRanOut', 'startLogin',
     ],
 };
 

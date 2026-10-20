@@ -30,6 +30,11 @@ export async function getQishuiFmCatalog(): Promise<PersonalFmCatalog> {
     return catalogTask;
 }
 export const qishuiRecommendations: OnlineRecommendationProvider = {
+    async dislikeSong(id) {
+        await requestQishui('dislike_song', { id: String(id), disliked: true });
+        console.info('[Qishui] Recommendation disliked');
+        return {};
+    },
     getPersonalFmCatalog: getQishuiFmCatalog,
     async getPersonalFm(options) {
         const selected = options || getPersonalFmRequestOptions('qishui');

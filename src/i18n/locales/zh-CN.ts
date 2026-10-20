@@ -1664,7 +1664,7 @@ export default {
     "ponderDescription": "了解 Folia 的基本操作与运行逻辑",
     "version": "版本"
   },
-  "qishui": { "recommended": "为你推荐" },
+  "qishui": { "recentPlayed": "汽水最近播放", "recommended": "为你推荐" },
   "lyricProvider": {
     "qishui": "汽水音乐",
     "netease": "网易云音乐",

@@ -100,6 +100,8 @@ export interface ProviderAudioSource {
      * playback and the media cache ask.
      */
     preview?: boolean;
+    /** The preview file's zero position in the whole song, for reading its full-song lyrics. */
+    clipStartMs?: number;
 }
 
 export type ProviderSongAvailabilityState = 'playable' | 'unavailable' | 'unknown';

@@ -43,6 +43,7 @@ export function normalizeQishuiCollection(raw: unknown, type = 'playlist'): Prov
         ...(item.resource_cnt?.track_cnt == null ? {} : { trackCount: Number(item.resource_cnt.track_cnt) }),
         ...(owner.id ? { creator: { id: text(owner.id), nickname: text(owner.nickname) } } : {}),
         ...(item.isOwned == null ? {} : { isOwned: Boolean(item.isOwned) }), providerData: { ownerId: text(base.owner_id || owner.id) },
+        ...(Number(base.type) === 1 && item.isOwned === true ? { isLiked: true } : {}),
     };
 }
 export function normalizeQishuiUser(raw: unknown): ProviderUser {

@@ -20,7 +20,7 @@ describe('Qishui desktop bridge', () => {
     it('rejects unregistered IPC operations before invoking the package', async () => {
         const request = vi.fn();
         const bridge = createQishuiApiBridge({ store: store(), apiFactory: () => ({ request }) });
-        for (const operation of ['fetch', 'constructor', 'like_song', 'playlist_edit']) {
+        for (const operation of ['fetch', 'constructor', 'playlist_edit']) {
             expect(await bridge.request(operation)).toMatchObject({ ok: false, error: { code: 'unsupported' } });
         }
         expect(request).not.toHaveBeenCalled();

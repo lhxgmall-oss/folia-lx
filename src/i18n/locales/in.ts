@@ -1664,7 +1664,7 @@ export default {
     "ponderDescription": "Pelajari kontrol dasar dan cara kerja Folia",
     "version": "Versi"
   },
-  "qishui": { "recommended": "Rekomendasi untuk Anda" },
+  "qishui": { "recentPlayed": "Terakhir diputar di Qishui", "recommended": "Rekomendasi untuk Anda" },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",

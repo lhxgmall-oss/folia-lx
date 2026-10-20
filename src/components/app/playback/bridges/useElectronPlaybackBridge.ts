@@ -262,7 +262,7 @@ export const useElectronPlaybackBridge = ({
             exportState,
             isDaylight,
             isLiked,
-            lyricOffsetMs: lyricTimelineOffsetMs,
+            lyricOffsetMs: (lyricTimelineOffsetMs ?? 0) - omni.getAudioClipStartMs(audioElement?.currentSrc ?? ''),
             mainWindowWidth: window.innerWidth,
             mainWindowHeight: window.innerHeight,
         });
