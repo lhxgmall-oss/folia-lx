@@ -56,6 +56,7 @@
         "startAlive": "folia-mods:start-alive",
         "fStateChanged": "folia-mods:state-changed",
         "fExportProgress": "folia-mods:export-progress",
-        "fLog": "folia-mods:log"
+        "fLog": "folia-mods:log",
+        "fRpcMessage": "folia-mods:rpc-message"
     }
 }

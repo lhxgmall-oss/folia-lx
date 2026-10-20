@@ -3,6 +3,7 @@ import type {
     ModFfmpegStatus,
     ModLogEntry,
     ModMainCallStats,
+    ModRpcMessage,
     ModRuntimeInfo,
     ModRuntimeSnapshot,
     ModSetEnabledResult,
@@ -208,3 +209,6 @@ export const subscribeExportProgress = (callback: (progress: ModExportProgress) 
 export const subscribeModLogs = (callback: (entry: ModLogEntry) => void): (() => void) =>
     bridge()?.onModLog(callback) ?? (() => {});
 
+/** Messages main entries push with `api.rpc.send`; folium/rpcMessages.ts hands each to its own mod. */
+export const subscribeModRpcMessages = (callback: (message: ModRpcMessage) => void): (() => void) =>
+    bridge()?.onModRpcMessage?.(callback) ?? (() => {});

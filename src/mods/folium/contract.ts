@@ -1544,13 +1544,24 @@ export interface FoliumStorage {
     keys(): Promise<string[]>;
 }
 
-/** `folium.rpc`: calls into this mod's main entry. */
+/** `folium.rpc`: calls into this mod's main entry, and (Folium 1.7) hears the messages it sends. */
 export interface FoliumRpc {
     /**
      * Calls the function the main entry registered with `api.rpc.handle(name, fn)`; arguments and result must
      * be JSON-serializable.
      */
     call<T = unknown>(name: string, ...args: unknown[]): Promise<T>;
+    /**
+     * Folium 1.7: receives the main entry's `api.rpc.send(name, payload)`. Several listeners per name are fine;
+     * each gets its own copy of the payload (`null` when the main entry sent none), and one that throws is
+     * logged under the mod without stopping the others. Only messages from this mod's own main entry arrive,
+     * and nothing sent before the listener was added is replayed: fetch the current state once with
+     * `rpc.call` after adding it. `name` must match `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/`, and `listener` must be
+     * a function, or this throws. The listener is removed when the mod stops. In the export window nothing
+     * is ever sent: the listener is accepted and never called. Older 1.x hosts lack it: check
+     * `folium.host.folium.minor >= 7`.
+     */
+    on(name: string, listener: (payload: unknown) => void): FoliumDisposer;
 }
 
 /** `folium.log`. `error` entries show in the mods panel under the mod. */

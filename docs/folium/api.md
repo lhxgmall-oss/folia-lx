@@ -78,11 +78,14 @@ permission; values must be JSON-serializable.
 
 ### FoliumRpc
 
-`folium.rpc`: calls into this mod's main entry.
+`folium.rpc`: calls into this mod's main entry, and (Folium 1.7) hears the messages it sends.
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `call()` | `<T = unknown>(name: string, ...args: unknown[]): Promise<T>` | Calls the function the main entry registered with `api.rpc.handle(name, fn)`; arguments and result must be JSON-serializable. |
+| `on()` | `(name: string, listener: (payload: unknown) => void): FoliumDisposer` | Folium 1.7: receives the main entry's `api.rpc.send(name, payload)`. Several listeners per name are fine; each gets its own copy of the payload (`null` when the main entry sent none), and one that throws is logged under the mod without stopping the others. Only messages from this mod's own main entry arrive, and nothing sent before the listener was added is replayed: fetch the current state once with `rpc.call` after adding it. `name` must match `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/`, and `listener` must be a function, or this throws. The listener is removed when the mod stops. In the export window nothing is ever sent: the listener is accepted and never called. Older 1.x hosts lack it: check `folium.host.folium.minor >= 7`. |
+
+相关：[FoliumDisposer](#foliumdisposer)
 
 ### FoliumLogger
 
@@ -1561,7 +1564,7 @@ rejects with that error.
 | `readonly paths` | `FoliumMainPaths` | Folders to write into: this mod's own folder and the user's folders. |
 | `onDispose()` | `(disposer: FoliumDisposer): void` | Runs `disposer` when the mod stops: it is turned off, reloaded, or the app quits. Release here what `activate` started: timers, watchers, listeners, child processes. Cleanups run last registered first (the function `activate` returned counts as registered when `activate` returned), and one that throws does not stop the others. After the mod has stopped, `disposer` runs at once. Returns nothing. |
 | `readonly runtime` | `FoliumMainRuntime` | What the app is playing. |
-| `readonly rpc` | `FoliumMainRpc` | Answers calls from this mod's client entry. |
+| `readonly rpc` | `FoliumMainRpc` | Answers calls from this mod's client entry, and (Folium 1.7) sends it messages. |
 | `readonly render` | `FoliumMainRender` | Video export. |
 
 相关：[FoliumManifest](#foliummanifest) · [FoliumHostInfo](#foliumhostinfo) · [FoliumLogger](#foliumlogger) · [FoliumMainStorage](#foliummainstorage) · [FoliumMainPaths](#foliummainpaths) · [FoliumDisposer](#foliumdisposer) · [FoliumMainRuntime](#foliummainruntime) · [FoliumMainRpc](#foliummainrpc) · [FoliumMainRender](#foliummainrender)
@@ -1650,6 +1653,7 @@ of the user's folders; keep the mod's own files under `api.storage.paths`.
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `handle()` | `(name: string, handler: (...args: any[]) => unknown): void` | Answers the client entry's `folium.rpc.call(name, ...args)`: `handler` gets the call's arguments, and what it returns (or what its promise resolves to) is the call's result; a throw rejects the call. Arguments and results cross between processes, so both must be JSON-serializable. `name` must match `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/`, and a second handler for the same name throws. |
+| `send()` | `(name: string, payload?: unknown): void` | Folium 1.7: sends `payload` to this mod's client entry in the main window, where `folium.rpc.on(name, ...)` receives it; no other mod's client hears it, and the export window never does. Fire-and-forget: nothing is queued, so a message sent while the client is not running (the window rebuilt, the client not activated yet) or while there is no main window is dropped without an error. `payload` must be JSON-serializable, at most 64 KB as JSON text; left out, the client gets `null`. `name` follows the same rule as `handle`. A bad name or payload throws at the call (`rpc-payload-too-large:65536` for one over the limit). Older 1.x hosts lack it: check `api.host.folium.minor >= 7`. |
 
 ### FoliumMainRender
 

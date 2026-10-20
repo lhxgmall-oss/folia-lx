@@ -47,6 +47,7 @@ describe('the copies of what foliumShared.json holds', () => {
         onModsStateChanged: 'fStateChanged',
         onExportProgress: 'fExportProgress',
         onModLog: 'fLog',
+        onModRpcMessage: 'fRpcMessage',
     };
 
     it('each preload method of the mods bridge uses the channel of its own key, and every channel has its method', () => {

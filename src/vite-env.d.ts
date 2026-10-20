@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ModClearCacheResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRuntimeInfo, ModRuntimeSnapshot, ModStorageUsageResult } from './mods/types';
+import type { ModClearCacheResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModStorageUsageResult } from './mods/types';
 
 declare global {
   const __COMMIT_HASH__: string;
@@ -1037,6 +1037,7 @@ declare global {
         onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
         onExportProgress: (callback: (progress: ModExportProgress) => void) => () => void;
         onModLog: (callback: (entry: ModLogEntry) => void) => () => void;
+        onModRpcMessage: (callback: (message: ModRpcMessage) => void) => () => void;
       };
     };
   }

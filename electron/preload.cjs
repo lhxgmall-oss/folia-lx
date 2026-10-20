@@ -359,5 +359,10 @@ contextBridge.exposeInMainWorld('electron', {
             ipcRenderer.on('folia-mods:log', listener);
             return () => ipcRenderer.removeListener('folia-mods:log', listener);
         },
+        onModRpcMessage: (callback) => {
+            const listener = (_event, message) => callback(message);
+            ipcRenderer.on('folia-mods:rpc-message', listener);
+            return () => ipcRenderer.removeListener('folia-mods:rpc-message', listener);
+        },
     },
 });

@@ -1551,13 +1551,24 @@ export interface FoliumStorage {
     keys(): Promise<string[]>;
 }
 
-/** `folium.rpc`: calls into this mod's main entry. */
+/** `folium.rpc`: calls into this mod's main entry, and (Folium 1.7) hears the messages it sends. */
 export interface FoliumRpc {
     /**
      * Calls the function the main entry registered with `api.rpc.handle(name, fn)`; arguments and result must
      * be JSON-serializable.
      */
     call<T = unknown>(name: string, ...args: unknown[]): Promise<T>;
+    /**
+     * Folium 1.7: receives the main entry's `api.rpc.send(name, payload)`. Several listeners per name are fine;
+     * each gets its own copy of the payload (`null` when the main entry sent none), and one that throws is
+     * logged under the mod without stopping the others. Only messages from this mod's own main entry arrive,
+     * and nothing sent before the listener was added is replayed: fetch the current state once with
+     * `rpc.call` after adding it. `name` must match `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/`, and `listener` must be
+     * a function, or this throws. The listener is removed when the mod stops. In the export window nothing
+     * is ever sent: the listener is accepted and never called. Older 1.x hosts lack it: check
+     * `folium.host.folium.minor >= 7`.
+     */
+    on(name: string, listener: (payload: unknown) => void): FoliumDisposer;
 }
 
 /** `folium.log`. `error` entries show in the mods panel under the mod. */
@@ -1659,7 +1670,7 @@ export interface FoliumMainApi {
     onDispose(disposer: FoliumDisposer): void;
     /** What the app is playing. */
     readonly runtime: FoliumMainRuntime;
-    /** Answers calls from this mod's client entry. */
+    /** Answers calls from this mod's client entry, and (Folium 1.7) sends it messages. */
     readonly rpc: FoliumMainRpc;
     /** Video export. */
     readonly render: FoliumMainRender;
@@ -1758,6 +1769,17 @@ export interface FoliumMainRpc {
      * `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/`, and a second handler for the same name throws.
      */
     handle(name: string, handler: (...args: any[]) => unknown): void;
+    /**
+     * Folium 1.7: sends `payload` to this mod's client entry in the main window, where
+     * `folium.rpc.on(name, ...)` receives it; no other mod's client hears it, and the export window never
+     * does. Fire-and-forget: nothing is queued, so a message sent while the client is not running (the
+     * window rebuilt, the client not activated yet) or while there is no main window is dropped without an
+     * error. `payload` must be JSON-serializable, at most 64 KB as JSON text; left out, the client gets
+     * `null`. `name` follows the same rule as `handle`. A bad name or payload throws at the call
+     * (`rpc-payload-too-large:65536` for one over the limit). Older 1.x hosts lack it: check
+     * `api.host.folium.minor >= 7`.
+     */
+    send(name: string, payload?: unknown): void;
 }
 
 /** `api.render`. */

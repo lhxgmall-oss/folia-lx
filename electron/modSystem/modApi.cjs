@@ -25,6 +25,34 @@ const PLAYBACK_PERMISSION = permissionGuarding('api.runtime.getPlaybackSnapshot'
 const EXPORT_PERMISSION = permissionGuarding('api.render.exportVideo');
 
 const RPC_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+// Cap on one `api.rpc.send` payload, in bytes of its JSON text. A message is pushed to the
+// window as it is sent; anything bulkier belongs in a file or behind an rpc.call.
+const RPC_SEND_MAX_BYTES = 64 * 1024;
+
+/*
+ * `api.rpc.send`'s payload as the JSON text that crosses to the window, checked
+ * here so a bad one throws at the mod's call instead of vanishing on the way.
+ * Leaving the payload out sends null, as an rpc.call answer of undefined does.
+ */
+const serializeRpcPayload = (payload) => {
+    if (payload === undefined) {
+        return 'null';
+    }
+    let json;
+    try {
+        json = JSON.stringify(payload);
+    } catch (error) {
+        throw new Error('rpc.send requires a JSON-serializable payload', { cause: error });
+    }
+    // A function or a symbol on its own stringifies to undefined: nothing to send.
+    if (typeof json !== 'string') {
+        throw new Error('rpc.send requires a JSON-serializable payload');
+    }
+    if (Buffer.byteLength(json, 'utf8') > RPC_SEND_MAX_BYTES) {
+        throw new Error(`rpc-payload-too-large:${RPC_SEND_MAX_BYTES}`);
+    }
+    return json;
+};
 
 const cloneJson = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
 
@@ -130,6 +158,7 @@ const createModDataStore = (dataDir, { maxBytes = DATA_MAX_BYTES } = {}) => {
  *   getPlaybackSnapshot(),      // Folium DTO, or null before the renderer pushed one
  *   registerDisposer(fn),       // run when the mod is disabled, reloaded, or the app quits
  *   registerRpc(name, fn),      // callable from this mod's client entry
+ *   sendToClient(name, json),   // pushes checked JSON text to this mod's client in the main window
  *   requestExport(spec),        // runs the export; its permission is checked here, not there
  * }
  */
@@ -238,6 +267,17 @@ const createModApi = (context) => {
                 }
                 context.registerRpc(name, handler);
             },
+            /*
+             * Folium 1.7: the other direction. Fire-and-forget to this mod's client in the
+             * main window (`folium.rpc.on(name, ...)`); a bad name or payload throws here,
+             * a missing window or client drops the message.
+             */
+            send: (name, payload) => {
+                if (typeof name !== 'string' || !RPC_NAME_PATTERN.test(name)) {
+                    throw new Error('rpc.send requires a name matching /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/');
+                }
+                context.sendToClient(name, serializeRpcPayload(payload));
+            },
         },
         /*
          * Starts a video export of the *current* song with the host's live mode,
@@ -256,4 +296,5 @@ module.exports = {
     DATA_FILE_NAME,
     DATA_MAX_BYTES,
     PLAYBACK_PERMISSION,
+    RPC_SEND_MAX_BYTES,
 };

@@ -82,6 +82,14 @@ const createNodeEntryRuntime = ({
                 }
                 rpcHandlers.set(name, handler);
             },
+            // api.rpc.send, already checked: to the main window only (the export window has no
+            // preload to hear it). Nothing is queued, so once the mod stopped a message is dropped.
+            sendToClient: (name, json) => {
+                if (unloaded) {
+                    return;
+                }
+                sendToRenderer(IPC.fRpcMessage, { modId: manifest.id, name, json });
+            },
             requestExport: (spec) => getExportService().runExport({
                 modId: manifest.id,
                 spec,

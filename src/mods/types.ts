@@ -146,6 +146,16 @@ export interface ModLogEntry {
     details?: string;
 }
 
+/**
+ * A main entry's `api.rpc.send(name, payload)` on its way to that mod's client in the main window.
+ * `json` is the payload as JSON text, checked (serializable, at most 64 KB) in the main process.
+ */
+export interface ModRpcMessage {
+    modId: string;
+    name: string;
+    json: string;
+}
+
 export interface ModFfmpegStatus {
     available: boolean;
     path: string | null;
