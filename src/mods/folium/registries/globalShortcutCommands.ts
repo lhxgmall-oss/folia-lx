@@ -49,13 +49,18 @@ let ids: ReadonlySet<string> = new Set();
 
 /**
  * The palette ids of the mod commands that may be bound right now: registered, flagged, without
- * params. The same Set until the registry changes, so it can feed a memo or useSyncExternalStore.
+ * params. The same Set until those ids change, so it can feed a memo or useSyncExternalStore.
  */
 export const getFoliumGlobalShortcutCommandIds = (): ReadonlySet<string> => {
     const list = commandsRegistry.list();
     if (list !== idsFor) {
         idsFor = list;
-        ids = new Set(list.filter(isOffered).map((entry) => `${FOLIUM_COMMAND_PREFIX}${entry.id}`));
+        const next = list.filter(isOffered).map((entry) => `${FOLIUM_COMMAND_PREFIX}${entry.id}`);
+        // Keep the old Set when the bindable ids are the same: the hook that registers the keys
+        // sits in App, and an unflagged command coming or going must not re-render it.
+        if (next.length !== ids.size || next.some((id) => !ids.has(id))) {
+            ids = new Set(next);
+        }
     }
     return ids;
 };

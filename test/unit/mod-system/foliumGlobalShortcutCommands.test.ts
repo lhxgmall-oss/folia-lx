@@ -34,6 +34,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import i18n from '@/i18n/config';
 import type { CommandPaletteContext } from '@/components/command-palette/types';
 import { runGlobalShortcutCommand } from '@/components/command-palette/globalShortcuts/runGlobalShortcutCommand';
+import { useGlobalShortcuts } from '@/components/command-palette/globalShortcuts/useGlobalShortcuts';
+import { PORTAL_GLOBAL_SHORTCUTS, toGlobalShortcutAccelerator } from '@/components/command-palette/globalShortcuts/globalShortcutRules';
 import { useGlobalShortcutStatusStore } from '@/components/command-palette/globalShortcuts/globalShortcutStatusStore';
 import { GlobalShortcutsGroup } from '@/components/modal/settings/pages/GlobalShortcutsGroup';
 import { commandsRegistry } from '@/mods/folium/registries/commands';
@@ -48,7 +50,8 @@ import { useStatusMessageStore } from '@/stores/useStatusMessageStore';
 // Folium 1.7 `globalShortcut`: which mod commands Settings → Global shortcuts may bind (flagged,
 // without params, registered now), what a press of one does (its palette entry runs it; a throw is
 // recorded against the mod without a notice; a command gone since does not run), and what a slot
-// bound to a mod command that is not there says.
+// bound to a mod command that is not there says, and which keys the registering hook hands the main
+// process as mod commands come and go.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -56,7 +59,7 @@ installFoliumFaultNotice();
 installFoliumCommandPaletteSync();
 
 const LIVE_CONTEXT = { settings: { modSystemEnabled: true } } as unknown as CommandPaletteContext;
-const MODS = ['gs-ids', 'gs-run', 'gs-row'];
+const MODS = ['gs-ids', 'gs-run', 'gs-row', 'gs-hook'];
 
 beforeEach(() => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -88,6 +91,21 @@ describe('the mod commands that may be bound', () => {
 
         commandsRegistry.unregisterAll('gs-ids');
         expect(getFoliumGlobalShortcutCommandIds().size).toBe(0);
+    });
+
+    it('stay the same Set while only commands that cannot be bound come and go', () => {
+        commandsRegistry.register('gs-ids', { id: 'ping', label: { en: 'Ping' }, globalShortcut: true, run: () => {} });
+        const before = getFoliumGlobalShortcutCommandIds();
+        const plain = commandsRegistry.register('gs-ids', { id: 'plain', label: { en: 'Plain' }, run: () => {} });
+        expect(getFoliumGlobalShortcutCommandIds()).toBe(before);
+        plain.unregister();
+        expect(commandsRegistry.get('gs-ids:plain')).toBeNull();
+        expect(getFoliumGlobalShortcutCommandIds()).toBe(before);
+
+        commandsRegistry.register('gs-ids', { id: 'pong', label: { en: 'Pong' }, globalShortcut: true, run: () => {} });
+        const after = getFoliumGlobalShortcutCommandIds();
+        expect(after).not.toBe(before);
+        expect([...after]).toEqual(['folium:gs-ids:ping', 'folium:gs-ids:pong']);
     });
 
     it('do not follow a flag the mod changes after registering', () => {
@@ -183,5 +201,87 @@ describe('the settings rows', () => {
         useInteractionSettingsStore.getState().setGlobalShortcutBinding(1, { key: 'j', commandId: 'folium:gs-row:gone' });
         render();
         expect(rowText(1)).toContain(i18n.t('options.globalShortcutModCommandMissing'));
+    });
+});
+
+describe('the keys handed to the main process', () => {
+    type Electron = NonNullable<Window['electron']>;
+    let root: Root | null = null;
+    let host: HTMLDivElement | null = null;
+    let renders = 0;
+    const setGlobalShortcuts = vi.fn(async (accelerators: string[]) => ({
+        backend: 'native' as const,
+        results: accelerators.map((accelerator) => ({ accelerator, registered: true })),
+    }));
+    let backend: 'native' | 'portal' = 'native';
+
+    const Probe = () => {
+        renders += 1;
+        useGlobalShortcuts(() => {});
+        return null;
+    };
+    const render = async () => {
+        host = document.createElement('div');
+        document.body.appendChild(host);
+        root = createRoot(host);
+        await act(async () => root!.render(React.createElement(Probe)));
+    };
+    const lastSent = () => setGlobalShortcuts.mock.calls.at(-1)?.[0] ?? null;
+
+    beforeEach(() => {
+        renders = 0;
+        backend = 'native';
+        setGlobalShortcuts.mockClear();
+        (window as { electron?: Partial<Electron> }).electron = {
+            getGlobalShortcutBackend: async () => backend,
+            setGlobalShortcuts,
+            onGlobalShortcut: () => () => {},
+        };
+        useInteractionSettingsStore.getState().setGlobalShortcutBinding(0, { key: 'k', commandId: 'folium:gs-hook:ping' });
+    });
+
+    afterEach(() => {
+        act(() => root?.unmount());
+        host?.remove();
+        root = null;
+        host = null;
+        delete (window as { electron?: unknown }).electron;
+        useInteractionSettingsStore.getState().setGlobalShortcutBinding(0, { key: null, commandId: null });
+        useInteractionSettingsStore.getState().setGlobalShortcutPortalEnabled(false);
+    });
+
+    it('take a mod command’s key while it is registered and let it go when the mod stops', async () => {
+        await render();
+        expect(lastSent()).toEqual([]);
+
+        await act(async () => {
+            commandsRegistry.register('gs-hook', { id: 'ping', label: { en: 'Ping' }, globalShortcut: true, run: () => {} });
+        });
+        expect(lastSent()).toEqual([toGlobalShortcutAccelerator('k')]);
+
+        // A command that cannot be bound neither registers the keys again nor re-renders the host.
+        const calls = setGlobalShortcuts.mock.calls.length;
+        const rendersBefore = renders;
+        await act(async () => {
+            commandsRegistry.register('gs-hook', { id: 'plain', label: { en: 'Plain' }, run: () => {} });
+        });
+        expect(setGlobalShortcuts.mock.calls.length).toBe(calls);
+        expect(renders).toBe(rendersBefore);
+
+        await act(async () => {
+            commandsRegistry.unregisterAll('gs-hook');
+        });
+        expect(lastSent()).toEqual([]);
+    });
+
+    it('on the portal are only the fixed playback table, never a mod command', async () => {
+        backend = 'portal';
+        useInteractionSettingsStore.getState().setGlobalShortcutPortalEnabled(true);
+        await act(async () => {
+            commandsRegistry.register('gs-hook', { id: 'ping', label: { en: 'Ping' }, globalShortcut: true, run: () => {} });
+        });
+        await render();
+        expect(setGlobalShortcuts).toHaveBeenCalledTimes(1);
+        expect(lastSent()).toEqual(PORTAL_GLOBAL_SHORTCUTS.map((shortcut) => shortcut.accelerator));
     });
 });
