@@ -12,9 +12,12 @@
 // paid key it asked for should not sit readable in userData.
 //
 // A key must be one a settings section of the mod declares as `secret`. The sections are registered in
-// the window, which tells this store (`declare`) when the client registers one; until then (the first run
-// of a mod) a key that already holds a value counts as declared, so the main entry can read what the user
-// saved in an earlier run. Values are strings of at most SECRET_MAX_BYTES. Nothing here logs a value.
+// the window, which tells this store (`declare`) when the client registers one. That happens again on
+// every start, after the main entry has already been activated, so until the first declaration of a run
+// a key that holds a value counts as declared, and reading one that holds none gives null (has: false)
+// rather than `secret-undeclared`: a main entry awaiting `get` in activate must not fail, or its client
+// never starts and the key never gets declared. Writing a key with no value waits for the declaration.
+// Values are strings of at most SECRET_MAX_BYTES. Nothing here logs a value.
 //
 // Every change, whoever made it (the form, a client, a main entry), goes to `onChange(modId, key)`, which
 // the loader turns into the window's notice and the main entry's subscribers. The key only: the value
@@ -137,14 +140,23 @@ const createModSecrets = ({
         await fs.promises.rename(tempPath, filePath);
     };
 
-    const requireKey = async (modId, key) => {
+    /*
+     * Refuses a key the mod has not declared. Accepted: a declared key, one that holds a value, and, for
+     * a read (`write` false) while the window has declared nothing for the mod in this run, any key: it
+     * then reads as unset. The declarations are looked at again after the file read, since one can land
+     * while the file is read.
+     */
+    const requireKey = async (modId, key, { write = false } = {}) => {
         if (typeof key !== 'string' || key.length === 0) {
             throw new Error('secret key must be a non-empty string');
         }
         if (declaredByMod.get(modId)?.has(key) || memoryByMod.get(modId)?.has(key)) {
             return;
         }
-        if (Object.hasOwn(await readSealed(modId), key)) {
+        if (Object.hasOwn(await readSealed(modId), key) || declaredByMod.get(modId)?.has(key)) {
+            return;
+        }
+        if (!write && !declaredByMod.has(modId)) {
             return;
         }
         throw new Error(`secret-undeclared:${key}`);
@@ -238,7 +250,7 @@ const createModSecrets = ({
      * actual change is announced.
      */
     const set = (modId, key, rawValue) => enqueue(modId, async () => {
-        await requireKey(modId, key);
+        await requireKey(modId, key, { write: true });
         const value = requireValue(rawValue);
         const previous = await readValue(modId, key);
         const sealed = await readSealed(modId);

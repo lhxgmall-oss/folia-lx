@@ -34,16 +34,18 @@ const call = async <T>(modId: string, operation: SecretOperation, key?: string |
  */
 export const declareFoliumSecretKeys = (modId: string, keys: readonly string[]) => {
     if (keys.length === 0) return;
-    const previous = declarations.get(modId) ?? Promise.resolve();
-    const next = previous
-        .then(() => invokeModSecrets(modId, 'declare', [...keys]))
+    // Sent now, inside register, not after the previous declaration settles: IPC keeps the order of
+    // what one window sends, so anything the client sends next (a folium.rpc.call, which does not wait
+    // for `declarations`) reaches the main process after these keys.
+    const sent = invokeModSecrets(modId, 'declare', [...keys])
         .then((settled) => {
             if (!settled.ok && settled.error !== 'no-electron-bridge') {
                 console.warn(`[Folium:${modId}] secret fields could not be declared: ${settled.error}`);
             }
         })
         .catch((error) => console.warn(`[Folium:${modId}] secret fields could not be declared`, error));
-    declarations.set(modId, next);
+    const previous = declarations.get(modId);
+    declarations.set(modId, previous ? Promise.all([previous, sent]) : sent);
 };
 
 // The listeners of each mod, fed by one bridge subscription made on first use.

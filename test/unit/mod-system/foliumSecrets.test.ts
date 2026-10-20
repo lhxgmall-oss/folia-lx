@@ -189,6 +189,13 @@ describe('folium.secrets', () => {
         releases.forEach((release) => release());
     });
 
+    it('sends the declaration inside register, before anything the client sends next', () => {
+        const folium = createFoliumClientApi(mod('secret-client'), clientApiOptions('main'));
+        folium.registries.settingsSections.register({ id: 'prefs', label: { en: 'Prefs' }, settings: [apiKey] });
+        // No await in between: a folium.rpc.call made right here goes out after the keys.
+        expect(bridge.state.calls).toEqual([['secret-client', 'declare', ['apiKey'], undefined]]);
+    });
+
     it('rejects with the main process\'s reason', async () => {
         const folium = createFoliumClientApi(mod('secret-client'), clientApiOptions('main'));
         await expect(folium.secrets.set('apiKey', 'x'.repeat(21))).rejects.toThrow('secret-too-large:20');

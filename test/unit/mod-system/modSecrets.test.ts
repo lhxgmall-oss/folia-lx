@@ -79,8 +79,29 @@ describe('mod secrets with OS encryption', () => {
 
         const next = makeStore();
         expect(await next.get('mod-a', 'apiKey')).toBe('token');
-        // A key with no value and no declaration is still refused.
+        await next.set('mod-a', 'apiKey', 'token-2');
+        expect(await next.get('mod-a', 'apiKey')).toBe('token-2');
+    });
+
+    it('reads a key with no value as unset on every start until the window declares, and writes it only after', async () => {
+        const first = makeStore();
+        first.declare('mod-a', ['apiKey']);
+        await first.set('mod-a', 'apiKey', 'token');
+        await first.set('mod-a', 'apiKey', null);
+
+        // The next start: the main entry runs before the client registers its section, and the key
+        // the user cleared must not make its activate fail (the client would never start to declare it).
+        const next = makeStore();
+        expect(await next.get('mod-a', 'apiKey')).toBeNull();
+        expect(await next.has('mod-a', 'apiKey')).toBe(false);
+        await expect(next.set('mod-a', 'apiKey', 'early')).rejects.toThrow('secret-undeclared:apiKey');
+
+        next.declare('mod-a', ['apiKey']);
+        await next.set('mod-a', 'apiKey', 'late');
+        expect(await next.get('mod-a', 'apiKey')).toBe('late');
+        // Once the window has declared, a key it did not declare is refused again.
         await expect(next.get('mod-a', 'other')).rejects.toThrow('secret-undeclared:other');
+        await expect(next.has('mod-a', 'other')).rejects.toThrow('secret-undeclared:other');
     });
 
     it('clears with null or an empty string, and removes the file when nothing is left', async () => {

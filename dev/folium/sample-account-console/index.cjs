@@ -36,19 +36,14 @@ module.exports = function activate(api) {
   };
 
   /*
-   * 'set', 'unset', or 'undeclared'. The main entry learns which keys are `secret` when the client
-   * registers its settings section; in the very first run it can start before that, and a key with
-   * no value yet is then refused with `secret-undeclared:<key>`.
+   * 'set' or 'unset'. On every start the main entry runs before the client registers its settings
+   * section, so the host does not know yet that `apiKey` is a secret field: a key with no value then
+   * reads as null all the same (only `set` has to wait for the section).
    */
   const readSecretStatus = async () => {
-    try {
-      const value = await api.secrets.get(SECRET_KEY);
-      // A real mod would use `value` here (an Authorization header, say) and keep it nowhere else.
-      return value === null ? 'unset' : 'set';
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('secret-undeclared:')) return 'undeclared';
-      throw error;
-    }
+    const value = await api.secrets.get(SECRET_KEY);
+    // A real mod would use `value` here (an Authorization header, say) and keep it nowhere else.
+    return value === null ? 'unset' : 'set';
   };
 
   // Stopped by the host when the mod stops; no disposer needed.

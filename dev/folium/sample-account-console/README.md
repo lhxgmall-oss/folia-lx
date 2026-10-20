@@ -35,8 +35,8 @@ main 入口各读一次，不显示值）、main 入口推来的消息、当前�
    - 「settings.get() 里的键」只有 `range`：`secret` 字段的值不在设置值里，也不进视觉配置的导出和导出窗口；
    - 页面上的「清除密钥」调 `folium.secrets.set('apiKey', null)`，设置里随之变成「未设置」。
 
-   第一次启用时 main 入口比 client 先启动，那时还不知道 `apiKey` 是密钥字段，读它会被拒绝为 `secret-undeclared:apiKey`，
-   开发者日志里那一行写「secret field undeclared」；client 登记了设置区块之后就正常了。
+   每次启动 Folia，main 入口都比 client 先启动，宿主那时还不知道 `apiKey` 是密钥字段：没填过的 `apiKey` 读出来是 `null`，
+   开发者日志里那一行写「secret field unset」；填过的照常读到，写「secret field set」。
 3. **main 入口的消息**：「来自 main 入口的消息」每 15 秒多一条 `heartbeat`。点「让 main 入口回一条消息」：client 调
    `rpc.call('ping')`，main 入口在处理函数里 `api.rpc.send('pong', …)`。消息不排队：页面关着时收到的照样记下（监听属于模组，不属于页面），
    模组重载之后 client 先 `rpc.on` 再 `rpc.call('status')` 取一次 main 入口的状态。
@@ -56,7 +56,7 @@ main 入口各读一次，不显示值）、main 入口推来的消息、当前�
 | --- | --- |
 | 设置字段 `type: 'secret'` | `client.mjs` 的 `activate`：设置区块里的 `apiKey`，旁边是普通的 `range` |
 | `folium.secrets.has` / `set` / `subscribe` | `createDesk`、「清除密钥」按钮 |
-| `api.secrets.get` / `subscribe` | `index.cjs` 的 `readSecretStatus`；第一次运行时的 `secret-undeclared` |
+| `api.secrets.get` / `subscribe` | `index.cjs` 的 `readSecretStatus`：activate 里（client 登记之前）读一次，之后跟着变化读 |
 | `api.rpc.send` | `index.cjs`：定时的 `heartbeat`，`ping` 处理函数里的 `pong`，密钥变化后的 `secretStatus` |
 | `folium.rpc.on` | `createDesk`：先登记三个监听，再 `rpc.call('status')` 取一次状态 |
 | `folium.account.getState()` | 「登录状态」卡片，每次重画都读（宿主换了选中的音源不发事件） |

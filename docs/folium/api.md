@@ -84,9 +84,12 @@ permission; values must be JSON-serializable.
 Folium 1.7: `folium.secrets` (client) and `api.secrets` (main entry), the values of this mod's `secret`
 settings fields. One store per mod, shared by both entries and the settings form, keyed by the field's
 `key`; a mod reaches only its own. A key that no settings section of this mod declares as `secret` is
-refused with `secret-undeclared:<key>`. The main entry learns the keys when the client registers the
-section, so before that (in the first run) it can use only keys that already hold a value. A value is a
-string of at most 8 KB (UTF-8); a longer one is refused with `secret-too-large:8192`.
+refused with `secret-undeclared:<key>`. The host learns the keys when the client registers the section,
+and on every start of Folia the main entry runs before that: until the client has registered, `get` and
+`has` of a key with no value give null and false (a key that holds a value works as usual), and `set` of
+a key with no value is refused with `secret-undeclared:<key>`. Reloading the mod keeps what the host
+learned in this run. A value is a string of at most 8 KB (UTF-8); a longer one is refused with
+`secret-too-large:8192`.
 
 The host keeps the values in the main process, encrypted with the system's credential store (DPAPI on
 Windows, Keychain on macOS, libsecret or kwallet on Linux), in a file of its own beside the mod's data

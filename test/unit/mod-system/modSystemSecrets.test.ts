@@ -44,12 +44,16 @@ const { computeModDigest } = require('../../../electron/modSystem/modDigest.cjs'
 
 // What the test mod's main entry exposes to the test: its api.secrets and what its listener heard.
 const seenKey = '__foliaModSecretsTest';
-type Seen = { secrets: { get(key: string): Promise<string | null>; set(key: string, value: string | null): Promise<void> }; heard: string[] };
+type Seen = {
+    secrets: { get(key: string): Promise<string | null>; set(key: string, value: string | null): Promise<void> };
+    heard: string[];
+    read?: string | null;
+};
 const seen = () => (globalThis as Record<string, unknown>)[seenKey] as Seen;
 
 let root = '';
 
-const writeMod = (id: string, { enabled = true } = {}) => {
+const writeMod = (id: string, { enabled = true, awaitSecretInActivate = false } = {}) => {
     const directory = path.join(root, 'app', 'mods', id);
     fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(path.join(directory, 'mod.json'), JSON.stringify({
@@ -62,6 +66,9 @@ const writeMod = (id: string, { enabled = true } = {}) => {
         `    const state = { secrets: api.secrets, heard: [] };`,
         `    globalThis.${seenKey} = state;`,
         '    api.secrets.subscribe((key) => state.heard.push(key));',
+        ...(awaitSecretInActivate ? [
+            "    return api.secrets.get('apiKey').then((value) => { state.read = value; });",
+        ] : []),
         '};',
         '',
     ].join('\n'));
@@ -138,8 +145,21 @@ describe('secret values through the loader', () => {
         launch();
         expect(await invoke('mod-off', 'declare', ['apiKey'])).toEqual({ ok: false, error: 'mod-not-loaded' });
         expect(await invoke('nobody', 'get', 'apiKey')).toEqual({ ok: false, error: 'mod-not-found' });
-        expect(await invoke('mod-a', 'get', 'apiKey')).toEqual({ ok: false, error: 'secret-undeclared:apiKey' });
+        // Before the window declares anything this run, an unset key reads as unset; a write waits.
+        expect(await invoke('mod-a', 'get', 'apiKey')).toEqual({ ok: true, result: null });
+        expect(await invoke('mod-a', 'set', 'apiKey', 'x')).toEqual({ ok: false, error: 'secret-undeclared:apiKey' });
+        await invoke('mod-a', 'declare', ['apiKey']);
+        expect(await invoke('mod-a', 'get', 'other')).toEqual({ ok: false, error: 'secret-undeclared:other' });
         expect(await invoke('mod-a', 'keys')).toEqual({ ok: false, error: 'secrets-unknown-operation:keys' });
+    });
+
+    it('keeps a main entry loaded that awaits an unset key in activate, before the client declares it', async () => {
+        writeMod('mod-a', { awaitSecretInActivate: true });
+        const system = launch();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(seen().read).toBeNull();
+        const mods = system.listMods() as Array<{ id: string; status: string }>;
+        expect(mods.find((mod) => mod.id === 'mod-a')?.status).toBe('loaded');
     });
 
     it('keeps one mod out of another\'s values', async () => {

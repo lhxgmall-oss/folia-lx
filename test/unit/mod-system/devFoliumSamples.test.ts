@@ -325,7 +325,8 @@ const ACCOUNT_CONSOLE_DIR = path.join(DEV_FOLIUM_DIR, 'sample-account-console');
 
 /*
  * sample-account-console's main entry, activated against the real mod api. The secret store is a
- * stand-in that refuses an undeclared key without a value the way modSecrets.cjs does, and tells its
+ * stand-in that, the way modSecrets.cjs does before the client declares its keys, reads a key with no
+ * value as null and refuses to write one, and tells its
  * subscribers the key of every change; what api.rpc.send pushes is read back from sendToClient.
  */
 const activateAccountConsoleMain = ({ declared = true, minor = 7 } = {}) => {
@@ -343,8 +344,8 @@ const activateAccountConsoleMain = ({ declared = true, minor = 7 } = {}) => {
         if (!declared && !values.has(key)) throw new Error(`secret-undeclared:${key}`);
     };
     const secrets = {
-        get: async (key: string) => { check(key); return values.get(key) ?? null; },
-        has: async (key: string) => { check(key); return values.has(key); },
+        get: async (key: string) => values.get(key) ?? null,
+        has: async (key: string) => values.has(key),
         set: async (key: string, value: string | null) => {
             check(key);
             if (value) values.set(key, value);
@@ -402,11 +403,11 @@ describe('sample-account-console main entry', () => {
         main.stop();
     });
 
-    it('reads the key as undeclared before the client registered its section', async () => {
+    it('reads the key as unset before the client registered its section', async () => {
         const main = activateAccountConsoleMain({ declared: false });
-        expect(await main.call('status')).toMatchObject({ secret: 'undeclared' });
+        expect(await main.call('status')).toMatchObject({ secret: 'unset' });
         await flush();
-        expect(main.logs).toContain('sample-account-console 1.0.0: secret field undeclared');
+        expect(main.logs).toContain('sample-account-console 1.0.0: secret field unset');
         main.stop();
     });
 

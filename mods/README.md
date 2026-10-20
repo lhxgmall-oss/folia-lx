@@ -461,8 +461,9 @@ folium.secrets.subscribe((changedKey) => { /* 只给 key，不给值 */ });
   - `get(key)` 给值或 `null`（没填，或系统的凭据存储暂时解不开）；`has(key)` 只说有没有；`set(key, value)` 存，`null` 或空串清除；
     值必须是字符串，最长 8 KB（UTF-8），超了拒绝为 `secret-too-large:8192`。
   - `subscribe(listener)` 在任何一方（设置表单、client、main 入口）存或清除之后调用，参数只有 key；模组停掉时宿主替你取消。
-  - key 必须是本模组某个设置分区里声明为 `secret` 的，否则拒绝为 `secret-undeclared:<key>`。main 入口是在 client 登记分区时才知道这些 key 的：
-    模组第一次运行时 main 入口先于 client 启动，那时只能读已经存有值的 key；之后每次运行，存着值的 key 在 activate 里就能读。
+  - key 必须是本模组某个设置分区里声明为 `secret` 的，否则拒绝为 `secret-undeclared:<key>`。宿主是在 client 登记分区时才知道这些 key 的，
+    而每次启动 Folia，main 入口都比 client 先启动：client 登记之前，存着值的 key 照常读写，没有值的 key `get` 给 `null`、`has` 给 `false`，
+    `set` 它拒绝为 `secret-undeclared:<key>`（等 client 登记之后再写）。同一次运行里重载模组不受影响，宿主还记得这些 key。
   - 导出窗口里 `get` / `has` / `set` 拒绝为 `secrets-unavailable-in-export-context`，`subscribe` 从不调用。
 - **存在哪**：主进程用系统的凭据存储加密（Windows 的 DPAPI、macOS 的钥匙串、Linux 的 libsecret 或 kwallet），只有密文写进
   `<userData>/mods-data/<id>/secrets.json`（在 `api.storage.paths.data` 之外，算进模组面板的「数据」占用）。
@@ -687,7 +688,7 @@ module.exports = function activate(api) {
 | `api.rpc.handle(name, fn)` | 供 client 的 `folium.rpc.call` 调用 | 稳定 |
 | `api.rpc.send(name, payload)` | 1.7。推一条消息给本模组在主窗口里的 client（`folium.rpc.on`），见[下面](#main-入口向-client-推送消息17) | 稳定 |
 | `api.storage.get/set/has/delete/keys` | 异步，需 `filesystem.data`，与 client 的 `folium.storage` 共用数据，上限 1 MB | 稳定 |
-| `api.secrets.get/has/set/subscribe` | 1.7。本模组 `secret` 设置字段的值，与 client 的 `folium.secrets` 是同一份，不需要权限；第一次运行时 client 登记分区之前只能读已有值的 key，见[密钥字段](#密钥字段secret17) | 稳定 |
+| `api.secrets.get/has/set/subscribe` | 1.7。本模组 `secret` 设置字段的值，与 client 的 `folium.secrets` 是同一份，不需要权限；每次启动时 client 登记分区之前，没有值的 key 读出来是 `null`、不能写，见[密钥字段](#密钥字段secret17) | 稳定 |
 | `api.paths` | 可以写文件的用户目录：`documents`、`downloads`、`music`、`videos`；模组自己的文件放 `api.storage.paths` | 稳定 |
 | `api.storage.paths.data` / `.cache` | 模组自己写文件的目录，见下 | 稳定 |
 | `api.runtime.getPlaybackSnapshot()` | 需 `playback.read`；返回 `FoliumPlaybackSnapshot` DTO，`position` 在播放中按推送时间外推；还带音量 `volume`（0–1）、`muted` 与循环模式 `loopMode` | 稳定 |

@@ -258,7 +258,7 @@ const mount = async (container, ctx) => {
 
 - 用 [FoliumSetting](api.md#foliumsetting) 声明 `settings`，宿主负责渲染表单、校验、持久化，并把值带进视觉配置的导入导出和导出窗口。
 - 想要自己的面板外观时用 `settingsPanel(container, panelCtx)`，但仍然必须声明 `settings`：键、默认值和校验由 schema 决定，面板通过 `panelCtx.settings`（`get`、`set`、`reset`、`onChange`）读写。
-- 用户要填的 API 密钥、令牌用 `type: 'secret'` 的字段（Folium 1.7，只能放在设置分区里），不要用 `text`，也不要用 `settingsPanel` 自绘再存进 `folium.storage`：`text` 的值随视觉配置导出、交给导出窗口，设置页也是明文；`folium.storage` 是明文文件。`secret` 的值由主进程加密保管，不在 `settings.get()` 里，client 用 `folium.secrets`、main 入口用 `api.secrets` 读，宿主不记进日志，你的代码也别记。第一次运行时 main 入口比 client 先启动，client 登记分区之前读没有值的 key 会被拒绝为 `secret-undeclared:<key>`。规则见规范里的「密钥字段」。
+- 用户要填的 API 密钥、令牌用 `type: 'secret'` 的字段（Folium 1.7，只能放在设置分区里），不要用 `text`，也不要用 `settingsPanel` 自绘再存进 `folium.storage`：`text` 的值随视觉配置导出、交给导出窗口，设置页也是明文；`folium.storage` 是明文文件。`secret` 的值由主进程加密保管，不在 `settings.get()` 里，client 用 `folium.secrets`、main 入口用 `api.secrets` 读，宿主不记进日志，你的代码也别记。每次启动 Folia，main 入口都比 client 先启动：client 登记分区之前，没有值的 key 读出来是 `null`，写它会被拒绝为 `secret-undeclared:<key>`。规则见规范里的「密钥字段」。
 
 ### 第三方库
 
