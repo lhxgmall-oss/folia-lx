@@ -177,6 +177,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 密钥字段（`secret`）、`rpc.send` / `rpc.on` 和 `folium.account` 不需要权限。
 
 每个权限解锁的成员以 API 参考的[权限一览](../docs/folium/api.md#权限一览)为准，`npm run folium:check` 用同一张表查模组。
+`platform.*` 例外：`folium:check` 只按代码里 `request('<平台>', …)` 写出的平台 id 查 `platform.<平台>.read`，平台 id 是变量时只提示一句，`.write` 查不到（要看调的接口）。
 为 Folium 1.5 写的清单里的旧权限名和不认识的字段，在 1.x 里只提醒、不拒绝，见[仍可用的旧名字](../docs/folium/api.md#仍可用的旧名字)。
 
 ## client 入口

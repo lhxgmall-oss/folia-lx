@@ -372,7 +372,9 @@ const renderPermissions = () => {
     const lines = [
         `### ${PERMISSIONS_HEADING}`,
         '',
-        '本表由 `electron/modSystem/foliumShared.json` 里每个权限的 `guards` 生成，`npm run folium:check` 用同一张表查模组用到的成员。',
+        '本表由 `electron/modSystem/foliumShared.json` 里每个权限的 `guards` 生成，`npm run folium:check` 用同一张表查模组用到的成员。'
+            + "`platform.*` 两行例外：模组只能写成 `folium.experimental['platform.raw']`，表里的成员名只是说明；"
+            + "`folium:check` 改为按代码里 `request('<平台>', …)` 写出的平台 id 查 `platform.<平台>.read`，`.write` 要看调的是哪个接口，查不到。",
         '',
         '| 权限 | 解锁的成员 |',
         '| --- | --- |',
