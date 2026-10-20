@@ -26,6 +26,7 @@ Folium 模组系统在窗口里的一半：契约（`folium/contract.ts` 是 cli
 | `src/components/app/playback/bridges/useElectronPlaybackBridge.ts`、`src/services/remoteControlActions.ts`、`src/components/remote/RemoteSheet.tsx` | `folium/registries/remoteActions.ts` | 实验接口 `remote.actions`：模组加在遥控窗口「更多」里「模组」页的按钮，点下去在主窗口执行 |
 | `src/vite-env.d.ts` | `src/mods/types.ts` 里的类型 | `window.electron.mods` 这座桥的类型 |
 | `src/services/hostExtensionHooks.ts` | 不引用 `src/mods`；`runtime/hostEvents.ts` 和 `folium/experimental.ts` 往里装钩子 | 应用在歌词进来、一首歌开始放的地方调它；没装钩子时原样通过，应用不需要知道有模组 |
+| `src/services/onlineMusic/omni.ts` 的 `getRawRequestInfo`、`describeRawEndpoint`、`requestProviderRaw`，它剥凭据用的 `rawResponse.ts`；`src/types/onlineMusic.ts` 的 `OnlineRawRequestProvider`；平台的 `raw`（网易云：`netease/neteaseRaw.ts` 和 `netease.ts` 的 `requestNeteaseRoute`） | 不引用 `src/mods`；`folium/platformRaw.ts` 调 omni 的这三个方法 | 实验接口 `platform.raw`（Folium 1.7）：以登录的账号调平台后端原始接口的后备通道，只有它用。会话由平台的 provider 补上，哪些接口能调由平台自己的分类表定；去掉模组系统时这几处一起删 |
 | `electron/main.cjs` | `createModSystem`（`electron/modSystem/modSystem.cjs`）、`MOD_PROTOCOL_PRIVILEGED_SCHEME` | 主进程那一半：开关、启动、IPC、`folia-mod://` 协议、退出时收拾 |
 | `electron/preload.cjs` | `mods` 那一组方法 | 窗口到主进程的桥；窗口里只有 `src/mods/ipc.ts` 读它 |
 | `mod-export.html`、`vite.config.ts` 的 `modExport` | `export/modExportPage.tsx` | 视频导出窗口的页面 |
