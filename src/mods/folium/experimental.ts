@@ -21,6 +21,7 @@ import { registerRemoteActions, remoteActionsRegistry } from './registries/remot
 import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderText } from './ponderText';
 import { inertFoliumHandle, type FoliumStoppedCheck } from './api';
 import { FOLIUM_EXPERIMENTAL } from './shared';
+import { createFoliumPlatformService } from './platformRaw';
 
 // src/mods/folium/experimental.ts
 // The unfrozen surfaces, each behind a manifest opt-in (`experimental`):
@@ -28,6 +29,7 @@ import { FOLIUM_EXPERIMENTAL } from './shared';
 //   - omni.hooks:     rewrite lyrics / swap audio URLs Omni resolved;
 //   - ponder.targets: add Ponder (in-app tutorial) targets for the mod's own UI.
 //   - remote.actions: append host-rendered buttons in the remote window.
+//   - platform.raw:   call a platform's own backend endpoints through Omni (platformRaw.ts, Folium 1.7).
 // player.layout opts into FoliumStageContext.getLayout(), not a separate service.
 // Loaded lazily and only in the main window, so the export bundle never pulls
 // in the provider registry. These can change in any folium minor.
@@ -161,4 +163,5 @@ export const createFoliumExperimental = (
                 : registerRemoteActions(mod.id, def)
         ),
     }),
+    [FOLIUM_EXPERIMENTAL.platformRaw]: createFoliumPlatformService(mod, stopped),
 });

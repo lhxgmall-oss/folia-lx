@@ -25,14 +25,17 @@
         "render.export": { "guards": ["api.render.exportVideo"] },
         "net.fetch": { "guards": ["folium.net.fetch"] },
         "net.embed": { "guards": ["folium.ui.embed"] },
-        "stageLayers": { "guards": ["folium.registries.stageLayers"] }
+        "stageLayers": { "guards": ["folium.registries.stageLayers"] },
+        "platform.netease.read": { "guards": ["folium.experimental.platform.raw.request"] },
+        "platform.netease.write": { "guards": ["folium.experimental.platform.raw.request.write"] }
     },
     "experimental": {
         "omniProviders": "omni.providers",
         "omniHooks": "omni.hooks",
         "ponderTargets": "ponder.targets",
         "playerLayout": "player.layout",
-        "remoteActions": "remote.actions"
+        "remoteActions": "remote.actions",
+        "platformRaw": "platform.raw"
     },
     "channels": {
         "list": "folia-mods:list",

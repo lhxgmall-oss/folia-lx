@@ -1059,6 +1059,8 @@ export default {
     "market": "Pasar mod",
     "trustRevoked": "Berkas mod ini berubah sejak terakhir Anda konfirmasi, jadi mod dinonaktifkan otomatis. Periksa sumbernya, lalu aktifkan kembali.",
     "devSourceHint": "Mod di direktori pengembangan: setelah dikonfirmasi, mengubah berkasnya tidak membatalkan persetujuan (hanya build pengembangan).",
+    "platformReadHint": "Dapat membaca data di {{platforms}} dengan akun yang Anda pakai untuk masuk ke Folia, misalnya riwayat mendengarkan (API eksperimental platform.raw).",
+    "platformWriteHint": "Juga dapat mengubah isi akun {{platforms}} Anda, misalnya suka, playlist, dan yang diikuti.",
     "signatureVerified": "Terverifikasi",
     "signatureVerifiedDetail": "Memiliki tanda tangan resmi Folium yang valid ({{key}}): sumber dan isinya telah ditinjau Folium dan tidak berubah sejak ditandatangani. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.",
     "signatureBeta": "Pratinjau",

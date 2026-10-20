@@ -1059,6 +1059,8 @@ export default {
     "market": "Mod market",
     "trustRevoked": "This mod's files changed since you last confirmed it, so it was disabled automatically. Check the source, then enable it again.",
     "devSourceHint": "Development source mod: once confirmed, editing its files keeps the approval (development builds only).",
+    "platformReadHint": "Can read data on {{platforms}} with the account you signed in to Folia with, such as your listening records (experimental platform.raw).",
+    "platformWriteHint": "Can also change what your {{platforms}} account holds, such as likes, playlists and follows.",
     "signatureVerified": "Verified",
     "signatureVerifiedDetail": "Carries a valid official Folium signature ({{key}}): its source and content were reviewed by Folium and have not changed since signing. Once enabled it still runs with the app's full privileges.",
     "signatureBeta": "Preview",

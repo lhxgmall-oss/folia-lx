@@ -1059,6 +1059,8 @@ export default {
     "market": "模组市场",
     "trustRevoked": "该模组的文件在你上次确认之后发生了变化，已自动禁用。请确认来源无误后重新启用。",
     "devSourceHint": "开发目录中的模组：确认后修改文件不会撤销授权（仅开发版）。",
+    "platformReadHint": "可以用你在 Folia 登录的账号读取{{platforms}}上的数据，例如听歌记录（实验接口 platform.raw）。",
+    "platformWriteHint": "还可以用你的账号改动{{platforms}}账号里的内容，例如点赞、歌单和关注。",
     "signatureVerified": "官方认证",
     "signatureVerifiedDetail": "带有有效的 Folium 官方签名（{{key}}）：来源与内容经过官方审查，签名后未被修改。它启用后仍以应用的完整权限运行。",
     "signatureBeta": "先行测试",

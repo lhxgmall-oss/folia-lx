@@ -1505,6 +1505,91 @@ export interface FoliumOmniProviderDef {
     getLyrics?(song: FoliumProviderSong): Promise<FoliumLyricsResult | FoliumLegacyLyricsResult | null>;
 }
 
+/** Folium 1.7: a JSON value, as `platform.raw` request parameters take them. */
+export type FoliumJsonValue = string | number | boolean | null | FoliumJsonValue[] | { [key: string]: FoliumJsonValue };
+
+/** Folium 1.7: EXPERIMENTAL (`platform.raw`): the backend library the host pins for a platform. */
+export interface FoliumPlatformBackend {
+    /** The library's package name. */
+    readonly name: string;
+    /** Its version, as the host pins it; raw answers follow it. */
+    readonly version: string;
+}
+
+/** Folium 1.7: EXPERIMENTAL (`platform.raw`): what `describe` says of one platform. */
+export interface FoliumPlatformDescription {
+    /** Whether the platform's endpoints can be called through `request`. */
+    readonly supported: boolean;
+    /** The pinned backend library; only when supported. */
+    readonly backend?: FoliumPlatformBackend;
+}
+
+/** Folium 1.7: EXPERIMENTAL (`platform.raw`): what `request` resolves to. */
+export interface FoliumPlatformResponse {
+    /** The platform's own JSON answer, credential fields (cookies, tokens) taken out at any depth. */
+    readonly body: unknown;
+    /** The `accountKey` of the account the request was made as (`folium.account`); null when nobody is signed in. */
+    readonly accountKey: string | null;
+}
+
+/**
+ * Folium 1.7: EXPERIMENTAL (`platform.raw`): why a `request` failed, as the rejection's `code` (and its
+ * message). `permission-denied:<permission>`: mod.json lacks `platform.<id>.read` (or, for an endpoint
+ * that changes the account, `platform.<id>.write`). `endpoint-denied`: the platform's table of endpoints
+ * does not open this one (sign-in, session and credential endpoints never are, and neither is any endpoint
+ * the table does not list). `unsupported`: the platform has no raw endpoints in this host.
+ * `not-signed-in` / `session-expired`: the endpoint needs a signed-in account and there is none, or its
+ * session ran out. `vip-required`: the platform answers that only paying accounts may. `rate-limited`:
+ * too many requests, from this mod (the host allows 60 a minute and 4 at a time) or as the platform says.
+ * `network`: the platform could not be reached or did not answer in time. `account-changed`: the account
+ * signed out or changed while the request was under way, so the answer was dropped. `aborted`: the
+ * request's `signal` aborted, or the mod stopped.
+ */
+export type FoliumPlatformErrorCode =
+    | `permission-denied:${string}`
+    | 'endpoint-denied'
+    | 'unsupported'
+    | 'not-signed-in'
+    | 'session-expired'
+    | 'vip-required'
+    | 'rate-limited'
+    | 'network'
+    | 'account-changed'
+    | 'aborted';
+
+/**
+ * Folium 1.7: EXPERIMENTAL (manifest `experimental: ["platform.raw"]`), as
+ * `folium.experimental['platform.raw']`; main window only. A fallback for what Omni does not offer yet:
+ * it calls a platform's own backend endpoints as the account signed in to Folia, for capabilities only
+ * that platform has (listening records, say). Where Omni offers the same, use Omni: the host says so in
+ * the developer log. Answers are the platform's raw JSON and follow the backend library the host pins
+ * (`describe`), so they can change with any Folia release; nothing about them is promised.
+ *
+ * The host never hands out the session: the request goes through Omni and the platform's adapter, which
+ * add it, and credential fields are taken out of the answer. Parameters the backend reads as options of the
+ * request (the session, a proxy, the source IP and the like) are set by the host alone. Platform ids are
+ * Omni provider ids; only a platform `describe` supports takes `platform.<id>.*` permissions.
+ */
+export interface FoliumPlatformService {
+    /** Whether a platform can be called through `request`, with its backend library's name and version. */
+    describe(providerId: string): FoliumPlatformDescription;
+    /**
+     * Calls one endpoint of the platform: `endpoint` is the pinned backend's own name for it (a module
+     * name such as `user_record`). `params` are the endpoint's parameters; an endpoint
+     * about the signed-in user gets that user's id when `params` leaves it out, so a mod never needs it.
+     * Reading endpoints need the `platform.<id>.read` permission; endpoints that change the account need
+     * `platform.<id>.write` as well. Rejects with an Error whose `code` is a FoliumPlatformErrorCode, and
+     * with a TypeError for malformed arguments (`params` must be a plain object of JSON values, its names
+     * letters, digits and `_`, at most 16 KB as JSON).
+     */
+    request(
+        providerId: string,
+        endpoint: string,
+        params?: Record<string, FoliumJsonValue>,
+        options?: { signal?: AbortSignal },
+    ): Promise<FoliumPlatformResponse>;
+}
+
 // ---------------------------------------------------------------- Shared helpers
 
 /** One word from `folium.lyrics.segmentWords`. */
