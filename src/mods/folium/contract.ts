@@ -1022,7 +1022,9 @@ export interface FoliumNotificationEvents {
      * the one there (`accountKey` changed); the payload is the source's new state, as
      * `folium.account.getState(providerId)` reads it. One event per source for all the changes of one
      * task; a source whose status and key end where they began fires none, and a new nickname or avatar
-     * alone fires none either. Not emitted in the export window.
+     * alone fires none either. A status that settles from `unknown` (the host finished asking the
+     * platform, usually soon after start) fires too, for the same account as before: compare
+     * `accountKey` before dropping data. Not emitted in the export window.
      */
     'account.changed': FoliumAccountState;
 }

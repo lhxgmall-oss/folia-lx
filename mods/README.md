@@ -669,7 +669,8 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 - 不传 `providerId` 读宿主当前选中的音源；宿主不认识的 id 返回 `null`。状态和宿主界面上显示的一致：界面显示着用户的就是 `signed-in`。
 - 不含用户 id、cookie、token 和会员等级。`accountKey` 推不回用户 id，用它给自己存的数据分账号，换号后丢掉旧键下的数据。
 - `account.changed` 事件的载荷就是新的状态：登录、退出、换号时每个音源发一次，同一个任务里的多次变化合成一次；只改昵称或头像不发，
-  同一个任务里退出又登回原账号也不发。宿主换了选中的音源不发这个事件（每个音源各自的状态没变），要跟着选中的音源走就在用的时候读 `getState()`。
+  同一个任务里退出又登回原账号也不发。状态从 `unknown` 定下来时也发（通常是启动后不久宿主问完了平台），这时可能还是原来那个账号，
+  丢数据前先比较 `accountKey`。宿主换了选中的音源不发这个事件（每个音源各自的状态没变），要跟着选中的音源走就在用的时候读 `getState()`。
 - 只在主窗口可用：导出窗口里 `getState` 抛 `account-unavailable-in-export-context`，`account.changed` 不发。Folium 1.6 的宿主没有 `folium.account`，先检查 `folium.host.folium.minor >= 7`。
 
 ## main 入口（Node）

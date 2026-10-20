@@ -119,6 +119,8 @@ const STYLE = `
   font: 14px/1.5 var(--folium-font, sans-serif);
   color: var(--folium-primary, currentColor);
 }
+/* The page sits in a shadow root, out of reach of the host's scrollbar styles: tint them from the text color. */
+.desk, .list { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, currentColor 30%, transparent) transparent; }
 .card {
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 14px;
@@ -146,7 +148,7 @@ button {
 button:disabled { opacity: 0.4; cursor: default; }
 button:focus-visible { outline: 2px solid var(--folium-accent, currentColor); outline-offset: 2px; }
 ol, ul { list-style: none; margin: 0; padding: 0; }
-.list { max-height: 260px; overflow: auto; }
+.list { max-height: 260px; overflow: auto; padding-right: 8px; }
 .list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 4px 0; }
 .list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .muted { opacity: 0.6; }
@@ -366,8 +368,10 @@ const mountDesk = (folium, section, desk, container, ctx) => {
         avatar.alt = '';
         parts.push(avatar);
       }
-      parts.push(el('span', 'value', account.user?.nickname ?? (t.accountStatus[account.status] ?? account.status)));
-      parts.push(el('span', 'note', `${account.providerId} · ${t.accountStatus[account.status] ?? account.status}`));
+      const status = t.accountStatus[account.status] ?? account.status;
+      // Without a nickname the status takes its place, so the note line names only the source.
+      parts.push(el('span', 'value', account.user?.nickname ?? status));
+      parts.push(el('span', 'note', account.user ? `${account.providerId} · ${status}` : account.providerId));
       accountBody.replaceChildren(...parts);
       accountKey.textContent = `${t.accountKey}: ${shortKey(account.accountKey)}`;
     }
