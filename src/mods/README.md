@@ -18,6 +18,7 @@ Folium 模组系统在窗口里的一半：契约（`folium/contract.ts` 是 cli
 | `src/bootstrap.tsx` | `startFoliumForMainWindow`、`noteFoliumFirstScreenMounted`（`runtime/mainWindowStart.ts`） | 主窗口在第一屏之前启动模组的 client，最多等一段固定的时间：用户存下的模组歌词动画或背景，要等模组登记了才画得出来 |
 | `src/components/modal/settings/pages/ModsPage.tsx` | `ModManager`、`ModManagerClasses`（`manager/`） | 设置里的模组页 |
 | `src/components/command-palette/surfaces/modsSurface.ts` | 用到时才加载 `manager/ModsPanelTab.tsx` | 命令面板里打开的模组面板 |
+| `src/components/command-palette/globalShortcuts/useGlobalShortcuts.ts`、`src/components/modal/settings/pages/GlobalShortcutsGroup.tsx` | `useFoliumGlobalShortcutCommandIds`、`getFoliumGlobalShortcutCommandIds`、`useFoliumGlobalShortcutCommands`（`folium/registries/globalShortcutCommands.ts`） | 系统级全局快捷键里模组提供的命令（Folium 1.7 `globalShortcut`）：注册键的 hook 只注册此刻登记着的模组命令，设置页把它们列在播放命令后面，并说明绑着的模组命令为什么现在不起作用。按下时走命令面板里同一条命令（`commandPaletteSync.ts` 放进去的），所以执行不另接；去掉模组系统时这两处回到只有宿主播放命令 |
 | `src/components/ProgressBar.tsx` | `FoliumProgressButtons`、`FoliumProgressLayers`、`useFoliumProgressContext`（`folium/registries/progress.tsx`） | 进度条两边的模组按钮和叠在轨道上的模组图层 |
 | `src/components/UnifiedPanel.tsx` | `useFoliumPanelTabs`、`FoliumPanelTabBody`、`FOLIUM_PANEL_TAB_PREFIX`（`folium/registries/playerPanelTabs.tsx`） | 播放器面板里模组的标签页 |
 | `src/components/visualizer/VisualizerBackdrop.tsx`、`VisualizerShell.tsx` | `FoliumStageLayerSlot`，`player.stage.back` 和 `player.stage.front` | 播放页歌词动画后面和前面的模组图层；预览里没有。在 `VisualizerRenderer` 里由 backdrop 画，换歌词样式时不重新挂载；shell 只在单独使用时画 |
