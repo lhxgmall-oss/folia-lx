@@ -12,7 +12,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 
 > **模组开发与上架注意事项**
 >
-> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）和登录状态（`folium.account` 与 `account.changed`）。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
+> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）和可以放进系统级全局快捷键的命令（`globalShortcut`）。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
 > - 任何尝试导出 provider 的原始音频流或解密之后的原始音频文件的模组，都有极高的平台法律风险。无论采用何种实现方式，此类模组都不会上架官方模组市场。
 
 公开类型全部在 [`src/mods/folium/contract.ts`](../src/mods/folium/contract.ts)，这是契约的唯一来源；
@@ -479,6 +479,30 @@ folium.registries.commands.register({ id: 'toggle', label: {…}, description: {
 
 出现在模组面板（带参数表单）与命令面板：无参数的命令直接执行；有参数的打开表单。`run` 在渲染端执行，
 需要 Node 的工作请经 `folium.rpc` 交给 main。返回值会作为结果摘要显示（字符串、`{ outputPath }` 或 `{ message }`）。
+
+#### 系统级全局快捷键（globalShortcut，1.7）
+
+```js
+folium.registries.commands.register({
+  id: 'ping', label: { en: 'Ping main entry', 'zh-CN': '让 main 入口回一声' },
+  globalShortcut: true,
+  run: async () => { const reply = await folium.rpc.call('ping'); folium.ui.toast(String(reply)); },
+});
+```
+
+标了 `globalShortcut: true` 的命令会出现在桌面版「设置 → 快捷操作 → 全局快捷键」每个槽位的命令下拉框里，排在宿主的播放命令后面，
+名字前面带模组名。键由用户选：修饰键固定为 Ctrl+Alt+Shift（macOS 为 Control+Option+Shift）加一个字母或数字，5 个槽位，
+重复键、GNOME 占用的 R、被别的程序占用的组合都按宿主的规则在设置里显示。模组看不到也选不了键，所以不需要权限，
+也不在确认窗口里申报：用户绑键这一步就是同意。
+
+- 只对没有 `params` 的命令有效（按一下键填不了表单）；带参数的命令宿主忽略这个标记，在控制台提醒一次。
+- 按下时执行 `run`，`values` 是空对象；结果不显示，需要反馈时自己用 `folium.ui.toast`。`run` 抛错或 reject 记进模组面板里这个模组的故障记录，不弹窗。
+- Folia 在后台时也会触发，所以只放不看窗口也说得通的动作。
+- 模组停用、卸载或还在启动时，绑定保留但键不注册，设置行显示「模组未启用」；命令重新登记后自动恢复，不用重绑。
+  模组运行着却不再提供这条命令（改了 id、去掉标记、加了参数）时，设置行显示「模组现在没有提供这条命令」。
+- 原生 Wayland 下暂不提供：那里由桌面环境的快捷键门户（portal）接管，宿主交过去的是固定的播放命令整表，设置页不列模组命令。
+- 不要在 main 入口 `require('electron').globalShortcut` 自己注册热键：会绕开上面这些规则，在 Windows 上独占别的程序的组合键，
+  还可能先占走宿主自己的键；`globalShortcut.unregisterAll()` 会把宿主的键一起清掉。媒体键归宿主的 Media Session，不要抢。
 
 ### playerPanelTabs
 
@@ -1008,7 +1032,9 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 - 登录状态：`folium.account.getState(providerId?)` 与通知事件 `account.changed`，只给状态、昵称、头像和不透明的 `accountKey`。稳定，不需要权限。见 [folium.account](#foliumaccount17)。
 - 实验接口 `platform.raw`：经 Omni 以用户的账号调用平台后端的原始接口，新权限 `platform.netease.read` / `platform.netease.write`。
   清单校验多两条：声明 `platform.*` 权限必须同时选用 `platform.raw`，声明 `write` 必须同时声明 `read`。见 [platform.raw](#platformraw实验17)。
-- 示范模组 `dev/folium/sample-account-console` 演示以上四项。
+- 命令可以放进系统级全局快捷键：`FoliumCommandDef.globalShortcut`，只对没有参数的命令有效，键由用户在设置里选，原生 Wayland 下暂不提供。
+  稳定，不需要权限。见[系统级全局快捷键](#系统级全局快捷键globalshortcut17)。
+- 示范模组 `dev/folium/sample-account-console` 演示以上五项。
 
 ## 从 UI 安装与管理
 
