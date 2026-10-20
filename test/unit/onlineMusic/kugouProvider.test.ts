@@ -107,6 +107,43 @@ describe('kugouProvider', () => {
         expect(page.items[0]?.id).toBe('AUTHENTICATED-HASH');
     });
 
+    it('falls back to anonymous search when an authenticated first page is empty', async () => {
+        requestMock.mockResolvedValue({ data: { lists: [] } });
+        anonymousSearchMock.mockResolvedValue({
+            data: {
+                lists: [{
+                    FileHash: 'fallback-hash',
+                    SongName: '爱河',
+                    Singers: [{ id: 7, name: '神马乐团' }],
+                    Duration: 226,
+                }],
+            },
+        });
+
+        const page = await kugouProvider.search!.searchSongs('爱河', 50, 0);
+
+        expect(anonymousSearchMock).toHaveBeenCalledWith('爱河', 1, 50);
+        expect(page.items[0]?.id).toBe('FALLBACK-HASH');
+    });
+
+    it('keeps the authenticated empty page when the anonymous retry is also empty', async () => {
+        requestMock.mockResolvedValue({ data: { lists: [] } });
+        anonymousSearchMock.mockResolvedValue({ data: { lists: [] } });
+
+        const page = await kugouProvider.search!.searchSongs('爱河', 50, 0);
+
+        expect(anonymousSearchMock).toHaveBeenCalledTimes(1);
+        expect(page.items).toEqual([]);
+    });
+
+    it('does not retry anonymously on later pages', async () => {
+        requestMock.mockResolvedValue({ data: { lists: [] } });
+
+        await kugouProvider.search!.searchSongs('爱河', 50, 50);
+
+        expect(anonymousSearchMock).not.toHaveBeenCalled();
+    });
+
     it('normalizes Hash identity and keeps only stable provider data', () => {
         const song = normalizeKugouSong({
             FileHash: 'ab12cd',

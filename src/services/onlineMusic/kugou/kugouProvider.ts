@@ -1038,6 +1038,28 @@ export const kugouProvider: OnlineMusicProvider = {
             }
             const response = await requestKugou('search', { keywords: query, keyword: query, type: 'song', page, pagesize: limit });
             const rawItems = listOf(response);
+            // 过期登录态会继续走带凭据搜索，上游回空清单且不报错；首页空时退回匿名再搜一次。
+            if (offset === 0 && rawItems.length === 0) {
+                try {
+                    const anonymous = await requestKugouAnonymousSearch(
+                        buildKugouLyricSearchQuery(query),
+                        page,
+                        limit,
+                    );
+                    const anonymousItems = listOf(anonymous);
+                    if (anonymousItems.length > 0) {
+                        return pageOfWithRawItemCount(
+                            normalizeKugouSearchSongs(anonymousItems),
+                            anonymous,
+                            limit,
+                            offset,
+                            anonymousItems.length,
+                        );
+                    }
+                } catch (error) {
+                    console.warn('[KugouProvider] anonymous search retry failed', error);
+                }
+            }
             return pageOfWithRawItemCount(
                 normalizeKugouSearchSongs(rawItems),
                 response,

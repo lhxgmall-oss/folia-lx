@@ -80,7 +80,13 @@ export const searchQqSongs = async (query: string, limit: number, offset: number
 
     if (hasQqSession()) {
         try {
-            return await searchWithSession(keyword, page, pageSize);
+            const sessionPage = await searchWithSession(keyword, page, pageSize);
+            // 会话路径固定送 search_type 0；上游对部分账号会回 200 + 空清单（匿名路径的 7 正常）。
+            // 只有第一页又空又没有下一页时才重试匿名，别把上游的拒绝显示成「没有结果」。
+            if (sessionPage.items.length > 0 || sessionPage.hasMore || offset > 0) {
+                return sessionPage;
+            }
+            console.warn('[QQProvider] session search returned no items, retrying anonymously');
         } catch (error) {
             if (isSearchRejected(error)) throw error;
             console.warn('[QQProvider] session search unavailable, falling back to anonymous search', error);

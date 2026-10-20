@@ -77,6 +77,35 @@ describe('searchQqSongs', () => {
         await expect(searchQqSongs('海阔天空', 20, 0)).resolves.toMatchObject({ hasMore: false, nextOffset: 20 });
     });
 
+    it('retries anonymously when the session returns an empty first page', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        requestMock.mockResolvedValue({ code: 200, more: false, items: [] });
+        searchQQSongsMock.mockResolvedValue([ANONYMOUS_RESULT]);
+
+        const page = await searchQqSongs('海阔天空', 20, 0);
+
+        expect(searchQQSongsMock).toHaveBeenCalledWith('海阔天空', 1, 20);
+        expect(page.items[0]?.sourceRef).toMatchObject({ providerId: 'qq', mediaId: '003rJSwm3TechU' });
+    });
+
+    it('keeps an empty first page when the backend still reports more', async () => {
+        requestMock.mockResolvedValue({ code: 200, more: true, items: [] });
+
+        const page = await searchQqSongs('海阔天空', 20, 0);
+
+        expect(searchQQSongsMock).not.toHaveBeenCalled();
+        expect(page).toMatchObject({ items: [], hasMore: true });
+    });
+
+    it('does not retry anonymously on later pages', async () => {
+        requestMock.mockResolvedValue({ code: 200, more: false, items: [] });
+
+        const page = await searchQqSongs('海阔天空', 20, 20);
+
+        expect(searchQQSongsMock).not.toHaveBeenCalled();
+        expect(page.items).toEqual([]);
+    });
+
     it('surfaces an upstream refusal instead of reporting no results', async () => {
         requestMock.mockRejectedValue(rejected());
 
@@ -122,6 +151,7 @@ describe('searchQqSongs', () => {
         expect(requestMock).not.toHaveBeenCalled();
 
         requestMock.mockResolvedValue({ code: 200, more: false, items: [] });
+        searchQQSongsMock.mockResolvedValue([]);
         await searchQqSongs('长'.repeat(80), 20, 0);
         expect(requestMock).toHaveBeenCalledWith('search', expect.objectContaining({ keyword: '长'.repeat(60) }));
     });
