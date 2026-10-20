@@ -123,6 +123,10 @@ export const createFoliumPlatformService = (
         const missing = needed.find((permission) => !mod.permissions.includes(permission));
         if (missing) throw platformError(`permission-denied:${missing}`);
         const sent = checkParams(params, info.reservedParams);
+        // The values too, as the platform reads them: one it puts into the upstream path must not lead
+        // the session-bearing request to another endpoint (`id: '../../logout'`).
+        const problem = omni.checkRawParams(providerId, endpoint, sent);
+        if (problem !== null) throw new TypeError(`invalid-params: ${problem}`);
 
         const now = Date.now();
         while (started.length > 0 && now - started[0] >= RATE_WINDOW_MS) started.shift();

@@ -1580,7 +1580,9 @@ export interface FoliumPlatformService {
      * Reading endpoints need the `platform.<id>.read` permission; endpoints that change the account need
      * `platform.<id>.write` as well. Rejects with an Error whose `code` is a FoliumPlatformErrorCode, and
      * with a TypeError for malformed arguments (`params` must be a plain object of JSON values, its names
-     * letters, digits and `_`, at most 16 KB as JSON).
+     * letters, digits and `_`, at most 16 KB as JSON; a parameter the platform's backend writes into the
+     * path of its own request, such as an id, takes only the format the platform's table gives it, digits
+     * for ids).
      */
     request(
         providerId: string,

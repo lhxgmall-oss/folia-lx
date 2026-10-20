@@ -944,7 +944,9 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
   - 永远拒绝：登录、注册、验证码、会话刷新、账号与绑定、设备、改资料，以及能把任意请求转发出去或解密流量的模块；
   - 表外的模块一律拒绝。这三种拒绝都是 `endpoint-denied`。需要表里没有的模块，提 issue。
 - **`params`** 是纯对象，值是 JSON 值，参数名以字母开头、只含字母数字和 `_`，序列化后不超过 16 KB。后端当作请求选项读的字段
-  （`cookie`、`proxy`、`realIP`、`domain`、`headers`、`timeout` 等）只能由宿主设。不合这些规则的以 `TypeError` 拒绝。
+  （`cookie`、`proxy`、`realIP`、`domain`、`headers`、`timeout` 等）只能由宿主设。后端会原样拼进上游请求路径的参数
+  （网易云如 `album` / `artist_album` / `comment_music` 的 `id`、`user_detail` 的 `uid`、`summary_annual` 的 `year`）只收非负整数
+  或纯数字字符串，免得 `../` 之类的值把带着会话的请求引到表外的接口。不合这些规则的以 `TypeError`（message 以 `invalid-params:` 开头）拒绝。
   指明「当前用户」的参数（如 `user_record` 的 `uid`）不传时宿主填上当前账号的 id，所以模组永远不需要知道用户 id。
 - **返回** `{ body, accountKey }`。`body` 是平台原始 JSON，cookie、token、密码等凭据字段在任意深度都已剥掉；它跟着钉住的后端库变，
   不承诺稳定，按字段防御着读。平台用别的码拒绝（登录失效和限流之外）不算失败，原样在 `body` 里。`accountKey` 与

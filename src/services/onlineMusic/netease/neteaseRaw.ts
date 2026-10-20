@@ -20,8 +20,12 @@ import { describeNeteaseFailure, neteaseAnswerError } from './neteaseFailure';
 //         any request on (`api`, `batch`) or decrypt traffic.
 // `omni` names the omni method that already does what the module does: a mod should call that.
 // `selfParam` is the parameter that names the user, filled with the signed-in account's id when left out.
+// `pathParams` are the parameters the module writes into the upstream path as they come (`/api/v1/album/${id}`):
+// they take digits only. The upstream URL is resolved, so `id: '../../logout'` would otherwise send the
+// signed-in session to any music.163.com endpoint, the denied ones included
+// (test/unit/onlineMusic/neteaseRaw.test.ts reads the modules for such parameters).
 
-type Row = ProviderRawEndpoint;
+type Row = ProviderRawEndpoint & { pathParams?: readonly string[] };
 
 const read = (extra: Omit<Row, 'access'> = {}): Row => ({ access: 'read', ...extra });
 const write = (extra: Omit<Row, 'access'> = {}): Row => ({ access: 'write', ...extra });
@@ -36,15 +40,15 @@ export const NETEASE_RAW_ENDPOINTS: Readonly<Record<string, Row>> = Object.freez
     listen_data_today_song: read(),
     listen_data_song_play_rank: read(),
     listen_data_year_report: read(),
-    summary_annual: read(),
+    summary_annual: read({ pathParams: ['year'] }),
     record_recent_song: read(),
     recent_listen_list: read(),
     // The account and other users.
-    user_detail: read({ selfParam: 'uid' }),
+    user_detail: read({ selfParam: 'uid', pathParams: ['uid'] }),
     user_subcount: read(),
     user_level: read(),
-    user_follows: read({ selfParam: 'uid' }),
-    user_followeds: read({ selfParam: 'uid' }),
+    user_follows: read({ selfParam: 'uid', pathParams: ['uid'] }),
+    user_followeds: read({ selfParam: 'uid', pathParams: ['uid'] }),
     user_playlist: read({ selfParam: 'uid', omni: 'getUserPlaylists' }),
     likelist: read({ selfParam: 'uid', omni: 'getLikedSongIds' }),
     song_like_check: read({ omni: 'isSongLiked' }),
@@ -56,15 +60,15 @@ export const NETEASE_RAW_ENDPOINTS: Readonly<Record<string, Row>> = Object.freez
     lyric_new: read({ omni: 'getLyrics' }),
     song_wiki_summary: read(),
     simi_song: read(),
-    comment_music: read(),
-    comment_hot: read(),
+    comment_music: read({ pathParams: ['id'] }),
+    comment_hot: read({ pathParams: ['id'] }),
     playlist_detail: read({ omni: 'getCollectionDetail' }),
     playlist_track_all: read({ omni: 'getCollectionTracks' }),
-    album: read({ omni: 'getAlbumDetail' }),
+    album: read({ omni: 'getAlbumDetail', pathParams: ['id'] }),
     artist_detail: read({ omni: 'getArtistDetail' }),
     artist_desc: read(),
     artist_songs: read({ omni: 'getArtistSongs' }),
-    artist_album: read({ omni: 'getArtistAlbums' }),
+    artist_album: read({ omni: 'getArtistAlbums', pathParams: ['id'] }),
     toplist: read(),
     toplist_detail: read(),
     search: read({ omni: 'searchSongs' }),
@@ -83,7 +87,7 @@ export const NETEASE_RAW_ENDPOINTS: Readonly<Record<string, Row>> = Object.freez
     playlist_desc_update: write(),
     playlist_tags_update: write(),
     artist_sub: write(),
-    follow: write(),
+    follow: write({ pathParams: ['id'] }),
     scrobble: write({ omni: 'reportPlayback' }),
     recommend_songs_dislike: write({ omni: 'dislikeSong' }),
     fm_trash: write(),
@@ -147,6 +151,20 @@ export const neteaseRawQuery = (params: Record<string, JsonValue>): string => Ob
     .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(typeof value === 'object' ? JSON.stringify(value) : String(value))}`)
     .join('&');
 
+// A value for a path parameter: a non-negative integer, as a number or as digits.
+const DIGITS = /^\d{1,20}$/;
+const isPathValue = (value: JsonValue): boolean => (
+    (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
+    || (typeof value === 'string' && DIGITS.test(value))
+);
+
+/* What is wrong with the values of `params` for `endpoint`, or null. Only the path parameters are looked at. */
+const checkParams = (endpoint: string, params: Record<string, JsonValue>): string | null => {
+    const row = Object.hasOwn(NETEASE_RAW_ENDPOINTS, endpoint) ? NETEASE_RAW_ENDPOINTS[endpoint] : null;
+    const bad = row?.pathParams?.find((name) => params[name] !== undefined && params[name] !== null && !isPathValue(params[name]));
+    return bad === undefined ? null : `"${bad}" must be a non-negative integer (digits only)`;
+};
+
 // NetEase's code for "too many requests".
 const RATE_LIMITED_CODE = 405;
 
@@ -175,5 +193,6 @@ export const neteaseRaw: OnlineRawRequestProvider = {
     reservedParams: RESERVED_PARAMS,
     credentialFields: CREDENTIAL_FIELDS,
     describeEndpoint: (endpoint) => (Object.hasOwn(NETEASE_RAW_ENDPOINTS, endpoint) ? NETEASE_RAW_ENDPOINTS[endpoint] : null),
+    checkParams,
     request,
 };

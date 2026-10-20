@@ -124,6 +124,27 @@ describe('platform.raw request', () => {
         expect(send).not.toHaveBeenCalled();
     });
 
+    it('refuses a value that would walk the upstream path out of the endpoint, before any request', async () => {
+        signInAs(1);
+        const platform = createFoliumPlatformService(mod({ permissions: [READ, WRITE] }));
+        for (const [endpoint, params] of [
+            ['album', { id: '../../logout' }],
+            ['album', { id: '1/../../point/dailyTask' }],
+            ['user_detail', { uid: '..%2F..%2Flogout' }],
+            ['comment_music', { id: '1?x=1' }],
+            ['follow', { id: '1#x', t: 1 }],
+            ['summary_annual', { year: '2019/../..' }],
+            ['artist_album', { id: [1] }],
+            ['album', { id: -1 }],
+        ] as const) {
+            await expect(platform.request('netease', endpoint, params as never), `${endpoint} ${JSON.stringify(params)}`).rejects.toThrow(/^invalid-params: /);
+        }
+        expect(send).not.toHaveBeenCalled();
+        await expect(platform.request('netease', 'album', { id: '32311' })).resolves.toBeTruthy();
+        await expect(platform.request('netease', 'album', { id: 32311 })).resolves.toBeTruthy();
+        expect(send).toHaveBeenCalledTimes(2);
+    });
+
     it('drops an answer that comes after the account or the provider changed', async () => {
         signInAs(1);
         let answer!: (value: unknown) => void;

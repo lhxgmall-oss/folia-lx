@@ -57,6 +57,26 @@ describe('the table of NetEase raw endpoints', () => {
         expect(neteaseRaw.describeEndpoint('like')?.access).toBe('write');
     });
 
+    it('takes digits only for every parameter a listed module writes into the upstream path', () => {
+        // `${query.x}` in a module's '/api/…' path, unless the module first replaces query.x itself
+        // (follow's `t`, comment_hot's `type`). A new one after a backend update needs `pathParams`.
+        const unchecked = Object.entries(NETEASE_RAW_ENDPOINTS)
+            .filter(([, row]) => row.access !== 'denied')
+            .flatMap(([name, row]) => {
+                const source = readFileSync(path.join(PACKAGE_DIR, 'module', `${name}.js`), 'utf8');
+                const paths = source.match(/`\/api\/[^`]*`/g) ?? [];
+                const used = new Set(paths.flatMap((text) => Array.from(text.matchAll(/\$\{query\.(\w+)\}/g), (match) => match[1])));
+                return Array.from(used)
+                    .filter((param) => !new RegExp(`query\\.${param}\\s*=[^=]`).test(source))
+                    .filter((param) => !(row.pathParams ?? []).includes(param))
+                    .map((param) => `${name}.${param}`);
+            });
+        expect(unchecked).toEqual([]);
+        expect(neteaseRaw.checkParams!('album', { id: '../../logout' })).toMatch(/"id"/);
+        expect(neteaseRaw.checkParams!('album', { id: 12 })).toBeNull();
+        expect(neteaseRaw.checkParams!('cloudsearch', { keywords: 'AC/DC ../?#%' })).toBeNull();
+    });
+
     it('points only at omni methods that exist', () => {
         const named = Object.entries(NETEASE_RAW_ENDPOINTS).flatMap(([name, row]) => (row.omni ? [[name, row.omni] as const] : []));
         expect(named.length).toBeGreaterThan(0);
@@ -143,6 +163,7 @@ describe('omni.requestProviderRaw', () => {
         await expect(omni.requestProviderRaw('netease', 'playlist_delete', {}, signal())).rejects.toMatchObject({ code: 'unsupported' });
         await expect(omni.requestProviderRaw('netease', 'listen_data_total', { proxy: 'http://evil.example' }, signal())).rejects.toMatchObject({ code: 'unsupported' });
         await expect(omni.requestProviderRaw('kugou', 'anything', {}, signal())).rejects.toMatchObject({ code: 'unsupported' });
+        await expect(omni.requestProviderRaw('netease', 'album', { id: '../../logout' }, signal())).rejects.toMatchObject({ code: 'unsupported' });
         expect(route).not.toHaveBeenCalled();
     });
 });
