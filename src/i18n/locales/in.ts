@@ -1840,7 +1840,7 @@ export default {
     "globalShortcutReserved": "GNOME merekam layar dengan Ctrl+Alt+Shift+R; pilih tombol lain",
     "globalShortcutDuplicate": "Pintasan global lain sudah memakai tombol itu",
     "globalShortcutTakenBySystem": "Kombinasi ini sudah dipakai program lain",
-    "globalShortcutModCommand": "{{mod}} · {{command}}",
+    "globalShortcutModCommand": "{{command}} · {{mod}}",
     "globalShortcutModInactive": "Mod belum diaktifkan. Tombol ini kembali berfungsi setelah mod diaktifkan",
     "globalShortcutModCommandMissing": "Mod saat ini tidak menyediakan perintah ini",
     "replayGainMode": "Mode ReplayGain (Penyeimbang Kenyaringan)",

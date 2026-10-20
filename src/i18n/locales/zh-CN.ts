@@ -1840,7 +1840,7 @@ export default {
     "globalShortcutReserved": "GNOME 用 Ctrl+Alt+Shift+R 录屏，换一个键",
     "globalShortcutDuplicate": "另一个全局快捷键已经用了这个键",
     "globalShortcutTakenBySystem": "这个组合已被别的程序占用",
-    "globalShortcutModCommand": "{{mod}} · {{command}}",
+    "globalShortcutModCommand": "{{command}} · {{mod}}",
     "globalShortcutModInactive": "模组未启用。启用后这个键会自动恢复",
     "globalShortcutModCommandMissing": "模组现在没有提供这条命令",
     "replayGainMode": "ReplayGain 模式 (响度平衡) ",

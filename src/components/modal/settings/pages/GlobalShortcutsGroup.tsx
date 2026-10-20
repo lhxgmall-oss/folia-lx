@@ -26,8 +26,8 @@ import { Button, Group, KeyCapture, Keys, Row, Select, Status, option, type Sett
 // the note lists which suggested key is which command, for the desktop's own list.
 //
 // After the playback commands, each command list offers the mod commands marked `globalShortcut`
-// (Folium 1.7), labelled with their mod's name in front: CustomSelect has no option groups, so the
-// mod name in the label is the grouping. A slot bound to a mod command that is not registered now
+// (Folium 1.7), labelled with the command first and its mod's name after it: CustomSelect has no
+// option groups, so the mod name in the label is the grouping. A slot bound to a mod command that is not registered now
 // keeps it, shows it as its value, and says why its key does nothing. Not on the portal.
 
 export const GLOBAL_SHORTCUTS: SettingsGroupDef = { id: 'globalShortcuts', titleKey: 'options.settingsHeadingGlobalShortcuts', electronOnly: true };
@@ -138,12 +138,17 @@ export const GlobalShortcutsGroup: React.FC = () => {
                             prefix={GLOBAL_SHORTCUT_MODIFIER_LABELS}
                             readKey={readKey}
                         />
-                        <Select
-                            name={t('options.globalShortcutCommand', { index: slot + 1 })}
-                            value={binding.commandId ?? ''}
-                            options={options}
-                            onChange={value => setBinding(slot, { commandId: value || null })}
-                        />
+                        {/* Every slot's list is as wide as the narrowest compact Select, so a long mod
+                            command label is cut short in the trigger instead of pushing the row onto
+                            two lines; the open menu still grows to its longest option. */}
+                        <div className="w-[136px] shrink-0">
+                            <Select
+                                name={t('options.globalShortcutCommand', { index: slot + 1 })}
+                                value={binding.commandId ?? ''}
+                                options={options}
+                                onChange={value => setBinding(slot, { commandId: value || null })}
+                            />
+                        </div>
                     </Row>
                 );
             })}

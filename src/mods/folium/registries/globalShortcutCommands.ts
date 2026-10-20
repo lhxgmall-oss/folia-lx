@@ -18,7 +18,7 @@ export interface FoliumGlobalShortcutCommand {
     /** The command palette id, which is also what a binding stores. */
     id: string;
     modId: string;
-    /** The name the mod was started under, for the list's prefix. */
+    /** The name the mod was started under, named after the command in the list's labels. */
     modName: string;
     /** The command's label in the UI language. */
     title: string;

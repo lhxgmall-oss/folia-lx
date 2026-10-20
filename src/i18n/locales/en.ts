@@ -1840,7 +1840,7 @@ export default {
     "globalShortcutReserved": "GNOME records the screen on Ctrl+Alt+Shift+R; pick another key",
     "globalShortcutDuplicate": "Another global shortcut already uses that key",
     "globalShortcutTakenBySystem": "Another program already uses this combination",
-    "globalShortcutModCommand": "{{mod}} · {{command}}",
+    "globalShortcutModCommand": "{{command}} · {{mod}}",
     "globalShortcutModInactive": "The mod is not enabled. The key comes back once it is",
     "globalShortcutModCommandMissing": "The mod does not offer this command right now",
     "replayGainMode": "ReplayGain mode( Loudness Balancing )",

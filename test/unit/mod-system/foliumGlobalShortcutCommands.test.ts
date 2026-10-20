@@ -194,6 +194,8 @@ describe('the settings rows', () => {
         });
         expect(host!.textContent).not.toContain(i18n.t('options.globalShortcutModInactive'));
         expect(host!.textContent).toContain(i18n.t('options.globalShortcutModCommand', { mod: 'Row Mod', command: 'Ping main' }));
+        // The command comes first, so a label cut short in the narrow trigger still shows it.
+        expect(i18n.t('options.globalShortcutModCommand', { mod: 'Row Mod', command: 'Ping main' }).startsWith('Ping main')).toBe(true);
     });
 
     it('says a running mod no longer offers the bound command', () => {
