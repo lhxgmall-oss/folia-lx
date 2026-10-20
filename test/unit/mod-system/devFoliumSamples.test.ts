@@ -525,7 +525,7 @@ const createAccountConsoleFolium = (context: 'main' | 'export' = 'main') => {
             getState: (providerId?: string) => (providerId === undefined || providerId === account?.providerId ? account : null),
         },
         experimental: { 'platform.raw': platform },
-        ui: { openHomeTab: vi.fn() },
+        ui: { openHomeTab: vi.fn(), toast: vi.fn() },
     } as unknown as FoliumClientApi;
     return {
         folium,
@@ -563,6 +563,22 @@ describe('sample-account-console client', () => {
         expect(fake.rpcCalls[0]).toEqual({ name: 'status', args: [], listening: ['heartbeat', 'pong', 'secretStatus'] });
         await fake.commands[0].run({ values: {} } as never);
         expect(fake.folium.ui.openHomeTab).toHaveBeenCalledWith('desk');
+    });
+
+    it('offers a command without params to the global shortcuts, which pings the main entry and says so', async () => {
+        const activate = await loadClient();
+        const fake = createAccountConsoleFolium();
+        activate(fake.folium);
+        const offered = fake.commands.filter((command) => command.globalShortcut === true);
+        expect(offered.map((command) => command.id)).toEqual(['ping']);
+        expect(offered[0].params ?? []).toEqual([]);
+        // The open command stays a palette command only.
+        expect(fake.commands.find((command) => command.id === 'open')?.globalShortcut).toBeUndefined();
+
+        document.documentElement.lang = 'en';
+        await offered[0].run({ values: {} } as never);
+        expect(fake.rpcCalls.at(-1)).toMatchObject({ name: 'ping', args: ['from a global shortcut'] });
+        expect(fake.folium.ui.toast).toHaveBeenCalledWith('The main entry sent a pong (4 messages so far)', { type: 'success' });
     });
 
     it('shows the secret status, the messages, the account and the listening records', async () => {

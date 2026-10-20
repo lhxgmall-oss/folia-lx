@@ -6,6 +6,8 @@
 //     is queued: a message sent while the client is not running is dropped, so the client asks
 //     for the current state once (`status`) after it starts listening.
 //   - `pong`: sent from inside the `ping` handler, the reverse direction of the call that came in.
+//     The page's button calls `ping`, and so does the client's `ping` command, which the user can
+//     bind in Settings → Global shortcuts.
 //   - `secretStatus`: api.secrets.subscribe hears that the user saved or cleared the key (it gets
 //     the key, never the value); the main entry reads it again and tells the client whether it is
 //     set. The value itself never leaves this file and is never logged.

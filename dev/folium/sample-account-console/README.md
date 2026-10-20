@@ -2,9 +2,10 @@
 
 需要 Folium 1.7（桌面版）。在模组设置里加一个密钥字段，在首页加一个「账号与消息」页面：显示密钥有没有填（client 和
 main 入口各读一次，不显示值）、main 入口推来的消息、当前音源的登录状态，以及用实验接口 `platform.raw` 读到的网易云听歌排行。
+另有一条可以绑到系统级全局快捷键的命令「让 main 入口回一声」（`globalShortcut`）。
 
 权限：`platform.netease.read`（`platform.raw` 读网易云的只读接口）。实验接口：`platform.raw`（清单里不选用它就声明
-`platform.*` 权限，清单校验不通过）。密钥字段、`rpc.send` / `rpc.on`、`folium.account` 都不需要权限。
+`platform.*` 权限，清单校验不通过）。密钥字段、`rpc.send` / `rpc.on`、`folium.account`、命令的 `globalShortcut` 都不需要权限。
 
 听歌排行要在 Folia 里登录网易云；不登录也能看其余三张卡片，听歌排行那张会显示「没有登录这个平台」（`not-signed-in`）。
 
@@ -48,6 +49,14 @@ main 入口各读一次，不显示值）、main 入口推来的消息、当前�
    失败时显示错误码对应的说明（`not-signed-in`、`rate-limited`、`account-changed` 等）。平台用别的 `code` 拒绝时（登录失效和限流之外）
    不算失败，回答原样作为原始 JSON 交回来，页面显示其中的 `code`。
 
+6. **系统级全局快捷键**：打开「设置 → 快捷操作 → 全局快捷键」，在某个槽位的命令下拉框里，播放命令后面有
+   「账号与消息（样例） · 让 main 入口回一声」。选它，再给这个槽位按一个字母或数字。把 Folia 切到后台，按 Ctrl+Alt+Shift+那个键
+   （macOS 为 Control+Option+Shift）：应用里弹出「main 入口已回 pong」的提示，页面的「来自 main 入口的消息」多一条 `pong`。
+   - 在模组面板停用这个模组：那一行写「模组未启用。启用后这个键会自动恢复」，键松开、按了没反应，绑定不丢；重新启用后键自动回来。
+   - 这条命令没有参数，宿主才会列出它；`run` 拿到的 `values` 是空对象，结果不显示，所以命令自己 `folium.ui.toast`。
+     main 入口没在运行时 `rpc.call` 会失败，失败记进模组面板里这个模组的故障记录，不弹窗。
+   - 原生 Wayland 下设置页只有「注册到桌面环境」那一个按钮，不列模组命令。
+
 回答是平台的原始 JSON，跟着宿主钉住的后端库变，不承诺稳定；页面按字段逐个读，读不到就当没有。
 
 ## 演示了哪些 1.7 接口
@@ -62,6 +71,7 @@ main 入口各读一次，不显示值）、main 入口推来的消息、当前�
 | `folium.account.getState()` | 「登录状态」卡片，每次重画都读（宿主换了选中的音源不发事件） |
 | `account.changed` | `createDesk`：重画，换号时丢掉旧账号的排行 |
 | `experimental['platform.raw']` 的 `describe` / `request` | 「听歌排行」卡片；`signal` 在换号、改范围、再次读取和模组停止时中止旧请求 |
+| 命令的 `globalShortcut: true` | `client.mjs` 的 `activate`：`ping` 命令，没有参数，`run` 里 `rpc.call('ping')` 后 `folium.ui.toast` |
 
 `test/unit/mod-system/devFoliumSamples.test.ts` 校验清单，用真实的 `createModApi`（替身密钥存储）跑 main 入口，
 并在 jsdom 里用一个替身 `folium` 跑 client 页面。

@@ -39,7 +39,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | --- | --- |
 | `dev/folium/sample-home-tab` | 首页页面（homeTabs + `ui.openHomeTab`）：双栏页面、输入不触发宿主快捷键、挂载与清理、注销入口后回到原生首页，纯 client、不需要权限 |
 | `dev/folium/sample-playback-console` | 首页页面里的播放控制台：音量、静音与循环模式可调，`getQueue` 分页列出队列并用 `playQueueItem` 点播，订阅 `volumeChanged` / `loopModeChanged` / `queueChanged` / `failed`；main 入口把失败记录追加到 `api.storage.paths.data` 下的日志，在 `paths.cache` 放一个可重建的缓存 |
-| `dev/folium/sample-account-console` | Folium 1.7：设置区块里的 `secret` 字段（client 与 main 入口各读一次，只显示「已设置 / 未设置」）；main 入口定时和在 `rpc.handle` 里用 `api.rpc.send` 推消息，client 用 `folium.rpc.on` 收；`folium.account.getState()` 与 `account.changed`；实验接口 `platform.raw` 读 `user_record`（听歌排行），清单选用 `platform.raw`、声明 `platform.netease.read` |
+| `dev/folium/sample-account-console` | Folium 1.7：设置区块里的 `secret` 字段（client 与 main 入口各读一次，只显示「已设置 / 未设置」）；main 入口定时和在 `rpc.handle` 里用 `api.rpc.send` 推消息，client 用 `folium.rpc.on` 收；`folium.account.getState()` 与 `account.changed`；实验接口 `platform.raw` 读 `user_record`（听歌排行），清单选用 `platform.raw`、声明 `platform.netease.read`；可以绑到系统级全局快捷键的命令（`globalShortcut`） |
 
 ## 安全声明（重要）
 

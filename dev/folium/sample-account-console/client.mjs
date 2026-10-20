@@ -16,6 +16,11 @@
 //
 // The page opens from the Grid / Bravais home navigation, or with the "Open account & messages"
 // command (folium.ui.openHomeTab).
+//
+// A second command, "Ping the main entry", sets `globalShortcut: true` (Folium 1.7): it has no
+// params, so Settings → Global shortcuts lists it after the playback commands and the user can give
+// it a key. A press shows no result, so the command says what happened with folium.ui.toast; the
+// `pong` the main entry pushes also lands in the page's message list.
 
 const SECRET_KEY = 'apiKey';
 // The platform whose listening records the page reads, as an Omni provider id, and its endpoint.
@@ -24,6 +29,13 @@ const RECORD_ENDPOINT = 'user_record';
 const MAX_MESSAGES = 20;
 const MAX_RECORDS = 10;
 const MESSAGE_NAMES = ['heartbeat', 'pong', 'secretStatus'];
+
+// What the shortcut command's toast says. It runs with no page open, so there is no `ctx.locale`:
+// the host's document language stands in.
+const PING_TOAST = {
+  zh: (sent) => `main 入口已回 pong（它共发出 ${sent} 条消息）`,
+  en: (sent) => `The main entry sent a pong (${sent} messages so far)`,
+};
 
 const TEXT = {
   zh: {
@@ -453,6 +465,20 @@ export default function activate(folium) {
     description: { 'zh-CN': '首页里的密钥状态、main 入口消息、登录状态与听歌排行', en: 'Secret status, main entry messages, sign-in state and listening records on the home page' },
     keywords: ['account', 'secret', 'rpc', '账号', '密钥', '听歌排行'],
     run: () => { folium.ui.openHomeTab('desk'); },
+  });
+  // Offered in Settings → Global shortcuts: no params, and the user picks the key. A throw (the main
+  // entry not running, say) is recorded in this mod's row of the mods panel; nothing pops up.
+  folium.registries.commands.register({
+    id: 'ping',
+    label: { 'zh-CN': '让 main 入口回一声', en: 'Ping the main entry' },
+    description: { 'zh-CN': '可以在「设置 → 全局快捷键」里绑一个键，Folia 在后台时也能按', en: 'Bind it to a key in Settings → Global shortcuts; it works while Folia is in the background' },
+    keywords: ['ping', 'pong', 'shortcut', '快捷键'],
+    globalShortcut: true,
+    run: async () => {
+      const { sent } = await folium.rpc.call('ping', 'from a global shortcut');
+      const say = PING_TOAST[document.documentElement.lang.startsWith('zh') ? 'zh' : 'en'];
+      folium.ui.toast(say(sent), { type: 'success' });
+    },
   });
   return desk.dispose;
 }
