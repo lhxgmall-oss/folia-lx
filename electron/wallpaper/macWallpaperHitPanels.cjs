@@ -148,6 +148,7 @@ function readStageManagerDesktop() {
 function createMacWallpaperHitPanels({ level, primaryHeight, logWarn = console.warn.bind(console) }) {
   const panels = []; // NSPanel* pointers we own (+1 from alloc/init)
   let shown = [];
+  let shownHeight = null; // primary height the shown frames were flipped with
 
   function makePanel(frame) {
     const s = initFfi();
@@ -175,9 +176,10 @@ function createMacWallpaperHitPanels({ level, primaryHeight, logWarn = console.w
     const s = initFfi();
     if (!s.ok) return false;
     const next = Array.isArray(rects) ? rects.slice(0, MAX_HIT_PANELS) : [];
-    if (sameRects(shown, next)) return true;
+    const height = primaryHeight();
+    // Same rects but a new primary display height (a display change) still moves the panels.
+    if (height === shownHeight && sameRects(shown, next)) return true;
     try {
-      const height = primaryHeight();
       for (let i = 0; i < next.length; i++) {
         const frame = toCocoaFrame(next[i], height);
         if (!panels[i]) {
@@ -193,6 +195,7 @@ function createMacWallpaperHitPanels({ level, primaryHeight, logWarn = console.w
         s.msgSend_v_ptr(panels[i], s.SEL('orderOut:'), null);
       }
       shown = next;
+      shownHeight = height;
       return true;
     } catch (e) {
       logWarn('[WallpaperMac] hit panels failed:', e && e.message);

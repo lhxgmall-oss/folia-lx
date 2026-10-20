@@ -39,8 +39,13 @@ private enum GuardState {
     static var tapSource: CFRunLoopSource?
     static var swallowing = false // touched on the tap thread only
     static var iconCells: [CGRect] = []
+    static var finderPid: pid_t = 0 // set by refreshIconCells
+    static var dockPid: pid_t = 0 // looked up by onDock
     static var iconTimer: DispatchSourceTimer?
     static let desktopLayer = Int(CGWindowLevelForKey(.desktopIconWindow))
+    // Where WindowServer lists Folia's own simple-full-screen wallpaper presentation (the
+    // controller's FULLSCREEN_PRESENTATION_LAYER).
+    static let presentationLayer = 101
 
     static func currentRegion() -> CGRect? { lock.lock(); defer { lock.unlock() }; return region }
 }
@@ -74,6 +79,9 @@ private func bareDesktopUnder(_ p: CGPoint) -> Bool {
         let alpha = w[kCGWindowAlpha as String] as? Double ?? 1
         if layer < 0 && alpha <= 0 { continue }
         let pid = pid_t(w[kCGWindowOwnerPID as String] as? Int ?? 0)
+        // Folia's own wallpaper in its simple-full-screen presentation spans the display; it is the
+        // wallpaper, not a window over it (same skip as the controller's isDesktopPoint).
+        if pid == getpid() && layer >= GuardState.presentationLayer { continue }
         if layer == GuardState.desktopLayer { return spansDisplay(b, frame) }
         if layer <= 20 && spansDisplay(b, frame) && bundleId(of: pid) == "com.apple.dock" { continue }
         return false // an app window, the Dock, a widget or one of Folia's own catchers
@@ -102,6 +110,7 @@ private func refreshIconCells() {
     guard let finder = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first else { return }
     let app = AXUIElementCreateApplication(finder.processIdentifier)
     AXUIElementSetMessagingTimeout(app, 0.3)
+    GuardState.lock.lock(); GuardState.finderPid = finder.processIdentifier; GuardState.lock.unlock()
     var cells: [CGRect] = []
     for child in (axAttr(app, kAXChildrenAttribute) as? [AXUIElement]) ?? [] {
         guard axAttr(child, kAXRoleAttribute) as? String == kAXScrollAreaRole else { continue }
@@ -116,23 +125,57 @@ private func refreshIconCells() {
 }
 
 private func onIcon(_ p: CGPoint) -> Bool {
-    GuardState.lock.lock(); let cells = GuardState.iconCells; GuardState.lock.unlock()
+    GuardState.lock.lock(); let cells = GuardState.iconCells; let finderPid = GuardState.finderPid; GuardState.lock.unlock()
     if cells.contains(where: { $0.contains(p) }) { return true }
-    // The cells may be a moment old (an icon just moved or appeared): ask Finder directly.
-    let systemWide = AXUIElementCreateSystemWide()
-    AXUIElementSetMessagingTimeout(systemWide, 0.05)
+    // The cells may be a moment old (an icon just moved or appeared): ask Finder directly. The
+    // short timeout goes on Finder's element and the hit element only: on the system-wide element
+    // it would become the whole process's default.
+    guard finderPid > 0 else { return true } // no answer: let Finder have the click
+    let finder = AXUIElementCreateApplication(finderPid)
+    AXUIElementSetMessagingTimeout(finder, 0.05)
     var element: AXUIElement?
-    guard AXUIElementCopyElementAtPosition(systemWide, Float(p.x), Float(p.y), &element) == .success, let e = element else {
-        return true // no answer: let Finder have the click
+    guard AXUIElementCopyElementAtPosition(finder, Float(p.x), Float(p.y), &element) == .success, let e = element else {
+        return true
     }
+    AXUIElementSetMessagingTimeout(e, 0.05)
     let role = axAttr(e, kAXRoleAttribute) as? String
     return role != kAXGroupRole && role != kAXScrollAreaRole
 }
 
+// Is the point on the Dock? The Dock is listed as one full-display surface in every state, so the
+// window list cannot place its bar; its own Accessibility hit test can (an AXDockItem or the
+// AXList on the bar; off the bar it answers no value). Measured 2026-10-19: a click on a Dock icon
+// otherwise read as bare desktop and was swallowed whenever only that surface was listed.
+private func onDock(_ p: CGPoint) -> Bool {
+    GuardState.lock.lock(); var dockPid = GuardState.dockPid; GuardState.lock.unlock()
+    if dockPid <= 0 {
+        guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else { return false }
+        dockPid = dock.processIdentifier
+        GuardState.lock.lock(); GuardState.dockPid = dockPid; GuardState.lock.unlock()
+    }
+    let dock = AXUIElementCreateApplication(dockPid)
+    AXUIElementSetMessagingTimeout(dock, 0.05)
+    var element: AXUIElement?
+    switch AXUIElementCopyElementAtPosition(dock, Float(p.x), Float(p.y), &element) {
+    case .success: return element != nil
+    case .noValue: return false
+    case .invalidUIElement, .cannotComplete:
+        // The Dock restarted (a new pid) or did not answer in time: look it up again next time,
+        // and let this click through.
+        GuardState.lock.lock(); GuardState.dockPid = 0; GuardState.lock.unlock()
+        return true
+    default: return true
+    }
+}
+
 // Swallow the gesture if it starts on the bare desktop inside the wallpaper, off any icon.
-private func shouldSwallow(_ p: CGPoint) -> Bool {
+// Ctrl-click is the secondary click: it passes, so the desktop's menu still opens.
+private func shouldSwallow(_ event: CGEvent) -> Bool {
+    let p = event.location
     guard let r = GuardState.currentRegion(), r.contains(p) else { return false }
+    if event.flags.contains(.maskControl) { return false }
     guard bareDesktopUnder(p) else { return false }
+    if onDock(p) { return false }
     return !onIcon(p)
 }
 
@@ -142,7 +185,7 @@ private let tapCallback: CGEventTapCallBack = { _, type, event, _ in
         GuardState.lock.lock(); let port = GuardState.tapPort; GuardState.lock.unlock()
         if let port = port { CGEvent.tapEnable(tap: port, enable: true) }
     case .leftMouseDown:
-        GuardState.swallowing = shouldSwallow(event.location)
+        GuardState.swallowing = shouldSwallow(event)
         if GuardState.swallowing { return nil }
     case .leftMouseDragged:
         if GuardState.swallowing { return nil }

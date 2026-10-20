@@ -323,6 +323,9 @@ const WALLPAPER_ZGUARD_SETTING_KEY = 'wallpaper_zguard';
 // disables even a bottom Dock. Exiting wallpaper mode or quitting restores the user's original Dock
 // state either way.
 const WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY = 'wallpaper_mac_autohide_dock';
+// Set once Folia has asked macOS for the Accessibility grant (issue #698), so a user who declined
+// is not asked again on every launch.
+const WALLPAPER_MAC_ACCESSIBILITY_ASKED_KEY = 'wallpaper_mac_accessibility_asked';
 
 // Thin wrappers over electron/wallpaper/wallpaperWatchdog.cjs so the call sites across the file keep their
 // existing signatures while the predicates stay a single source of truth in the module.
@@ -1835,8 +1838,10 @@ function syncMacWallpaperHitPanels() {
       macWallpaperAccessibilityHinted = true;
       notifyMacWallpaperAccessibilitySuggested();
     }
-    if (wantsGuard && !stage.trusted && !macWallpaperAccessibilityHinted) {
+    if (wantsGuard && !stage.trusted && !macWallpaperAccessibilityHinted
+      && store.get(WALLPAPER_MAC_ACCESSIBILITY_ASKED_KEY) !== true) {
       macWallpaperAccessibilityHinted = true;
+      store.set(WALLPAPER_MAC_ACCESSIBILITY_ASKED_KEY, true);
       getMacWallpaperClickGuard().requestAccess();
       notifyMacWallpaperAccessibilitySuggested();
     }
