@@ -277,6 +277,48 @@ describe('the allowance per source across all mods', () => {
         expect(held.sent).not.toContain('b-netease');
     });
 
+    /*
+     * mod-b holds all of netease's places. mod-a: one call waits for netease while it holds one of
+     * mod-a's places, seven are under way at qq, and one waits for a place of mod-a's to go to kugou,
+     * which is free. When the netease call stops waiting it gives its mod place back, the place the
+     * kugou call waits for.
+     */
+    const waitForSourceAndForMod = (held: ReturnType<typeof holdAnswers>, netease: AbortSignal, kugou: AbortSignal) => {
+        labels('b', 8).forEach((label) => void gateFor('mod-b').run('netease', held.work(label)));
+        const waitingForSource = failureOf(gateFor('mod-a', netease).run('netease', held.work('a-netease')));
+        labels('q', 7).forEach((label) => void gateFor('mod-a').run('qq', held.work(label)));
+        const waitingForMod = failureOf(gateFor('mod-a', kugou).run('kugou', held.work('a-kugou')));
+        expect(held.sent).toEqual([...labels('b', 8), ...labels('q', 7)]);
+        return Promise.all([waitingForSource, waitingForMod]);
+    };
+
+    it('never sends a waiting request whose signal aborted, though a place reaches it before its abort listener runs', async () => {
+        const held = holdAnswers();
+        // Both calls share one signal: the netease call's listener runs first and gives its mod place back.
+        const batch = new AbortController();
+        const failures = waitForSourceAndForMod(held, batch.signal, batch.signal);
+        batch.abort();
+        await expect(failures).resolves.toEqual(['aborted', 'aborted']);
+        expect(held.sent).not.toContain('a-kugou');
+        expect(held.sent).not.toContain('a-netease');
+        // Nothing holds the place it was given: mod-a has seven under way, and its next call goes at once.
+        void gateFor('mod-a').run('kugou', held.work('fresh'));
+        expect(held.sent.at(-1)).toBe('fresh');
+    });
+
+    it('passes no place to a call that stops in the same turn, as a stopping mod\'s calls do one after another', async () => {
+        const held = holdAnswers();
+        // A signal each, aborted one after the other in one go (as when the activation ends): when the
+        // netease call stops, the kugou call's signal has not aborted yet.
+        const callers = [new AbortController(), new AbortController()];
+        const failures = waitForSourceAndForMod(held, callers[0].signal, callers[1].signal);
+        callers.forEach((caller) => caller.abort());
+        await expect(failures).resolves.toEqual(['aborted', 'aborted']);
+        expect(held.sent).not.toContain('a-kugou');
+        void gateFor('mod-a').run('kugou', held.work('fresh'));
+        expect(held.sent.at(-1)).toBe('fresh');
+    });
+
     it('refuses past 240 requests a minute to one source from all mods, without taking from the mod\'s minute', async () => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
@@ -344,6 +386,26 @@ describe('time limits', () => {
         await vi.advanceTimersByTimeAsync(0);
         labels('s', 9).forEach((label) => void gate.run('netease', held.work(label)));
         expect(held.sent.filter((label) => label.startsWith('s'))).toEqual(labels('s', 8));
+    });
+
+    it('never sends a waiting request whose 30 s ran out, though a place reaches it before its own timer fires', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+        const held = holdAnswers();
+        // mod-b holds all of netease's places; mod-a has one call waiting for netease (holding a place of
+        // mod-a's), seven under way at qq and one waiting for a place of mod-a's to go to kugou, all made in
+        // the same moment. The netease call's timer fires first and gives its mod place back.
+        labels('b', 8).forEach((label) => void gateFor('mod-b').run('netease', held.work(label)).catch(() => {}));
+        const waitingForSource = watch(gateFor('mod-a').run('netease', held.work('a-netease')));
+        labels('q', 7).forEach((label) => void gateFor('mod-a').run('qq', held.work(label)).catch(() => {}));
+        const waitingForMod = watch(gateFor('mod-a').run('kugou', held.work('a-kugou')));
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(waitingForSource.failure).toBe('network');
+        expect(waitingForMod.failure).toBe('network');
+        expect(held.sent).not.toContain('a-kugou');
+        // The seven at qq still hold their places; the eighth is free again.
+        void gateFor('mod-a').run('kugou', held.work('fresh'));
+        expect(held.sent.at(-1)).toBe('fresh');
     });
 
     it('holds no place for a mod\'s source but still answers network after 30 s', async () => {

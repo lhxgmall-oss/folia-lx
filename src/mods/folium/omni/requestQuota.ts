@@ -65,13 +65,14 @@ export interface FoliumQuotaRequest {
     readonly perSource: boolean;
     /**
      * Aborting it rejects the call with `aborted` at once. A request still waiting leaves its queue and
-     * gives back the place it holds; one already sent keeps its places until `work` settles.
+     * gives back the place it holds; one already sent keeps its places until `work` settles. A request
+     * whose signal aborted is never sent, even when a place reaches it before its abort listener runs.
      */
     readonly signal: AbortSignal;
     /**
      * How long the caller waits, counted from the call, before the call rejects `network` (a request
-     * already sent keeps its places then); null to wait as long as `work` takes, for a request that
-     * has a time limit of its own.
+     * already sent keeps its places then; one that gets its place only after that is never sent); null
+     * to wait as long as `work` takes, for a request that has a time limit of its own.
      */
     readonly answerWithinMs: number | null;
     /** The request as the developer log names it after `[Folium:<mod id>]`, e.g. `platform.raw <id> <endpoint>`. */
@@ -167,6 +168,8 @@ export const runFoliumRequest = <T>(request: FoliumQuotaRequest, work: () => Pro
     // Always the mod's place before the source's, so no two requests each hold what the other waits for:
     // whoever holds a source's place is under way and waits for nothing. A mod's source takes none.
     const places = request.origin === 'host' ? (source ? [own, source] : [own]) : [];
+    // When the caller stops waiting for an answer, if it has a time limit.
+    const deadline = request.answerWithinMs === null ? null : now + request.answerWithinMs;
 
     return new Promise<T>((resolve, reject) => {
         const held: Allowance[] = [];
@@ -203,9 +206,23 @@ export const runFoliumRequest = <T>(request: FoliumQuotaRequest, work: () => Pro
                     if (index >= 0) queued.allowance.waiting.splice(index, 1);
                     queued = null;
                 }
-                giveBack();
+                // Passed on a turn later, not at once: this caller may be one of several that stop waiting
+                // together (calls sharing one signal, or a stopping mod's calls aborted one after another),
+                // and the place must not reach the next of them before that one has stopped too. Until
+                // then it still counts as taken, so nobody jumps the queue.
+                const given = held.splice(0);
+                if (given.length > 0) queueMicrotask(() => given.forEach(givePlace));
             }
             answer(() => reject(quotaError(code)));
+        };
+        /*
+         * Why the caller no longer waits although its abort listener or its timer has not run yet: a
+         * place may reach it from another request stopping in the same moment (the same signal, a time
+         * limit running out together with its own). Null while it still waits.
+         */
+        const gaveUp = (): FoliumRequestQuotaCode | null => {
+            if (signal.aborted) return 'aborted';
+            return deadline !== null && Date.now() >= deadline ? 'network' : null;
         };
         const onAbort = () => stop('aborted');
         signal.addEventListener('abort', onAbort, { once: true });
@@ -255,6 +272,13 @@ export const runFoliumRequest = <T>(request: FoliumQuotaRequest, work: () => Pro
                     queued = null;
                     allowance.inFlight += 1;
                     held.push(allowance);
+                    // A caller that gave up is never sent: it stops here and the place goes on to the
+                    // next in line, as if it had left the queue in time.
+                    const code = gaveUp();
+                    if (code !== null) {
+                        stop(code);
+                        return;
+                    }
                     enter(index + 1);
                 };
                 queued = { allowance, letIn };
