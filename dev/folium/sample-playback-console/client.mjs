@@ -64,9 +64,9 @@ const TEXT = {
     staleRef: '有的歌已经认不出了，没有倒过来。',
     notQueueable: '队列里有放不进播放队列的歌，没有倒过来。',
     waiting: {
-      stage: '外部 Stage 正在播放，队列再变化时自动再试一次。',
-      transition: '正在过渡（automix），过渡结束时自动再试一次。',
-      other: '宿主这次没有替换，队列再变化时自动再试一次。',
+      stage: '外部 Stage 正在播放，等 Stage 结束、队列回来后自动再试。',
+      transition: '正在过渡（automix），过渡结束后自动再试。',
+      other: '宿主这次没有替换，队列再变化时自动再试。',
     },
     gaveUp: '还是没能倒过来，稍后再点一次。',
   },
@@ -110,7 +110,7 @@ const TEXT = {
     staleRef: 'Some songs can no longer be found; the queue was not reversed.',
     notQueueable: 'The queue holds a song that cannot be in the play queue; it was not reversed.',
     waiting: {
-      stage: 'External Stage playback holds the player; trying again once the queue changes.',
+      stage: 'External Stage playback holds the player; trying again once the queue is back.',
       transition: 'A blend (automix) is under way; trying again when it ends.',
       other: 'The host did not replace the queue this time; trying again once the queue changes.',
     },
@@ -406,6 +406,9 @@ const mountConsole = (folium, failures, container, ctx) => {
   const canReplace = folium.host.folium.minor >= 7 && typeof playback.replaceQueue === 'function';
   // A reversal the host refused for a passing reason (the Stage, a blend) is tried again once, on the next
   // playback.queueChanged; one refused `rate-limited`, once after `retryAfterMs`.
+  // "Once" is per wait, and a wait never gives up: a queueChanged can come while the reason still holds
+  // (the arriving song landing mid-blend), so a try refused for it again simply waits again, and a `stage`
+  // wait only tries once the queue is no longer the Stage's. `{ reason, run }` while waiting, else null.
   let retryOnChange = null;
   let retryTimer = null;
 
@@ -452,12 +455,11 @@ const mountConsole = (folium, failures, container, ctx) => {
       else await reverseQueue(true);
     } else if (result.reason === 'not-queueable') {
       status.textContent = t.notQueueable;
-    } else if (isRetry) {
-      status.textContent = t.gaveUp;
     } else {
-      // `stage`, `transition`, and reasons a later Folium may add: wait for the next queueChanged.
+      // `stage`, `transition`, and reasons a later Folium may add (treated like `transition`): wait for a
+      // queueChanged, and again after each refusal for the same reason, however many there are.
       status.textContent = t.waiting[result.reason] ?? t.waiting.other;
-      retryOnChange = () => attemptReverse(true);
+      retryOnChange = { reason: result.reason, run: () => attemptReverse(false) };
     }
   };
   // replaceQueue rejects only for a call written wrong (a missing permission, bad arguments).
@@ -498,8 +500,10 @@ const mountConsole = (folium, failures, container, ctx) => {
       renderQueue();
       queueOwner.textContent = event.byThisMod ? t.ownReplacement : '';
       const retry = retryOnChange;
+      // Still the Stage's queue: the contract says to try once `kind` is no longer `stage`.
+      if (!retry || (retry.reason === 'stage' && playback.getQueue({ limit: 1 }).kind === 'stage')) return;
       retryOnChange = null;
-      if (retry) void retry();
+      void retry.run();
     }),
     folium.events.on('playback.failed', () => renderFailures()),
     failures.subscribe(renderFailures),

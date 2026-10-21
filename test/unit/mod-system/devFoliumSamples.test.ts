@@ -176,7 +176,7 @@ const createFakeFolium = (context: 'main' | 'export' = 'main', { minor = 5 } = {
     const queue: FoliumSong[] = Array.from({ length: 120 }, (_, index) => ({
         id: String(index), title: `Song ${index}`, artist: 'Artist', album: null, source: 'local', ref: `ref-${index}`,
     }));
-    const state = { volume: 0.5, muted: false, loopMode: 'off' as FoliumLoopMode, currentIndex: 70, version: 'v1' };
+    const state = { volume: 0.5, muted: false, loopMode: 'off' as FoliumLoopMode, currentIndex: 70, version: 'v1', kind: 'queue' as FoliumQueueSnapshot['kind'] };
     const RANK: Record<string, number> = { highest: 0, high: 1, normal: 2, low: 3, lowest: 4 };
     const replaceAnswers: FoliumQueueReplaceResult[] = [];
 
@@ -207,7 +207,7 @@ const createFakeFolium = (context: 'main' | 'export' = 'main', { minor = 5 } = {
                 items: queue.slice(start, start + limit).map((song, position) => ({ song, index: start + position })),
                 length: queue.length,
                 currentIndex: state.currentIndex,
-                kind: 'queue',
+                kind: state.kind,
                 version: state.version,
             };
         },
@@ -346,7 +346,8 @@ describe('sample-playback-console client', () => {
 
 // Folium 1.7: "Reverse the queue" hands the whole queue back reversed with replaceQueue, and answers
 // each refusal once: the next queueChanged for a passing one, retryAfterMs for the rate limit, a fresh read
-// for a stale ref, and none for a stale version (the queue changed: the user decides again).
+// for a stale ref, and none for a stale version (the queue changed: the user decides again). A passing
+// reason is waited out for as long as it holds: a refusal for it again waits again.
 describe('sample-playback-console client: replaceQueue', () => {
     const loadClient = async () => (await import('../../../dev/folium/sample-playback-console/client.mjs')).default as (folium: FoliumClientApi) => (() => void) | undefined;
     const mountPage = async (minor: number) => {
@@ -394,6 +395,54 @@ describe('sample-playback-console client: replaceQueue', () => {
         await flush();
         expect(replaceQueue).toHaveBeenCalledTimes(2);
         expect(container.textContent).not.toContain('That was this mod\'s replacement.');
+        close();
+    });
+
+    it('keeps waiting through a blend: a queueChanged mid-blend that is refused again is no reason to give up', async () => {
+        const { fake, container, buttonNamed, close } = await mountPage(7);
+        const replaceQueue = vi.mocked(fake.playback.replaceQueue);
+        fake.replaceAnswers.push(refusal(fake, 'transition'), refusal(fake, 'transition'));
+
+        buttonNamed('Reverse the queue')!.click();
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(1);
+
+        // The arriving song lands in the queue while the blend still runs: tried, refused again.
+        fake.emit('playback.queueChanged', { length: 120, currentIndex: 70, version: 'v1', byThisMod: false });
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(2);
+        expect(container.textContent).toContain('A blend (automix) is under way');
+        expect(container.textContent).not.toContain('Still not reversed');
+
+        // The blend ends.
+        fake.emit('playback.queueChanged', { length: 120, currentIndex: 70, version: 'v1', byThisMod: false });
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(3);
+        expect(container.textContent).toContain('The queue is reversed');
+        close();
+    });
+
+    it('waits out the Stage: a queueChanged while the queue is still the Stage\'s is not a try', async () => {
+        const { fake, container, buttonNamed, close } = await mountPage(7);
+        const replaceQueue = vi.mocked(fake.playback.replaceQueue);
+        fake.replaceAnswers.push(refusal(fake, 'stage'));
+
+        buttonNamed('Reverse the queue')!.click();
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(1);
+        expect(container.textContent).toContain('External Stage playback holds the player');
+
+        fake.state.kind = 'stage';
+        fake.emit('playback.queueChanged', { length: 120, currentIndex: 70, version: 'v1', byThisMod: false });
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(1);
+
+        // The Stage lets go: the main queue is back.
+        fake.state.kind = 'queue';
+        fake.emit('playback.queueChanged', { length: 120, currentIndex: 70, version: 'v1', byThisMod: false });
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(2);
+        expect(container.textContent).toContain('The queue is reversed');
         close();
     });
 

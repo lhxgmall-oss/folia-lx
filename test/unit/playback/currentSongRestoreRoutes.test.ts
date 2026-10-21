@@ -129,6 +129,12 @@ const { buildLocalSourceRevision } = await import('@/services/playbackRecovery/s
 const { resetPlaybackStore, watchCurrentSong } = await import('./currentSongWatch');
 const { replacePlayQueue } = await import('@/stores/usePlaybackStore');
 const { noteWholeQueueWrite } = await import('@/services/wholeQueueWrites');
+// Folium's replaceQueue and its undo, as a mod and the listener reach them: the real host side.
+const { registerFoliumQueueWriter, replaceFoliumQueue, resetFoliumQueueReplaceForTest } = await import('@/mods/runtime/queue/hostQueueReplace');
+const { undoFoliumQueueReplace } = await import('@/mods/runtime/queue/queueReplaceUndo');
+const { readFoliumQueueVersion, resetFoliumQueueVersionForTest } = await import('@/mods/runtime/queue/queueVersion');
+const { resolveFoliumQueueKind } = await import('@/mods/runtime/hostQueue');
+const { toFoliumSong } = await import('@/mods/folium/dto');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
 const unavailable = (caseId: OnlineFailureCaseId = 'no-audio') => ({
     kind: 'unavailable', failure: onlineFailureOf({ operation: 'audio', providerId: 'bodian' }, { detail: { case: caseId } }),
@@ -204,6 +210,23 @@ const sourceParams = (refs: ReturnType<typeof usePlaybackRuntimeRefs>, setLyrics
     // Taken as the two routes take it: once the song is current, before the restore's first wait.
     stillWanted: startRestore(),
 } as never);
+
+/**
+ * A mod's replaceQueue of `songs` on the queue as it is now, through the host's own replacement (so that its
+ * undo is the real one), with the App's save recorded into `saved`. Undone with `undoFoliumQueueReplace`.
+ */
+const replaceAsAMod = (songs: SongResult[], saved: SongResult[][]) => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    registerFoliumQueueWriter({ persist: async (_song, queue) => { saved.push(queue); }, refreshPrefetch: () => {} });
+    const state = usePlaybackStore.getState();
+    const result = replaceFoliumQueue('mod-x', songs.map(song => toFoliumSong(song)!.ref!), readFoliumQueueVersion(state.playQueue, resolveFoliumQueueKind(state)));
+    expect(result.status).toBe('replaced');
+};
+afterEach(() => {
+    registerFoliumQueueWriter(null);
+    resetFoliumQueueReplaceForTest();
+    resetFoliumQueueVersionForTest();
+});
 
 /** The online recovery, built as App builds it: from the store's song. */
 const recoveryFor = (audioSrc: string) => createOnlineRecoveryController({
@@ -549,6 +572,19 @@ describe('the handoff to a rebuilt window and the current song', () => {
         });
 
         expect(persistLastPlaybackCache).toHaveBeenLastCalledWith(onlineSong, modQueue);
+    });
+
+    it('the undo of a replacement made while the handoff was read puts back the handed-over queue and its FM, not the new window\'s empty queue', async () => {
+        const handedOver = { ...snapshotOf(onlineSong), isFmMode: true };
+        const saved: SongResult[][] = [];
+        await restoreFrom(handedOver, null, () => replaceAsAMod([otherSong], saved));
+        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['y1']);
+
+        expect(undoFoliumQueueReplace()).toBe(true);
+
+        expect(usePlaybackStore.getState().playQueue).toBe(handedOver.playQueue);
+        expect(usePlaybackStore.getState().isFmMode).toBe(true);
+        expect(saved.at(-1)).toBe(handedOver.playQueue);
     });
 
     it('leaves no song current when none was handed over', async () => {
@@ -988,13 +1024,20 @@ describe('the handoff to a rebuilt window when the song cannot be fetched again'
 });
 
 describe('a whole-queue write while the last session is read', () => {
-    /** Restores `song` and `queue` from the cache; a mod replaces the queue whole while `last_song` is read. */
-    const restoreWithReplacement = async (song: SongResult, queue: SongResult[], modQueue: SongResult[]) => {
+    /**
+     * Restores `song` and `queue` from the cache; a mod replaces the queue whole while `last_song` is read
+     * (`replace`, or a bare count and store write of `modQueue`).
+     */
+    const restoreWithReplacement = async (song: SongResult, queue: SongResult[], modQueue: SongResult[], replace?: () => void) => {
         const { refs, setLyrics } = watchWithRefs();
         env.cache.set('last_song', song);
         env.cache.set('last_queue', queue);
         env.reached = wait => {
             if (wait !== 'cache last_song') return;
+            if (replace) {
+                replace();
+                return;
+            }
             noteWholeQueueWrite();
             replacePlayQueue(modQueue, false);
         };
@@ -1038,6 +1081,47 @@ describe('a whole-queue write while the last session is read', () => {
         expect(usePlaybackStore.getState().currentSong).toMatchObject({ name: 'L' });
         expect(persistLastPlaybackCache.mock.calls.length).toBeGreaterThan(0);
         expect(persistLastPlaybackCache.mock.calls.every(([, queue]) => queue === modQueue)).toBe(true);
+    });
+
+    it('the undo of the replacement puts back the remembered queue, not the empty one of launch, and saves it', async () => {
+        const saved: SongResult[][] = [];
+        await restoreWithReplacement(onlineSong, [onlineSong, otherSong], [], () => replaceAsAMod([otherSong], saved));
+        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['y1']);
+
+        expect(undoFoliumQueueReplace()).toBe(true);
+
+        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['x1', 'y1']);
+        expect(saved.at(-1)?.map(song => song.id)).toEqual(['x1', 'y1']);
+    });
+
+    it('counts a whole-queue write made once the App mounted, before the restore could start (on the desktop it waits for the window handoff check)', async () => {
+        const { refs, setLyrics } = watchWithRefs();
+        env.cache.set('last_song', onlineSong);
+        env.cache.set('last_queue', [onlineSong, otherSong]);
+        // Rendered with the App, which hands mods replaceQueue in the same commit.
+        useSessionRestoreController({
+            blobUrlRef: refs.blobUrlRef,
+            currentOnlineAudioUrlFetchedAtRef: refs.currentOnlineAudioUrlFetchedAtRef,
+            setLyrics,
+            restoreCachedThemeForSong: vi.fn(async () => 'none'),
+            persistLastPlaybackCache: vi.fn(async () => undefined),
+            clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
+            loadLocalSongs: vi.fn(async () => undefined),
+            loadLocalPlaylists: vi.fn(async () => undefined),
+            shouldAutoPlayRef: refs.shouldAutoPlay,
+        } as never);
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        const restore = effectNaming('last_song');
+        // A mod replaces the queue before the restore's effect gets to run.
+        const modQueue = [otherSong];
+        noteWholeQueueWrite();
+        replacePlayQueue(modQueue, false);
+
+        restore();
+        await settle();
+
+        expect(usePlaybackStore.getState().playQueue).toBe(modQueue);
+        expect(refs.currentSongRef.current).toBe('online:bodian:x1');
     });
 
     it('without a whole-queue write restores the remembered queue as before', async () => {

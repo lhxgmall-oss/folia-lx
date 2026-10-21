@@ -31,6 +31,7 @@ import { installFoliumHostEvents } from '@/mods/runtime/hostEvents';
 import { resetFoliumQueueVersionForTest } from '@/mods/runtime/queue/queueVersion';
 import { resetFoliumQueueReplaceForTest } from '@/mods/runtime/queue/hostQueueReplace';
 import { useFoliumQueueUndoStore } from '@/mods/runtime/queue/queueReplaceUndo';
+import { reportYieldedQueue } from '@/services/wholeQueueWrites';
 // Through the registry, as the palette loads its commands (the command modules import one another).
 import { COMMAND_PALETTE_COMMANDS } from '@/components/command-palette/commandRegistry';
 import type { ModRuntimeInfo } from '@/mods/types';
@@ -590,6 +591,43 @@ describe('replaceQueue: the notice and the undo', () => {
         expect(await undoCommand.execute('', {} as never)).toBe(false);
         expect(store().playQueue).toBe(edited);
         expect(useStatusMessageStore.getState().message?.text).toBe(i18n.t('mods.queueReplaceUndoGone'));
+    });
+
+    it('puts back the queue a restore under way gave up to the replacement, with the FM and the song the restore brought', async () => {
+        render();
+        // At launch: nothing current, the queue empty. A mod replaces it while the last session is read; the
+        // restore then makes its song current and leaves its queue unwritten.
+        await playbackA().replaceQueue([dto(c)], { expectedVersion: versionNow() });
+        usePlaybackStore.setState({ currentSong: a });
+        const remembered = [a, b];
+        reportYieldedQueue({ queue: remembered, isFmMode: true, song: a });
+
+        expect(await undoCommand.execute('', {} as never)).toBe(true);
+        expect(store().playQueue).toBe(remembered);
+        expect(store().isFmMode).toBe(true);
+    });
+
+    it('keeps the FM from before the replacement when the restore that gave its queue up leaves FM alone', async () => {
+        render();
+        usePlaybackStore.setState({ isFmMode: true });
+        await playbackA().replaceQueue([dto(c)], { expectedVersion: versionNow() });
+        usePlaybackStore.setState({ currentSong: a });
+        const remembered = [a, b];
+        reportYieldedQueue({ queue: remembered, song: a });
+
+        expect(await undoCommand.execute('', {} as never)).toBe(true);
+        expect(store().playQueue).toBe(remembered);
+        expect(store().isFmMode).toBe(true);
+    });
+
+    it('is not made up by a restore that gives its queue up with no replacement to undo', async () => {
+        render();
+        usePlaybackStore.setState({ playQueue: [c], currentSong: a });
+        reportYieldedQueue({ queue: [a, b], song: a });
+
+        expect(undoCommand.isAvailable?.()).toBe(false);
+        expect(await undoCommand.execute('', {} as never)).toBe(false);
+        expect(store().playQueue.map(entry => entry.id)).toEqual(['c']);
     });
 
     it('lets go when the Stage takes the player', async () => {

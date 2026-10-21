@@ -23,7 +23,7 @@ import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore'
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { currentTime } from '../../../../stores/motionSignals';
 import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
-import { wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
+import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 
 // src/components/app/playback/restore/useElectronWindowPlaybackHandoff.ts
 // Captures and restores renderer playback state across Electron BrowserWindow rebuilds.
@@ -253,6 +253,9 @@ export function useElectronWindowPlaybackHandoff({
             if (!queueRewritten) {
                 setPlayQueue([]);
                 setIsFmMode(false);
+            } else {
+                // The old window's empty queue is the listener's: the replacement's undo puts it back.
+                reportYieldedQueue({ queue: [], isFmMode: false, song: null });
             }
             setIsLyricsLoading(false);
             setPlayerState(PlayerState.IDLE);
@@ -279,6 +282,8 @@ export function useElectronWindowPlaybackHandoff({
             // Saved again now that a song is current, as the session restore does: the replacement's own save
             // found none, so it kept nothing, and the source's restore saves only on some of its paths.
             void persistLastPlaybackCache(snapshot.currentSong, usePlaybackStore.getState().playQueue);
+            // The handed-over queue and FM are the listener's: the replacement's undo puts them back.
+            reportYieldedQueue({ queue: restoredQueue, isFmMode: snapshot.isFmMode, song: snapshot.currentSong });
         }
         setIsLyricsLoading(false);
         setPlayerState(snapshot.playerState);

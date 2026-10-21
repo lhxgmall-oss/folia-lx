@@ -4,7 +4,7 @@ import i18n from '@/i18n/config';
 import type { SongResult } from '@/types';
 import { replacePlayQueue, selectDisplaySong, usePlaybackStore } from '@/stores/usePlaybackStore';
 import { setStatusMessage } from '@/stores/useStatusMessageStore';
-import { noteWholeQueueWrite } from '@/services/wholeQueueWrites';
+import { noteWholeQueueWrite, setYieldedQueueListener } from '@/services/wholeQueueWrites';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import { foliumModName } from '../clientLoader';
 import { resolveFoliumQueueKind } from '../hostQueue';
@@ -68,6 +68,20 @@ const watch = () => {
         if (versionOf(state) !== snapshot.afterVersion) dropSnapshot();
     });
 };
+
+// A restore under way when the queue was replaced (the last session's at launch, a rebuilt window's
+// handoff) leaves the queue it brought back unwritten, and the replacement stands over it. That queue is
+// the user's, not the one the store held when the replacement came (empty at launch): the undo puts it
+// back, with the FM the restore would have set and the song it made current.
+setYieldedQueueListener((yielded) => {
+    if (!snapshot) return;
+    snapshot = {
+        ...snapshot,
+        queue: yielded.queue,
+        isFmMode: yielded.isFmMode ?? snapshot.isFmMode,
+        displayedKey: yielded.song ? getPlaybackSongKey(yielded.song) : null,
+    };
+});
 
 /** hostQueueReplace.ts: how an undo saves the queue it put back and fetches around it, or null. */
 export const setFoliumQueueUndoWriter = (write: ((previous: readonly SongResult[]) => void) | null) => {

@@ -4,7 +4,7 @@ import { getFromCache, getLocalSongs } from '../../../../services/db';
 import { getLocalLibraryCatalogSnapshot } from '../../../../services/localLibraryEntityRepository';
 import { buildLocalQueue } from '../../../../services/playbackAdapters';
 import { prefetchNearbySongs } from '../../../../services/prefetchService';
-import { wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
+import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import type { ThemeCacheSongKey } from '../../../../services/themeCache';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { restorePlaybackSourceForSong, type RestorePlaybackSourceOutcome } from './restorePlaybackSource';
@@ -60,6 +60,10 @@ export function useSessionRestoreController({
 
     const hasInitializedRef = useRef(false);
     const hasLoadedLocalLibraryRef = useRef(false);
+    // The whole-queue writes when the App first rendered, before the commit in which it hands mods
+    // replaceQueue (useFoliumHostActions). Not read when the restore starts: on the desktop that waits for
+    // the window handoff check, and a mod's replacement meanwhile would then be written over.
+    const queueWritesAtMountRef = useRef(wholeQueueWritesSoFar());
 
     useEffect(() => {
         if (hasLoadedLocalLibraryRef.current) {
@@ -85,7 +89,7 @@ export function useSessionRestoreController({
             // A mod may replace the whole queue while the session is read (from its `activate`): its queue
             // then stands over the remembered one, and is what gets saved and fetched around. The song
             // itself is restored all the same.
-            const writesAtStart = wholeQueueWritesSoFar();
+            const writesAtStart = queueWritesAtMountRef.current;
             const rewritten = () => wholeQueueWritesSoFar() !== writesAtStart;
             try {
                 let lastSong = await getFromCache<SongResult>('last_song');
@@ -148,11 +152,14 @@ export function useSessionRestoreController({
                 }
                 makeSongCurrent(lastSong);
                 const stillWanted = startRestore();
+                const rememberedQueue = lastQueue && lastQueue.length > 0 ? lastQueue : [lastSong];
                 if (rewritten()) {
                     // Saved again now that a song is current: the replacement's own save found none, so it kept nothing.
                     void persistLastPlaybackCache(lastSong, usePlaybackStore.getState().playQueue);
+                    // The remembered queue is the listener's: the replacement's undo puts it back.
+                    reportYieldedQueue({ queue: rememberedQueue, song: lastSong });
                 } else {
-                    setPlayQueue(lastQueue && lastQueue.length > 0 ? lastQueue : [lastSong]);
+                    setPlayQueue(rememberedQueue);
                 }
 
                 // Read at restore time rather than subscribed: this effect runs once, and the

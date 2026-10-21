@@ -297,7 +297,8 @@ export interface FoliumQueueChange {
  * `stage`: external Stage playback holds the player; try again after a `playback.queueChanged` whose
  * snapshot `kind` is no longer `stage`.
  * `transition`: an automix blend is under way (a few seconds, rarely more than half a minute); try again
- * after the next `playback.queueChanged`, which the host also fires when the blend ends.
+ * after a `playback.queueChanged`. One is also fired when the blend ends, and one that comes during the
+ * blend (the arriving song landing in the queue, say) may be refused `transition` again: keep waiting.
  * `stale-version`: the queue is no longer the one `expectedVersion` names (the user, the host or a mod
  * changed it); read it again and decide anew rather than replacing blindly.
  * `stale-ref`: the song DTO at `index` has a `ref` that no longer resolves; read that song again.

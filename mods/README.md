@@ -12,7 +12,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 
 > **模组开发与上架注意事项**
 >
-> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），以及经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手）。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
+> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手），以及宿主均衡器（`folium.equalizer` 与 `equalizer.changed`：读宿主的均衡器、切换用户的音效、施加模组自己的曲线；读不需要权限，写需 `equalizer.control`）。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
 > - 任何尝试导出 provider 的原始音频流或解密之后的原始音频文件的模组，都有极高的平台法律风险。无论采用何种实现方式，此类模组都不会上架官方模组市场。
 
 公开类型全部在 [`src/mods/folium/contract.ts`](../src/mods/folium/contract.ts)，这是契约的唯一来源；
@@ -41,6 +41,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | `dev/folium/sample-playback-console` | 首页页面里的播放控制台：音量、静音与循环模式可调，`getQueue` 分页列出队列并用 `playQueueItem` 点播，订阅 `volumeChanged` / `loopModeChanged` / `queueChanged` / `failed`；main 入口把失败记录追加到 `api.storage.paths.data` 下的日志，在 `paths.cache` 放一个可重建的缓存；1.7：`replaceQueue` 把队列倒过来 |
 | `dev/folium/sample-account-console` | Folium 1.7：设置区块里的 `secret` 字段（client 与 main 入口各读一次，只显示「已设置 / 未设置」）；main 入口定时和在 `rpc.handle` 里用 `api.rpc.send` 推消息，client 用 `folium.rpc.on` 收；`folium.account.getState()` 与 `account.changed`；实验接口 `platform.raw` 读 `user_record`（听歌排行），清单选用 `platform.raw`、声明 `platform.netease.read`；可以绑到系统级全局快捷键的命令（`globalShortcut`） |
 | `dev/folium/sample-omni-console` | Folium 1.7：`folium.omni` 列出音源与 `supports`、搜歌并用 `nextCursor` 翻页、`describeSong` 与歌词前几行、专辑第一页曲目（`getAlbum` → `getTracks`）、把存进 `folium.storage` 的 `{ source, id }` 在重启后用 `resolveSongs` 解析回来；`playback.control` 只用于加入队列，`filesystem.data` 只用于存键 |
+| `dev/folium/sample-equalizer-console` | Folium 1.7：设置分区里用 `folium.equalizer.getState()` 与 `equalizer.changed` 显示此刻听到的均衡器和最近一次变化的来源；`setMode` 切到内置音效、`applyCurve` 施加本模组的曲线、`releaseCurve` 撤下；「按歌自动施加」在换歌时施加曲线，来源是用户、命令面板或别的模组时停下（给用户让步），被拒 `panel-open` 时等 `writable` 变回 true 的那次 `equalizer.changed` 再补写；只有写需要 `equalizer.control`，纯 client |
 
 ## 安全声明（重要）
 
@@ -693,7 +694,7 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 | 原因 | 什么时候 | 模组该怎么办 |
 | --- | --- | --- |
 | `stage` | 外部 Stage 播放占着播放器 | 等一个 `queueChanged`，`getQueue().kind` 不再是 `stage` 时再试 |
-| `transition` | automix 过渡中（几秒，很少超过半分钟） | 等下一个 `queueChanged`（过渡结束时宿主一定发）再试 |
+| `transition` | automix 过渡中（几秒，很少超过半分钟） | 等 `queueChanged` 再试：过渡结束时宿主一定发一个；过渡中途也可能来一个（下一首落进队列），那时再试可能又答 `transition`，接着等 |
 | `stale-version` | 队列已经不是 `expectedVersion` 那一个（用户、宿主或别的模组改了它） | 重读、重新决定；不要拿新版本直接盲写 |
 | `stale-ref` | `songs[index]` 的 `ref` 已经认不出 | 重新取那首歌的 DTO |
 | `not-queueable` | `songs[index]` 不能进播放队列（外部 Stage 的歌） | 去掉它 |
@@ -712,27 +713,31 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
   `playback.queue` 的清单在 1.6 上整份被拒、模组根本不加载：要兼容 1.6 的模组不能声明它。main 入口没有 `replaceQueue`，用 `api.rpc.send` 让
   client 去调，再 `folium.rpc.call` 把结果交回（结果是纯数据）。
 
-一个同步模组的骨架（读 → 计算 → 提交 → 按原因重试），`resolve` 和 `broadcast` 是模组自己的：
+一个同步模组的骨架（读 → 计算 → 提交 → 按原因重试），`resolve`、`broadcast` 和收到别的设备队列的 `onRemoteQueue` 是模组自己的。
+`version` 在做决定的那一刻读（收到远端队列时、或者重试时的那个 `queueChanged`），**在 `await resolve` 之前**：之后谁改了队列，
+提交都答 `stale-version`，不会被悄悄盖掉。先 `await` 再读版本，读到的永远是此刻的版本，条件提交就成了盲写。
 
 ```js
 let waiting = null;
-const sync = async (wanted) => {
-  const songs = await resolve(wanted);            // 例如 folium.omni.resolveSongs，换成宿主的歌曲 DTO
-  const { version } = folium.playback.getQueue({ limit: 1 });
+// `version`：决定这次替换时读到的队列版本，重试同一个决定时沿用它
+const sync = async (wanted, version) => {
+  const songs = await resolve(wanted);            // 例如 folium.omni.resolveSongs，换成宿主的歌曲 DTO（要等网络）
   const result = await folium.playback.replaceQueue(songs, { expectedVersion: version });
   if (result.status === 'replaced') return;
-  if (result.reason === 'rate-limited') setTimeout(() => sync(wanted), result.retryAfterMs);
-  else if (result.reason === 'stale-ref') void sync(wanted);          // 重新取歌
+  if (result.reason === 'rate-limited') setTimeout(() => sync(wanted, version), result.retryAfterMs);
+  else if (result.reason === 'stale-ref') void sync(wanted, version);  // 重新取歌，还是同一个决定
   else if (result.reason === 'not-queueable') { /* songs[result.index] 放不进队列：去掉它再提交 */ }
-  else if (result.reason === 'stale-version') { /* 有人刚改了队列：重新决定要不要覆盖它 */ }
-  else waiting = wanted;                           // stage、transition 和以后的新原因：等下一个 queueChanged
+  else if (result.reason === 'stale-version') { /* 决定之后有人改了队列（也可能在 resolve 期间）：重新决定要不要覆盖它 */ }
+  else waiting = wanted;                           // stage、transition 和以后的新原因：等 queueChanged，每次被拒都接着等
 };
+onRemoteQueue((wanted) => sync(wanted, folium.playback.getQueue({ limit: 1 }).version));
 folium.events.on('playback.queueChanged', (event) => {
   if (event.byThisMod) return;                     // 自己的替换，不再广播
   if (waiting) {
+    if (folium.playback.getQueue({ limit: 1 }).kind === 'stage') return;  // 还是 Stage 的队列：接着等
     const wanted = waiting;
     waiting = null;
-    void sync(wanted);
+    void sync(wanted, event.version);              // 在这个事件上重新决定
     return;
   }
   broadcast(event.version);                        // 把本机的改动告诉别的设备
