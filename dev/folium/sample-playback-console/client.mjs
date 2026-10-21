@@ -475,14 +475,15 @@ const mountConsole = (folium, failures, container, ctx) => {
     reverseRow.append(reverseButton);
     queueCard.append(reverseRow);
   }
-  queueCard.append(trackList);
+  // The status line sits above the list: at the bottom of the page the host's floating player bar covers it.
+  queueCard.append(status, trackList);
 
   // ---- layout
   const root = el('div', 'console');
   const side = el('div', 'column');
   side.append(volumeCard, loopCard, failureCard);
   const main = el('div', 'column');
-  main.append(queueCard, status);
+  main.append(queueCard);
   root.append(side, main);
   const style = el('style', '', STYLE);
   container.append(style, root);
