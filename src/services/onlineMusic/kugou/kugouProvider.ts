@@ -663,6 +663,25 @@ const normalizeKugouSearchSongs = (rawItems: any[]): UnifiedSong[] => {
         });
 };
 
+// 首页带凭据搜索空、匿名有结果后，后续页仍会走带凭据搜索；记住关键词，别让列表断在第一页。
+// 首页带凭据搜索重新有结果时再忘掉它；上限只防长期运行累积，登出和切号时整组清掉。
+const KUGOU_ANONYMOUS_SEARCH_FALLBACK_LIMIT = 100;
+const kugouAnonymousSearchFallbackKeywords = new Set<string>();
+
+const rememberKugouAnonymousSearchFallback = (keyword: string): void => {
+    kugouAnonymousSearchFallbackKeywords.delete(keyword);
+    kugouAnonymousSearchFallbackKeywords.add(keyword);
+    while (kugouAnonymousSearchFallbackKeywords.size > KUGOU_ANONYMOUS_SEARCH_FALLBACK_LIMIT) {
+        const oldest = kugouAnonymousSearchFallbackKeywords.values().next().value;
+        if (oldest === undefined) break;
+        kugouAnonymousSearchFallbackKeywords.delete(oldest);
+    }
+};
+
+const forgetKugouAnonymousSearchFallback = (keyword: string): void => {
+    kugouAnonymousSearchFallbackKeywords.delete(keyword);
+};
+
 const qualityValue = (quality: AudioQualityPreference): string => ({
     standard: '128', high: '320', ultra: '320', lossless: 'flac', hires: 'high',
 })[quality];
@@ -1021,7 +1040,24 @@ export const kugouProvider: OnlineMusicProvider = {
     search: {
         async searchSongs(query, limit, offset) {
             const page = Math.floor(offset / limit) + 1;
+            const fallbackKey = query.trim();
             if (!hasKugouAuthenticatedSearchSession()) {
+                const response = await requestKugouAnonymousSearch(
+                    buildKugouLyricSearchQuery(query),
+                    page,
+                    limit,
+                );
+                const rawItems = listOf(response);
+                return pageOfWithRawItemCount(
+                    normalizeKugouSearchSongs(rawItems),
+                    response,
+                    limit,
+                    offset,
+                    rawItems.length,
+                );
+            }
+            // 首页已确认会拿到空清单时，后续页直接走匿名，别让列表又断在第一页。
+            if (offset > 0 && kugouAnonymousSearchFallbackKeywords.has(fallbackKey)) {
                 const response = await requestKugouAnonymousSearch(
                     buildKugouLyricSearchQuery(query),
                     page,
@@ -1040,6 +1076,8 @@ export const kugouProvider: OnlineMusicProvider = {
             const rawItems = listOf(response);
             // 过期登录态会继续走带凭据搜索，上游回空清单且不报错；首页空时退回匿名再搜一次。
             if (offset === 0 && rawItems.length === 0) {
+                console.warn('[KugouProvider] authenticated search returned no items, retrying anonymously');
+                rememberKugouAnonymousSearchFallback(fallbackKey);
                 try {
                     const anonymous = await requestKugouAnonymousSearch(
                         buildKugouLyricSearchQuery(query),
@@ -1059,6 +1097,8 @@ export const kugouProvider: OnlineMusicProvider = {
                 } catch (error) {
                     console.warn('[KugouProvider] anonymous search retry failed', error);
                 }
+            } else if (offset === 0) {
+                forgetKugouAnonymousSearchFallback(fallbackKey);
             }
             return pageOfWithRawItemCount(
                 normalizeKugouSearchSongs(rawItems),
@@ -1269,6 +1309,7 @@ export const kugouProvider: OnlineMusicProvider = {
             const told = requestKugou('logout').catch(() => undefined);
             ['cookie', 'token', 'userid', 'dfid'].forEach(key => removeProviderSessionValue('kugou', key));
             clearKugouLikedCaches();
+            kugouAnonymousSearchFallbackKeywords.clear();
             lastSeenKugouUserId = null;
             await told;
         },

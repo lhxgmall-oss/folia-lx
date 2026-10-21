@@ -100,10 +100,60 @@ describe('searchQqSongs', () => {
     it('does not retry anonymously on later pages', async () => {
         requestMock.mockResolvedValue({ code: 200, more: false, items: [] });
 
-        const page = await searchQqSongs('海阔天空', 20, 20);
+        const page = await searchQqSongs('未回退', 20, 20);
 
         expect(searchQQSongsMock).not.toHaveBeenCalled();
         expect(page.items).toEqual([]);
+    });
+
+    it('uses the anonymous search on later pages after a first-page fallback', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        requestMock.mockResolvedValue({ code: 200, more: false, items: [] });
+        searchQQSongsMock.mockResolvedValue([ANONYMOUS_RESULT]);
+
+        await searchQqSongs('翻页回退', 20, 0);
+        expect(searchQQSongsMock).toHaveBeenCalledWith('翻页回退', 1, 20);
+
+        requestMock.mockClear();
+        searchQQSongsMock.mockClear();
+        const page = await searchQqSongs('翻页回退', 20, 20);
+
+        expect(requestMock).not.toHaveBeenCalled();
+        expect(searchQQSongsMock).toHaveBeenCalledWith('翻页回退', 2, 20);
+        expect(page.items).toHaveLength(1);
+    });
+
+    it('returns to the session search when a marked keyword works again', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        requestMock.mockResolvedValue({ code: 200, more: false, items: [] });
+        searchQQSongsMock.mockResolvedValue([ANONYMOUS_RESULT]);
+
+        await searchQqSongs('恢复会话', 20, 0);
+
+        requestMock.mockReset();
+        searchQQSongsMock.mockReset();
+        requestMock.mockResolvedValue({ code: 200, more: true, items: [LITE_ITEM] });
+        await expect(searchQqSongs('恢复会话', 20, 0)).resolves.toMatchObject({ items: [expect.anything()] });
+
+        requestMock.mockClear();
+        await searchQqSongs('恢复会话', 20, 20);
+
+        expect(requestMock).toHaveBeenCalledWith('search', { keyword: '恢复会话', type: 'song', page: 2, limit: 20 });
+        expect(searchQQSongsMock).not.toHaveBeenCalled();
+    });
+
+    it('keeps the empty session page when the anonymous fallback fails', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        requestMock.mockResolvedValue({ code: 200, more: false, total: 0, items: [] });
+        searchQQSongsMock.mockRejectedValue(new Error('QQ Music API error: code 2001'));
+
+        const page = await searchQqSongs('匿名失败', 20, 0);
+
+        expect(page).toMatchObject({ items: [], hasMore: false, total: 0 });
+        expect(warn).toHaveBeenCalledWith(
+            '[QQProvider] anonymous search fallback failed, keeping the empty session page',
+            expect.any(Error),
+        );
     });
 
     it('surfaces an upstream refusal instead of reporting no results', async () => {
