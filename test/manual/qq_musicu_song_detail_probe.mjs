@@ -26,6 +26,7 @@
 //   l  本机直接调 api/lyric-proxy.js（Vercel 与 Docker 用的中转）的 handler 转发一次（只在不加 --relay 时跑；出口仍是本机）
 //   m  并发 2 × 25 三轮、并发 8 × 25 一次 → 都 code 0
 // 请求总数约 52 个，同时最多 8 个。
+// 加 --relay 时 l 跳过，是 51 个（a1 b1 c2 d1 e1 f1 g1 h6 i7 j10 k6 m14，直发再加 l 的 1 个）。
 
 const MUSICU_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
 const COMM = { ct: 24, cv: 0 };
