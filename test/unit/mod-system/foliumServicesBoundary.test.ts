@@ -125,3 +125,31 @@ describe('folium.omni import boundary', () => {
         ))).toEqual([]);
     });
 });
+
+/*
+ * Folium 1.7 `folium.equalizer`：模组那一半（folium/equalizer/service.ts）随 api.ts 进导出窗口的包，读写音频设置
+ * store 的宿主层（runtime/equalizer/）只在主窗口的 mainWindowStart.ts 里装上。所以钉住：
+ * - service.ts 确实在 api.ts 随它一起加载的闭包（不含动态 import()）里，否则下面两条会因为没走到而安静地为绿；
+ * - 那个闭包里没有 src/stores/useAudioSettingsStore.ts。只在这个闭包上断言：连动态 import() 一起走时，舞台图层
+ *   用到时才加载的那一块本来就能走到这个 store 和 src/utils/audioEqualizer.ts，写在那上面一开始就会失败；
+ * - 两种闭包都到不了 runtime/equalizer/ 下的任何文件。
+ */
+describe('folium.equalizer import boundary', () => {
+    const API = 'src/mods/folium/api.ts';
+    const loaded = walkRuntimeClosure(API, { dynamic: false });
+    const reachable = walkRuntimeClosure(API);
+
+    it('loads the equalizer service with api.ts', () => {
+        expect(loaded.unresolved).toEqual([]);
+        expect(loaded.files).toContain('src/mods/folium/equalizer/service.ts');
+    });
+
+    it('loads no audio settings store with api.ts', () => {
+        expect(loaded.files).not.toContain('src/stores/useAudioSettingsStore.ts');
+    });
+
+    it('never reaches the host side of folium.equalizer from api.ts, lazily loaded chunks included', () => {
+        expect(loaded.files.filter(file => /^src\/mods\/runtime\/equalizer\//.test(file))).toEqual([]);
+        expect(reachable.files.filter(file => /^src\/mods\/runtime\/equalizer\//.test(file))).toEqual([]);
+    });
+});

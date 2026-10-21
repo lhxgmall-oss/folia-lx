@@ -307,6 +307,8 @@ export default {
     "stageModeOff": "Stage mode disabled",
     "queueInsertNext": "Queue insert to play next",
     "queueAppend": "Queue append to end",
+    "equalizerModCurve": "\"{{mod}}\" put its own equalizer curve in place",
+    "equalizerModMode": "\"{{mod}}\" switched the sound to {{mode}}",
     "homeLayoutGrid": "Home layout switched to Vast Desktop",
     "homeLayoutCarousel": "Home layout switched to Classic",
     "cardStyleImage": "Card style switched to cover image only",

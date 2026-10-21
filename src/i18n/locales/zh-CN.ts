@@ -307,6 +307,8 @@ export default {
     "stageModeOff": "舞台模式已关闭",
     "queueInsertNext": "加入队列将插到下一首",
     "queueAppend": "加入队列将追加到末尾",
+    "equalizerModCurve": "「{{mod}}」换上了自己的均衡器曲线",
+    "equalizerModMode": "「{{mod}}」把音效切换到「{{mode}}」",
     "homeLayoutGrid": "首页布局已切换为万象",
     "homeLayoutCarousel": "首页布局已切换为经典",
     "cardStyleImage": "卡片样式已切换为纯图片封面",

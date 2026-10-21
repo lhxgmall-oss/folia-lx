@@ -307,6 +307,8 @@ export default {
     "stageModeOff": "Mode Stage dimatikan",
     "queueInsertNext": "Masukkan ke antrean untuk diputar berikutnya",
     "queueAppend": "Tambahkan ke akhir antrean",
+    "equalizerModCurve": "\"{{mod}}\" memasang kurva equalizer miliknya",
+    "equalizerModMode": "\"{{mod}}\" mengganti suara ke {{mode}}",
     "homeLayoutGrid": "Tata letak beranda diganti ke Vast Desktop",
     "homeLayoutCarousel": "Tata letak beranda diganti ke Classic",
     "cardStyleImage": "Gaya kartu diganti ke hanya gambar sampul",

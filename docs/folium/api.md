@@ -15,7 +15,7 @@
 - **注册表与条目**：[注册表一览](#注册表一览) · [FoliumVisualizerDef](#foliumvisualizerdef) · [FoliumTuningDef](#foliumtuningdef) · [FoliumCommandContext](#foliumcommandcontext) · [FoliumCommandDef](#foliumcommanddef) · [FoliumBackgroundContext](#foliumbackgroundcontext) · [FoliumBackgroundDef](#foliumbackgrounddef) · [FoliumStageSlot](#foliumstageslot) · [FoliumStageLayerDef](#foliumstagelayerdef) · [FoliumSettingsSectionDef](#foliumsettingssectiondef) · [FoliumPlayerPanelTabDef](#foliumplayerpaneltabdef) · [FoliumHomeTabDef](#foliumhometabdef) · [FoliumProgressContext](#foliumprogresscontext) · [FoliumProgressButtonSlot](#foliumprogressbuttonslot) · [FoliumProgressButtonDef](#foliumprogressbuttondef) · [FoliumProgressLayerDef](#foliumprogresslayerdef) · [FoliumStyleDef](#foliumstyledef) · [FoliumRegistryHandle](#foliumregistryhandle) · [FoliumSettingsSectionHandle](#foliumsettingssectionhandle) · [FoliumRegistry](#foliumregistry) · [FoliumRegistries](#foliumregistries)
 - **宿主容器与上下文**：[FoliumMount](#foliummount) · [FoliumSize](#foliumsize) · [FoliumMountHelpers](#foliummounthelpers) · [FoliumPanelContext](#foliumpanelcontext) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext) · [FoliumClock](#foliumclock) · [FoliumSurface](#foliumsurface) · [FoliumAudioBands](#foliumaudiobands) · [FoliumAudio](#foliumaudio) · [FoliumDisplay](#foliumdisplay) · [FoliumStageContext](#foliumstagecontext)
 - **事件**：[事件一览](#事件一览) · [FoliumEventPriority](#foliumeventpriority) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumNotificationEvents](#foliumnotificationevents) · [FoliumLyricsTransformEvent](#foliumlyricstransformevent) · [FoliumBeforePlayEvent](#foliumbeforeplayevent) · [FoliumOmniLyricsEvent](#foliumomnilyricsevent) · [FoliumOmniAudioEvent](#foliumomniaudioevent) · [FoliumHookEvents](#foliumhookevents) · [FoliumEventMap](#foliumeventmap) · [FoliumEvents](#foliumevents)
-- **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumNetService](#foliumnetservice) · [FoliumAccountState](#foliumaccountstate) · [FoliumAccountService](#foliumaccountservice) · [FoliumSongKey](#foliumsongkey) · [FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollectionKey](#foliumcollectionkey) · [FoliumCollection](#foliumcollection) · [FoliumOmniErrorCode](#foliumomnierrorcode) · [FoliumOmniService](#foliumomniservice)
+- **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumNetService](#foliumnetservice) · [FoliumAccountState](#foliumaccountstate) · [FoliumAccountService](#foliumaccountservice) · [FoliumSongKey](#foliumsongkey) · [FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollectionKey](#foliumcollectionkey) · [FoliumCollection](#foliumcollection) · [FoliumOmniErrorCode](#foliumomnierrorcode) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerBand](#foliumequalizerband) · [FoliumEqualizerPresetId](#foliumequalizerpresetid) · [FoliumEqualizerCustomId](#foliumequalizercustomid) · [FoliumEqualizerUserMode](#foliumequalizerusermode) · [FoliumEqualizerMode](#foliumequalizermode) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumEqualizerRefusal](#foliumequalizerrefusal) · [FoliumEqualizerWriteResult](#foliumequalizerwriteresult) · [FoliumEqualizerService](#foliumequalizerservice)
 - **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
 - **设置 schema**：[FoliumSettingType](#foliumsettingtype) · [FoliumSettingOption](#foliumsettingoption) · [FoliumSetting](#foliumsetting) · [FoliumSettingValues](#foliumsettingvalues) · [FoliumSettingAccess](#foliumsettingaccess)
 - **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumQueueChange](#foliumqueuechange) · [FoliumQueueReplaceRefusal](#foliumqueuereplacerefusal) · [FoliumQueueReplaced](#foliumqueuereplaced) · [FoliumQueueReplaceRefused](#foliumqueuereplacerefused) · [FoliumQueueReplaceResult](#foliumqueuereplaceresult) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
@@ -152,11 +152,12 @@ The object a client entry's `activate(folium)` receives.
 | `readonly theme` | `FoliumThemeHelpers` | The theme helpers builtin modes use. |
 | `readonly account` | `FoliumAccountService` | Folium 1.7: who is signed in to the online sources. |
 | `readonly omni` | `FoliumOmniService` | Folium 1.7: the host's online music sources, read only: search, songs by id, lyrics, albums, artists. |
+| `readonly equalizer` | `FoliumEqualizerService` | Folium 1.7: the host's graphic equalizer: read it, switch the user's sound, put a curve of your own in place. |
 | `every()` | `(ms: number, listener: () => void): FoliumDisposer` | Calls `listener` every `ms` milliseconds (at least 16) until the mod stops; the host stops it then. |
 | `onDispose()` | `(disposer: FoliumDisposer): void` | Runs `disposer` when the mod stops, after the disposer `activate` returned; at once when the mod has already stopped. |
 | `readonly experimental` | `Readonly<Record<string, unknown>>` | Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. |
 
-相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumAccountService](#foliumaccountservice) · [FoliumOmniService](#foliumomniservice) · [FoliumDisposer](#foliumdisposer)
+相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumAccountService](#foliumaccountservice) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerService](#foliumequalizerservice) · [FoliumDisposer](#foliumdisposer)
 
 ### FoliumClientModule
 
@@ -716,6 +717,7 @@ interface FoliumStageContext extends FoliumMountHelpers
 | `playback.queueChanged` | 通知 | — |
 | `playback.failed` | 通知 | — |
 | `account.changed` | 通知 | — |
+| `equalizer.changed` | 通知 | — |
 | `lyrics.transform` | 钩子 | — |
 | `playback.beforePlay` | 钩子 | — |
 | `omni.lyricsResolved` | 钩子 | `omni.hooks` |
@@ -762,8 +764,9 @@ Read-only notifications, emitted after the fact.
 | `playback.queueChanged` | `FoliumQueueChange` | The queue changed, or the displayed song moved within it. Only the outline: call `playback.getQueue()` for the songs. Changes made in one task arrive as one event. Folium 1.7: also fired when an automix blend ends, so a replaceQueue refused `transition` can try again. |
 | `playback.failed` | `{ readonly song: FoliumSong \| null; readonly reason: FoliumPlaybackFailureReason; readonly phase: 'play' \| 'restore' \| 'mid-playback'; readonly willAutoSkip: boolean; }` | A song failed to play; reported once, after the host's own retries. `phase` says where it failed: `play`, the host got no playable source for the song just picked (sign-in, membership, taken down, the address lookup failed, a missing local file); `restore`, the same while restoring the last session; `mid-playback`, the player failed on the media itself (it would not load, decode or keep streaming). Every media error is `mid-playback`, so a song just picked or restored that fails before any sound is reported as `mid-playback` too. `willAutoSkip`: the host is counting down to skip it (its policy or the user's "skip unplayable songs" setting), so do not call `next()` yourself. Not emitted in the export window. |
 | `account.changed` | `FoliumAccountState` | Folium 1.7: someone signed in to an online source, signed out, or another account took the place of the one there (`accountKey` changed); the payload is the source's new state, as `folium.account.getState(providerId)` reads it. One event per source for all the changes of one task; a source whose status and key end where they began fires none, and a new nickname or avatar alone fires none either. A status that settles from `unknown` (the host finished asking the platform, usually soon after start) fires too, for the same account as before: compare `accountKey` before dropping data. Not emitted in the export window. |
+| `equalizer.changed` | `{ readonly state: FoliumEqualizerState; readonly origin: FoliumEqualizerChangeOrigin }` | Folium 1.7: the equalizer changed: anything `folium.equalizer.getState()` reports (the switch, the mode, the gains, `hostPlaysAudio`, `writable`). One event for all the changes of one task; its origin is the last of them that was not `host`, or `host` when all of them were. Changes that end where they began fire none. Not emitted in the export window. |
 
-相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueChange](#foliumqueuechange) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumAccountState](#foliumaccountstate)
+相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueChange](#foliumqueuechange) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumAccountState](#foliumaccountstate) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin)
 
 ### FoliumLyricsTransformEvent
 
@@ -865,7 +868,7 @@ The event bus, as `folium.events`.
 
 ## 服务
 
-`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。
+`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。
 
 ### FoliumPlaybackService
 
@@ -1202,6 +1205,151 @@ Async methods reject with an Error whose `code` is a FoliumOmniErrorCode, and wi
 | `getArtistAlbums()` | `(artist: FoliumCollection, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<FoliumOmniPage<FoliumCollection>>` | A page of an artist's albums; paged as `getTracks`. |
 
 相关：[FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSong](#foliumsong) · [FoliumSongKey](#foliumsongkey) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollection](#foliumcollection) · [FoliumCollectionKey](#foliumcollectionkey)
+
+### FoliumEqualizerBand
+
+Folium 1.7: one band of the host's graphic equalizer, as `FoliumEqualizerState.bands` lists it. Frozen.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly frequency` | `number` | The band's frequency in Hz: the centre of a peaking band, the corner of a shelf. |
+| `readonly shape` | `'lowshelf' \| 'peaking' \| 'highshelf'` | `lowshelf` (the first band) lifts or cuts everything below its frequency, `highshelf` (the last band) everything above it, `peaking` (the others) the frequencies around it. Later minors may add shapes: read one you do not know as `peaking`. |
+
+### FoliumEqualizerPresetId
+
+Folium 1.7: a built-in sound of the host, as the audio effects window lists it: `flat` (Level), `lofi`,
+`radio`, `hall`, `vocal` and `bass` (Bass boost). Each is an equalizer curve together with a set of effects.
+`setMode` takes each of these ids for all of Folium 1.x; later minors may add more.
+
+```ts
+type FoliumEqualizerPresetId = 'flat' | 'lofi' | 'radio' | 'hall' | 'vocal' | 'bass'
+```
+
+### FoliumEqualizerCustomId
+
+Folium 1.7: one of the user's own saved sounds in the audio effects window (Custom 1 and Custom 2), each a
+curve and a set of effects. `setMode` takes each of these ids for all of Folium 1.x; later minors may add more.
+
+```ts
+type FoliumEqualizerCustomId = 'custom1' | 'custom2'
+```
+
+### FoliumEqualizerUserMode
+
+Folium 1.7: a sound `folium.equalizer.setMode` can switch to: a built-in one, or one of the user's own.
+
+```ts
+type FoliumEqualizerUserMode = | { readonly kind: 'preset'; readonly id: FoliumEqualizerPresetId } | { readonly kind: 'custom'; readonly id: FoliumEqualizerCustomId }
+```
+
+相关：[FoliumEqualizerPresetId](#foliumequalizerpresetid) · [FoliumEqualizerCustomId](#foliumequalizercustomid)
+
+### FoliumEqualizerMode
+
+Folium 1.7: what the equalizer plays now. `preset` / `custom`: a sound the user chose (or a mod switched
+to with `setMode`). `mod`: a curve a mod put in place with `applyCurve`, over the user's own effects;
+`modId` names the mod. While that mod is disabled or removed the user's own sound plays, and the state
+shows it; the curve comes back when the mod is enabled again. Later minors may add kinds: a mode you do
+not know is one the user chose, so leave it be.
+
+```ts
+type FoliumEqualizerMode = | FoliumEqualizerUserMode | { readonly kind: 'mod'; readonly modId: string }
+```
+
+相关：[FoliumEqualizerUserMode](#foliumequalizerusermode)
+
+### FoliumEqualizerState
+
+Folium 1.7: the host's graphic equalizer as it is heard, as `folium.equalizer.getState()` and
+`equalizer.changed` give it. Frozen. The user's custom sounds are not part of it, except the curve of the
+one playing.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly enabled` | `boolean` | The processing switch of the audio effects window. While false the gains are kept but not heard, and the effects are off too; the switch is the user's, and no `folium.equalizer` write turns it on. |
+| `readonly mode` | `FoliumEqualizerMode` | What plays now. |
+| `readonly gains` | `readonly number[]` | The gain of each band in dB, in the order of `bands`, from `minGain` to `maxGain`. Heard only while `enabled`. |
+| `readonly bands` | `readonly FoliumEqualizerBand[]` | The bands, lowest first: ten in Folium 1.7. The same frozen array on every read. |
+| `readonly minGain` | `number` | The lowest gain of a band in dB: -12 in Folium 1.7. |
+| `readonly maxGain` | `number` | The highest gain of a band in dB: 12 in Folium 1.7. |
+| `readonly hostPlaysAudio` | `boolean` | Whether what plays goes through the host's own audio, where the equalizer sits. False during external Stage playback (another player's now-playing, a Stage source with lyrics and no audio): the equalizer has nothing to act on then. Its settings still apply once the host plays again. |
+| `readonly writable` | `boolean` | False while the audio effects window is open: a write that would change something is refused `panel-open` then, and `equalizer.changed` fires when the window closes. Later minors may add other times it is false. The permission and the rate limit are not part of it. |
+
+相关：[FoliumEqualizerMode](#foliumequalizermode) · [FoliumEqualizerBand](#foliumequalizerband)
+
+### FoliumEqualizerChangeOrigin
+
+Folium 1.7: who changed the equalizer, as `equalizer.changed` reports it. `user`: the user, in the audio
+effects window. `command`: a host command (the command palette's sound commands). `mod`: a mod, through
+`folium.equalizer`; compare `modId` with your own `folium.modId`. `host`: the host itself, with nobody
+changing the sound (the sound left the host's own audio or came back to it, the audio effects window opened
+or closed, the mod of the curve in place was disabled, removed or enabled again). Later minors may add
+kinds: read one you do not know as `user`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly kind` | `'user' \| 'command' \| 'host' \| 'mod'` | Who it was. |
+| `readonly modId` | `string \| null` | The mod, for `mod`; null for the others. |
+
+### FoliumEqualizerRefusal
+
+Folium 1.7: why the host did not take a `folium.equalizer` write. `stopped`: this mod has stopped.
+`unknown-mode`: this host has no such sound (one a later minor added). `panel-open`: the audio effects
+window is open, so the user is at it; wait for `equalizer.changed` with `state.writable` true.
+`rate-limited`: too many writes (see FoliumEqualizerService). When several apply, the first of these in
+this order is given. A write that would change nothing is never refused for `panel-open` or `rate-limited`.
+Later minors may add reasons: treat one you do not know as `rate-limited`, and try again later rather than
+in a loop.
+
+```ts
+type FoliumEqualizerRefusal = 'stopped' | 'unknown-mode' | 'panel-open' | 'rate-limited'
+```
+
+### FoliumEqualizerWriteResult
+
+Folium 1.7: the outcome of a `folium.equalizer` write; `state` is the equalizer after it.
+
+```ts
+type FoliumEqualizerWriteResult = | { readonly ok: true; readonly state: FoliumEqualizerState } | { readonly ok: false; readonly reason: FoliumEqualizerRefusal }
+```
+
+相关：[FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerRefusal](#foliumequalizerrefusal)
+
+### FoliumEqualizerService
+
+Folium 1.7: `folium.equalizer`, the host's graphic equalizer (the bands of the audio effects window).
+Reading needs no permission; `setMode`, `applyCurve` and `releaseCurve` need `equalizer.control`. A mod
+gets the equalizer's settings, never its audio nodes. A write lands where the user's own choices do, so the
+audio effects window and the sound follow it, and it is kept across restarts.
+
+No write changes the user's custom sounds or turns the processing switch on: while `enabled` is false a
+write is kept but not heard. The user comes first: any choice the user makes in the audio effects window
+(a sound, keeping a mod's curve as one of their own, going back to their own) ends a mod's curve, and
+while that window is open writes are refused `panel-open`. Follow `equalizer.changed`: once its `origin`
+is the user, a host command or another mod (not `host`, and not your own mod), step back: putting your
+curve back after that overrides the user. The host tells the user which mod changed the sound.
+
+Every write that changes something is saved: write what you settled on rather than animating through it.
+Currently a mod may make one such write a second and 20 a minute; past that a write is refused
+`rate-limited`. A write changes nothing when the user's settings it would leave and the curve in place
+are the same as now; such a write is accepted, does not count, and is never refused `panel-open` or
+`rate-limited`. During an automix blend the host holds a mod's change back from the sound until the blend
+has ended (`getState` reports it at once), and it glides a mod's gains in rather than switching them.
+
+Main window only: in the export window every method throws an Error whose message is
+`equalizer-unavailable-in-export-context`. The main entry has no `equalizer`; ask the client over `rpc`.
+An older host has no `folium.equalizer`: check `folium.host.folium.minor >= 7` first. Malformed arguments
+throw a TypeError (`invalid-arguments: …`); a write without the permission throws
+`permission-denied:equalizer.control`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `getState()` | `(): FoliumEqualizerState` | The equalizer now, as it is heard. Synchronous; follow changes with `equalizer.changed`. |
+| `setMode()` | `(mode: FoliumEqualizerUserMode): FoliumEqualizerWriteResult` | Switches to a built-in sound or to one of the user's own, as the command palette's sound commands do: its curve and its effects together, and a mod's curve in place ends. Writes no custom sound and leaves the processing switch as it is. Refused `unknown-mode` for a sound this host does not have. Needs `equalizer.control`. |
+| `applyCurve()` | `(gains: readonly number[]): FoliumEqualizerWriteResult` | Puts this mod's own curve in place, as mode `{ kind: 'mod' }`: 1 to `bands.length` finite gains in dB, one per band from the lowest. Bands left out read 0; each gain is clamped to `minGain`–`maxGain` and rounded to 0.1 dB, as `state.gains` then shows. The effects and the switch stay as the user had them. The curve stays, across restarts and while this mod reloads, until the user or a mod changes the sound; while this mod is disabled or removed the user's own sound plays, and the curve comes back when it is enabled again. The user can go back to their own sound, or keep the curve as one of their own, from the audio effects window. Needs `equalizer.control`. |
+| `releaseCurve()` | `(): boolean` | Takes this mod's curve off and goes back to the user's own sound. True when this mod's curve was in place; false otherwise, and nothing changes. Never refused for the rate or the open window. Needs `equalizer.control`. |
+
+相关：[FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerUserMode](#foliumequalizerusermode) · [FoliumEqualizerWriteResult](#foliumequalizerwriteresult)
 
 ## 共享工具
 

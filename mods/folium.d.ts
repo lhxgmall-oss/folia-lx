@@ -1131,6 +1131,13 @@ export interface FoliumNotificationEvents {
      * `accountKey` before dropping data. Not emitted in the export window.
      */
     'account.changed': FoliumAccountState;
+    /**
+     * Folium 1.7: the equalizer changed: anything `folium.equalizer.getState()` reports (the switch, the
+     * mode, the gains, `hostPlaysAudio`, `writable`). One event for all the changes of one task; its origin is
+     * the last of them that was not `host`, or `host` when all of them were. Changes that end where they began
+     * fire none. Not emitted in the export window.
+     */
+    'equalizer.changed': { readonly state: FoliumEqualizerState; readonly origin: FoliumEqualizerChangeOrigin };
 }
 
 /**
@@ -1778,6 +1785,167 @@ export interface FoliumOmniService {
     ): Promise<FoliumOmniPage<FoliumCollection>>;
 }
 
+/** Folium 1.7: one band of the host's graphic equalizer, as `FoliumEqualizerState.bands` lists it. Frozen. */
+export interface FoliumEqualizerBand {
+    /** The band's frequency in Hz: the centre of a peaking band, the corner of a shelf. */
+    readonly frequency: number;
+    /**
+     * `lowshelf` (the first band) lifts or cuts everything below its frequency, `highshelf` (the last band)
+     * everything above it, `peaking` (the others) the frequencies around it. Later minors may add shapes:
+     * read one you do not know as `peaking`.
+     */
+    readonly shape: 'lowshelf' | 'peaking' | 'highshelf';
+}
+
+/**
+ * Folium 1.7: a built-in sound of the host, as the audio effects window lists it: `flat` (Level), `lofi`,
+ * `radio`, `hall`, `vocal` and `bass` (Bass boost). Each is an equalizer curve together with a set of effects.
+ * `setMode` takes each of these ids for all of Folium 1.x; later minors may add more.
+ */
+export type FoliumEqualizerPresetId = 'flat' | 'lofi' | 'radio' | 'hall' | 'vocal' | 'bass';
+
+/**
+ * Folium 1.7: one of the user's own saved sounds in the audio effects window (Custom 1 and Custom 2), each a
+ * curve and a set of effects. `setMode` takes each of these ids for all of Folium 1.x; later minors may add more.
+ */
+export type FoliumEqualizerCustomId = 'custom1' | 'custom2';
+
+/** Folium 1.7: a sound `folium.equalizer.setMode` can switch to: a built-in one, or one of the user's own. */
+export type FoliumEqualizerUserMode =
+    | { readonly kind: 'preset'; readonly id: FoliumEqualizerPresetId }
+    | { readonly kind: 'custom'; readonly id: FoliumEqualizerCustomId };
+
+/**
+ * Folium 1.7: what the equalizer plays now. `preset` / `custom`: a sound the user chose (or a mod switched
+ * to with `setMode`). `mod`: a curve a mod put in place with `applyCurve`, over the user's own effects;
+ * `modId` names the mod. While that mod is disabled or removed the user's own sound plays, and the state
+ * shows it; the curve comes back when the mod is enabled again. Later minors may add kinds: a mode you do
+ * not know is one the user chose, so leave it be.
+ */
+export type FoliumEqualizerMode =
+    | FoliumEqualizerUserMode
+    | { readonly kind: 'mod'; readonly modId: string };
+
+/**
+ * Folium 1.7: the host's graphic equalizer as it is heard, as `folium.equalizer.getState()` and
+ * `equalizer.changed` give it. Frozen. The user's custom sounds are not part of it, except the curve of the
+ * one playing.
+ */
+export interface FoliumEqualizerState {
+    /**
+     * The processing switch of the audio effects window. While false the gains are kept but not heard, and
+     * the effects are off too; the switch is the user's, and no `folium.equalizer` write turns it on.
+     */
+    readonly enabled: boolean;
+    /** What plays now. */
+    readonly mode: FoliumEqualizerMode;
+    /** The gain of each band in dB, in the order of `bands`, from `minGain` to `maxGain`. Heard only while `enabled`. */
+    readonly gains: readonly number[];
+    /** The bands, lowest first: ten in Folium 1.7. The same frozen array on every read. */
+    readonly bands: readonly FoliumEqualizerBand[];
+    /** The lowest gain of a band in dB: -12 in Folium 1.7. */
+    readonly minGain: number;
+    /** The highest gain of a band in dB: 12 in Folium 1.7. */
+    readonly maxGain: number;
+    /**
+     * Whether what plays goes through the host's own audio, where the equalizer sits. False during external
+     * Stage playback (another player's now-playing, a Stage source with lyrics and no audio): the equalizer
+     * has nothing to act on then. Its settings still apply once the host plays again.
+     */
+    readonly hostPlaysAudio: boolean;
+    /**
+     * False while the audio effects window is open: a write that would change something is refused
+     * `panel-open` then, and `equalizer.changed` fires when the window closes. Later minors may add other
+     * times it is false. The permission and the rate limit are not part of it.
+     */
+    readonly writable: boolean;
+}
+
+/**
+ * Folium 1.7: who changed the equalizer, as `equalizer.changed` reports it. `user`: the user, in the audio
+ * effects window. `command`: a host command (the command palette's sound commands). `mod`: a mod, through
+ * `folium.equalizer`; compare `modId` with your own `folium.modId`. `host`: the host itself, with nobody
+ * changing the sound (the sound left the host's own audio or came back to it, the audio effects window opened
+ * or closed, the mod of the curve in place was disabled, removed or enabled again). Later minors may add
+ * kinds: read one you do not know as `user`.
+ */
+export interface FoliumEqualizerChangeOrigin {
+    /** Who it was. */
+    readonly kind: 'user' | 'command' | 'host' | 'mod';
+    /** The mod, for `mod`; null for the others. */
+    readonly modId: string | null;
+}
+
+/**
+ * Folium 1.7: why the host did not take a `folium.equalizer` write. `stopped`: this mod has stopped.
+ * `unknown-mode`: this host has no such sound (one a later minor added). `panel-open`: the audio effects
+ * window is open, so the user is at it; wait for `equalizer.changed` with `state.writable` true.
+ * `rate-limited`: too many writes (see FoliumEqualizerService). When several apply, the first of these in
+ * this order is given. A write that would change nothing is never refused for `panel-open` or `rate-limited`.
+ * Later minors may add reasons: treat one you do not know as `rate-limited`, and try again later rather than
+ * in a loop.
+ */
+export type FoliumEqualizerRefusal = 'stopped' | 'unknown-mode' | 'panel-open' | 'rate-limited';
+
+/** Folium 1.7: the outcome of a `folium.equalizer` write; `state` is the equalizer after it. */
+export type FoliumEqualizerWriteResult =
+    | { readonly ok: true; readonly state: FoliumEqualizerState }
+    | { readonly ok: false; readonly reason: FoliumEqualizerRefusal };
+
+/**
+ * Folium 1.7: `folium.equalizer`, the host's graphic equalizer (the bands of the audio effects window).
+ * Reading needs no permission; `setMode`, `applyCurve` and `releaseCurve` need `equalizer.control`. A mod
+ * gets the equalizer's settings, never its audio nodes. A write lands where the user's own choices do, so the
+ * audio effects window and the sound follow it, and it is kept across restarts.
+ *
+ * No write changes the user's custom sounds or turns the processing switch on: while `enabled` is false a
+ * write is kept but not heard. The user comes first: any choice the user makes in the audio effects window
+ * (a sound, keeping a mod's curve as one of their own, going back to their own) ends a mod's curve, and
+ * while that window is open writes are refused `panel-open`. Follow `equalizer.changed`: once its `origin`
+ * is the user, a host command or another mod (not `host`, and not your own mod), step back: putting your
+ * curve back after that overrides the user. The host tells the user which mod changed the sound.
+ *
+ * Every write that changes something is saved: write what you settled on rather than animating through it.
+ * Currently a mod may make one such write a second and 20 a minute; past that a write is refused
+ * `rate-limited`. A write changes nothing when the user's settings it would leave and the curve in place
+ * are the same as now; such a write is accepted, does not count, and is never refused `panel-open` or
+ * `rate-limited`. During an automix blend the host holds a mod's change back from the sound until the blend
+ * has ended (`getState` reports it at once), and it glides a mod's gains in rather than switching them.
+ *
+ * Main window only: in the export window every method throws an Error whose message is
+ * `equalizer-unavailable-in-export-context`. The main entry has no `equalizer`; ask the client over `rpc`.
+ * An older host has no `folium.equalizer`: check `folium.host.folium.minor >= 7` first. Malformed arguments
+ * throw a TypeError (`invalid-arguments: …`); a write without the permission throws
+ * `permission-denied:equalizer.control`.
+ */
+export interface FoliumEqualizerService {
+    /** The equalizer now, as it is heard. Synchronous; follow changes with `equalizer.changed`. */
+    getState(): FoliumEqualizerState;
+    /**
+     * Switches to a built-in sound or to one of the user's own, as the command palette's sound commands do:
+     * its curve and its effects together, and a mod's curve in place ends. Writes no custom sound and leaves
+     * the processing switch as it is. Refused `unknown-mode` for a sound this host does not have. Needs
+     * `equalizer.control`.
+     */
+    setMode(mode: FoliumEqualizerUserMode): FoliumEqualizerWriteResult;
+    /**
+     * Puts this mod's own curve in place, as mode `{ kind: 'mod' }`: 1 to `bands.length` finite gains in dB,
+     * one per band from the lowest. Bands left out read 0; each gain is clamped to `minGain`–`maxGain` and
+     * rounded to 0.1 dB, as `state.gains` then shows. The effects and the switch stay as the user had them.
+     * The curve stays, across restarts and while this mod reloads, until the user or a mod changes the sound;
+     * while this mod is disabled or removed the user's own sound plays, and the curve comes back when it is
+     * enabled again. The user can go back to their own sound, or keep the curve as one of their own, from the
+     * audio effects window. Needs `equalizer.control`.
+     */
+    applyCurve(gains: readonly number[]): FoliumEqualizerWriteResult;
+    /**
+     * Takes this mod's curve off and goes back to the user's own sound. True when this mod's curve was in
+     * place; false otherwise, and nothing changes. Never refused for the rate or the open window.
+     * Needs `equalizer.control`.
+     */
+    releaseCurve(): boolean;
+}
+
 // ---------------------------------------------------------------- Experimental
 
 /** EXPERIMENTAL (`player.layout`): a rectangle in viewport CSS pixels. */
@@ -2189,6 +2357,8 @@ export interface FoliumClientApi {
     readonly account: FoliumAccountService;
     /** Folium 1.7: the host's online music sources, read only: search, songs by id, lyrics, albums, artists. */
     readonly omni: FoliumOmniService;
+    /** Folium 1.7: the host's graphic equalizer: read it, switch the user's sound, put a curve of your own in place. */
+    readonly equalizer: FoliumEqualizerService;
     /**
      * Calls `listener` every `ms` milliseconds (at least 16) until the mod stops; the host stops
      * it then.
