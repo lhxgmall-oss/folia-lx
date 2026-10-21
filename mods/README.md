@@ -12,7 +12,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 
 > **模组开发与上架注意事项**
 >
-> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）和可以放进系统级全局快捷键的命令（`globalShortcut`）。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
+> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）、可以放进系统级全局快捷键的命令（`globalShortcut`），以及经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手）。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
 > - 任何尝试导出 provider 的原始音频流或解密之后的原始音频文件的模组，都有极高的平台法律风险。无论采用何种实现方式，此类模组都不会上架官方模组市场。
 
 公开类型全部在 [`src/mods/folium/contract.ts`](../src/mods/folium/contract.ts)，这是契约的唯一来源；
@@ -40,6 +40,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | `dev/folium/sample-home-tab` | 首页页面（homeTabs + `ui.openHomeTab`）：双栏页面、输入不触发宿主快捷键、挂载与清理、注销入口后回到原生首页，纯 client、不需要权限 |
 | `dev/folium/sample-playback-console` | 首页页面里的播放控制台：音量、静音与循环模式可调，`getQueue` 分页列出队列并用 `playQueueItem` 点播，订阅 `volumeChanged` / `loopModeChanged` / `queueChanged` / `failed`；main 入口把失败记录追加到 `api.storage.paths.data` 下的日志，在 `paths.cache` 放一个可重建的缓存 |
 | `dev/folium/sample-account-console` | Folium 1.7：设置区块里的 `secret` 字段（client 与 main 入口各读一次，只显示「已设置 / 未设置」）；main 入口定时和在 `rpc.handle` 里用 `api.rpc.send` 推消息，client 用 `folium.rpc.on` 收；`folium.account.getState()` 与 `account.changed`；实验接口 `platform.raw` 读 `user_record`（听歌排行），清单选用 `platform.raw`、声明 `platform.netease.read`；可以绑到系统级全局快捷键的命令（`globalShortcut`） |
+| `dev/folium/sample-omni-console` | Folium 1.7：`folium.omni` 列出音源与 `supports`、搜歌并用 `nextCursor` 翻页、`describeSong` 与歌词前几行、专辑第一页曲目（`getAlbum` → `getTracks`）、把存进 `folium.storage` 的 `{ source, id }` 在重启后用 `resolveSongs` 解析回来；`playback.control` 只用于加入队列，`filesystem.data` 只用于存键 |
 
 ## 安全声明（重要）
 
@@ -174,7 +175,8 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 
 两个 `platform.*` 权限都要在 `experimental` 里选用 `platform.raw`，声明 `write` 也必须同时声明 `read`，否则清单校验不通过、模组不加载。
 启用确认窗口和模组面板的展开行会用一句话写明模组能以用户的账号读取（或改动）哪些平台的数据，见 [platform.raw](#platformraw实验17)。
-密钥字段（`secret`）、`rpc.send` / `rpc.on` 和 `folium.account` 不需要权限。
+密钥字段（`secret`）、`rpc.send` / `rpc.on`、`folium.account` 和 `folium.omni` 不需要权限。`folium.omni` 以你在 Folia 登录的平台账号向平台发请求，
+启用确认窗口里不会为它多写一句，见 [folium.omni](#foliumomni17)。
 
 每个权限解锁的成员以 API 参考的[权限一览](../docs/folium/api.md#权限一览)为准，`npm run folium:check` 用同一张表查模组。
 `platform.*` 例外：`folium:check` 只按代码里 `request('<平台>', …)` 写出的平台 id 查 `platform.<平台>.read`，平台 id 是变量时只提示一句，`.write` 查不到（要看调的接口）。
@@ -206,7 +208,7 @@ export default function activate(folium) {
   命令失败、音源方法失败、钩子超时或失败、模组自己调 `log.error` 是平常的结果：只记到那一行，不提示。
 - **运行环境**：`folium.env.context` 是 `'main'`（主窗口）或 `'export'`（透明视频导出窗口）。导出窗口里
   只属于界面的注册表（[注册表一览](../docs/folium/api.md#注册表一览)里「导出窗口里」一列写着不生效的那些）
-  是空实现——照常调用、不生效，所以同一份代码两边都能跑；服务（playback / ui / net / storage / secrets / account / rpc）
+  是空实现——照常调用、不生效，所以同一份代码两边都能跑；服务（playback / ui / net / storage / secrets / account / omni / rpc）
   在导出窗口里调用会抛 `*-unavailable-in-export-context`（返回 promise 的方法以这个错误拒绝）。例外：`ui.icon` 两边都能用；
   `rpc.on` 和 `secrets.subscribe` 照常收下监听、返回取消函数，但导出窗口里从不调用它们。
 - `folium.host`：`{ folium: { major, minor }, folia: '<宿主版本>' }`，给显示和日志用。
@@ -224,6 +226,7 @@ export default function activate(folium) {
 | `rpc.call(name, ...args)` | 调用本模组 main 侧 `api.rpc.handle(name, fn)` 注册的函数；参数与返回值需可 JSON 序列化 |
 | `rpc.on(name, listener)` | 1.7。收本模组 main 入口 `api.rpc.send(name, payload)` 发来的消息，返回取消函数。见 [main 入口向 client 推送消息](#main-入口向-client-推送消息17) |
 | `account.getState(providerId?)` | 1.7。在线音源的登录状态，不需要权限。见 [folium.account](#foliumaccount17) |
+| `omni.*` | 1.7。经 Omni 只读在线音源：搜索、按 `{ source, id }` 解析、歌词、专辑与歌手；不需要权限，以你在 Folia 登录的平台账号发请求。见 [folium.omni](#foliumomni17) |
 | `every(ms, fn)` / `onDispose(fn)` | 定时调用、登记清理函数；模组停掉时宿主替它停掉定时、调用清理函数。见[现成的函数](../docs/folium/contributing.md#现成的函数) |
 | `lyrics` / `theme` | 内置模式共用的函数，见[歌词与主题](#歌词与主题)；导出窗口里也能用。`lyrics.parse` 把歌词原文交给宿主解析；`lyrics.getLines()`、`lyrics.refresh()` 读正在显示的歌词（导出窗口里不能用） |
 | `experimental[name]` | 选用了才能访问，否则抛 `experimental-not-declared:<name>` |
@@ -626,6 +629,8 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 **`folium.playback`**：`getState()` 返回 `{ song, state, position, duration, liked, canLike }`；`play / pause / toggle / seek / seekToLyricTime / next / previous`、
 `playSong(song)`、`enqueue(song)`、`shuffleQueue()`、`toggleLike()` 需要 `playback.control`。歌曲 DTO 带不透明的 `ref`，宿主靠它找回真正的歌曲。
 
+- `enqueue(song)` 和宿主自己的「加入队列」一样，按用户的「加入队列方式」设置加（下一首或最后）：已经在队列里的歌挪过去、不加第二遍，
+  正在放的歌和平台标了不可用的歌不加，提示由宿主给出。`ref` 不认识时返回 `false`，其余返回 `true`（队列没变也是）。
 - `shuffleQueue()` 打乱播放队列，当前歌曲留在最前；私人 FM、队列只有一首、外部 Stage 播放时不动，返回 `false`。
 - `toggleLike()` 喜爱或取消喜爱正在显示的歌，和宿主的喜爱按钮相同，结果提示也由宿主给出；`canLike` 为 `false` 时
   （没有歌、来源不支持、Stage 播放、播放控制被禁用）不动，返回 `false`。`liked` 的变化见 `playback.likeChanged` 事件。
@@ -696,6 +701,232 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
   同一个任务里退出又登回原账号也不发。状态从 `unknown` 定下来时也发（通常是启动后不久宿主问完了平台），这时可能还是原来那个账号，
   丢数据前先比较 `accountKey`。宿主换了选中的音源不发这个事件（每个音源各自的状态没变），要跟着选中的音源走就在用的时候读 `getState()`。
 - 只在主窗口可用：导出窗口里 `getState` 抛 `account-unavailable-in-export-context`，`account.changed` 不发。Folium 1.6 的宿主没有 `folium.account`，先检查 `folium.host.folium.minor >= 7`。
+
+### folium.omni（1.7）
+
+经宿主的 Omni 只读在线音源的公开数据：搜歌、按存下的 id 找回歌、读歌词、从一首歌走到它的专辑和歌手。拿到的歌带宿主的 `ref`，
+原样交给 `folium.playback.playSong` / `enqueue`（这两个要 `playback.control`）就能放、能入队。`folium.omni` 本身不需要权限，只在主窗口可用。
+
+```js
+export default function activate(folium) {
+  // 1.6 的宿主没有 folium.omni；导出窗口里它的每个方法都报错。
+  if (folium.host.folium.minor < 7 || folium.env.context !== 'main') return;
+  const { omni } = folium;
+
+  async function firstHit(query, signal) {
+    const page = await omni.searchSongs(query, { limit: 20, signal });    // 当前选中的音源
+    const song = page.items[0];
+    if (!song) return null;
+    const details = omni.describeSong(song);                              // 同步，不问平台
+    const lyrics = await omni.getLyrics(song, { signal });                // lines 和 lyrics.parse 的一样
+    const next = page.nextCursor && await omni.searchSongs(query, { cursor: page.nextCursor, signal });
+    return { key: { source: song.source, id: song.id }, details, lyrics, next };   // 存 key，不存 ref
+  }
+
+  async function playSaved(key) {                                         // 下次启动时
+    const [resolution] = await omni.resolveSongs([key]);
+    if (resolution.status === 'found') await folium.playback.playSong(resolution.song);
+  }
+}
+```
+
+| 方法 | 做什么 | 问不问平台 |
+| --- | --- | --- |
+| `listProviders()` | 本机的在线音源：id、名字、来自宿主还是模组、是不是当前选中的、配好了没有、支持哪些方法（`supports`） | 同步，不问 |
+| `searchSongs(query, { providerId, cursor, limit, signal })` | 在指定的音源、或宿主当前选中的音源搜歌，一页一页读 | 每页最多一次 |
+| `resolveSongs(keys, { signal })` | 把存下的 `{ source, id }` 找回成宿主的歌，一次 1–50 个 | 按音源分组：能一次查多首的音源一组一次，不能的每个键一次；可能用宿主最近读到的回答，不问 |
+| `describeSong(song)` | 时长、封面、可用性、平台上的网页地址 | 同步，不问 |
+| `getLyrics(song, { signal })` | 平台给的歌词，宿主解析好的行 | 一次 |
+| `getAlbum(song, { signal })` / `getArtists(song, { signal })` | 这首歌的专辑 / 歌手 | 最多一次（歌上带着的不问） |
+| `resolveCollection({ source, kind, id }, { signal })` | 按存下的键取专辑或歌手，带平台给的详情 | 一次 |
+| `getTracks(collection, { cursor, limit, signal })` | 专辑的曲目、歌手的歌，一页一页读 | 每页最多一次 |
+| `getArtistAlbums(artist, { cursor, limit, signal })` | 歌手的专辑，一页一页读 | 每页最多一次 |
+
+**命名**：说「歌或集合来自哪里」的字段叫 `source`（`FoliumSong.source`、`FoliumSongKey.source`、`FoliumCollection.source`、`FoliumCollectionKey.source`），
+说「音源本身」的叫 `providerId`（`listProviders()` 每项的 `providerId`、`searchSongs` 的 `options.providerId`，和 `FoliumAccountState.providerId` 一样）。
+两者是同一套 Omni provider id，值可以直接互用。音源信息的类型叫 `FoliumOmniProviderInfo`；实验接口里模组自己定义音源用的 `FoliumOmniProviderDef` 是另一回事。
+
+**以登录的账号发请求**：请求以用户在 Folia 登录这个平台的账号发出，带着登录会话，和用户自己在界面上搜歌、打开专辑一样。读到的是公开的目录数据，
+但平台的风控记在用户的账号上，请求太密还可能影响用户自己播放。所以宿主给每个模组限了次数（见[额度与时限](#额度与时限)），又给每个
+Folia 自带的音源限了所有模组合计的次数：几个模组同时大批解析，也不会把对一个平台的请求翻成几倍。`folium.omni` 不需要权限，启用确认窗口和
+模组面板里不会为它多写一句，所以模组会这样访问平台时，在模组说明（`description`）里写清楚。
+
+#### 音源：listProviders
+
+同步、不问平台，按宿主的顺序列出本机的在线音源，每项冻结：
+
+| 字段 | 说明 |
+| --- | --- |
+| `providerId` | Omni provider id |
+| `displayName` / `shortName` | 音源切换器上的全名 / 搜索浮层来源按钮上的短名 |
+| `origin` | `host`：Folia 自带；`mod`：模组用 `omni.providers` 注册的，那个模组停用时就不在列表里 |
+| `selected` | 是不是宿主现在选中的音源（`searchSongs` 不传 `providerId` 时搜它） |
+| `configured` | 这个宿主里没配好时为 `false`；`true` 不保证请求一定成功 |
+| `supports` | `{ search, resolve, lyrics, albums, artists }`：各方法能不能用在它上面，为 `false` 的那个方法以 `unsupported` 拒绝（不发请求） |
+
+- 不含账号、用户和歌单：登录状态读 [folium.account](#foliumaccount17)。本地文件、Navidrome、外部 Stage 不是在线音源，不在列表里。
+- 以后的 minor 可能给 `supports` 加标志，读不到的按 `false` 处理。
+- 音源只在模组注册、注销自己的音源时增减，没有变化事件：用的时候再读一次。宿主换了选中的音源也不发事件，`selected` 同样随用随读。
+
+#### 搜索与翻页
+
+**`searchSongs(query, options)`**：
+
+- `query` 去掉首尾空白后 1–200 个字符，否则以 `TypeError` 拒绝。
+- `options.providerId` 指定音源；不传就搜宿主现在选中的音源（没有选中的在线音源时回 `unsupported`）。没有这个音源，或者它的 `supports.search`
+  为 `false` 时回 `unsupported`，不回空页。
+- 不传 `providerId` 搜的，翻页途中宿主换了选中的音源，下一页回 `account-changed`：这一串结果属于原来那个音源。要一直搜同一个音源就传 `providerId`。
+- 不传 `cursor` 读第一页。`limit` 缺省 30、最多 50，小数向下取整，小于 1 按 1；给了却不是有限数时以 `TypeError` 拒绝。
+
+`searchSongs`、`getTracks`、`getArtistAlbums` 都回一页 `{ items, nextCursor, total }`（冻结）：
+
+- 把 `nextCursor` 原样作为 `options.cursor` 传回去读下一页；`null` 表示平台说没有了。游标是不透明的字符串，只在这次运行里有效。宿主只留最近用过的一批
+  （所有模组共用），太久没用的会失效，再用就回 `stale-ref`：这时不带游标，从第一页重来。
+- 翻页时其余参数照第一页传：同一个 `query` 和 `providerId`，同一个专辑或歌手。拿一个列表的游标去翻另一个列表，以
+  `TypeError`（`invalid-arguments: cursor is for another list`）拒绝。
+- **页长在第一页定下**：带 `cursor` 时 `limit` 被忽略，后面每页都按第一页的页长。`items` 不会多于这个数，但可能更少；平台说还有、这一页却回了
+  0 项时，照样给一个空页和下一个游标，宿主不替你接着追。
+- 各平台分页的方式不一样（例如网易云的专辑曲目不管要多少都一次回整张，酷狗的专辑把页长夹到 30，有的平台按页码翻），所以模组拿不到 offset，也不要自己算。
+  平台一次多给的，宿主先留着，下一页从里面切，不再问平台，也不计次数。
+- `total` 是平台说的整个列表的长度，没说时是 `null`。
+
+#### 按键找回歌：resolveSongs
+
+**`resolveSongs(keys, options)`** 把存下来的 `{ source, id }`（就是歌曲 DTO 的 `source` 和 `id`）找回成宿主的歌：
+
+- 一次 1–50 个键，每个键的 `source`、`id` 都是非空字符串，否则以 `TypeError` 拒绝。按键的顺序给回同样多个结果；重复的键只问一次。
+- 一个键查不到不会让整个调用失败：调用只在参数不对、导出窗口和 `aborted` 时拒绝。每个键一种结果：
+
+  | `status` | 意思 | 怎么办 |
+  | --- | --- | --- |
+  | `found` | `song` 是宿主的歌，带新的 `ref`，可以交给 `playSong` / `enqueue` | |
+  | `not-found` | 平台回答了：没有这首歌 | 告诉用户；删不删由你定 |
+  | `unsupported` | 这台宿主现在查不了：没有这个音源（它的模组没启用、别的 Folia 版本才有的音源）、不是在线音源（`local`、`navidrome`、`stage`），或者这个音源不能按 id 查歌（`supports.resolve` 为 `false`） | **键留着**：音源回来之后（模组重新启用、换到装了它的宿主）就又能查 |
+  | `failed` | 没拿到回答，`code` 说为什么（见[错误码](#omni-的错误码)，永远不是 `unsupported`） | 以后再试可能就好了 |
+
+  以后的 minor 可能加新的 `status`，不认识的按 `failed` 处理。
+- 宿主事先就知道查不了的键（没有这个音源、不是在线音源、`supports.resolve` 为 `false`）直接回 `unsupported`，不发请求；平台被问到之后说查不了的，
+  同样是 `unsupported`。不能一次查多首的音源逐个键问，每个键算一次（见[额度与时限](#额度与时限)）：只解析马上要显示的那一段，
+  不要一次把收藏全解析。中途超了额度，这个音源剩下的键回 `failed`（`code` 为 `rate-limited`），已经拿到的照常给。
+- 宿主可能直接用最近读到的回答（所有模组共用，「没有这首」也记下），这时不问平台、不计次数。某个音源换了登录的账号，宿主就丢掉那个音源的这些回答。
+- 解析只读元数据：不播放，不取音频地址，不触发 `omni.audioSourceResolved`。解析出来的歌和搜索结果一样带着平台的不可用标记，播放时宿主照常处理。
+- **哪些歌解析不回来**：键只有 `source + id`，平台挂在歌上的附加数据带不过去。
+  - 只在另一台设备上有的：本地文件、Navidrome，或者这里没装的模组音源（`unsupported`）。
+  - 云盘上传：网易云盘里和曲库匹配上的歌，id 就是曲库的 id，解析回来是公开的那一版；没匹配上的上传 id 不在曲库里，回 `not-found`。
+  - 酷狗的歌 id 是音频的 hash：同一段音频收在几张专辑里时（平台靠 albumAudioId 区分），解析回来的是平台按 hash 给的那一条，专辑可能不是存键时那张。
+
+#### 歌曲详情与歌词
+
+**`describeSong(song)`** 同步、不问平台，只读宿主手里这首歌的数据，回冻结的 `{ durationMs, coverUrl, availability, pageUrl }`：
+
+- 不是在线歌曲，或者它的 `ref` 已经失效时给 `null`；没有 `ref` 的 DTO 抛 `TypeError`。
+- `durationMs` 是毫秒，平台没给时长时为 `null`（有些平台和模组音源在搜索结果里填 0，宿主当作不知道，不当成 0 秒）。`coverUrl` 是封面，
+  `pageUrl` 是这首歌在平台上的公开网页，没有时都是 `null`。
+- `availability`：
+  - `playable`：平台没标什么。不保证放得了，例如网易云需要会员的歌也算 `playable`；
+  - `taken-down`：平台下架了；
+  - `restricted`：平台标了限制（会员、地区），放不放得了要放的时候才知道；
+  - `unknown`：平台没说。
+
+  它是平台对当前登录的账号说的，换个账号可能不同。以后的 minor 可能加新值，不认识的按 `unknown` 处理。
+
+**`getLyrics(song, options)`** 读一首在线歌曲的歌词：平台给的原样，宿主解析、标好副歌之后，任何模组改写之前的那一份。
+
+- 回冻结的 `{ lines, isWordByWord, isPureMusic }`：`lines`、`isWordByWord` 和 `folium.lyrics.parse` 给的一样（`FoliumLine[]`）；`isPureMusic`
+  是平台标了纯音乐。平台没有这首的歌词时 `lines` 是空数组。
+- **不跑 `omni.lyricsResolved` 钩子**：模组在自己的钩子里再读歌词就会调到自己，无限递归，还会把自己的请求位置永远占满。所以读到的不受任何模组影响；
+  要用户屏幕上那一份（含模组的改写），用 `folium.lyrics.getLines()`。
+- 副歌只在行的 `isChorus` 上（平台标的，或者宿主按重复的行认出来的），没有单独的副歌区间。
+- 不是在线歌曲，或者它的音源没有歌词（`supports.lyrics` 为 `false`）时回 `unsupported`。
+
+#### 专辑与歌手
+
+`FoliumCollection` 是一张专辑或一位歌手（冻结）：`kind`（`album` / `artist`）、`source`、`id`、`name`、`artist`（专辑的歌手用 ` / ` 连起来；歌手本身、
+或者不知道时是 `''`）、`coverUrl`、`description`、`trackCount`（专辑）、`albumCount`（歌手）、`publishedAt`（专辑的发行时间，毫秒时间戳）、`ref`。
+后面这几个数和地址不知道时是 `null`。
+
+- 自己存数据用 `source` + `kind` + `id`，`resolveCollection({ source, kind, id })` 能找回来。`ref` 只在这次运行里有效（专辑和歌手另有一个池），
+  失效后用到它的方法回 `stale-ref`，用键再取一次。
+- `getAlbum(song)` / `getArtists(song)`：从一首在线歌曲走到它的专辑 / 歌手。给的是摘要：名字（专辑还有封面）取自歌曲，`trackCount`、`description` 等是 `null`，
+  要详情就拿它的键去 `resolveCollection`。没有专辑时 `getAlbum` 给 `null`；`getArtists` 只给平台能打开的歌手，没有时是空数组。
+  不是在线歌曲，或者音源的 `supports.albums` / `supports.artists` 为 `false` 时回 `unsupported`，不发请求。
+- `resolveCollection(key)`：平台没有这张专辑或这位歌手时给 `null`（平台回了一个没有名字的空壳也算没有）。有的平台对不认识的 id 直接报错，
+  这时回 `unavailable` 或 `network`。
+- `getTracks(collection)`：专辑的曲目，或歌手的歌（多数平台按热度排）。`limit` 缺省 50、最多 100，分页同上。
+- `getArtistAlbums(artist)`：歌手的专辑，分页同 `getTracks`，只收歌手。
+- 这两个方法收到种类不对的 DTO（把专辑交给 `getArtistAlbums`，或者把歌曲交给它们）以 `TypeError` 拒绝；集合所在的音源不在了（它的模组停用了）时回 `unsupported`。
+- 以后的 minor 可能加新的 `kind`，不认识的当作读不了。
+
+#### 额度与时限
+
+宿主每替你问一次平台，就算一次，记在这个模组的额度上：
+
+- 和 `platform.raw` 共用一份额度，按模组 id 计、整个页面只有一份：重载或停用后再启用模组，不会重置这一分钟的计数。
+- 目前每分钟 120 次：被接受时就算（排队中的也算），超了立即以 `rate-limited` 拒绝，不排到下一分钟。
+- 同时最多 8 个：再多的按先来后到排队，前面的回来了再发。
+- 宿主还给每个 Folia 自带的音源限了所有模组合计的次数和同时在途的个数：超了次数同样回 `rate-limited`，超了个数排队。宿主自己的请求不算在里面。
+- 模组提供的音源（`origin` 为 `mod`）的请求只算每分钟的次数，不占同时的位置，也不算进合计：模组 A 的音源在自己的 `search` 里再调 `folium.omni` 时，
+  外层占着位置，内层也不会永远等下去；每分钟的上限兜住了无限递归。
+- 不算次数的：`listProviders`、`describeSong`，翻页时从宿主留着的项里切出来的页，以及 `resolveSongs` 用宿主最近读到的回答时。
+- 一次请求从发起算（排队的时间也算）过了一段时间（目前 30 秒）还没有回答，调用以 `network` 拒绝。
+- `aborted`（你的 `signal` 中止了，或模组停了）只是丢掉回答：平台那边的请求可能还在跑，跑完之前照样占着位置。所以「发 8 个、全中止、马上再发」，
+  第 9 个要等前面的真正结束才发出；一个请求发出后一直不结束时，宿主过一阵（目前 2 分钟）强制让出它的位置。
+- 开发者日志里每次失败有一行 `[Folium:<模组 id>] omni.<方法> <音源 id>: <code>`，带平台原本的错误；超额拒绝也各有一行。
+
+#### ref 与键
+
+- 歌曲 DTO 的 `ref` 和队列、事件里的共用一个 5,000 条的池（见 `playback.getQueue`），最久没被交出去的先失效：刚拿到的这一页里每个 `ref` 都有效。
+  所以只读要显示的那几页。
+- **`ref` 不是身份**：同一首歌从队列里读到一次、从 `resolveSongs` 又读到一次，`ref` 可能不同。判断是不是同一首歌比 `source` 和 `id`，不比 `ref`。
+- 要存下来的，歌存 `{ source, id }`，专辑和歌手存 `{ source, kind, id }`，下次启动用 `resolveSongs` / `resolveCollection` 找回来。
+- `ref` 失效后再用，异步方法回 `stale-ref`，`describeSong` 给 `null`：重新搜，或者用键再解析一次。
+
+#### omni 的错误码
+
+异步方法以带 `code` 的 Error 拒绝（`message` 就是 code）；`resolveSongs` 里单个键的失败放在那个结果的 `code` 上：
+
+| code | 什么时候 |
+| --- | --- |
+| `unsupported` | 音源不回答这个（`supports` 里对应的标志为 `false`），没有这个音源，或者不是在线歌曲 |
+| `unavailable` | 音源现在接不了请求：没配好、它的服务没在运行，或者它拒绝了 |
+| `region-restricted` | 音源不回答这个地区的请求 |
+| `not-signed-in` / `session-expired` | 平台要登录：没人登录 / 登录已过期 |
+| `vip-required` | 只有会员能看 |
+| `rate-limited` | 超了额度（见上），或者平台自己说太频繁 |
+| `network` | 没按时回答，或者平台没说原因的失败（模组音源抛的错也算这一类） |
+| `account-changed` | 请求途中宿主换了选中的音源，或者这个音源换了登录的账号，回答已丢弃 |
+| `stale-ref` | DTO 的 `ref`，或者 `cursor`，已经失效：重新读一次 |
+| `aborted` | 调用的 `signal` 中止了，或者模组停了 |
+
+以后的 minor 可能加新的 code，不认识的按 `network` 处理。另外两种拒绝不带 `code`：参数不对时是 `TypeError`，message 以 `invalid-arguments:`
+开头（没有 `ref` 的歌曲 DTO、把歌曲交给要专辑的方法也算）；导出窗口里的见[下面](#导出窗口main-入口与旧宿主)。
+
+#### 不开放的，与已知做不到的
+
+`folium.omni` 只读公开的目录数据。下面这些不开放：
+
+- **音频地址与音质**：地址带签名、绑定账号的权益，配上 `net.fetch` 就能下载外传；取地址本身还有副作用（写宿主的响度缓存、跑别的模组的
+  `omni.audioSourceResolved`）。要放就交给 `playback.playSong(song)`，地址由宿主在播放时取，放不了照常发 `playback.failed`。
+- **账号自己的数据**：我的歌单、收藏、喜爱、云盘列表、每日推荐、听歌记录。这些是用户画像，1.7 不开放，以后要开会单独加权限。正在放的歌喜爱了没有，读
+  `playback.getState().liked`。
+- **歌单**：宿主分不出一个歌单是公开的还是私密的，读取又带着用户的会话，按 id 开放歌单就等于开放了私密歌单。`FoliumCollection.kind` 以后可能多出 `playlist`。
+- **写操作**：喜爱、收藏、往歌单里加删歌、上报听歌。
+- **登录、私人 FM、首页推荐与探索页**：会改登录状态，或者会消费、重置宿主界面正在用的推荐状态。
+- 平台专有、上面都没有的能力，后备是实验接口 [platform.raw](#platformraw实验17)。
+
+已知做不到的：
+
+- **整表替换播放队列**不在 1.7。拿 `enqueue` 一首首重建队列会走样：它按用户的「加入队列方式」加，设为「下一首」时一首首加进去，顺序整个反过来；
+  已经在队列里的歌被挪过去、不加第二遍；正在放的歌和平台标了不可用的歌不加；每加一首宿主都弹一次自己的提示。
+
+#### 导出窗口、main 入口与旧宿主
+
+- 导出窗口里 `folium.omni` 在，但同步方法（`listProviders`、`describeSong`）抛、异步方法拒绝 `Error('omni-unavailable-in-export-context')`，不带 `code`。
+- main 入口没有 `omni`。要数据就让 client 去读：main 入口用 `api.rpc.send` 通知 client（或者由 client 自己发起），client 调 `folium.omni`，再用
+  `folium.rpc.call` 把结果交给 main 入口。DTO 都是能 JSON 序列化的纯数据；`ref` 到了 main 入口只是一个字符串，交回 client 照样能用（只要它还没失效）。
+- Folium 1.6 的宿主没有 `folium.omni`（读它得到 `undefined`，不会抛错）：先检查 `folium.host.folium.minor >= 7`。
+
+完整的例子见 `dev/folium/sample-omni-console`。
 
 ## main 入口（Node）
 
@@ -949,7 +1180,8 @@ export default function activate(folium) {
 ### platform.raw（实验，1.7）
 
 **后备方案。** 以用户在 Folia 登录的账号调用平台后端自己的接口，只用于 Omni 还没有提供的平台专有能力（例如听歌记录）。
-Omni 已经有的能力（搜索、歌词、歌单、喜爱……）用 Omni；以后 Omni 把常用能力做成类型化接口，到时改用它。
+Omni 已经有的能力（搜索、歌词、歌单、喜爱……）用 Omni；其中有类型化接口的（搜索、按 id 读歌曲、歌词、专辑与歌手）用稳定的
+[folium.omni](#foliumomni17)，不要用 `platform.raw` 读。
 
 清单选用 `"experimental": ["platform.raw"]`，再声明 `platform.<平台>.read`；要调改动账号内容的接口还要 `platform.<平台>.write`（见[权限表](#清单modjson)）。
 平台 id 就是 Omni provider id，目前只有 `netease` 能直通。
@@ -986,13 +1218,15 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
   | `unsupported` | 这个平台在这个宿主里不能直通 |
   | `not-signed-in` / `session-expired` | 接口要登录而没人登录 / 登录已过期 |
   | `vip-required` | 平台说只有会员能看 |
-  | `rate-limited` | 太频繁：这个模组一分钟内的请求超过 120 次，或平台自己说太频繁 |
+  | `rate-limited` | 太频繁：这个模组一分钟内的请求超过 120 次（和 `folium.omni` 合计），或平台自己说太频繁 |
   | `network` | 连不上平台或没有按时回答 |
   | `account-changed` | 请求途中退出、换号或换了平台，回答已丢弃 |
   | `aborted` | `options.signal` 中止（底层请求随之中止），或模组已经停掉（停掉时还在途中和排队中的请求由宿主中止） |
 - 每个模组同时最多 8 个请求在途，再多的按先来后到排队，等前面的回来再发，不会失败；排队中的请求同样算进每分钟的 120 次，
   也能用 `signal` 中止。这两项额度按模组 id 计、在整个页面里只有一份：重载或停用后再启用模组，不会重置这一分钟的计数。
-- 调用的接口 Omni 已经有对应能力时，开发者日志里提示改用 Omni（每个接口第一次调用时一条）。宿主的日志只记平台、接口名和结论，不记参数。
+  这份额度和 `folium.omni` 共用（见[额度与时限](#额度与时限)）；`platform.raw` 不算进按音源的所有模组合计，宿主也不另加回答时限（由平台的请求自己的时限管）。
+- 调用的接口 Omni 已经有对应能力时，开发者日志里提示改用 Omni（每个接口第一次调用时一条）；`folium.omni` 有对应方法的直接点出它
+  （例如 `song_detail` 提示 `folium.omni.resolveSongs`），没有的写明「还没有类型化接口」。宿主的日志只记平台、接口名和结论，不记参数。
 - 只在主窗口可用，导出窗口里访问会抛错。启用确认窗口和模组面板的展开行用一句话写明模组能以用户的账号读取（或改动）哪个平台的数据。
 
 完整示例：`dev/folium/sample-account-console` 用 `user_record` 读听歌排行，排行记在 `accountKey` 下，换号时丢掉。
@@ -1006,6 +1240,9 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 `internals-require-folia-range`；确认窗口与模组面板都会标出「使用内部接口」。只在主窗口可用。
 
 如果一个 internals 用法在多个模组里反复出现，说明它该变成稳定的注册表、事件或服务——请提 issue。
+
+拿 `internals.omni` 读在线音源（搜索、按 id 读歌曲、歌词、专辑与歌手）的，1.7 起改用稳定的 [folium.omni](#foliumomni17)：它有额度、不交出音频地址，
+在 Folium 1.x 里只增不改。`internals.omni` 照旧在，Folium 2 和整个 `internals` 一起去掉。
 
 ## 缺失条目
 
@@ -1036,7 +1273,10 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
   清单校验多两条：声明 `platform.*` 权限必须同时选用 `platform.raw`，声明 `write` 必须同时声明 `read`。见 [platform.raw](#platformraw实验17)。
 - 命令可以放进系统级全局快捷键：`FoliumCommandDef.globalShortcut`，只对没有参数的命令有效，键由用户在设置里选，原生 Wayland 下暂不提供。
   稳定，不需要权限。见[系统级全局快捷键](#系统级全局快捷键globalshortcut17)。
-- 示范模组 `dev/folium/sample-account-console` 演示以上五项。
+- 经 Omni 只读在线音源：`folium.omni`（`listProviders`、`searchSongs`、`resolveSongs`、`describeSong`、`getLyrics`、`getAlbum`、`getArtists`、
+  `resolveCollection`、`getTracks`、`getArtistAlbums`），以用户在 Folia 登录的平台账号发请求，按模组限额。稳定，不需要权限。见 [folium.omni](#foliumomni17)。
+  随之：歌曲 `ref` 的池从 2,000 条扩到 5,000 条；`platform.raw` 的额度和 `folium.omni` 共用，改为按模组 id 计，重载模组不再重置这一分钟的计数。
+- 示范模组：`dev/folium/sample-account-console` 演示推送消息、密钥字段、登录状态、`platform.raw` 和全局快捷键；`dev/folium/sample-omni-console` 演示 `folium.omni`。
 
 ## 从 UI 安装与管理
 
