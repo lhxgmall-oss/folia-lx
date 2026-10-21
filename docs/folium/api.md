@@ -1646,8 +1646,8 @@ does not open this one (sign-in, session and credential endpoints never are, and
 the table does not list). `unsupported`: the platform has no raw endpoints in this host.
 `not-signed-in` / `session-expired`: the endpoint needs a signed-in account and there is none, or its
 session ran out. `vip-required`: the platform answers that only paying accounts may. `rate-limited`:
-too many requests, from this mod (the host allows 120 a minute; past 8 at a time a request waits for
-one of them to finish instead of failing) or as the platform says.
+too many requests, from this mod (currently 120 a minute per mod, shared with `folium.omni`; past 8 at a
+time a request waits for one of them to finish instead of failing) or as the platform says.
 `network`: the platform could not be reached or did not answer in time. `account-changed`: the account
 signed out or changed while the request was under way, so the answer was dropped. `aborted`: the
 request's `signal` aborted, or the mod stopped (a request still under way then is aborted by the host).
@@ -1662,8 +1662,9 @@ Folium 1.7: EXPERIMENTAL (manifest `experimental: ["platform.raw"]`), as
 `folium.experimental['platform.raw']`; main window only. A fallback for what Omni does not offer yet:
 it calls a platform's own backend endpoints as the account signed in to Folia, for capabilities only
 that platform has (listening records, say). Where Omni offers the same, use Omni: the host says so in
-the developer log. Answers are the platform's raw JSON and follow the backend library the host pins
-(`describe`), so they can change with any Folia release; nothing about them is promised.
+the developer log, and where `folium.omni` offers the same, use it. Answers are the platform's raw JSON
+and follow the backend library the host pins (`describe`), so they can change with any Folia release;
+nothing about them is promised.
 
 The host never hands out the session: the request goes through Omni and the platform's adapter, which
 add it, and credential fields are taken out of the answer. Parameters the backend reads as options of the
