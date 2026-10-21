@@ -75,6 +75,7 @@ export default {
     "queueMoved": "已移到第 {{position}} 首",
     "openPlayer": "前往播放页",
     "openPlayerUnavailable": "还没有在播放的歌",
+    "openSettings": "打开设置",
     "goHome": "回到主页",
     "wallSection": "墙面"
   },

@@ -75,6 +75,7 @@ export default {
     "queueMoved": "Moved to position {{position}}",
     "openPlayer": "Open the player",
     "openPlayerUnavailable": "Nothing is playing yet",
+    "openSettings": "Open settings",
     "goHome": "Go to Home",
     "wallSection": "Wall"
   },

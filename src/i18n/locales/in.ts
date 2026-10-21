@@ -75,6 +75,7 @@ export default {
     "queueMoved": "Dipindah ke posisi {{position}}",
     "openPlayer": "Buka pemutar",
     "openPlayerUnavailable": "Belum ada lagu yang diputar",
+    "openSettings": "Buka pengaturan",
     "goHome": "Ke Beranda",
     "wallSection": "Dinding"
   },
