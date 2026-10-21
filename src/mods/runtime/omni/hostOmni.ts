@@ -198,6 +198,7 @@ const searchSongs = async (
     const generation = omni.getActiveRequestGeneration();
     const slice = await readFoliumOmniPage<UnifiedSong>({
         list: { method, providerId: target, subject: query },
+        basis: undefined,
         cursor: page.cursor,
         limit: page.limit,
         fetch: (asked) => ask(call, target, async () => {
@@ -386,16 +387,25 @@ const collectionOf = (ref: string, method: string, kinds: readonly FoliumCollect
     return collection;
 };
 
+/*
+ * The list of an album's or an artist's pages: by its source, kind and id, as its DTO says them, so that any
+ * DTO of it goes on with a cursor. The pages go on from the host collection the first one was read from.
+ */
+const collectionList = (method: string, collection: OmniCollection): FoliumOmniList => ({
+    method,
+    providerId: collection.providerId,
+    subject: `${collection.type}:${String(collection.id)}`,
+});
+
 const getTracks = async (collectionRef: string, page: FoliumOmniPageRequest, call: FoliumOmniCall): Promise<FoliumOmniPage<FoliumSong>> => {
     const collection = collectionOf(collectionRef, 'getTracks', ['album', 'artist']);
-    const album = collection.type === 'album';
-    const list: FoliumOmniList = { method: 'getTracks', providerId: collection.providerId, subject: collection };
-    const slice = await readFoliumOmniPage<UnifiedSong>({
-        list,
+    const slice = await readFoliumOmniPage<UnifiedSong, OmniCollection>({
+        list: collectionList('getTracks', collection),
+        basis: collection,
         cursor: page.cursor,
         limit: page.limit,
-        fetch: (asked) => ask(call, collection.providerId, () => (
-            album ? omni.getCollectionTracks(collection, asked) : omni.getArtistSongs(collection, asked)
+        fetch: (asked, read) => ask(call, read.providerId, () => (
+            read.type === 'album' ? omni.getCollectionTracks(read, asked) : omni.getArtistSongs(read, asked)
         )),
     });
     return freezePage(slice, slice.items.map(toFoliumOmniSong));
@@ -403,11 +413,12 @@ const getTracks = async (collectionRef: string, page: FoliumOmniPageRequest, cal
 
 const getArtistAlbums = async (artistRef: string, page: FoliumOmniPageRequest, call: FoliumOmniCall): Promise<FoliumOmniPage<FoliumCollection>> => {
     const artist = collectionOf(artistRef, 'getArtistAlbums', ['artist']);
-    const slice = await readFoliumOmniPage<OmniCollection>({
-        list: { method: 'getArtistAlbums', providerId: artist.providerId, subject: artist },
+    const slice = await readFoliumOmniPage<OmniCollection, OmniCollection>({
+        list: collectionList('getArtistAlbums', artist),
+        basis: artist,
         cursor: page.cursor,
         limit: page.limit,
-        fetch: (asked): Promise<OmniPage<OmniCollection>> => ask(call, artist.providerId, () => omni.getArtistAlbums(artist, asked)),
+        fetch: (asked, read): Promise<OmniPage<OmniCollection>> => ask(call, read.providerId, () => omni.getArtistAlbums(read, asked)),
         // Only albums, and only named ones, are handed out: the rest never takes a place on a page.
         keep: (item) => foliumCollectionKindOf(item) === 'album' && typeof item.name === 'string' && item.name.trim() !== '',
     });

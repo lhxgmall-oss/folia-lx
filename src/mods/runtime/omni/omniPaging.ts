@@ -20,13 +20,14 @@ const MAX_CURSORS = 500;
 const MAX_LEFTOVER = 1000;
 
 /**
- * Which list a run of pages belongs to: the method, the source, and the query or the host collection.
- * Two lists are the same when all three are (the subject compared by identity).
+ * Which list a run of pages belongs to: the method, the source, and the query or the collection's kind
+ * and id. Two lists are the same when all three are equal: a later page of an album or an artist may come
+ * with another DTO of it (read again by its key, or after its ref ran out) and still belongs to the list.
  */
 export interface FoliumOmniList {
     readonly method: string;
     readonly providerId: string;
-    readonly subject: unknown;
+    readonly subject: string;
 }
 
 interface CursorState {
@@ -37,6 +38,8 @@ interface CursorState {
     readonly providerHasMore: boolean;
     /** The page length the first page set. */
     readonly limit: number;
+    /** What the first page was read from (`FoliumOmniPageRead.basis`). */
+    readonly basis: unknown;
     /**
      * What the source gave that was not handed out yet, in its order: `leftover` from `start` on. The
      * cursors of one answer share its array, so paging through a long answer copies nothing.
@@ -86,14 +89,19 @@ export interface FoliumOmniSlice<T> {
     readonly total: number | null;
 }
 
-export interface FoliumOmniPageRead<T> {
+export interface FoliumOmniPageRead<T, B = undefined> {
     readonly list: FoliumOmniList;
+    /**
+     * What the list is read from, such as the host collection, with the source's own data on it. Kept with
+     * the cursors: later pages are read from the first page's, whichever DTO of the list they come with.
+     */
+    readonly basis: B;
     /** The cursor of a later page; null for the first. */
     readonly cursor: string | null;
     /** The page length; read only for the first page, later pages keep the first page's. */
     readonly limit: number;
-    /** Asks the source for one page (through the request gate): `limit` items from its `offset`. */
-    readonly fetch: (page: { limit: number; offset: number }) => Promise<OmniPage<T>>;
+    /** Asks the source for one page (through the request gate): `limit` items from its `offset`, of `basis`. */
+    readonly fetch: (page: { limit: number; offset: number }, basis: B) => Promise<OmniPage<T>>;
     /** Which of the source's items the list holds at all (others are dropped before paging). */
     readonly keep?: (item: T) => boolean;
 }
@@ -105,10 +113,12 @@ export interface FoliumOmniPageRead<T> {
  * most: a page it answers empty while saying it has more comes out empty, with a cursor, rather than
  * the host asking again on the mod's behalf.
  */
-export const readFoliumOmniPage = async <T>(read: FoliumOmniPageRead<T>): Promise<FoliumOmniSlice<T>> => {
+export const readFoliumOmniPage = async <T, B = undefined>(read: FoliumOmniPageRead<T, B>): Promise<FoliumOmniSlice<T>> => {
     let state: CursorState;
     if (read.cursor === null) {
-        state = { list: read.list, providerOffset: 0, providerHasMore: true, limit: read.limit, leftover: [], start: 0, total: null };
+        state = {
+            list: read.list, providerOffset: 0, providerHasMore: true, limit: read.limit, basis: read.basis, leftover: [], start: 0, total: null,
+        };
     } else {
         const found = takeCursor(read.cursor);
         if (!found) throw foliumOmniError('stale-ref');
@@ -120,7 +130,7 @@ export const readFoliumOmniPage = async <T>(read: FoliumOmniPageRead<T>): Promis
     let { start, providerOffset, providerHasMore, total } = state;
 
     if (available.length - start < limit && providerHasMore) {
-        const answer = await read.fetch({ limit, offset: providerOffset });
+        const answer = await read.fetch({ limit, offset: providerOffset }, state.basis as B);
         const answered = Array.isArray(answer?.items) ? answer.items : [];
         const items = read.keep ? answered.filter(read.keep) : answered;
         // Less than a page is left over here, so this copies little.
@@ -144,7 +154,7 @@ export const readFoliumOmniPage = async <T>(read: FoliumOmniPageRead<T>): Promis
     const items = available.slice(start, start + limit);
     const next = start + items.length;
     const nextCursor = next < available.length || providerHasMore
-        ? mintCursor({ list: state.list, providerOffset, providerHasMore, limit, leftover: available, start: next, total })
+        ? mintCursor({ list: state.list, providerOffset, providerHasMore, limit, basis: state.basis, leftover: available, start: next, total })
         : null;
     return { items, nextCursor, total };
 };

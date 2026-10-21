@@ -40,6 +40,12 @@ vi.mock('@/services/onlineMusic/kugou/kugouTransport', async (importOriginal) =>
     requestKugou,
     requestKugouAnonymousSearch,
 }));
+// QQ Music's adapter is real as well; only its request to the backend is replaced.
+const requestQq = vi.hoisted(() => vi.fn());
+vi.mock('@/services/onlineMusic/qq/qqTransport', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+    requestQq,
+}));
 
 import type { SongResult } from '@/types';
 import type { ModRuntimeInfo } from '@/mods/types';
@@ -60,7 +66,7 @@ import { createFoliumRequestGate, resetFoliumRequestQuotasForTest } from '@/mods
 import { registerFoliumOmniSource } from '@/mods/folium/omni/service';
 import { installFoliumHostAccount } from '@/mods/runtime/hostAccount';
 import { FOLIUM_HOST_OMNI_SOURCE, installFoliumHostOmni } from '@/mods/runtime/omni/hostOmni';
-import { clearFoliumResolvedSongsForTest } from '@/mods/runtime/omni/omniResolveCache';
+import { clearFoliumResolvedSongsForTest, readFoliumResolvedSong } from '@/mods/runtime/omni/omniResolveCache';
 import { clientApiOptions } from './clientApiOptions';
 
 // test/unit/mod-system/foliumOmni.test.ts
@@ -165,6 +171,7 @@ afterEach(() => {
     removeFoliumEventHandlers('mod-b');
     requestKugou.mockReset();
     requestKugouAnonymousSearch.mockReset();
+    requestQq.mockReset();
     vi.useRealTimers();
     vi.restoreAllMocks();
 });
@@ -458,6 +465,54 @@ describe('folium.omni paging', () => {
         expect(search).toHaveBeenCalledTimes(2);
     });
 
+    // A cursor belongs to the album or the artist (source, kind, id), not to the DTO it was read with: one
+    // read again by its key (after its ref ran out, say) goes on with it, from what the first page read.
+    it('goes on with another DTO of the same album or artist, and refuses one of another', async () => {
+        const getAlbum = vi.spyOn(neteaseApi, 'getAlbum').mockImplementation(async (id: number) => ({
+            code: 200,
+            album: { id, name: `Album ${id}`, type: '专辑', size: 120 },
+            songs: range(1, 120).map((song) => rawSong(id * 1000 + song)),
+        }) as never);
+        vi.spyOn(neteaseApi, 'getArtistDetail').mockImplementation(async (id: number) => ({ data: { artist: { id, name: `Artist ${id}` } } }) as never);
+        vi.spyOn(neteaseApi, 'getArtistSongs').mockImplementation(async (_id: number, limit = 50, offset = 0) => (
+            { songs: range(offset + 1, limit).map((id) => rawSong(id)), more: true }
+        ) as never);
+        vi.spyOn(neteaseApi, 'getArtistAlbums').mockImplementation(async (_id: number, limit = 30, offset = 0) => (
+            { hotAlbums: range(offset + 1, limit).map((id) => ({ id, name: `LP ${id}`, type: '专辑' })), more: true }
+        ) as never);
+        const artistSongs = vi.spyOn(omni, 'getArtistSongs');
+        const api = omniOf();
+        const albumKey = { source: 'netease', kind: 'album', id: '100' } as const;
+        const album = (await api.resolveCollection(albumKey))!;
+        const albumAgain = (await api.resolveCollection(albumKey))!;
+        expect(albumAgain.ref).not.toBe(album.ref);
+        const first = await api.getTracks(album, { limit: 50 });
+        getAlbum.mockClear();
+        const second = await api.getTracks(albumAgain, { cursor: first.nextCursor! });
+        expect(second.items.map((song) => song.id)).toEqual(range(100_051, 50).map(String));
+        // Cut from what the first page's answer left over: not asked again.
+        expect(getAlbum).not.toHaveBeenCalled();
+        const other = (await api.resolveCollection({ source: 'netease', kind: 'album', id: '200' }))!;
+        await expect(api.getTracks(other, { cursor: second.nextCursor! })).rejects.toThrow('invalid-arguments: cursor is for another list');
+
+        const artistKey = { source: 'netease', kind: 'artist', id: '7' } as const;
+        const artist = (await api.resolveCollection(artistKey))!;
+        const artistAgain = (await api.resolveCollection(artistKey))!;
+        const songs = await api.getTracks(artist, { limit: 20 });
+        const moreSongs = await api.getTracks(artistAgain, { cursor: songs.nextCursor! });
+        expect(moreSongs.items.map((song) => song.id)).toEqual(range(21, 20).map(String));
+        // The second page is read from the host collection the first one was.
+        expect(artistSongs).toHaveBeenCalledTimes(2);
+        expect(artistSongs.mock.calls[1][0]).toBe(artistSongs.mock.calls[0][0]);
+        expect(artistSongs.mock.calls[1][1]).toEqual({ limit: 20, offset: 20 });
+        const albums = await api.getArtistAlbums(artist, { limit: 10 });
+        const moreAlbums = await api.getArtistAlbums(artistAgain, { cursor: albums.nextCursor! });
+        expect(moreAlbums.items.map((item) => item.id)).toEqual(range(11, 10).map(String));
+        // An album's cursor is not an artist's, nor a song list's an album list's.
+        await expect(api.getTracks(artistAgain, { cursor: second.nextCursor! })).rejects.toThrow('invalid-arguments: cursor is for another list');
+        await expect(api.getArtistAlbums(artistAgain, { cursor: songs.nextCursor! })).rejects.toThrow('invalid-arguments: cursor is for another list');
+    });
+
     it('hands out only a page of what a source answers beyond it, minting refs for that page only', async () => {
         const search = vi.fn(async () => ({ items: range(1, 10_000).map((id) => providerSong(`m${id}`)), hasMore: false, total: 10_000 }));
         const flood = modSource({ id: 'flood', displayName: 'Flood', search });
@@ -580,6 +635,28 @@ describe('folium.omni.resolveSongs', () => {
         details.mockResolvedValueOnce({ code: 200, songs: [rawSong(1), rawSong(2)] } as never);
         await expect(api.resolveSongs(keys)).resolves.toMatchObject([{ status: 'found' }, { status: 'found' }]);
         expect(details).toHaveBeenCalledTimes(4);
+    });
+
+    // QQ Music's song id (`FoliumSong.id`) is the numeric songid, which its adapter cannot look up yet. Such
+    // a key fails (keep it, try later): it never comes back not-found, which a mod may delete the key for,
+    // and nothing of it is kept. Its songmid still resolves.
+    it('answers a QQ Music key by its numeric songid failed / unavailable, never not-found, and keeps nothing of it', async () => {
+        const api = omniOf();
+        const key = { source: 'qq', id: '97773' };
+        for (let call = 0; call < 2; call += 1) {
+            await expect(api.resolveSongs([key])).resolves.toEqual([{ status: 'failed', code: 'unavailable' }]);
+        }
+        expect(readFoliumResolvedSong('qq', '97773')).toBeUndefined();
+        expect(requestQq).not.toHaveBeenCalled();
+        expect(console.warn).toHaveBeenCalledWith('[Folium:mod-a] omni.resolveSongs qq: unavailable', expect.objectContaining({ code: 'unavailable', providerId: 'qq' }));
+
+        requestQq.mockResolvedValueOnce({ response: { songinfo: { data: { track_info: {
+            id: 97773, mid: '0039MnYb0qxYhV', title: '晴天', singer: [{ id: 4558, mid: '0025NhlN2yWrP4', name: '周杰伦' }],
+            album: { id: 8220, mid: '000MkMni19ClKG', name: '叶惠美' }, interval: 269,
+        } } } } });
+        const [resolution] = await api.resolveSongs([{ source: 'qq', id: '0039MnYb0qxYhV' }]);
+        expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: '97773', title: '晴天' } });
+        expect(requestQq).toHaveBeenCalledWith('song_info', { songmid: '0039MnYb0qxYhV' });
     });
 
     it('asks a source without a lookup of many once per key', async () => {
@@ -788,6 +865,24 @@ describe('folium.omni albums and artists', () => {
             await expect(api.resolveCollection(key as never)).rejects.toThrow(/^invalid-arguments: /);
         }
         await expect(failureOf(api.resolveCollection({ source: 'no-such-source', kind: 'album', id: '1' }))).resolves.toBe('unsupported');
+    });
+
+    // A refusing answer says nothing of whether the album or the artist is there: the call fails, it
+    // does not resolve null ("the source has none"), which a mod would take for gone.
+    it('rejects, rather than answering none, where the source refuses the album or the artist', async () => {
+        const refusals = [{ code: -462, message: '绑定手机号后才能继续操作' }, { code: 502, msg: 'getaddrinfo ENOTFOUND interfacepc.music.163.com' }];
+        const getAlbum = vi.spyOn(neteaseApi, 'getAlbum');
+        const getArtistDetail = vi.spyOn(neteaseApi, 'getArtistDetail');
+        const api = omniOf();
+        for (const refusal of refusals) {
+            getAlbum.mockResolvedValueOnce(refusal as never);
+            getArtistDetail.mockResolvedValueOnce(refusal as never);
+            await expect(failureOf(api.resolveCollection({ source: 'netease', kind: 'album', id: '123' })), String(refusal.code)).resolves.toBe('unavailable');
+            await expect(failureOf(api.resolveCollection({ source: 'netease', kind: 'artist', id: '7' })), String(refusal.code)).resolves.toBe('unavailable');
+        }
+        // Not signed in, as NetEase says it.
+        getAlbum.mockResolvedValueOnce({ code: 301 } as never);
+        await expect(failureOf(api.resolveCollection({ source: 'netease', kind: 'album', id: '123' }))).resolves.toBe('not-signed-in');
     });
 
     it('reads an album\'s songs and an artist\'s songs each through their own Omni read', async () => {

@@ -782,7 +782,8 @@ Folia 自带的音源限了所有模组合计的次数：几个模组同时大�
 
 - 把 `nextCursor` 原样作为 `options.cursor` 传回去读下一页；`null` 表示平台说没有了。游标是不透明的字符串，只在这次运行里有效。宿主只留最近用过的一批
   （所有模组共用），太久没用的会失效，再用就回 `stale-ref`：这时不带游标，从第一页重来。
-- 翻页时其余参数照第一页传：同一个 `query` 和 `providerId`，同一个专辑或歌手。拿一个列表的游标去翻另一个列表，以
+- 翻页时其余参数照第一页传：同一个 `query` 和 `providerId`，同一个专辑或歌手。专辑和歌手按 `source` + `kind` + `id` 认，不认是哪个 DTO：
+  `ref` 失效后用键重新取到的、或者别处又读到的同一张专辑，都能接着用这个游标。拿一个列表的游标去翻另一个列表，以
   `TypeError`（`invalid-arguments: cursor is for another list`）拒绝。
 - **页长在第一页定下**：带 `cursor` 时 `limit` 被忽略，后面每页都按第一页的页长。`items` 不会多于这个数，但可能更少；平台说还有、这一页却回了
   0 项时，照样给一个空页和下一个游标，宿主不替你接着追。
@@ -800,7 +801,7 @@ Folia 自带的音源限了所有模组合计的次数：几个模组同时大�
   | `status` | 意思 | 怎么办 |
   | --- | --- | --- |
   | `found` | `song` 是宿主的歌，带新的 `ref`，可以交给 `playSong` / `enqueue` | |
-  | `not-found` | 平台回答了：没有这首歌 | 告诉用户；删不删由你定 |
+  | `not-found` | 平台回答了：没有这首歌。平台拒绝了请求、或者宿主还不能按这个 id 查，都不是它，是 `failed` | 告诉用户；删不删由你定 |
   | `unsupported` | 这台宿主现在查不了：没有这个音源（它的模组没启用、别的 Folia 版本才有的音源）、不是在线音源（`local`、`navidrome`、`stage`），或者这个音源不能按 id 查歌（`supports.resolve` 为 `false`） | **键留着**：音源回来之后（模组重新启用、换到装了它的宿主）就又能查 |
   | `failed` | 没拿到回答，`code` 说为什么（见[错误码](#omni-的错误码)，永远不是 `unsupported`） | 以后再试可能就好了 |
 
@@ -814,6 +815,9 @@ Folia 自带的音源限了所有模组合计的次数：几个模组同时大�
   - 只在另一台设备上有的：本地文件、Navidrome，或者这里没装的模组音源（`unsupported`）。
   - 云盘上传：网易云盘里和曲库匹配上的歌，id 就是曲库的 id，解析回来是公开的那一版；没匹配上的上传 id 不在曲库里，回 `not-found`。
   - 酷狗的歌 id 是音频的 hash：同一段音频收在几张专辑里时（平台靠 albumAudioId 区分），解析回来的是平台按 hash 给的那一条，专辑可能不是存键时那张。
+  - **QQ 音乐的歌目前解析不回来**：QQ 歌曲 DTO 的 `id` 是数字 songid，宿主现在只能按播放键（songmid）查，按数字 songid 查不到。所以 QQ 的键回
+    `failed`（`code` 为 `unavailable`），不是 `not-found`：这不说明歌没了，键别删；宿主也不会把它当成「没有」记下来。以后的版本补上按数字 songid 查询后，
+    存下的键照样能解析回来。
 
 #### 歌曲详情与歌词
 
@@ -851,7 +855,7 @@ Folia 自带的音源限了所有模组合计的次数：几个模组同时大�
   要详情就拿它的键去 `resolveCollection`。没有专辑时 `getAlbum` 给 `null`；`getArtists` 只给平台能打开的歌手，没有时是空数组。
   不是在线歌曲，或者音源的 `supports.albums` / `supports.artists` 为 `false` 时回 `unsupported`，不发请求。
 - `resolveCollection(key)`：平台没有这张专辑或这位歌手时给 `null`（平台回了一个没有名字的空壳也算没有）。有的平台对不认识的 id 直接报错，
-  这时回 `unavailable` 或 `network`。
+  这时回 `unavailable` 或 `network`。平台拒绝了这次请求（风控、本地服务连不上平台、要登录）时同样以错误码拒绝，不给 `null`：`null` 才是「没有」。
 - `getTracks(collection)`：专辑的曲目，或歌手的歌（多数平台按热度排）。`limit` 缺省 50、最多 100，分页同上。
 - `getArtistAlbums(artist)`：歌手的专辑，分页同 `getTracks`，只收歌手。
 - 这两个方法收到种类不对的 DTO（把专辑交给 `getArtistAlbums`，或者把歌曲交给它们）以 `TypeError` 拒绝；集合所在的音源不在了（它的模组停用了）时回 `unsupported`。

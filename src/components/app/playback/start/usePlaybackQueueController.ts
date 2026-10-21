@@ -261,7 +261,6 @@ export function usePlaybackQueueController({
     // i18n, and App.tsx was naming 15 of them purely to hand them straight back.
     const { t } = useTranslation();
     const audioQuality = useAudioSettingsStore(state => state.audioQuality);
-    const queueAddBehavior = useAudioSettingsStore(state => state.queueAddBehavior);
     const loopMode = useAudioSettingsStore(state => state.loopMode);
     const activePlaybackContext = usePlaybackStore(state => state.activePlaybackContext);
     const currentSong = usePlaybackStore(state => state.currentSong);
@@ -275,23 +274,30 @@ export function usePlaybackQueueController({
     const [pendingUnavailableReplacement, setPendingUnavailableReplacement] = useState<UnavailableReplacementRequest | null>(null);
 
     const appendOnlineSongsToMainQueue = useCallback((songs: SongResult[], options?: { suppressToast?: boolean }) => {
+        // The queue, the song and the add setting as the stores hold them now, not as this render saw
+        // them: adds made one after another before the next render (a mod's enqueue in a loop, an add
+        // after an await) each add to what the one before left, instead of all starting from the same
+        // queue and the last one winning.
+        const live = usePlaybackStore.getState();
+        const addBehavior = useAudioSettingsStore.getState().queueAddBehavior;
+        const context = live.activePlaybackContext;
         if (songs.length === 0) {
-            return { changed: false, deduplicated: false, affectedCount: 0, baseQueue: [], affectedSongs: [], addBehavior: queueAddBehavior };
+            return { changed: false, deduplicated: false, affectedCount: 0, baseQueue: [], affectedSongs: [], addBehavior };
         }
 
-        const mainSnapshot = activePlaybackContext === 'stage' ? mainPlaybackSnapshotRef.current : null;
-        const queueAnchorSong = mainSnapshot?.currentSong ?? (activePlaybackContext === 'main' ? currentSong : null);
-        const existingQueue = mainSnapshot?.playQueue ?? (activePlaybackContext === 'main' ? playQueue : []);
+        const mainSnapshot = context === 'stage' ? mainPlaybackSnapshotRef.current : null;
+        const queueAnchorSong = mainSnapshot?.currentSong ?? (context === 'main' ? live.currentSong : null);
+        const existingQueue = mainSnapshot?.playQueue ?? (context === 'main' ? live.playQueue : []);
         const baseQueue = existingQueue.length > 0 ? existingQueue : (queueAnchorSong ? [queueAnchorSong] : []);
         const queueableSongs = songs.filter(song => !isSongUnavailable(song));
         const { nextQueue, affectedSongs, changed } = applyQueueAddBehavior({
             queue: baseQueue,
             songs: queueableSongs,
             currentSong: queueAnchorSong,
-            behavior: queueAddBehavior,
+            behavior: addBehavior,
         });
 
-        if (activePlaybackContext === 'stage') {
+        if (context === 'stage') {
             mainPlaybackSnapshotRef.current = mainSnapshot
                 ? { ...mainSnapshot, playQueue: nextQueue }
                 : {
@@ -315,7 +321,7 @@ export function usePlaybackQueueController({
         }
 
         if (changed && affectedSongs.length > 0 && !options?.suppressToast) {
-            if (queueAddBehavior === 'next') {
+            if (addBehavior === 'next') {
                 setStatusMsg({ type: 'success', text: t('status.added_to_next_play'), nonce: Date.now(), durationMs: 1200 });
             } else {
                 setStatusMsg({ type: 'success', text: t('status.added_to_play_queue'), nonce: Date.now(), durationMs: 1200 });
@@ -330,9 +336,9 @@ export function usePlaybackQueueController({
             baseQueue,
             queue: nextQueue,
             affectedSongs,
-            addBehavior: queueAddBehavior,
+            addBehavior,
         };
-    }, [activePlaybackContext, currentSong, mainPlaybackSnapshotRef, persistLastPlaybackCache, playQueue, queueAddBehavior, setPlayQueue, setStatusMsg, t]);
+    }, [mainPlaybackSnapshotRef, persistLastPlaybackCache, setPlayQueue, setStatusMsg, t]);
 
     const addOnlineSongToQueue = useCallback((song: SongResult) => {
         if (isSongUnavailable(song)) {

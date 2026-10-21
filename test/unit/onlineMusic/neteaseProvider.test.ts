@@ -208,6 +208,37 @@ describe('neteaseProvider', () => {
         expect(page.items.map((album) => album.type)).toEqual(['album', 'album']);
     });
 
+    // As for the song details: a refusal says nothing of whether the album or the artist is there. It
+    // used to come back as the collection asked with (an album) or null (an artist), which a caller that
+    // asks with an id alone reads as "no such album / artist".
+    it.each([
+        ['the local service cannot reach NetEase', { code: 502, msg: 'getaddrinfo ENOTFOUND interfacepc.music.163.com' }, 'unavailable'],
+        ['NetEase refuses the request', { code: -462, message: '绑定手机号后才能继续操作' }, 'unavailable'],
+        ['the session is signed out', { code: 301 }, 'auth-required'],
+    ])('rejects an album or artist detail when %s, instead of answering none', async (_label, response, errorCode) => {
+        vi.mocked(neteaseApi.getAlbum).mockResolvedValue(response as any);
+        vi.mocked(neteaseApi.getArtistDetail).mockResolvedValue(response as any);
+        const asked = { providerId: 'netease', id: 7, type: 'album' as const, name: '' };
+        await expect(neteaseProvider.catalog!.getAlbumDetail!(7, asked)).rejects.toMatchObject({
+            code: errorCode,
+            providerId: 'netease',
+            cause: { code: response.code },
+        });
+        await expect(neteaseProvider.catalog!.getArtistDetail!(9)).rejects.toMatchObject({
+            code: errorCode,
+            providerId: 'netease',
+            cause: { code: response.code },
+        });
+    });
+
+    it('still answers none for an album or artist NetEase answers without one', async () => {
+        const asked = { providerId: 'netease', id: 7, type: 'album' as const, name: 'Kept' };
+        vi.mocked(neteaseApi.getAlbum).mockResolvedValue({ code: 200, songs: [] } as any);
+        vi.mocked(neteaseApi.getArtistDetail).mockResolvedValue({ code: 200, data: {} } as any);
+        await expect(neteaseProvider.catalog!.getAlbumDetail!(7, asked)).resolves.toBe(asked);
+        await expect(neteaseProvider.catalog!.getArtistDetail!(9)).resolves.toBeNull();
+    });
+
     it('normalizes artist and full album biographies into the unified description field', async () => {
         vi.mocked(neteaseApi.getArtistDetail).mockResolvedValue({
             data: {

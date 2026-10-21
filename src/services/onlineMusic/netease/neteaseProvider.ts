@@ -576,6 +576,10 @@ export const neteaseProvider: OnlineMusicProvider = {
         },
         async getAlbumDetail(id, existingCollection) {
             const response = await neteaseApi.getAlbum(toNeteaseId(id));
+            // A refusing answer (the local backend's 502, NetEase's -462) says nothing of whether the album
+            // is there: it fails, rather than handing back the collection asked with, which an id alone
+            // makes nameless and a caller reads as no such album.
+            if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the album detail');
             const rawAlbum = response?.album;
             if (!rawAlbum) return existingCollection || null;
 
@@ -610,6 +614,8 @@ export const neteaseProvider: OnlineMusicProvider = {
         },
         async getArtistDetail(id) {
             const response = await neteaseApi.getArtistDetail(toNeteaseId(id));
+            // As for the album: a refusal is a failure, not "no such artist".
+            if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the artist detail');
             const artist = response?.data?.artist;
             if (!artist) return null;
             return {

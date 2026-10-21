@@ -1447,7 +1447,8 @@ export interface FoliumOmniPage<T> {
     /**
      * Pass it as `cursor` for the next page of the same list; null when the source has no more. Opaque, valid
      * for this session only, and a cursor not used for a while stops resolving (`stale-ref`): start again
-     * without one.
+     * without one. An album or an artist is the same list by its `source`, `kind` and `id`, whichever DTO of
+     * it comes with the cursor (one read again by its key, say).
      */
     readonly nextCursor: string | null;
     /** The whole list's length when the source says it; null otherwise. */
@@ -1610,8 +1611,9 @@ export interface FoliumOmniService {
      * call rejects only for malformed arguments, the export window and `aborted`. A source without a way to
      * look many songs up at once is asked once per key: resolve the keys you are about to show. A song that
      * only existed on another device (a local file, a cloud upload, a source not installed here) may not
-     * resolve, or may resolve to that source's public version. Nothing is played, and no audio address is
-     * fetched.
+     * resolve, or may resolve to that source's public version. `not-found` comes only from the source's own
+     * answer: a key whose request the source refused, or that this host cannot look up by that id yet, comes
+     * back `failed`, so keep it. Nothing is played, and no audio address is fetched.
      */
     resolveSongs(keys: readonly FoliumSongKey[], options?: { signal?: AbortSignal }): Promise<readonly FoliumSongResolution[]>;
     /**

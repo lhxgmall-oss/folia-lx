@@ -795,6 +795,31 @@ describe('qqProvider', () => {
         ]);
     });
 
+    // A song's UnifiedSong.id is its numeric songid (normalizeQqSong), which `/getSongInfo` on upstream 3.3.3
+    // cannot look up: it hands QQ the songid as a string and gets an empty shell back. Looking such an id up
+    // by id must not answer null ("QQ has no such song", which a caller keeps), nor send it as a songmid.
+    it('rejects a song detail by the numeric songid as unavailable, without a request, and still looks a songmid up', async () => {
+        for (const id of ['97773', 97773, ' 5105918 ']) {
+            await expect(qqProvider.playback!.getSongDetail(id)).rejects.toMatchObject({
+                code: 'unavailable',
+                providerId: 'qq',
+                cause: { songId: String(id).trim() },
+            });
+        }
+        expect(requestMock).not.toHaveBeenCalled();
+        expect(normalizeQqSong(SEARCH_ITEM).id).toBe(5105918);
+
+        requestMock.mockResolvedValueOnce({ response: { songinfo: { data: { track_info: SEARCH_ITEM } } } });
+        await expect(qqProvider.playback!.getSongDetail('003rJSwm3TechU')).resolves.toMatchObject({ qqMid: '003rJSwm3TechU' });
+        // A songmid QQ answers with an empty shell is still none.
+        requestMock.mockResolvedValueOnce({ response: { songinfo: { data: { track_info: { mid: '', id: 0, name: '' } } } } });
+        await expect(qqProvider.playback!.getSongDetail('0039MnYb0qxYhX')).resolves.toBeNull();
+        expect(requestMock.mock.calls).toEqual([
+            ['song_info', { songmid: '003rJSwm3TechU' }],
+            ['song_info', { songmid: '0039MnYb0qxYhX' }],
+        ]);
+    });
+
     // Which error getAudioSource throws when no level gives a URL; what it means is said in qqFailure.ts.
     describe('audio source failures', () => {
         const SONG = normalizeQqSong(SEARCH_ITEM);
