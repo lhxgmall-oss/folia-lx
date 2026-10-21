@@ -30,6 +30,7 @@ const createContext = (state: Settings) => {
     const toggleLibraryWallSeamClear = vi.fn();
     const toggleLibraryWallBackdropLyrics = vi.fn();
     const toggleLibraryWallBackdropBlur = vi.fn();
+    const toggleLibraryWallSeamHorizontal = vi.fn();
     const setLibraryWallSeamStyle = vi.fn((style: LibraryWallSeamStyle) => { state.seamStyle = style; });
     const openSettings = vi.fn();
     const context = {
@@ -39,6 +40,7 @@ const createContext = (state: Settings) => {
             toggleLibraryWallSeamClear,
             toggleLibraryWallBackdropLyrics,
             toggleLibraryWallBackdropBlur,
+            toggleLibraryWallSeamHorizontal,
             libraryWallSeamClear: () => state.seamClear ?? false,
             libraryWallSeamStyle: () => state.seamStyle ?? 'paper',
             setLibraryWallSeamStyle,
@@ -58,6 +60,7 @@ const createContext = (state: Settings) => {
         toggleLibraryWallSeamClear,
         toggleLibraryWallBackdropLyrics,
         toggleLibraryWallBackdropBlur,
+        toggleLibraryWallSeamHorizontal,
         setLibraryWallSeamStyle,
         openSettings,
     };
@@ -177,8 +180,13 @@ describe('library wall windows picker', () => {
 });
 
 describe('bravais info strip and backdrop commands', () => {
-    it('flip the see-through strip and the backdrop lyrics / blur only while bravais is the effective suite', () => {
-        const ids = ['library-wall-seam-clear-toggle', 'library-wall-backdrop-lyrics-toggle', 'library-wall-backdrop-blur-toggle'] as const;
+    it('flip the see-through strip, the strip direction and the backdrop lyrics / blur only while bravais is the effective suite', () => {
+        const ids = [
+            'library-wall-seam-clear-toggle',
+            'library-wall-seam-horizontal-toggle',
+            'library-wall-backdrop-lyrics-toggle',
+            'library-wall-backdrop-blur-toggle',
+        ] as const;
         for (const id of ids) {
             const entry = command(id);
             expect(entry.group).toBe('settings');
@@ -190,7 +198,9 @@ describe('bravais info strip and backdrop commands', () => {
         expect(command('library-wall-seam-clear-toggle').execute('', created.context)).toBe(true);
         expect(command('library-wall-backdrop-lyrics-toggle').execute('', created.context)).toBe(true);
         expect(command('library-wall-backdrop-blur-toggle').execute('', created.context)).toBe(true);
+        expect(command('library-wall-seam-horizontal-toggle').execute('', created.context)).toBe(true);
         expect(created.toggleLibraryWallSeamClear).toHaveBeenCalledTimes(1);
+        expect(created.toggleLibraryWallSeamHorizontal).toHaveBeenCalledTimes(1);
         expect(created.toggleLibraryWallBackdropLyrics).toHaveBeenCalledTimes(1);
         expect(created.toggleLibraryWallBackdropBlur).toHaveBeenCalledTimes(1);
     });

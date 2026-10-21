@@ -112,6 +112,9 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     libraryWallSeamStyle: useLibraryWallLookStore.getState().seamStyle,
     libraryWallBackdropLyrics: useLibraryWallLookStore.getState().backdropLyrics,
     libraryWallBackdropBlur: useLibraryWallLookStore.getState().backdropBlur,
+    // Which way the info strip opens (a column split, or a row split across the wall): part of the
+    // wall's look, no user exception.
+    libraryWallSeamHorizontal: useLibraryWallLookStore.getState().seamHorizontal,
   };
 }
 

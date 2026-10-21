@@ -1,4 +1,4 @@
-import { Blinds, Captions, Droplets, GalleryVerticalEnd, Grid2x2, Palette, SquareDashed } from 'lucide-react';
+import { Blinds, Captions, Droplets, GalleryVerticalEnd, Grid2x2, Palette, Rows3, SquareDashed } from 'lucide-react';
 import type { CommandPaletteCommand, CommandPaletteContext } from '../types';
 import { createSettingsAnchorCommand, createToggleCommand, defineCommand } from '../commandFactories';
 import {
@@ -70,6 +70,15 @@ export const libraryWallLookCommands: CommandPaletteCommand[] = [
         ['stack edges', 'page edges', 'collection tiles', 'bravais', '叠页边', '集合磁贴', '页边'],
         context => context.settings.toggleLibraryWallStackEdges(),
         { icon: GalleryVerticalEnd, isAvailable: isLibraryWallLookCommandAvailable },
+    ),
+    createToggleCommand(
+        'library-wall-seam-horizontal-toggle',
+        'settings',
+        'Horizontal info strip',
+        'Open the info strip as a row across the wall instead of a column',
+        ['horizontal strip', 'row seam', 'strip direction', 'bravais', '信息条横向', '横向信息条', '横条'],
+        context => context.settings.toggleLibraryWallSeamHorizontal(),
+        { icon: Rows3, isAvailable: isLibraryWallLookCommandAvailable },
     ),
     createToggleCommand(
         'library-wall-seam-clear-toggle',

@@ -317,7 +317,7 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     if (has('stageTrackPillOnHome')) {
         storeStageSettings.handleToggleStageTrackPillOnHome(Boolean(config.stageTrackPillOnHome));
     }
-    // The bravais wall: the collections' stack edges, the seam's material and the picture behind
+    // The bravais wall: the collections' stack edges, the seam's material and direction, and the picture behind
     // the wall, through the setters the Bravais group on the 主页与歌单 page uses. The seam style
     // is taken only when it is a known preset, as the import plan's guard does.
     const storeLibraryWall = useLibraryWallLookStore.getState();
@@ -335,5 +335,8 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     }
     if (has('libraryWallBackdropBlur')) {
         storeLibraryWall.setBackdropBlur(Boolean(config.libraryWallBackdropBlur));
+    }
+    if (has('libraryWallSeamHorizontal')) {
+        storeLibraryWall.setSeamHorizontal(Boolean(config.libraryWallSeamHorizontal));
     }
 };

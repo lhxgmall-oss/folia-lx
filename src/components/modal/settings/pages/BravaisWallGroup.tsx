@@ -33,6 +33,7 @@ const O = {
     look: option(BRAVAIS_WALL, 'libraryWallLook', 'options.libraryWallLook'),
     windows: option(BRAVAIS_WALL, 'libraryWallWindows', 'options.libraryWallWindows'),
     stackEdges: option(BRAVAIS_WALL, 'bravaisStackEdges', 'options.bravaisStackEdges'),
+    seamHorizontal: option(BRAVAIS_WALL, 'bravaisSeamHorizontal', 'options.bravaisSeamHorizontal'),
     seamClear: option(BRAVAIS_WALL, 'bravaisSeamClear', 'options.bravaisSeamClear'),
     seamStyle: option(BRAVAIS_WALL, 'bravaisSeamStyle', 'options.bravaisSeamStyle'),
     backdropLyrics: option(BRAVAIS_WALL, 'bravaisBackdropLyrics', 'options.bravaisBackdropLyrics'),
@@ -71,6 +72,7 @@ export const BravaisWallGroup: React.FC = () => {
         seamStyle: state.seamStyle,
         backdropLyrics: state.backdropLyrics,
         backdropBlur: state.backdropBlur,
+        seamHorizontal: state.seamHorizontal,
         setLook: state.setLook,
         setWindowsPerBlock: state.setWindowsPerBlock,
         setStackEdges: state.setCollectionStackEdges,
@@ -78,6 +80,7 @@ export const BravaisWallGroup: React.FC = () => {
         setSeamStyle: state.setSeamStyle,
         setBackdropLyrics: state.setBackdropLyrics,
         setBackdropBlur: state.setBackdropBlur,
+        setSeamHorizontal: state.setSeamHorizontal,
     })));
 
     if (!isBravaisActive) return null;
@@ -110,6 +113,9 @@ export const BravaisWallGroup: React.FC = () => {
             </Reveal>
             <Row option={O.stackEdges} note={t('options.bravaisStackEdgesDesc')}>
                 <Toggle checked={wall.stackEdges} onChange={wall.setStackEdges} />
+            </Row>
+            <Row option={O.seamHorizontal} note={t('options.bravaisSeamHorizontalDesc')}>
+                <Toggle checked={wall.seamHorizontal} onChange={wall.setSeamHorizontal} />
             </Row>
             <Row option={O.seamClear} note={t('options.bravaisSeamClearDesc')}>
                 <Toggle checked={wall.seamClear} onChange={wall.setSeamClear} />

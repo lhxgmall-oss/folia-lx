@@ -10,7 +10,8 @@ import { normalizeLibraryWallSeamStyle, type LibraryWallSeamStyle } from '../uti
 // bravais 资料库界面的墙面偏好：「透光」档位 look（实色 / 部分透明 / 全透明，默认实色）与部分透明时每块的窗数
 // windowsPerBlock（1–6，默认 3）；集合磁贴的叠页边开关 collectionStackEdges（默认开，设计稿 §7.7）；
 // 信息条（缝）的材质：始终透明 seamClear（默认开，用户定 2026-10-09）与实色模式的预设 seamStyle（默认主题纸色，透明开着时不生效）；
-// 透出的播放页画面（backdrop）要不要画歌词文字 backdropLyrics、要不要模糊 backdropBlur（都默认关，§11「墙后的画面」）。
+// 透出的播放页画面（backdrop）要不要画歌词文字 backdropLyrics、要不要模糊 backdropBlur（都默认关，§11「墙后的画面」）；
+// 信息条的方向 seamHorizontal：开着时首页窄缝与集合信息条从块的横向缝隙裂开成横条（默认关，竖向）。
 // 放在 app 层而不是 suite 里，因为设置 UI（components/modal/settings）不能 import suite；bravais 的 stage 读这里。
 // 只在 bravais 是生效 suite 时才有界面入口（library/app/bravaisLibraryActive；界面设置的「Bravais」分组）。
 //
@@ -19,8 +20,9 @@ import { normalizeLibraryWallSeamStyle, type LibraryWallSeamStyle } from '../uti
 // handleImportConfig」的规则把它们补进短码或 JSON，也不进同步的视觉设置快照。
 // collectionStackEdges 没有这样的用户决定，按规则进了外观配置的导入导出（visualSettingsConfig、appearanceCodec 的 bse、
 // 导入确认的「资料库墙」组）；不进同步快照（同步只覆盖播放页的视觉设置）。
-// seamClear / seamStyle / backdropLyrics / backdropBlur 同样没有用户例外，按规则进外观配置导入导出（libraryWallSeamClear /
-// libraryWallSeamStyle / libraryWallBackdropLyrics / libraryWallBackdropBlur，短码 lwsc / lwss / lwbl / lwbb），同样不进同步快照。
+// seamClear / seamStyle / backdropLyrics / backdropBlur / seamHorizontal 同样没有用户例外，按规则进外观配置导入导出
+// （libraryWallSeamClear / libraryWallSeamStyle / libraryWallBackdropLyrics / libraryWallBackdropBlur / libraryWallSeamHorizontal，
+// 短码 lwsc / lwss / lwbl / lwbb / lwsh），同样不进同步快照。
 //
 // 存储读写都包 try/catch：存储不可用（隐私模式、配额满）时本次会话照常用内存里的值。
 // 读到非法档位回默认档，读到越界或非数字的窗数钳制 / 回默认（规则在 utils/libraryWallLook）。
@@ -32,6 +34,7 @@ const LIBRARY_WALL_SEAM_CLEAR_KEY = 'library_wall_seam_clear';
 const LIBRARY_WALL_SEAM_STYLE_KEY = 'library_wall_seam_style';
 const LIBRARY_WALL_BACKDROP_LYRICS_KEY = 'library_wall_backdrop_lyrics';
 const LIBRARY_WALL_BACKDROP_BLUR_KEY = 'library_wall_backdrop_blur';
+const LIBRARY_WALL_SEAM_HORIZONTAL_KEY = 'library_wall_seam_horizontal';
 
 const readStored = (key: string): string | null => {
     if (typeof window === 'undefined') return null;
@@ -69,6 +72,7 @@ const readAll = () => ({
     seamStyle: readStoredSeamStyle(),
     backdropLyrics: readStoredFlag(LIBRARY_WALL_BACKDROP_LYRICS_KEY),
     backdropBlur: readStoredFlag(LIBRARY_WALL_BACKDROP_BLUR_KEY),
+    seamHorizontal: readStoredFlag(LIBRARY_WALL_SEAM_HORIZONTAL_KEY),
 });
 
 export type LibraryWallLookState = {
@@ -88,6 +92,11 @@ export type LibraryWallLookState = {
     backdropLyrics: boolean;
     /** 透出的 visualizer 加模糊（visualizer 那一层的 CSS filter，只在有透出时生效）。 */
     backdropBlur: boolean;
+    /**
+     * 信息条横向：首页窄缝 / 书脊与集合、歌手页的信息条 / 书脊从块的横向缝隙裂开，墙上下分开。列表面板与歌手 / 专辑海报
+     * 仍是竖的开口。
+     */
+    seamHorizontal: boolean;
     /** 非法值回默认档后再写入。 */
     setLook: (look: LibraryWallLook) => void;
     /** 先钳到 1–6 再写入。 */
@@ -98,6 +107,7 @@ export type LibraryWallLookState = {
     setSeamStyle: (style: LibraryWallSeamStyle) => void;
     setBackdropLyrics: (enabled: boolean) => void;
     setBackdropBlur: (enabled: boolean) => void;
+    setSeamHorizontal: (enabled: boolean) => void;
     /** 从存储重新读一遍（存储被别处改写、或测试模拟重启时用）。 */
     hydrate: () => void;
 };
@@ -133,5 +143,6 @@ export const useLibraryWallLookStore = create<LibraryWallLookState>(set => ({
     },
     setBackdropLyrics: enabled => set({ backdropLyrics: writeFlag(LIBRARY_WALL_BACKDROP_LYRICS_KEY, enabled) }),
     setBackdropBlur: enabled => set({ backdropBlur: writeFlag(LIBRARY_WALL_BACKDROP_BLUR_KEY, enabled) }),
+    setSeamHorizontal: enabled => set({ seamHorizontal: writeFlag(LIBRARY_WALL_SEAM_HORIZONTAL_KEY, enabled) }),
     hydrate: () => set(readAll()),
 }));
