@@ -103,6 +103,15 @@ export default {
     "connect": "连接在线平台",
     "noMatch": "没有匹配的条目",
     "shortcuts": "直达",
+    "wallHint": {
+      "guestTitle": "还没有连接在线平台",
+      "guestBody": "点信息条里的「{{connect}}」登录，你的歌单、电台和收藏的专辑会铺满这面墙。",
+      "guestBodyWithLocal": "点信息条里的「{{connect}}」登录，你的歌单、电台和收藏的专辑会铺满这面墙；也可以到「{{local}}」页签导入音乐文件夹。",
+      "reloginTitle": "{{provider}} 的登录已过期",
+      "reloginBody": "点信息条里的「{{connect}}」重新登录，你的歌单会重新铺满这面墙。",
+      "localTitle": "还没有导入本地音乐",
+      "localBody": "在信息条的「⋯」里选「{{action}}」，文件夹、专辑和歌手会铺满这面墙。"
+    },
     "special": {"liked": "我喜欢的音乐", "cloud": "云盘", "personal-fm": "私人FM", "daily": "每日推荐", "all-songs": "全部歌曲", "local-favorites": "我喜欢", "navidrome-random": "随机音乐", "navidrome-favorites": "收藏"}
   },
   "libraryTui": {

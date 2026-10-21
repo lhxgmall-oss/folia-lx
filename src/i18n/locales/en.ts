@@ -103,6 +103,15 @@ export default {
     "connect": "Connect a streaming service",
     "noMatch": "Nothing on this page matches",
     "shortcuts": "Jump to",
+    "wallHint": {
+      "guestTitle": "No streaming service connected yet",
+      "guestBody": "Choose “{{connect}}” in the info strip to sign in, and your playlists, radio and saved albums will fill this wall.",
+      "guestBodyWithLocal": "Choose “{{connect}}” in the info strip to sign in, and your playlists, radio and saved albums will fill this wall. Or import a music folder on the {{local}} tab.",
+      "reloginTitle": "Your {{provider}} sign-in has expired",
+      "reloginBody": "Choose “{{connect}}” in the info strip to sign in again, and your playlists will fill this wall again.",
+      "localTitle": "No local music imported yet",
+      "localBody": "Choose “{{action}}” under “⋯” in the info strip, and your folders, albums and artists will fill this wall."
+    },
     "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
   },
   "libraryTui": {

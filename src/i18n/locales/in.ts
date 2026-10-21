@@ -103,6 +103,15 @@ export default {
     "connect": "Hubungkan layanan streaming",
     "noMatch": "Tidak ada yang cocok di halaman ini",
     "shortcuts": "Langsung ke",
+    "wallHint": {
+      "guestTitle": "Belum ada layanan streaming yang terhubung",
+      "guestBody": "Pilih “{{connect}}” di strip info untuk masuk, lalu playlist, radio, dan album simpanan Anda akan memenuhi dinding ini.",
+      "guestBodyWithLocal": "Pilih “{{connect}}” di strip info untuk masuk, lalu playlist, radio, dan album simpanan Anda akan memenuhi dinding ini. Atau impor folder musik di tab {{local}}.",
+      "reloginTitle": "Sesi {{provider}} Anda sudah kedaluwarsa",
+      "reloginBody": "Pilih “{{connect}}” di strip info untuk masuk lagi, lalu playlist Anda akan kembali memenuhi dinding ini.",
+      "localTitle": "Belum ada musik lokal yang diimpor",
+      "localBody": "Pilih “{{action}}” di menu “⋯” pada strip info, lalu folder, album, dan artis Anda akan memenuhi dinding ini."
+    },
     "special": {"liked": "Lagu Disukai", "cloud": "Cloud Drive", "personal-fm": "FM Pribadi", "daily": "Harian", "all-songs": "Semua Lagu", "local-favorites": "Favorit", "navidrome-random": "Acak", "navidrome-favorites": "Berbintang"}
   },
   "libraryTui": {
