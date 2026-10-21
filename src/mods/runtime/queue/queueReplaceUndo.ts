@@ -130,7 +130,10 @@ export const undoFoliumQueueReplace = (): boolean => {
     }
     dropSnapshot();
     const replaced = state.playQueue;
-    const isFmMode = held.isFmMode && displayedKeyOf(state) === held.displayedKey;
+    // Both the song shown and the host's own: mid-blend the picture still holds the outgoing song while the
+    // host is on the arriving one, which the FM batch does not hold either.
+    const currentKey = state.currentSong ? getPlaybackSongKey(state.currentSong) : null;
+    const isFmMode = held.isFmMode && displayedKeyOf(state) === held.displayedKey && currentKey === held.displayedKey;
     dropFoliumQueueWriter();
     noteWholeQueueWrite();
     replacePlayQueue(held.queue, isFmMode);

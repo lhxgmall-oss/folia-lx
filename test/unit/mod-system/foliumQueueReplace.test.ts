@@ -524,6 +524,19 @@ describe('replaceQueue: the notice and the undo', () => {
         expect(store().isFmMode).toBe(false);
     });
 
+    it('does not put FM back during a blend away from the song shown then, though that song is still on screen', async () => {
+        render();
+        const original = [a, b];
+        usePlaybackStore.setState({ playQueue: original, currentSong: a, isFmMode: true });
+        await playbackA().replaceQueue([dto(a), dto(c), dto(d)], { expectedVersion: versionNow() });
+        // Automix blends from A into C: the picture holds A, the host is on C already.
+        usePlaybackStore.setState({ currentSong: c, transitionDisplay: { song: a, lyrics: null, coverUrl: null, duration: 1 } });
+
+        expect(await undoCommand.execute('', {} as never)).toBe(true);
+        expect(store().playQueue).toBe(original);
+        expect(store().isFmMode).toBe(false);
+    });
+
     it('a run of replacements by one mod is told once, and undone back to before the first', async () => {
         render();
         const original = [a, b];

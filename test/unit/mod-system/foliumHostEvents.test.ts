@@ -32,6 +32,7 @@ import {
 import { supplyLyricsAfterEmptyLoad } from '@/components/app/playback/createLyricsSetter';
 import type { FoliumLine } from '@/mods/folium/contract';
 import { installFoliumHostEvents } from '@/mods/runtime/hostEvents';
+import { buildFoliumQueueSnapshot } from '@/mods/runtime/hostQueue';
 import { addFoliumEventHandler, removeFoliumEventHandlers } from '@/mods/folium/events';
 import { resolveFoliumSongRef, toFoliumSong } from '@/mods/folium/dto';
 import { buildLineRenderHints } from '@/utils/lyrics/renderHints';
@@ -256,6 +257,8 @@ describe('Folium 1.5 playback notifications', () => {
         await flushMicrotasks();
         expect(handler).not.toHaveBeenCalled();
 
+        // The queue's version before the displayed song moves, as getQueue would give it.
+        const before = buildFoliumQueueSnapshot(usePlaybackStore.getState(), undefined, 1).version;
         usePlaybackStore.setState({ currentSong: queue[2] });
         await flushMicrotasks();
         usePlaybackStore.setState({ isFmMode: true });
@@ -265,7 +268,11 @@ describe('Folium 1.5 playback notifications', () => {
         const outline = { length: 3, currentIndex: 2, version: expect.any(String), byThisMod: false };
         expect(handler.mock.calls).toEqual([[outline], [outline], [outline]]);
         // The song moving keeps the version; entering FM and the Stage each change it.
-        expect(new Set(handler.mock.calls.map(([event]) => event.version)).size).toBe(3);
+        const [moved, fm, stage] = handler.mock.calls.map(([event]) => event.version);
+        expect(moved).toBe(before);
+        expect(fm).not.toBe(before);
+        expect(stage).not.toBe(before);
+        expect(stage).not.toBe(fm);
     });
 
     it('schedules nothing while nobody listens', async () => {

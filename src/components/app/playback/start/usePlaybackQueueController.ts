@@ -528,8 +528,13 @@ export function usePlaybackQueueController({
         const keptFmMode = fmModeBeforePendingPlayRef.current;
         const fmModeToRestore = keptFmMode && keptFmMode.queueWrites === wholeQueueWritesSoFar() ? keptFmMode.isFm : wasFmMode;
         fmModeBeforePendingPlayRef.current = { isFm: fmModeToRestore, queueWrites: wholeQueueWritesSoFar() };
-        setIsFmMode(isFmCall);
-        if (isFmCall && !wasFmMode) {
+        // A whole-queue write during the hook's wait has set Personal FM for the store's queue (a replacement
+        // ends it): a play from that queue keeps it so, instead of the FM state it was called with.
+        const playsAsFm = queueRewritten() ? wasFmMode : isFmCall;
+        setIsFmMode(playsAsFm);
+        // The whole-queue writes when this play wrote FM: one after it ended FM again (see restoreFmModeIfNotLanded).
+        const queueWritesAtFmWrite = wholeQueueWritesSoFar();
+        if (playsAsFm && !wasFmMode) {
             setPanelTab('queue');
             setIsPanelOpen(true);
             if (usePlaybackEntryViewStore.getState().playbackEntryView === 'lattice') {
@@ -548,7 +553,9 @@ export function usePlaybackQueueController({
             fmModeBeforePendingPlayRef.current = null;
             // A whole-queue write while this play waited has ended Personal FM already: put back, the radio's
             // songs would be added after that queue. This holds whatever queue the play was given.
-            if (wholeQueueWritesSoFar() !== queueWritesAtStart) return;
+            // Counted from this play's own FM write: one during the hook's wait came before it, and
+            // `fmModeToRestore` was read after it, so putting that back is right.
+            if (wholeQueueWritesSoFar() !== queueWritesAtFmWrite) return;
             if (usePlaybackStore.getState().isFmMode !== fmModeToRestore) setIsFmMode(fmModeToRestore);
         };
         const isLocal = isLocalPlaybackSong(song);
@@ -1126,7 +1133,9 @@ export function usePlaybackQueueController({
 
         // An emptied queue still has to stop playback at the end of the current track; returning
         // early here left the audio element `ended` while playerState stayed PLAYING.
-        if (!currentSong || playQueue.length === 0) {
+        // A step from a song that never became current (the skip after a first play failed, once the
+        // queue was replaced whole) names it in `fromSong`, and needs no current song to step from.
+        if ((!currentSong && !options?.fromSong) || playQueue.length === 0) {
             if (options?.allowStopOnMissing) {
                 stopAtQueueEnd();
             }
@@ -1151,29 +1160,32 @@ export function usePlaybackQueueController({
         const indexLoopMode = queueLoopMode(loopMode, isFmMode);
 
         if (isFmMode && fmNeedsTopUpAt(playQueue.length, currentIndex)) {
+            let fmSongs: SongResult[] = [];
             try {
                 // Only songs not in the queue yet: a song twice would make finding the current one by its
                 // key jump back to the earlier place. A batch of nothing new is a top-up that did not come;
                 // the next track tops up again.
-                const fmSongs = freshFmSongs(playQueue, await omni.getPersonalFm());
-                if (wholeQueueWritesSoFar() !== queueWritesAtStart) {
-                    // The queue was replaced whole while the batch came (which ended FM): no radio songs are
-                    // added after it, and the newest handleNextTrack steps through the new queue instead.
-                    void latestQueueActionsRef.current.handleNextTrack(options);
-                    return;
-                }
-                if (fmSongs.length > 0) {
-                    const nextQueue = [...playQueue, ...fmSongs];
-                    setPlayQueue(nextQueue);
-                    void playSong(nextQueue[nextQueueIndex(nextQueue.length, currentIndex, indexLoopMode)], nextQueue, true, {
-                        shouldNavigateToPlayer,
-                        unavailableSkipCount: options?.unavailableSkipCount,
-                        isAutomixAdvance: options?.isAutomixAdvance,
-                    });
-                    return;
-                }
+                fmSongs = freshFmSongs(playQueue, await omni.getPersonalFm());
             } catch (error) {
                 console.error('Failed to fetch FM tracks', error);
+            }
+            if (wholeQueueWritesSoFar() !== queueWritesAtStart) {
+                // The queue was replaced whole while the batch came (which ended FM): no radio songs are
+                // added after it, and the newest handleNextTrack steps through the new queue instead.
+                // A batch that failed comes here too: the step below would play this render's FM queue
+                // (a list the store no longer holds) and write it back, FM and all.
+                void latestQueueActionsRef.current.handleNextTrack(options);
+                return;
+            }
+            if (fmSongs.length > 0) {
+                const nextQueue = [...playQueue, ...fmSongs];
+                setPlayQueue(nextQueue);
+                void playSong(nextQueue[nextQueueIndex(nextQueue.length, currentIndex, indexLoopMode)], nextQueue, true, {
+                    shouldNavigateToPlayer,
+                    unavailableSkipCount: options?.unavailableSkipCount,
+                    isAutomixAdvance: options?.isAutomixAdvance,
+                });
+                return;
             }
         }
 

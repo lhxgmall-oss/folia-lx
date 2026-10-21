@@ -8,6 +8,8 @@ import type { SongResult } from '@/types';
 // moment they are pressed, a play that does not land does not turn FM back on, the FM top-up adds no
 // radio songs after the new queue, and a Stage API add fails instead of adding to it. Without a
 // whole-queue write everything stays as it was.
+// The waits covered include a mod's beforePlay hook (FM as the write left it, a failure puts back what
+// the play itself overwrote), a top-up batch that fails, and a skip from a song that never became current.
 // Written like currentSongPlaySong.test.ts: the hook runs without a renderer, the store is the real one,
 // and the services that wait are stubs held by gates. Unlike there the hook keeps its refs, its state and
 // its effects across calls, as React keeps them across renders, so calling it again after a write is the
@@ -27,6 +29,8 @@ const env = vi.hoisted(() => {
         fmBatch: null as Promise<unknown[]> | null,
         /** Holds the Stage API's lookup of a song's details. */
         detailGate: null as Promise<unknown> | null,
+        /** An installed `beforePlay` hook (a mod's) that answers when this resolves, or none. */
+        beforePlay: null as Promise<unknown> | null,
         effects: [] as Array<() => unknown>,
         slots: [] as Array<{ current: unknown }>,
         slotAt: 0,
@@ -73,8 +77,8 @@ vi.mock('react-i18next', () => ({
     useTranslation: () => ({ t: (key: string) => key }),
 }));
 vi.mock('@/services/hostExtensionHooks', () => ({
-    hasBeforePlayHook: () => false,
-    runBeforePlayHook: async (song: unknown) => song,
+    hasBeforePlayHook: () => Boolean(env.self.beforePlay),
+    runBeforePlayHook: async (song: unknown) => { await env.self.beforePlay; return song; },
     lyricsForNoLyrics: () => null,
     notifyPlaybackFailed: () => undefined,
 }));
@@ -142,8 +146,9 @@ const [p1, p2] = ['p1', 'p2'].map(online);
 
 const deferred = <T = void,>() => {
     let resolve!: (value: T) => void;
-    const promise = new Promise<T>(done => { resolve = done; });
-    return { promise, resolve };
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+    return { promise, resolve, reject };
 };
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 const keys = (queue: readonly SongResult[]) => queue.map(getPlaybackSongKey);
@@ -179,6 +184,7 @@ beforeEach(() => {
     env.self.replacementFor.clear();
     env.self.fmBatch = null;
     env.self.detailGate = null;
+    env.self.beforePlay = null;
     env.self.effects.length = 0;
     env.self.slots.length = 0;
     Object.values(prefetch).forEach(fn => fn.mockClear());
@@ -355,6 +361,63 @@ describe('Personal FM and a play that does not land', () => {
         await first;
         expect(store().isFmMode).toBe(false);
     });
+
+    it('an FM play from the queue that waited for a mod\'s beforePlay hook while the queue was replaced does not turn FM back on', async () => {
+        playerWith([f1, f2, f3], f1, true);
+        const { queue } = mount();
+        const hook = deferred();
+        env.self.beforePlay = hook.promise;
+        const play = queue.playSong(f2, store().playQueue, true);
+        await settle();
+
+        const replaced = [x, y];
+        replaceWhole(replaced);
+        hook.resolve();
+        await play;
+
+        // The song plays on outside the new queue; FM stays as the replacement left it.
+        expect(store().currentSong).toMatchObject({ id: 'f2' });
+        expect(store().isFmMode).toBe(false);
+        expect(store().playQueue).toBe(replaced);
+    });
+
+    it('nor does one that waited for the hook and then fails', async () => {
+        playerWith([f1, f2, f3], f1, true);
+        const { queue } = mount();
+        env.self.audioResultFor.set('f2', unavailable('sign-in-needed'));
+        const hook = deferred();
+        env.self.beforePlay = hook.promise;
+        const play = queue.playSong(f2, store().playQueue, true);
+        await settle();
+
+        replaceWhole([x, y]);
+        hook.resolve();
+        await play;
+
+        expect(store().isFmMode).toBe(false);
+        expect(keys(store().playQueue)).toEqual(keys([x, y]));
+    });
+
+    it('a play that does not land puts FM back as it was when the play wrote it, a replacement during the hook\'s wait included', async () => {
+        // Personal FM started with a batch of its own (a list the store does not hold): after the hook it
+        // still turns FM on, as the user asked, over the replacement during the wait. Its address is refused.
+        playerWith([a, b, c], a);
+        const { queue } = mount();
+        env.self.audioResultFor.set('f1', unavailable('sign-in-needed'));
+        const hook = deferred();
+        env.self.beforePlay = hook.promise;
+        const play = queue.playSong(f1, [f1, f2], true);
+        await settle();
+
+        const replaced = [x, y];
+        replaceWhole(replaced);
+        hook.resolve();
+        await play;
+
+        // Nothing landed: FM goes back off, as the replacement had left it, under the queue the play never wrote.
+        expect(store().isFmMode).toBe(false);
+        expect(store().playQueue).toBe(replaced);
+    });
 });
 
 describe('the failure buttons after the queue was replaced whole', () => {
@@ -374,6 +437,37 @@ describe('the failure buttons after the queue was replaced whole', () => {
         expect(store().currentSong).toMatchObject({ id: 'x' });
         expect(store().isFmMode).toBe(false);
         expect(keys(store().playQueue)).toEqual(keys(replaced));
+    });
+
+    it('the skip after the countdown starts the new queue also when no song was current yet', async () => {
+        // A launch with no session: the first song tried fails before it ever becomes current.
+        playerWith([a, b, c], null);
+        const { queue, render } = mount();
+        env.self.audioResultFor.set('a', unavailable('no-audio'));
+        await queue.playSong(a, store().playQueue);
+        expect(status()).toMatchObject({ text: 'failure.noAudio', countdown: expect.anything() });
+
+        const replaced = [x, y];
+        replaceWhole(replaced);
+        render();
+        status()?.onAction?.();
+        await settle();
+
+        expect(store().currentSong).toMatchObject({ id: 'x' });
+        expect(keys(store().playQueue)).toEqual(keys(replaced));
+    });
+
+    it('without a whole-queue write that skip plays the next song of the queue it was given, as before', async () => {
+        playerWith([a, b, c], null);
+        const { queue, render } = mount();
+        env.self.audioResultFor.set('a', unavailable('no-audio'));
+        await queue.playSong(a, store().playQueue);
+
+        render();
+        status()?.onAction?.();
+        await settle();
+
+        expect(store().currentSong).toMatchObject({ id: 'b' });
     });
 
     it('the retry does not turn FM back on', async () => {
@@ -443,6 +537,30 @@ describe('the Personal FM top-up', () => {
         replaceWhole(replaced);
         render();
         batch.resolve([f3]);
+        await next;
+        await settle();
+
+        expect(keys(store().playQueue)).toEqual(keys(replaced));
+        expect(store().currentSong).toMatchObject({ id: 'x' });
+        expect(store().isFmMode).toBe(false);
+    });
+
+    it.each([
+        ['the second to last', f1],
+        ['the last', f2],
+    ])('a batch that fails after the queue was replaced whole (on %s song) puts no old FM queue back, and steps through the new queue', async (_where, current) => {
+        playerWith([f1, f2], current, true);
+        const { queue, render } = mount();
+        const batch = deferred<unknown[]>();
+        env.self.fmBatch = batch.promise;
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const next = queue.handleNextTrack();
+        await settle();
+
+        const replaced = [x, y];
+        replaceWhole(replaced);
+        render();
+        batch.reject(new Error('network'));
         await next;
         await settle();
 
