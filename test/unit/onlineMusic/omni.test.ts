@@ -623,6 +623,100 @@ describe('omni reads for callers beside the host UI', () => {
         expect(getSongDetails).not.toHaveBeenCalled();
     });
 
+    // A provider whose request takes only so many ids (`songDetailsPerRequest`) is asked in groups of that many,
+    // each group its own request through the caller's runner, so that every request is counted.
+    describe('a provider that takes so many ids a request', () => {
+        const registerGrouped = (
+            getSongDetails: (ids: (string | number)[]) => Promise<(UnifiedSong | null)[]>,
+            songDetailsPerRequest: number,
+        ) => registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            playback: { getSongDetail: async () => null, getSongDetails, songDetailsPerRequest, getAudioSource: async () => null },
+        });
+        const countingRun = () => {
+            const counted = { runs: 0 };
+            const run: OmniRequestRunner = work => {
+                counted.runs += 1;
+                return work();
+            };
+            return { counted, run };
+        };
+
+        it('asks it in groups, one after another, each through run, in the order of the ids', async () => {
+            let running = 0;
+            let most = 0;
+            const getSongDetails = vi.fn(async (ids: (string | number)[]) => {
+                running += 1;
+                most = Math.max(most, running);
+                await new Promise(resolve => setTimeout(resolve, 1));
+                running -= 1;
+                return ids.map(id => (id === 'd' ? null : song(providerId, String(id))));
+            });
+            registerGrouped(getSongDetails, 2);
+            const { counted, run } = countingRun();
+
+            const details = await omni.getSongDetails(providerId, ['a', 'b', 'c', 'd', 'e'], { run });
+
+            expect(getSongDetails.mock.calls.map(([ids]) => ids)).toEqual([['a', 'b'], ['c', 'd'], ['e']]);
+            expect(counted.runs).toBe(3);
+            expect(most).toBe(1);
+            expect(details.map(namesOf)).toEqual([
+                `${providerId}:a`, `${providerId}:b`, `${providerId}:c`, 'missing', `${providerId}:e`,
+            ]);
+        });
+
+        it('fails only the group whose request failed, and asks the groups after it', async () => {
+            const gone = new Error('the provider refused this group');
+            const getSongDetails = vi.fn(async (ids: (string | number)[]) => {
+                if (ids.includes('c')) throw gone;
+                return ids.map(id => song(providerId, String(id)));
+            });
+            registerGrouped(getSongDetails, 2);
+
+            const details = await omni.getSongDetails(providerId, ['a', 'b', 'c', 'd', 'e']);
+
+            expect(getSongDetails).toHaveBeenCalledTimes(3);
+            expect(details.map(namesOf)).toEqual([`${providerId}:a`, `${providerId}:b`, 'failed', 'failed', `${providerId}:e`]);
+            expect(details[2]).toEqual({ status: 'failed', error: gone });
+            expect(details[3]).toEqual({ status: 'failed', error: gone });
+        });
+
+        it('skips the group run refuses and every one after it, without asking them', async () => {
+            const getSongDetails = vi.fn(async (ids: (string | number)[]) => ids.map(id => song(providerId, String(id))));
+            registerGrouped(getSongDetails, 2);
+            const limited = Object.assign(new Error('rate-limited'), { code: 'rate-limited' });
+            let runs = 0;
+            const run: OmniRequestRunner = work => {
+                runs += 1;
+                return runs === 2 ? Promise.reject(limited) : work();
+            };
+
+            const details = await omni.getSongDetails(providerId, ['a', 'b', 'c', 'd', 'e'], { run });
+
+            expect(getSongDetails.mock.calls.map(([ids]) => ids)).toEqual([['a', 'b']]);
+            expect(runs).toBe(2);
+            expect(details).toEqual([
+                { status: 'found', song: expect.objectContaining({ name: `${providerId}:a` }) },
+                { status: 'found', song: expect.objectContaining({ name: `${providerId}:b` }) },
+                { status: 'skipped', error: limited },
+                { status: 'skipped', error: limited },
+                { status: 'skipped', error: limited },
+            ]);
+        });
+
+        it.each([0, -1, 2.5, Number.NaN])('asks all the ids at once where the number is %s', async (per) => {
+            const getSongDetails = vi.fn(async (ids: (string | number)[]) => ids.map(id => song(providerId, String(id))));
+            registerGrouped(getSongDetails, per);
+            const { counted, run } = countingRun();
+
+            const details = await omni.getSongDetails(providerId, ['a', 'b', 'c', 'd', 'e'], { run });
+
+            expect(getSongDetails.mock.calls.map(([ids]) => ids)).toEqual([['a', 'b', 'c', 'd', 'e']]);
+            expect(counted.runs).toBe(1);
+            expect(details.map(namesOf)).toEqual(['a', 'b', 'c', 'd', 'e'].map(id => `${providerId}:${id}`));
+        });
+    });
+
     it('asks any other provider for one song after another, never two at a time', async () => {
         let running = 0;
         let most = 0;

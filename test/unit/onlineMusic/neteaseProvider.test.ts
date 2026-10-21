@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NeteaseLoginHttpError, neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { describeNeteaseFailure } from '@/services/onlineMusic/netease/neteaseFailure';
-import { neteaseProvider } from '@/services/onlineMusic/netease/neteaseProvider';
+import { NETEASE_SONG_DETAIL_BATCH, neteaseProvider } from '@/services/onlineMusic/netease/neteaseProvider';
 import type { UnifiedSong } from '@/types';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import { parseLyricsAsync } from '@/utils/lyrics/workerClient';
@@ -166,6 +166,12 @@ describe('neteaseProvider', () => {
 
         await expect(neteaseProvider.playback!.getSongDetails!(ids)).rejects.toMatchObject({ code: 'unavailable' });
         expect(neteaseApi.getSongDetail).toHaveBeenCalledTimes(2);
+    });
+
+    // omni.getSongDetails hands it groups of this many, each its own request through the caller's runner.
+    it('says how many ids one song detail request carries', () => {
+        expect(neteaseProvider.playback?.songDetailsPerRequest).toBe(NETEASE_SONG_DETAIL_BATCH);
+        expect(NETEASE_SONG_DETAIL_BATCH).toBe(50);
     });
 
     it('normalizes album collection metadata into provider fields', async () => {

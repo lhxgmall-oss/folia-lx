@@ -854,12 +854,13 @@ export const omni = {
     },
 
     // Songs by id at one provider: one OmniSongDetail for each id, in the order of `ids`. A provider
-    // that looks many up in one request (`playback.getSongDetails`) is asked so, once for all of
-    // them; any other is asked `getSongDetail` for one id after another, never two at a time, and an
-    // id whose request fails does not stop the others. Each of those calls to the provider goes
-    // through `options.run` where the caller hands one in, for it to count and limit them: once
-    // `run` refuses one (or stops waiting for it), nothing more is asked and the ids left are
-    // `skipped`. The call itself rejects only for a provider that is not there.
+    // that looks many up in one request (`playback.getSongDetails`) is asked so, in groups of at most
+    // `playback.songDetailsPerRequest` ids (all of them where it says no number), one group after
+    // another; any other is asked `getSongDetail` for one id after another, never two at a time. A
+    // group or an id whose request fails does not stop the others. Each of those calls to the
+    // provider goes through `options.run` where the caller hands one in, for it to count and limit
+    // them: once `run` refuses one (or stops waiting for it), nothing more is asked and the ids left
+    // are `skipped`. The call itself rejects only for a provider that is not there.
     async getSongDetails(
         providerId: OmniProviderId,
         ids: MediaId[],
@@ -870,10 +871,20 @@ export const omni = {
         const run = options?.run ?? runDirectly;
         const lookUpMany = playback.getSongDetails?.bind(playback);
         if (lookUpMany) {
-            const outcome = await runThrough(run, () => lookUpMany(ids));
-            if (outcome.kind === 'answered') return ids.map((_, index) => songDetailOf(outcome.value[index]));
-            const status = outcome.kind === 'failed' ? 'failed' : 'skipped';
-            return ids.map(() => ({ status, error: outcome.error }));
+            const per = playback.songDetailsPerRequest;
+            const size = typeof per === 'number' && Number.isSafeInteger(per) && per > 0 ? per : ids.length;
+            const details: OmniSongDetail[] = [];
+            for (let start = 0; start < ids.length; start += size) {
+                const group = ids.slice(start, start + size);
+                const outcome = await runThrough(run, () => lookUpMany(group));
+                if (outcome.kind === 'refused') {
+                    while (details.length < ids.length) details.push({ status: 'skipped', error: outcome.error });
+                    break;
+                }
+                if (outcome.kind === 'failed') group.forEach(() => details.push({ status: 'failed', error: outcome.error }));
+                else group.forEach((_, index) => details.push(songDetailOf(outcome.value[index])));
+            }
+            return details;
         }
         const details: OmniSongDetail[] = [];
         for (const id of ids) {

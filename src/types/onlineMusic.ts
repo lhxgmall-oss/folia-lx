@@ -343,14 +343,25 @@ export interface OnlineSearchProvider {
 }
 
 export interface OnlinePlaybackProvider {
+    /**
+     * The song by id, or null where the platform has no song by it. Takes the song's `UnifiedSong.id`
+     * and also its `sourceRef.mediaId`; a platform whose two differ accepts both, in its own folder.
+     */
     getSongDetail(id: MediaId): Promise<UnifiedSong | null>;
     /**
-     * Songs by id, many in one request, in the order of `ids`: null for an id the platform has no
-     * song by. Left out where the platform looks songs up one at a time; `omni.getSongDetails`
-     * then asks `getSongDetail` for each. An answer that refuses the request rejects: it is not a
-     * row of nulls.
+     * Songs by id, many at once, in the order of `ids`: null for an id the platform has no song
+     * by. An id is either kind `getSongDetail` takes. Left out where the platform looks songs up
+     * one at a time; `omni.getSongDetails` then asks `getSongDetail` for each. An answer that
+     * refuses the request rejects: it is not a row of nulls.
      */
     getSongDetails?(ids: MediaId[]): Promise<(UnifiedSong | null)[]>;
+    /**
+     * How many ids one request of `getSongDetails` carries, for a platform whose request takes no
+     * more. `omni.getSongDetails` hands it groups of at most this many, one after another, each
+     * through the caller's runner, so that each request is counted. Left out: all the ids in one
+     * call. A positive integer; any other value counts as left out.
+     */
+    songDetailsPerRequest?: number;
     // 拿不到地址而知道为什么的抛错（provider 的 `describeFailure` 说它的意思）；null 是没有地址、也没有可说的。
     getAudioSource(song: SongResult, quality: AudioQualityPreference): Promise<ProviderAudioSource | null>;
     /**

@@ -353,6 +353,7 @@ export const neteaseProvider: OnlineMusicProvider = {
             }
             return numericIds.map(id => (id === null ? null : found.get(id) ?? null));
         },
+        songDetailsPerRequest: NETEASE_SONG_DETAIL_BATCH,
         async getAudioSource(song, quality) {
             const response = await neteaseApi.getSongUrl(toNeteaseId(song.id), mapQuality(quality));
             if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the song URL');

@@ -40,11 +40,14 @@ vi.mock('@/services/onlineMusic/kugou/kugouTransport', async (importOriginal) =>
     requestKugou,
     requestKugouAnonymousSearch,
 }));
-// QQ Music's adapter is real as well; only its request to the backend is replaced.
+// QQ Music's adapter is real as well; only its request to the backend is replaced, and the request it sends
+// to QQ's musicu directly (a song by its numeric songid, songs many at once).
 const requestQq = vi.hoisted(() => vi.fn());
+const requestQqMusicu = vi.hoisted(() => vi.fn());
 vi.mock('@/services/onlineMusic/qq/qqTransport', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
     requestQq,
+    requestQqMusicu,
 }));
 
 import type { SongResult } from '@/types';
@@ -172,6 +175,7 @@ afterEach(() => {
     requestKugou.mockReset();
     requestKugouAnonymousSearch.mockReset();
     requestQq.mockReset();
+    requestQqMusicu.mockReset();
     vi.useRealTimers();
     vi.restoreAllMocks();
 });
@@ -637,26 +641,120 @@ describe('folium.omni.resolveSongs', () => {
         expect(details).toHaveBeenCalledTimes(4);
     });
 
-    // QQ Music's song id (`FoliumSong.id`) is the numeric songid, which its adapter cannot look up yet. Such
-    // a key fails (keep it, try later): it never comes back not-found, which a mod may delete the key for,
-    // and nothing of it is kept. Its songmid still resolves.
-    it('answers a QQ Music key by its numeric songid failed / unavailable, never not-found, and keeps nothing of it', async () => {
-        const api = omniOf();
-        const key = { source: 'qq', id: '97773' };
-        for (let call = 0; call < 2; call += 1) {
-            await expect(api.resolveSongs([key])).resolves.toEqual([{ status: 'failed', code: 'unavailable' }]);
-        }
-        expect(readFoliumResolvedSong('qq', '97773')).toBeUndefined();
-        expect(requestQq).not.toHaveBeenCalled();
-        expect(console.warn).toHaveBeenCalledWith('[Folium:mod-a] omni.resolveSongs qq: unavailable', expect.objectContaining({ code: 'unavailable', providerId: 'qq' }));
+    // QQ Music's song id (`FoliumSong.id`) is the numeric songid; its play key is the songmid. Its adapter looks
+    // both up at QQ's musicu, 25 a request, and every request counts once against the mod's allowance.
+    describe('QQ Music keys', () => {
+        type MusicuRequests = Record<string, { module: string; method: string; param: { song_type: number; song_id?: unknown; song_mid?: unknown } }>;
+        const SUNNY_MID = '0039MnYb0qxYhV';
+        /* A QQ Music song detail as musicu answers it. */
+        const qqTrack = (id: number) => ({
+            id,
+            mid: id === 97773 ? SUNNY_MID : `00${id}`,
+            title: id === 97773 ? '晴天' : `qq ${id}`,
+            singer: [{ id: 4558, mid: '0025NhlN2yWrP4', name: '周杰伦' }],
+            album: { id: 8220, mid: '000MkMni19ClKG', name: '叶惠美' },
+            interval: 269,
+        });
+        const EMPTY_TRACK = { id: 0, mid: '', name: '' };
+        /* musicu answering every request: the songs `known` says it has, an empty shell for the others. */
+        const answerMusicu = (known: (id: number) => boolean = () => true) => requestQqMusicu.mockImplementation(async (requests: MusicuRequests) => (
+            Object.fromEntries(Object.entries(requests).map(([key, { param }]) => {
+                const id = param.song_mid === SUNNY_MID ? 97773 : param.song_id;
+                if (typeof id === 'number' && known(id)) return [key, { code: 0, data: { track_info: qqTrack(id) } }];
+                return [key, { code: param.song_mid !== undefined ? 404 : 0, data: { track_info: EMPTY_TRACK } }];
+            }))
+        ));
+        const sentRequests = (call: number) => Object.values(requestQqMusicu.mock.calls[call][0] as MusicuRequests);
+        const keysOf = (ids: number[]) => ids.map((id) => ({ source: 'qq', id: String(id) }));
+        const statusOf = (result: { status: string; code?: string }) => (result.status === 'failed' ? `failed ${result.code}` : result.status);
+        const gateOf = () => createFoliumRequestGate({ modId: 'mod-a', what: 'omni.test', signal: new AbortController().signal, originOf: () => 'host' });
 
-        requestQq.mockResolvedValueOnce({ response: { songinfo: { data: { track_info: {
-            id: 97773, mid: '0039MnYb0qxYhV', title: '晴天', singer: [{ id: 4558, mid: '0025NhlN2yWrP4', name: '周杰伦' }],
-            album: { id: 8220, mid: '000MkMni19ClKG', name: '叶惠美' }, interval: 269,
-        } } } } });
-        const [resolution] = await api.resolveSongs([{ source: 'qq', id: '0039MnYb0qxYhV' }]);
-        expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: '97773', title: '晴天' } });
-        expect(requestQq).toHaveBeenCalledWith('song_info', { songmid: '0039MnYb0qxYhV' });
+        it('finds a key by its numeric songid at musicu, keeps it, and answers it again without asking', async () => {
+            answerMusicu();
+            const api = omniOf();
+            const [resolution] = await api.resolveSongs([{ source: 'qq', id: '97773' }]);
+
+            expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: '97773', title: '晴天' } });
+            const song = (resolution as { song: FoliumSong }).song;
+            expect(resolveFoliumSongRef(song.ref)).toMatchObject({ id: 97773, qqMid: SUNNY_MID });
+            expect(requestQqMusicu).toHaveBeenCalledTimes(1);
+            expect(sentRequests(0)).toEqual([{
+                module: 'music.pf_song_detail_svr', method: 'get_song_detail_yqq', param: { song_type: 0, song_id: 97773 },
+            }]);
+            expect(requestQq).not.toHaveBeenCalled();
+
+            await expect(api.resolveSongs([{ source: 'qq', id: '97773' }])).resolves.toMatchObject([{ status: 'found', song: { id: '97773' } }]);
+            expect(requestQqMusicu).toHaveBeenCalledTimes(1);
+        });
+
+        it('finds a key by its songmid at musicu too, as the same song with its numeric id', async () => {
+            answerMusicu();
+            const [resolution] = await omniOf().resolveSongs([{ source: 'qq', id: SUNNY_MID }]);
+
+            expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: '97773', title: '晴天' } });
+            expect(requestQqMusicu).toHaveBeenCalledTimes(1);
+            const [request] = sentRequests(0);
+            expect(request.param.song_mid).toBe(SUNNY_MID);
+            expect(request.param).not.toHaveProperty('song_id');
+            expect(requestQq).not.toHaveBeenCalled();
+        });
+
+        it('asks 50 keys in two requests, which count twice', async () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+            answerMusicu();
+            const gate = gateOf();
+            await Promise.all(range(1, 118).map(() => gate.run('netease', () => Promise.resolve())));
+
+            const ids = range(1000, 50);
+            const results = await omniOf().resolveSongs(keysOf(ids));
+
+            expect(results.map(statusOf)).toEqual(Array(50).fill('found'));
+            expect(results.map((result) => (result as { song: FoliumSong }).song.id)).toEqual(ids.map(String));
+            expect(requestQqMusicu).toHaveBeenCalledTimes(2);
+            expect([0, 1].map((call) => sentRequests(call).length)).toEqual([25, 25]);
+            // 118 and 2: the minute's 120 are used up.
+            await expect(failureOf(gate.run('netease', () => Promise.resolve()))).resolves.toBe('rate-limited');
+        });
+
+        it('answers the second request\'s keys failed / rate-limited once the minute runs out between them', async () => {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+            answerMusicu();
+            const gate = gateOf();
+            await Promise.all(range(1, 119).map(() => gate.run('netease', () => Promise.resolve())));
+
+            const results = await omniOf().resolveSongs(keysOf(range(1000, 50)));
+
+            expect(results.map(statusOf)).toEqual([...Array(25).fill('found'), ...Array(25).fill('failed rate-limited')]);
+            expect(requestQqMusicu).toHaveBeenCalledTimes(1);
+        });
+
+        it('answers a song QQ has not not-found and keeps that, and a failed request failed, keeping nothing', async () => {
+            answerMusicu((id) => id === 97773);
+            const api = omniOf();
+            await expect(api.resolveSongs(keysOf([97773, 2000000000]))).resolves.toEqual([
+                expect.objectContaining({ status: 'found' }),
+                { status: 'not-found' },
+            ]);
+            expect(readFoliumResolvedSong('qq', '2000000000')).toEqual(expect.objectContaining({ song: null }));
+            await expect(api.resolveSongs(keysOf([2000000000]))).resolves.toEqual([{ status: 'not-found' }]);
+            expect(requestQqMusicu).toHaveBeenCalledTimes(1);
+
+            requestQqMusicu.mockRejectedValueOnce(new OnlineProviderError('network', 'QQ musicu unreachable: Failed to fetch', 'qq'));
+            await expect(api.resolveSongs(keysOf([1, 2]))).resolves.toEqual(Array(2).fill({ status: 'failed', code: 'network' }));
+            expect(readFoliumResolvedSong('qq', '1')).toBeUndefined();
+            expect(readFoliumResolvedSong('qq', '2')).toBeUndefined();
+
+            requestQqMusicu.mockRejectedValueOnce(new OnlineProviderError('network', 'QQ musicu request failed: 429', 'qq', undefined, 429));
+            await expect(api.resolveSongs(keysOf([3]))).resolves.toEqual([{ status: 'failed', code: 'rate-limited' }]);
+
+            // A request QQ refused (another code than 0 or 404): failed, never not-found or unsupported.
+            requestQqMusicu.mockResolvedValueOnce({ q0: { code: 2001, data: undefined } });
+            await expect(api.resolveSongs(keysOf([4]))).resolves.toEqual([{ status: 'failed', code: 'network' }]);
+            expect(readFoliumResolvedSong('qq', '4')).toBeUndefined();
+            expect(requestQq).not.toHaveBeenCalled();
+        });
     });
 
     it('asks a source without a lookup of many once per key', async () => {
