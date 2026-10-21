@@ -33,9 +33,12 @@ vi.mock('@/utils/lyrics/workerClient', async () => {
 
 // KuGou's adapter is real; only its request to the backend is replaced.
 const requestKugou = vi.hoisted(() => vi.fn());
+// Its search without a signed-in session goes to the backend by a request of its own, replaced too.
+const requestKugouAnonymousSearch = vi.hoisted(() => vi.fn());
 vi.mock('@/services/onlineMusic/kugou/kugouTransport', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/services/onlineMusic/kugou/kugouTransport')>(),
     requestKugou,
+    requestKugouAnonymousSearch,
 }));
 
 import type { SongResult } from '@/types';
@@ -161,6 +164,7 @@ afterEach(() => {
     omniProvidersRegistry.unregisterAll('mod-a');
     removeFoliumEventHandlers('mod-b');
     requestKugou.mockReset();
+    requestKugouAnonymousSearch.mockReset();
     vi.useRealTimers();
     vi.restoreAllMocks();
 });
@@ -315,6 +319,47 @@ describe('folium.omni.searchSongs', () => {
         held.answer(1);
         await expect(named).resolves.toBe('account-changed');
     });
+
+    it('searches the source selected now, the default one or not', async () => {
+        const search = answerSearches();
+        store().setActiveProviderId('kugou');
+        requestKugouAnonymousSearch.mockResolvedValue({ data: { lists: [{ FileHash: 'k1', SongName: 'K song', Singers: [{ id: 7, name: 'K' }], Duration: 200 }] } });
+        const page = await omniOf().searchSongs('hello', { limit: 5 });
+        expect(page.items.map((song) => [song.source, song.title])).toEqual([['kugou', 'K song']]);
+        expect(requestKugouAnonymousSearch).toHaveBeenCalledTimes(1);
+        expect(search).not.toHaveBeenCalled();
+    });
+
+    it('rejects account-changed, not a malformed cursor, for a later page once the selection moved on', async () => {
+        const search = answerSearches();
+        const api = omniOf();
+        const first = await api.searchSongs('hello', { limit: 10 });
+        store().setActiveProviderId('kugou');
+        await expect(failureOf(api.searchSongs('hello', { cursor: first.nextCursor! }))).resolves.toBe('account-changed');
+        expect(search).toHaveBeenCalledTimes(1);
+        expect(requestKugouAnonymousSearch).not.toHaveBeenCalled();
+    });
+
+    it('does not send a search of the selected source that waited for its place while the selection moved on', async () => {
+        const held = holdSearches();
+        const api = omniOf();
+        const named = range(0, 8).map(() => api.searchSongs('hello', { providerId: 'netease' }).catch(() => null));
+        await settle();
+        const waiting = failureOf(api.searchSongs('tune'));
+        await settle();
+        expect(held.spy).toHaveBeenCalledTimes(8);
+        // The host's switch: the requests under way are written off, then the selection moves.
+        omni.invalidateActiveRequests();
+        store().setActiveProviderId('kugou');
+        held.answer(0);
+        await expect(waiting).resolves.toBe('account-changed');
+        // Neither the source it was counted against nor the one selected now was asked.
+        expect(held.spy).toHaveBeenCalledTimes(8);
+        expect(requestKugouAnonymousSearch).not.toHaveBeenCalled();
+        expect(requestKugou).not.toHaveBeenCalled();
+        range(1, 7).forEach((index) => held.answer(index));
+        await Promise.all(named);
+    });
 });
 
 describe('folium.omni paging', () => {
@@ -336,6 +381,43 @@ describe('folium.omni paging', () => {
         expect([...first.items, ...second.items, ...third.items].map((song) => song.id)).toEqual(range(1, 120).map(String));
         expect(getAlbum).toHaveBeenCalledTimes(1);
         expect(first.total).toBeNull();
+    });
+
+    it('hands out all of a whole album past what a cursor keeps of a source with more, asking once, and ends it', async () => {
+        const getAlbum = vi.spyOn(neteaseApi, 'getAlbum').mockResolvedValue({
+            code: 200,
+            album: { id: 101, name: 'Complete', type: '专辑', size: 1200, artists: [{ id: 7, name: 'Artist' }] },
+            songs: range(1, 1200).map((id) => rawSong(id)),
+        } as never);
+        const api = omniOf();
+        const album = (await api.resolveCollection({ source: 'netease', kind: 'album', id: '101' }))!;
+        getAlbum.mockClear();
+        const pages = [await api.getTracks(album, { limit: 50 })];
+        while (pages[pages.length - 1].nextCursor && pages.length < 40) {
+            pages.push(await api.getTracks(album, { cursor: pages[pages.length - 1].nextCursor! }));
+        }
+        expect(pages).toHaveLength(24);
+        expect(pages[23].nextCursor).toBeNull();
+        expect(pages.flatMap((page) => page.items.map((song) => song.id))).toEqual(range(1, 1200).map(String));
+        expect(getAlbum).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks a source that says it has more for what it gave past what a cursor keeps again, from the first one dropped', async () => {
+        const all = range(1, 3000).map((id) => providerSong(`p${id}`));
+        const search = vi.fn(async (_query: string, page: { limit: number; offset: number }) => {
+            const end = Math.min(page.offset + 2000, all.length);
+            return { items: all.slice(page.offset, end), hasMore: end < all.length };
+        });
+        const big = modSource({ id: 'big', displayName: 'Big', search });
+        const api = omniOf();
+        const pages = [await api.searchSongs('all', { providerId: big, limit: 50 })];
+        while (pages[pages.length - 1].nextCursor && pages.length < 100) {
+            pages.push(await api.searchSongs('all', { providerId: big, cursor: pages[pages.length - 1].nextCursor! }));
+        }
+        expect(pages).toHaveLength(60);
+        expect(pages.flatMap((page) => page.items.map((song) => song.id))).toEqual(all.map((song) => song.id));
+        // 50 handed out and 1,000 kept of the first 2,000; the rest asked for from the 1,051st on.
+        expect(search.mock.calls.map(([, page]) => page.offset)).toEqual([0, 1050]);
     });
 
     it('follows a source that caps its pages at 30, without overlap', async () => {
@@ -472,6 +554,32 @@ describe('folium.omni.resolveSongs', () => {
         // A refusal the backend answers with (502 where the local backend cannot reach the platform).
         details.mockResolvedValueOnce({ code: 502 } as never);
         await expect(api.resolveSongs([{ source: 'netease', id: '1' }])).resolves.toEqual([{ status: 'failed', code: 'unavailable' }]);
+    });
+
+    it('tells a session that ran out, a paying account, and an account that changed on the way', async () => {
+        const details = vi.spyOn(neteaseApi, 'getSongDetail');
+        const api = omniOf();
+        const keys = [{ source: 'netease', id: '1' }, { source: 'netease', id: '2' }];
+        // Signed in when the request went out: the session ran out.
+        signIn('netease', 5);
+        details.mockRejectedValueOnce(new OnlineProviderError('auth-required', 'sign in again', 'netease'));
+        await expect(api.resolveSongs(keys)).resolves.toEqual(Array(2).fill({ status: 'failed', code: 'session-expired' }));
+        details.mockRejectedValueOnce(new OnlineProviderError('subscription-required', 'pay', 'netease'));
+        await expect(api.resolveSongs(keys)).resolves.toEqual(Array(2).fill({ status: 'failed', code: 'vip-required' }));
+        // Another account signs in while the request is under way: its answer is dropped, for every key.
+        let answer = () => {};
+        details.mockImplementationOnce(() => new Promise((resolve) => {
+            answer = () => resolve({ code: 200, songs: [rawSong(1), rawSong(2)] } as never);
+        }));
+        const changed = api.resolveSongs(keys);
+        await settle();
+        signIn('netease', 6);
+        answer();
+        await expect(changed).resolves.toEqual(Array(2).fill({ status: 'failed', code: 'account-changed' }));
+        // None of it was kept: asked again, the source is asked again.
+        details.mockResolvedValueOnce({ code: 200, songs: [rawSong(1), rawSong(2)] } as never);
+        await expect(api.resolveSongs(keys)).resolves.toMatchObject([{ status: 'found' }, { status: 'found' }]);
+        expect(details).toHaveBeenCalledTimes(4);
     });
 
     it('asks a source without a lookup of many once per key', async () => {
@@ -717,6 +825,21 @@ describe('folium.omni albums and artists', () => {
         await expect(failureOf(api.getArtistAlbums({ ...gone, kind: 'artist' }))).resolves.toBe('stale-ref');
         await expect(api.getTracks({ ...gone, ref: '' })).rejects.toThrow('invalid-arguments: pass a collection DTO that came from the host');
     });
+
+    it('refuses a collection where a song goes, and a song where a collection goes, as malformed rather than stale', async () => {
+        vi.spyOn(neteaseApi, 'getAlbum').mockResolvedValue({ code: 200, album: { id: 61, name: 'Album 61' }, songs: [] } as never);
+        const api = omniOf();
+        const album = (await api.resolveCollection({ source: 'netease', kind: 'album', id: '61' }))!;
+        const asSong = album as unknown as FoliumSong;
+        const asCollection = dtoOf(hostSong({ id: 62 })) as unknown as FoliumCollection;
+        expect(() => api.describeSong(asSong)).toThrow(new TypeError('invalid-arguments: pass a song DTO that came from the host'));
+        for (const call of [api.getLyrics(asSong), api.getAlbum(asSong), api.getArtists(asSong)]) {
+            await expect(call).rejects.toThrow(new TypeError('invalid-arguments: pass a song DTO that came from the host'));
+        }
+        for (const call of [api.getTracks(asCollection), api.getArtistAlbums(asCollection)]) {
+            await expect(call).rejects.toThrow(new TypeError('invalid-arguments: pass a collection DTO that came from the host'));
+        }
+    });
 });
 
 describe('folium.omni abort and time limits', () => {
@@ -902,5 +1025,34 @@ describe('folium.omni failures', () => {
             search: async () => { throw Object.assign(new Error('rate-limited'), { code: 'rate-limited' }); },
         });
         await expect(failureOf(omniOf().searchSongs('q', { providerId: forged }))).resolves.toBe('network');
+    });
+
+    it('reads an allowance\'s refusal a mod\'s source rejects with as that source\'s failure, network, not as the caller\'s', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+        answerSearches();
+        const fromA = omniOf('mod-a');
+        let inner: (Error & { code?: string }) | null = null;
+        const relay = modSource({
+            id: 'relay',
+            displayName: 'Relay',
+            search: async (query) => {
+                try {
+                    const page = await fromA.searchSongs(query, { providerId: 'netease', limit: 1 });
+                    return { items: page.items.map((song) => providerSong(`via-${song.id}`)), hasMore: false };
+                } catch (error) {
+                    inner = error as Error & { code?: string };
+                    throw error;
+                }
+            },
+        });
+        // mod-a's minute runs out, so the relay's own read inside is refused.
+        const gate = createFoliumRequestGate({ modId: 'mod-a', what: 'omni.test', signal: new AbortController().signal, originOf: () => 'host' });
+        await Promise.all(range(1, 120).map(() => gate.run('netease', () => Promise.resolve())));
+        const outer = await omniOf('mod-b').searchSongs('q', { providerId: relay }).then(() => null, (error: Error & { code?: string }) => error);
+        expect(inner).toMatchObject({ code: 'rate-limited' });
+        expect(outer).toMatchObject({ code: 'network', message: 'network' });
+        expect(outer).not.toBe(inner);
+        expect(vi.mocked(console.warn)).toHaveBeenCalledWith(`[Folium:mod-b] omni.searchSongs ${relay}: network`, inner);
     });
 });

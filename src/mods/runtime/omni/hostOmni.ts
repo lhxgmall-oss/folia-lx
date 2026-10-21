@@ -102,14 +102,24 @@ const ask = async <T>(
 ): Promise<T> => {
     const where = `[Folium:${call.modId}] omni.${call.method} ${providerId}`;
     let sentAs: SentAs | null = null;
+    // What `work` itself rejected with, told apart from the gate's own refusals: a mod's source may
+    // reject with an allowance's error of its own (its inner `folium.omni` call refused), which is a
+    // failure of that source here (`network`), not this call's allowance, and not its object to hand on.
+    let ownFailure: { error: unknown } | null = null;
     let value: T;
     try {
-        value = await call.gate.run(providerId, () => {
+        value = await call.gate.run(providerId, async () => {
             sentAs = sentAsOf(providerId);
-            return work();
+            try {
+                return await work();
+            } catch (error) {
+                ownFailure = { error };
+                throw error;
+            }
         });
     } catch (error) {
-        if (isFoliumRequestQuotaError(error)) {
+        const own = ownFailure as { error: unknown } | null;
+        if ((own === null || own.error !== error) && isFoliumRequestQuotaError(error)) {
             if (error.code === 'network') console.warn(`${where}: network, no answer in time`);
             throw error;
         }
@@ -182,15 +192,21 @@ const searchSongs = async (
             throw foliumOmniError('account-changed');
         }
     }
+    // The selection as the call found it. A request that waits for its place is counted against
+    // `target`, while omni's selected route sends it wherever the selection is once it goes out: one
+    // that finds the selection moved on by then is not sent at all (`account-changed`).
+    const generation = omni.getActiveRequestGeneration();
     const slice = await readFoliumOmniPage<UnifiedSong>({
         list: { method, providerId: target, subject: query },
         cursor: page.cursor,
         limit: page.limit,
-        fetch: (asked) => ask(call, target, () => (
-            selected
-                ? omni.searchSongs(query, asked, sessionOf(call))
-                : omni.searchProviderSongs(target, query, asked, sessionOf(call))
-        ), { activeRoute: selected }),
+        fetch: (asked) => ask(call, target, async () => {
+            if (!selected) return omni.searchProviderSongs(target, query, asked, sessionOf(call));
+            if (omni.getActiveRequestGeneration() !== generation || omni.getActiveProviderSummary()?.providerId !== target) {
+                throw new DOMException('The selected source changed while the request waited', 'AbortError');
+            }
+            return omni.searchSongs(query, asked, sessionOf(call));
+        }, { activeRoute: selected }),
     });
     return freezePage(slice, slice.items.map(toFoliumOmniSong));
 };

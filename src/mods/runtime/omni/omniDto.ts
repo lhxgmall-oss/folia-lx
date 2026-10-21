@@ -16,6 +16,7 @@ import type {
 } from '../../folium/contract';
 import { toFoliumLines, toFoliumSong } from '../../folium/dto';
 import { isFoliumProviderId } from '../../folium/omni/providerIds';
+import { FOLIUM_COLLECTION_REF_PREFIX } from '../../folium/omni/service';
 
 // src/mods/runtime/omni/omniDto.ts
 // What `folium.omni` hands out, projected from Omni's types (Folium 1.7): frozen all the way down, and
@@ -42,7 +43,7 @@ const collectionRefFor = (collection: OmniCollection): string => {
         return existing;
     }
     collectionRefCounter += 1;
-    const ref = `collection-${collectionRefCounter.toString(36)}`;
+    const ref = `${FOLIUM_COLLECTION_REF_PREFIX}${collectionRefCounter.toString(36)}`;
     refByCollection.set(collection, ref);
     collectionByRef.set(ref, collection);
     if (collectionByRef.size > MAX_COLLECTION_REFS) {

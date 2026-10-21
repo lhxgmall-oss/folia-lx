@@ -11,7 +11,12 @@ import { foliumOmniError } from '../../folium/omni/service';
 
 /** Cursors kept, the least recently used dropped first. */
 const MAX_CURSORS = 500;
-/** Items a cursor keeps of what a source gave beyond a page; past it they are asked for again. */
+/**
+ * Items a cursor keeps of what a source gave beyond a page; past it they are asked for again. Only of a
+ * source that says it has more: one that says it has no more keeps all it gave, since asking it again
+ * could not be trusted to go on from there (a source that answers its whole list whatever offset it is
+ * given would hand out the first items again, and the list would never end).
+ */
 const MAX_LEFTOVER = 1000;
 
 /**
@@ -32,8 +37,13 @@ interface CursorState {
     readonly providerHasMore: boolean;
     /** The page length the first page set. */
     readonly limit: number;
-    /** What the source gave that was not handed out yet, in its order. */
+    /**
+     * What the source gave that was not handed out yet, in its order: `leftover` from `start` on. The
+     * cursors of one answer share its array, so paging through a long answer copies nothing.
+     */
     readonly leftover: readonly unknown[];
+    /** Where in `leftover` this cursor's page begins. */
+    readonly start: number;
     /** The whole list's length as the source last said it; null when it did not. */
     readonly total: number | null;
 }
@@ -98,7 +108,7 @@ export interface FoliumOmniPageRead<T> {
 export const readFoliumOmniPage = async <T>(read: FoliumOmniPageRead<T>): Promise<FoliumOmniSlice<T>> => {
     let state: CursorState;
     if (read.cursor === null) {
-        state = { list: read.list, providerOffset: 0, providerHasMore: true, limit: read.limit, leftover: [], total: null };
+        state = { list: read.list, providerOffset: 0, providerHasMore: true, limit: read.limit, leftover: [], start: 0, total: null };
     } else {
         const found = takeCursor(read.cursor);
         if (!found) throw foliumOmniError('stale-ref');
@@ -107,31 +117,34 @@ export const readFoliumOmniPage = async <T>(read: FoliumOmniPageRead<T>): Promis
     }
     const { limit } = state;
     let available = state.leftover as T[];
-    let { providerOffset, providerHasMore, total } = state;
+    let { start, providerOffset, providerHasMore, total } = state;
 
-    if (available.length < limit && providerHasMore) {
+    if (available.length - start < limit && providerHasMore) {
         const answer = await read.fetch({ limit, offset: providerOffset });
         const answered = Array.isArray(answer?.items) ? answer.items : [];
         const items = read.keep ? answered.filter(read.keep) : answered;
-        available = [...available, ...items];
+        // Less than a page is left over here, so this copies little.
+        available = [...available.slice(start), ...items];
+        start = 0;
         const nextOffset = Number.isFinite(answer?.nextOffset) ? answer.nextOffset : providerOffset + answered.length;
         providerOffset = nextOffset;
         providerHasMore = Boolean(answer?.hasMore);
         if (typeof answer?.total === 'number' && Number.isFinite(answer.total) && answer.total >= 0) total = answer.total;
-        // More than a cursor keeps: the rest is asked for again, from the first one dropped. This counts
-        // items as offsets do, which holds for the sources that answer more than they are asked for.
-        if (available.length > limit + MAX_LEFTOVER) {
+        // More than a cursor keeps, from a source that says it has more: the rest is asked for again,
+        // from the first one dropped. This counts items as offsets do, which holds for the sources that
+        // answer more than they are asked for. What a source that says it has no more gave is all kept
+        // (MAX_LEFTOVER).
+        if (providerHasMore && available.length > limit + MAX_LEFTOVER) {
             const dropped = available.length - (limit + MAX_LEFTOVER);
             available = available.slice(0, limit + MAX_LEFTOVER);
             providerOffset = Math.max(0, nextOffset - dropped);
-            providerHasMore = true;
         }
     }
 
-    const items = available.slice(0, limit);
-    const leftover = available.slice(limit);
-    const nextCursor = leftover.length > 0 || providerHasMore
-        ? mintCursor({ list: state.list, providerOffset, providerHasMore, limit, leftover, total })
+    const items = available.slice(start, start + limit);
+    const next = start + items.length;
+    const nextCursor = next < available.length || providerHasMore
+        ? mintCursor({ list: state.list, providerOffset, providerHasMore, limit, leftover: available, start: next, total })
         : null;
     return { items, nextCursor, total };
 };

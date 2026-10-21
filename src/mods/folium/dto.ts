@@ -173,6 +173,8 @@ const describeSource = (song: SongResult): string | null => {
  * must not push out the refs the queue and other mods hold; one call still returns far fewer.
  */
 export const FOLIUM_SONG_REF_POOL_SIZE = 5000;
+/** How every song ref begins; `folium.omni` tells a song DTO from a collection DTO by it. */
+export const FOLIUM_SONG_REF_PREFIX = 'song-';
 const refBySong = new WeakMap<SongResult, string>();
 const songByRef = new Map<string, SongResult>();
 let refCounter = 0;
@@ -186,7 +188,7 @@ const refFor = (song: SongResult): string => {
         return existing;
     }
     refCounter += 1;
-    const ref = `song-${refCounter.toString(36)}`;
+    const ref = `${FOLIUM_SONG_REF_PREFIX}${refCounter.toString(36)}`;
     refBySong.set(song, ref);
     songByRef.set(ref, song);
     if (songByRef.size > FOLIUM_SONG_REF_POOL_SIZE) {

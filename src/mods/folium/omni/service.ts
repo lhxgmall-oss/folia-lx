@@ -14,6 +14,7 @@ import type {
     FoliumSongResolution,
 } from '../contract';
 import type { FoliumStoppedCheck } from '../api';
+import { FOLIUM_SONG_REF_PREFIX } from '../dto';
 import { createFoliumRequestGate, type FoliumRequestGate } from './requestQuota';
 import { isFoliumProviderId } from './providerIds';
 
@@ -134,15 +135,22 @@ const pageOf = (options: Record<string, unknown>, rules: { fallback: number; mos
     limit: limitOf(options, rules),
 });
 
+/**
+ * How a collection ref begins (runtime/omni/omniDto.ts mints them), as against a song ref
+ * (`FOLIUM_SONG_REF_PREFIX`): a DTO of the other kind is a malformed argument, not a ref gone stale,
+ * which reading it again would never mend.
+ */
+export const FOLIUM_COLLECTION_REF_PREFIX = 'collection-';
+
 const songRefOf = (song: unknown): string => {
     const ref = isPlainObject(song) ? song.ref : undefined;
-    if (typeof ref !== 'string' || ref === '') throw invalid('pass a song DTO that came from the host');
+    if (typeof ref !== 'string' || !ref.startsWith(FOLIUM_SONG_REF_PREFIX)) throw invalid('pass a song DTO that came from the host');
     return ref;
 };
 
 const collectionRefOf = (collection: unknown): string => {
     const ref = isPlainObject(collection) ? collection.ref : undefined;
-    if (typeof ref !== 'string' || ref === '') throw invalid('pass a collection DTO that came from the host');
+    if (typeof ref !== 'string' || !ref.startsWith(FOLIUM_COLLECTION_REF_PREFIX)) throw invalid('pass a collection DTO that came from the host');
     return ref;
 };
 
