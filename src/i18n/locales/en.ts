@@ -603,6 +603,7 @@ export default {
       "playback-sound-preset-bass": { "title": "Sound: Bass boost", "description": "Heavier low end with extra punch" },
       "playback-sound-preset-custom1": { "title": "Sound: Custom 1", "description": "Apply the first saved custom sound" },
       "playback-sound-preset-custom2": { "title": "Sound: Custom 2", "description": "Apply the second saved custom sound" },
+      "playback-sound-mod-curve-release": { "title": "Sound: Back to my own", "description": "Take off the equalizer curve a mod put in place" },
       "settings-local-lyrics-priority": { "title": "Local song lyrics priority", "description": "Choose whether local songs prefer local or online lyrics" },
       "settings-local-lyric-format-order": { "title": "Local lyric file format priority", "description": "Choose which format wins when a track has several lyric files" },
       "settings-integration": { "title": "Integration settings", "description": "Open Stage, Now Playing, and Navidrome settings" },
@@ -919,6 +920,12 @@ export default {
       "space": "Space",
       "punch": "Punch"
     },
+    "equalizerModCurve": "This curve comes from the mod \"{{name}}\"",
+    "equalizerModCurveHint": "Your presets and custom slots are untouched. To adjust this curve, first save it to a custom slot.",
+    "equalizerModCurveRelease": "Back to my sound",
+    "equalizerModCurveSave": "Save to {{slot}} (replaces it)",
+    "equalizerModCurveDormant": "The curve of the mod \"{{name}}\" is on hold: the mod is disabled or removed, and the curve comes back when it is enabled again. Changing your sound here discards it.",
+    "equalizerModCurveDiscard": "Discard this curve",
     "equalizerPreset": {
       "flat": "Level",
       "lofi": "Lo-Fi",

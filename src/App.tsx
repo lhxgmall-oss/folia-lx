@@ -1321,6 +1321,7 @@ export default function App() {
         syncOutputGain,
         getTargetPlaybackVolume,
         getCoverUrl,
+        isTransitionAudible: automix.isTransitionAudible,
     });
 
     const handleTranscodeFallback = useTranscodeFallback({

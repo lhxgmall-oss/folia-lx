@@ -603,6 +603,7 @@ export default {
       "playback-sound-preset-bass": { "title": "Suara: Boost bass", "description": "Bass lebih berat dengan pukulan ekstra" },
       "playback-sound-preset-custom1": { "title": "Suara: Kustom 1", "description": "Terapkan suara kustom pertama yang disimpan" },
       "playback-sound-preset-custom2": { "title": "Suara: Kustom 2", "description": "Terapkan suara kustom kedua yang disimpan" },
+      "playback-sound-mod-curve-release": { "title": "Suara: Kembali ke milik saya", "description": "Lepaskan kurva equalizer dari mod dan kembali ke suara Anda" },
       "settings-local-lyrics-priority": { "title": "Prioritas lirik lagu lokal", "description": "Pilih apakah lagu lokal lebih mengutamakan lirik lokal atau online" },
       "settings-local-lyric-format-order": { "title": "Prioritas format file lirik lokal", "description": "Pilih format yang digunakan saat satu lagu memiliki beberapa file lirik" },
       "settings-integration": { "title": "Pengaturan integrasi", "description": "Buka pengaturan Stage, Now Playing, dan Navidrome" },
@@ -919,6 +920,12 @@ export default {
       "space": "Ruang",
       "punch": "Pukulan"
     },
+    "equalizerModCurve": "Kurva ini berasal dari mod \"{{name}}\"",
+    "equalizerModCurveHint": "Preset dan slot kustom Anda tidak berubah. Untuk menyesuaikan kurva ini, simpan dulu ke salah satu slot kustom.",
+    "equalizerModCurveRelease": "Kembali ke suara saya",
+    "equalizerModCurveSave": "Simpan ke {{slot}} (menggantinya)",
+    "equalizerModCurveDormant": "Kurva dari mod \"{{name}}\" sedang ditahan: mod ini dinonaktifkan atau dihapus, dan kurvanya kembali saat mod diaktifkan lagi. Mengubah suara di sini akan membuangnya.",
+    "equalizerModCurveDiscard": "Buang kurva ini",
     "equalizerPreset": {
       "flat": "Netral",
       "lofi": "Lo-Fi",

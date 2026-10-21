@@ -603,6 +603,7 @@ export default {
       "playback-sound-preset-bass": { "title": "音效：低音增强", "description": "更厚的低频和更强的力度" },
       "playback-sound-preset-custom1": { "title": "音效：自定义 1", "description": "套用第一个自定义音效栏位" },
       "playback-sound-preset-custom2": { "title": "音效：自定义 2", "description": "套用第二个自定义音效栏位" },
+      "playback-sound-mod-curve-release": { "title": "音效：换回我的音效", "description": "去掉模组施加的均衡器曲线，回到你原来的音效" },
       "settings-local-lyrics-priority": { "title": "本地歌曲歌词优先级", "description": "选择本地歌曲优先使用本地或在线歌词" },
       "settings-local-lyric-format-order": { "title": "本地歌词文件格式优先级", "description": "调整同名歌词文件按哪种格式优先选用" },
       "settings-integration": { "title": "集成设置", "description": "打开 Stage、Now Playing 和 Navidrome 设置" },
@@ -919,6 +920,12 @@ export default {
       "space": "空间混响",
       "punch": "动态压缩"
     },
+    "equalizerModCurve": "这条曲线来自模组「{{name}}」",
+    "equalizerModCurveHint": "你的预设和自定义栏位都没有改动；要在这条曲线上调整，先把它存进一个自定义栏位。",
+    "equalizerModCurveRelease": "换回我的音效",
+    "equalizerModCurveSave": "存进「{{slot}}」（替换原有内容）",
+    "equalizerModCurveDormant": "模组「{{name}}」的曲线暂未生效：这个模组已停用或卸载，重新启用后会恢复。在这里改音效会丢弃它。",
+    "equalizerModCurveDiscard": "丢弃这条曲线",
     "equalizerPreset": {
       "flat": "水平",
       "lofi": "Lo-Fi",
