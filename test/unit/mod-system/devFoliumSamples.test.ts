@@ -61,6 +61,7 @@ describe('dev/folium sample mods', () => {
     it('has the samples the docs point to', () => {
         expect(samples.map(([name]) => name)).toEqual(expect.arrayContaining([
             'sample-home-tab', 'sample-playback-console', 'sample-account-console', 'sample-omni-console',
+            'sample-equalizer-console',
         ]));
     });
 

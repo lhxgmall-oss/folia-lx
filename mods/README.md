@@ -168,6 +168,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `render.export` | `api.render.exportVideo()`（main） |
 | `playback.control` | `folium.playback` 的播放、暂停、跳转、切歌、入队、打乱队列、喜爱；1.5 起还有设置音量、静音、循环模式与点播队列里的歌 |
 | `playback.queue` | 1.7：`folium.playback.replaceQueue`（整表替换播放队列，并结束私人 FM）。不需要同时声明 `playback.control` |
+| `equalizer.control` | 1.7：`folium.equalizer` 的 `setMode`、`applyCurve`、`releaseCurve`（改写用户的音效设置） |
 | `net.fetch` | `folium.net.fetch()`（经主进程代发，不受 CORS 限制） |
 | `net.embed` | `folium.ui.embed()`，还需要 `embedOrigins` |
 | `stageLayers` | `registries.stageLayers`（往播放页上画东西） |
@@ -178,7 +179,8 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 启用确认窗口和模组面板的展开行会用一句话写明模组能以用户的账号读取（或改动）哪些平台的数据，见 [platform.raw](#platformraw实验17)。
 启用确认窗口和模组面板的展开行也会为 `playback.queue` 写一句说明：模组可以一次换掉整个播放队列并结束私人 FM，替换后宿主会提示是哪个模组换的，在队列再被改动之前可以撤销。
 密钥字段（`secret`）、`rpc.send` / `rpc.on`、`folium.account` 和 `folium.omni` 不需要权限。`folium.omni` 以你在 Folia 登录的平台账号向平台发请求，
-启用确认窗口里不会为它多写一句，见 [folium.omni](#foliumomni17)。
+启用确认窗口里不会为它多写一句，见 [folium.omni](#foliumomni17)。`folium.equalizer` 的读和 `equalizer.changed` 也不需要权限；
+写需要 `equalizer.control`，启用确认窗口和模组面板会为它写一句「会改写你的音效设置」，见 [folium.equalizer](#foliumequalizer17)。
 
 每个权限解锁的成员以 API 参考的[权限一览](../docs/folium/api.md#权限一览)为准，`npm run folium:check` 用同一张表查模组。
 `platform.*` 例外：`folium:check` 只按代码里 `request('<平台>', …)` 写出的平台 id 查 `platform.<平台>.read`，平台 id 是变量时只提示一句，`.write` 查不到（要看调的接口）。
@@ -210,7 +212,7 @@ export default function activate(folium) {
   命令失败、音源方法失败、钩子超时或失败、模组自己调 `log.error` 是平常的结果：只记到那一行，不提示。
 - **运行环境**：`folium.env.context` 是 `'main'`（主窗口）或 `'export'`（透明视频导出窗口）。导出窗口里
   只属于界面的注册表（[注册表一览](../docs/folium/api.md#注册表一览)里「导出窗口里」一列写着不生效的那些）
-  是空实现——照常调用、不生效，所以同一份代码两边都能跑；服务（playback / ui / net / storage / secrets / account / omni / rpc）
+  是空实现——照常调用、不生效，所以同一份代码两边都能跑；服务（playback / ui / net / storage / secrets / account / omni / equalizer / rpc）
   在导出窗口里调用会抛 `*-unavailable-in-export-context`（返回 promise 的方法以这个错误拒绝）。例外：`ui.icon` 两边都能用；
   `rpc.on` 和 `secrets.subscribe` 照常收下监听、返回取消函数，但导出窗口里从不调用它们。
 - `folium.host`：`{ folium: { major, minor }, folia: '<宿主版本>' }`，给显示和日志用。
@@ -229,6 +231,7 @@ export default function activate(folium) {
 | `rpc.on(name, listener)` | 1.7。收本模组 main 入口 `api.rpc.send(name, payload)` 发来的消息，返回取消函数。见 [main 入口向 client 推送消息](#main-入口向-client-推送消息17) |
 | `account.getState(providerId?)` | 1.7。在线音源的登录状态，不需要权限。见 [folium.account](#foliumaccount17) |
 | `omni.*` | 1.7。经 Omni 只读在线音源：搜索、按 `{ source, id }` 解析、歌词、专辑与歌手；不需要权限，以你在 Folia 登录的平台账号发请求。见 [folium.omni](#foliumomni17) |
+| `equalizer.*` | 1.7。宿主的图形均衡器：`getState()` 读当前听到的均衡器（不需要权限）；`setMode` 切到宿主已有的音效、`applyCurve` 施加本模组的曲线、`releaseCurve` 撤下它（需 `equalizer.control`）。见 [folium.equalizer](#foliumequalizer17) |
 | `every(ms, fn)` / `onDispose(fn)` | 定时调用、登记清理函数；模组停掉时宿主替它停掉定时、调用清理函数。见[现成的函数](../docs/folium/contributing.md#现成的函数) |
 | `lyrics` / `theme` | 内置模式共用的函数，见[歌词与主题](#歌词与主题)；导出窗口里也能用。`lyrics.parse` 把歌词原文交给宿主解析；`lyrics.getLines()`、`lyrics.refresh()` 读正在显示的歌词（导出窗口里不能用） |
 | `experimental[name]` | 选用了才能访问，否则抛 `experimental-not-declared:<name>` |
@@ -596,6 +599,7 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 | `playback.queueChanged` | `{ length, currentIndex, version, byThisMod }`，队列变了或显示中的歌在队列里换了位置；只是轮廓，歌曲用 `playback.getQueue()` 读。同一个任务里的多次变化合成一次，不按载荷去重（打乱后长度和位置可能都没变）。1.7 起多出 `version`（队列版本，和 `getQueue()` 的一样）与 `byThisMod`（只在本模组 `replaceQueue` 排出的那一个事件里为 `true`，见 [replaceQueue](#服务)）；automix 过渡结束时也发一次 |
 | `playback.failed` | `{ song, reason, phase, willAutoSkip }`，一首歌放不了，见下 |
 | `account.changed` | 1.7。`FoliumAccountState`（`{ providerId, status, user, accountKey }`），某个在线音源有人登录、退出或换了号，见 [folium.account](#foliumaccount17) |
+| `equalizer.changed` | 1.7。`{ state, origin }`：均衡器变了（开关、模式、增益、`hostPlaysAudio`、`writable`），`origin` 说是谁改的（`user` / `command` / `mod` / `host`），同一任务合成一次。见 [folium.equalizer](#foliumequalizer17) |
 
 **`playback.failed`**只在用户看得见「这首歌放不了」时报一次：
 
@@ -1005,6 +1009,113 @@ Folia 自带的音源限了所有模组合计的次数：几个模组同时大�
 
 完整的例子见 `dev/folium/sample-omni-console`。
 
+### folium.equalizer（1.7）
+
+宿主的图形均衡器（音频效果器里的十段频段）。读不需要权限，写（`setMode`、`applyCurve`、`releaseCurve`）需要 `equalizer.control`，只在主窗口可用。
+模组拿到的是均衡器的**设置**，不是音频节点：写入落在用户自己在面板里操作落到的同一处，面板和声音都跟着变，重启后还在。
+
+```js
+export default function activate(folium) {
+  // 1.6 的宿主没有 folium.equalizer；导出窗口里它的每个方法都抛错。
+  if (folium.host.folium.minor < 7 || folium.env.context !== 'main') return;
+  const { equalizer } = folium;
+  let following = true;   // 按歌自动施加；用户一改就停
+
+  folium.events.on('equalizer.changed', ({ origin }) => {
+    // host（进出 Stage、开关面板、曲线暂停与恢复）不是谁改了音效，自己的写入也不算。
+    if (origin.kind === 'host' || (origin.kind === 'mod' && origin.modId === folium.modId)) return;
+    following = false;   // 用户、宿主命令或别的模组改了：让步，等用户在本模组的设置里重新打开
+  });
+
+  folium.events.on('playback.songChanged', () => {
+    if (!following) return;
+    const result = equalizer.applyCurve([4, 3, 1, 0, -1, -1, 0, 1, 3, 4]);
+    if (!result.ok) folium.log.info('not now:', result.reason);   // panel-open、rate-limited……
+  });
+}
+```
+
+**快照**：`getState()` 同步返回冻结的 `FoliumEqualizerState`，报的是**此刻听到的**均衡器：
+
+| 字段 | 说明 |
+| --- | --- |
+| `enabled` | 音频效果器的总开关。关着时增益保留但听不到，效果链也一起关着。开关是用户的，任何 `folium.equalizer` 写入都不会打开它 |
+| `mode` | 现在放的是什么：`{ kind: 'preset', id }`（内置音效 `flat`、`lofi`、`radio`、`hall`、`vocal`、`bass`）、`{ kind: 'custom', id }`（用户的 `custom1` / `custom2`）、`{ kind: 'mod', modId }`（某个模组施加的曲线）。以后的 minor 可能多出别的 `kind`：不认识的当成用户选的，别去动它 |
+| `gains` | 每段的增益（dB），按 `bands` 的顺序，在 `minGain`–`maxGain` 之间。`enabled` 为 `false` 时照样给，只是听不到 |
+| `bands` | 每段的 `{ frequency, shape }`，从低到高。1.7 是 10 段（31 Hz 到 16 kHz）；首段 `lowshelf`、末段 `highshelf`、其余 `peaking`，不认识的 `shape` 当成 `peaking`。每次读都是同一个冻结数组 |
+| `minGain` / `maxGain` | 一段增益的范围，1.7 是 -12 / 12 dB |
+| `hostPlaysAudio` | 声音是否经过宿主自己的音频（均衡器就在那里）。外部 Stage 播放时（别的播放器的正在播放、只有歌词没有音频的 Stage 源）为 `false`，均衡器没有东西可作用；设置等宿主自己放歌时照样生效 |
+| `writable` | 音频效果器开着时为 `false`：这时会改变东西的写入被拒 `panel-open`，窗口关上时发一次 `equalizer.changed`。权限和限频不算在里面 |
+
+不交出来的：用户不在播放的那个自定义栏位的内容（用户数据；正在播放的那个，它的曲线就是 `gains`）；效果链的 9 项参数（预设的效果链只能随 `setMode` 整体切换）；
+Q 值（实现细节，可能调整）；任何音频节点、`AudioContext`（宿主每次设置一变就整体重写节点，直接改节点必然被刷回；频谱读数是另一项能力 `ctx.audio`）；
+曲线所属模组此刻是不是在跑（启动失败、重载中都难以如实回答，快照只报听到的声音）。
+
+**两层写入**，都返回 `{ ok: true, state }`（`state` 是写入之后的均衡器）或 `{ ok: false, reason }`：
+
+- `setMode({ kind: 'preset' | 'custom', id })`：切到宿主已有的一个音效，和命令面板的音效命令一样，曲线和效果链一起换，在位的模组曲线（不论是谁的）随之结束。
+  **不写任何自定义栏位，不动总开关**。这一点和命令面板不同：命令面板是用户亲手选的，会打开总开关；模组按歌切换时打开总开关，会在用户关掉处理之后把预设的整套效果链（噪声、比特降质……）带出来。
+  宿主没有的音效（较新的 minor 加的 id，或不认识的 `kind`）回 `unknown-mode`，不抛错，为较新宿主写的模组在旧宿主上能降级；`kind: 'mod'` 和形状不对的参数抛 `TypeError`。
+- `applyCurve(gains)`：施加本模组自己的曲线，模式变成 `{ kind: 'mod', modId }`。1 到 `bands.length` 个有限数，从最低一段起；少给的段读 0，每个值夹到 `minGain`–`maxGain` 并取整到 0.1 dB，
+  `state.gains` 就是规范化之后的结果。空数组、超过段数、`NaN`、字符串抛 `TypeError`。效果链和总开关保持用户原来的。
+  曲线是独立于用户音效的一层：用户的预设、自定义栏位一个字节都不改，撤下就精确地回到施加前的音效。曲线一直在，重启、模组重载都在，直到用户或别的模组改了音效。
+- `releaseCurve()`：撤下本模组的曲线、回到用户自己的音效。在位的是本模组的曲线时返回 `true`；不是本模组的或者没有曲线时返回 `false`，什么都不变。不看面板开没开，也不计入限频。
+
+**用户优先，模组让步**：用户在音频效果器里的任何选择（点一个音效、把模组曲线存进自己的栏位、换回自己的音效）都结束模组曲线；
+命令面板的音效命令和「音效：换回我的音效」也是。跟着 `equalizer.changed` 走：`origin` 是 `user`、`command` 或别的模组时（`origin.kind === 'mod'` 且 `origin.modId` 不是你的 `folium.modId`），
+就停止自动施加，直到用户在你的模组里重新打开；在那之后再把曲线放回去，就是在覆盖用户的选择。`host` 不算用户的改动：进出 Stage、开关音频效果器、曲线暂停与恢复都报 `host`。
+不认识的 `origin.kind` 按 `user` 处理。模组接手了声音（这一次的写之前，音效是用户、命令、宿主或别的模组定的）时，宿主弹一条提示写明是哪个模组；同一个模组接着写只提示第一次，`releaseCurve` 不提示。
+
+**事件 `equalizer.changed`**：`{ state, origin }`，快照里任何一项变了就发（开关、模式、增益、`hostPlaysAudio`、`writable`）。`origin` 是 `{ kind, modId }`，`kind` 为 `user`（音频效果器）、
+`command`（宿主命令）、`mod`（某个模组经 `folium.equalizer`，`modId` 是它的 id）或 `host`（宿主自己，没人在改音效），只有 `mod` 带 `modId`，其余为 `null`。
+同一个任务里的多次变化合成一次，`origin` 取其中最后一个不是 `host` 的，全是 `host` 才报 `host`：用户改了音效、紧接着换歌，报的是 `user`。只换了歌（声音还是经过宿主）不发；
+改了又改回去不发；开始监听之前的变化不补发。导出窗口不发。
+
+**面板开着时**：用户正看着音频效果器，会改变东西的 `setMode` / `applyCurve` 被拒 `panel-open`，免得打乱用户手里的调整。等 `state.writable` 变回 `true` 的那次 `equalizer.changed` 再补写，不必轮询。
+`releaseCurve` 例外，照常生效。
+
+**「没有变化」**：写入算出的用户设置（开关、模式、增益、效果链、两个自定义栏位）与现在的完全相同，**并且**在位的曲线前后相同（同为没有，或同一个模组、增益逐段相等），就是没有变化。
+这样的写入回 `{ ok: true, state }`，不存盘、不计数、不发事件、不提示，**面板开着、冷却期内也照收**，所以按歌重复写同一个结果是安全的。注意：用户的旧设置里中性效果链的「Lo-Fi」，
+`setMode` 同一个 id 会换上它完整的效果链，这是一次变化。
+
+**检查顺序**（前面的成立就不再看后面的）：
+
+1. 没声明 `equalizer.control`：三个写方法都抛 `permission-denied:equalizer.control`。
+2. 导出窗口：每个方法（包括 `getState`）都抛 `equalizer-unavailable-in-export-context`，不带 `code`。
+3. 参数形状不对：`setMode` / `applyCurve` 抛 `TypeError`，message 以 `invalid-arguments:` 开头。
+4. 这个模组已经停下（旧的 `folium` 对象）：`setMode` / `applyCurve` 回 `stopped`，`releaseCurve` 回 `false`。
+5. 宿主没有这个音效：`setMode` 回 `unknown-mode`（面板开着也先报它，宿主本身没有这个音效和用户在不在面板前无关）。
+6. 没有变化：回 `{ ok: true, state }`。
+7. 音频效果器开着：回 `panel-open`。
+8. 限频：回 `rate-limited`。
+
+以后的 minor 可能加新的拒绝原因：不认识的按 `rate-limited` 处理，过一会儿再试，不要在循环里重试。
+
+**限频**：目前每个模组离上一次被计数的写入不到 1 秒就拒，一分钟（滑动的 60 秒）里最多 20 次；按模组 id 计，重载模组不清零。只有真正改变了东西的写入才计数，被拒的、没有变化的都不算。
+每次改变东西的写入都会存盘：写你定下来的结果，不要拿它逐帧做动画。数值以后可能调整。
+
+**automix 过渡**：智能过渡里能听到两首歌叠在一起的那几秒，宿主把模组的变化推迟到过渡结束才放进声音里（`getState()` 立刻就报新的设置），增益是滑过去的，不是跳过去的。
+推迟是因为效果链（饱和、比特降质）是瞬间切换的，均衡器又接在两首歌的混音点之后，过渡中途换会同时改变两首歌的音色。用户、命令面板、宿主的变化照旧立即生效。
+
+**外部 Stage**：`hostPlaysAudio` 为 `false` 时照常写入、照常存盘，只是这时听不到；宿主自己放歌时就生效。总开关关着时也一样：写入照常，`state.enabled === false` 告诉你听不到。
+
+**曲线所属的模组被停用或卸载**：曲线的记录保留；停用或卸载期间播的是用户自己的音效，`getState()` 报的、面板显示的也都是用户自己的模式和增益；模组重新启用后曲线自动回来，不需要模组再施加一次。
+看的是模组面板里的启用状态，不是 client 此刻有没有在跑：重载（改代码就会重载）、`activate` 抛错、应用打开时没赶上第一屏，都不改变声音，也不发事件。暂停和恢复各发一次 `host` 来源的 `equalizer.changed`。
+暂停期间用户（或别的模组）改了音效，记录就清掉了，模组重新启用后不再恢复：用户已经做了新的选择。
+
+**音频效果器里**：模组曲线生效时，面板上方写明这条曲线来自哪个模组（用施加时的模组名，卸载之后也能显示），没有哪个预设亮着，频段和效果区只读：
+要在这条曲线上调整，先把它存进一个自定义栏位，免得一拖推子就把模组曲线写进用户自己的栏位。按钮有「换回我的音效」和「存进自定义 1」「存进自定义 2」（替换那个栏位原有的内容，切到它，总开关不动）。
+总开关在模组曲线下照常能拨，曲线保留。曲线暂停时面板写明它暂未生效，给一个「丢弃这条曲线」，这时频段和效果就是用户自己的，照常可编辑（在这里改音效也会丢弃那条暂停的曲线）。
+命令面板的「音效：换回我的音效」在两种状态下都能撤下或丢弃它。
+
+**权限与旧宿主**：启用确认窗口和模组面板会为 `equalizer.control` 写一句「会改写你的音效设置」。声明了 `equalizer.control` 的清单在 Folium 1.6 的宿主上**整份被拒**（未知权限一律拒绝）；
+要兼容 1.6 的模组只能只读：不声明权限，用 `folium.host.folium.minor >= 7` 判断有没有 `folium.equalizer`（1.6 上读它得到 `undefined`，不会抛错）。
+
+**导出窗口与 main 入口**：导出窗口里 `folium.equalizer` 在，但每个方法都抛 `equalizer-unavailable-in-export-context`（写方法先查权限）。main 入口没有 `equalizer`：
+要改就用 `api.rpc.send` 通知本模组的 client，由 client 调 `folium.equalizer`。
+
+完整的例子见 `dev/folium/sample-equalizer-console`。
+
 ## main 入口（Node）
 
 ```js
@@ -1326,6 +1437,8 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 用户选中了某个模组的歌词动画或背景后，那个模组被停用或卸载时：**已保存的选择不会被改写**，界面先显示默认项，
 并提示「来自未运行的模组 X」；模组重新启用后自动恢复。队列里来自模组 provider 的歌同理，只是暂时不能播放。
 应用打开时没赶上第一屏的模组也是这样：第一屏先显示默认项，它启动完就换回来。
+模组施加的均衡器曲线同理：模组停用或卸载期间播你自己的音效，曲线保留，音频效果器里标出它来自哪个模组，重新启用后自动恢复；
+模组重载、应用打开时没赶上第一屏都不影响声音（见 [folium.equalizer](#foliumequalizer17)）。
 
 ## 版本与演进
 
@@ -1356,8 +1469,10 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 - 整表替换播放队列：`folium.playback.replaceQueue(songs, { expectedVersion })`，按队列版本条件提交，全有或全无，结束私人 FM。稳定，新权限
   `playback.queue`。随之：`FoliumQueueSnapshot.version`；`playback.queueChanged` 多出 `version` 与 `byThisMod`，automix 过渡结束时也发一次；
   替换后宿主提示是哪个模组换的，并可以撤销。见[服务](#服务)。
+- 宿主的图形均衡器：`folium.equalizer`（`getState`、`setMode`、`applyCurve`、`releaseCurve`）与通知事件 `equalizer.changed`；新权限 `equalizer.control`（写需要，读不需要）。
+  模组的曲线是独立于用户音效的一层，不写用户的自定义栏位，不打开总开关。稳定。见 [folium.equalizer](#foliumequalizer17)。
 - 示范模组：`dev/folium/sample-account-console` 演示推送消息、密钥字段、登录状态、`platform.raw` 和全局快捷键；`dev/folium/sample-omni-console` 演示 `folium.omni`；
-  `dev/folium/sample-playback-console` 演示 `replaceQueue`（把队列倒过来）。
+  `dev/folium/sample-playback-console` 演示 `replaceQueue`（把队列倒过来）；`dev/folium/sample-equalizer-console` 演示 `folium.equalizer`。
 
 ## 从 UI 安装与管理
 
