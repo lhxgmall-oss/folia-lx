@@ -13,6 +13,7 @@ import { decompressConfig, readSavedCustomTheme } from '../../../../../utils/app
 import { ACTIVATE_CUSTOM_THEME_KEY, buildImportPlan, THEME_DARK_KEY, THEME_LIGHT_KEY, type ImportPlan } from '../../../../../utils/appearanceImportPlan';
 import { isFontFamilyAvailable } from '../../../../../utils/fontAvailability';
 import { isLibraryWallSeamStyle } from '../../../../../utils/libraryWallSeamStyle';
+import { isLibraryWallSeamDirection } from '../../../../../utils/libraryWallSeamDirection';
 import { extractCfgFromInput } from '../../../../../utils/obsUrl';
 import { mergeUrlBackgroundList } from '../../../../../utils/urlBackground';
 
@@ -336,7 +337,7 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     if (has('libraryWallBackdropBlur')) {
         storeLibraryWall.setBackdropBlur(Boolean(config.libraryWallBackdropBlur));
     }
-    if (has('libraryWallSeamHorizontal')) {
-        storeLibraryWall.setSeamHorizontal(Boolean(config.libraryWallSeamHorizontal));
+    if (has('libraryWallSeamDirection') && isLibraryWallSeamDirection(config.libraryWallSeamDirection)) {
+        storeLibraryWall.setSeamDirection(config.libraryWallSeamDirection);
     }
 };

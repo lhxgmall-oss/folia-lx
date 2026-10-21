@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import type { WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_BLOCK_SHAPE, collectShapeSlots } from './bravaisWallShape';
 import { FLIP_MAX_TILES } from '../../../components/wall/flipPlan';
-import { useDevicePixelRatio } from '../../../hooks/useMediaQuery';
+import { useDevicePixelRatio, useMediaQuery } from '../../../hooks/useMediaQuery';
+import { LIBRARY_WALL_PORTRAIT_QUERY, resolveLibraryWallSeamHorizontal } from '../../../utils/libraryWallSeamDirection';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
@@ -82,7 +83,8 @@ import './bravaisSeamLooks.css';
 // 回来时会话结束才算落定；fb3 的正在播放那首在缝开始张开时就展开（2026-10-10）。工具按钮在离开途中仍认领 dock，
 // Lattice 后认领、盖在上面。
 // 空墙说明（BravaisWallHint）：首页的来源因为还没连在线平台、还没导入本地文件夹而空着时，墙面上画一段背景字（wall.hint）。
-// 信息条横向（useLibraryWallLookStore 的 seamHorizontal）：首页窄缝 / 书脊、信息条 / 书脊与搜索框从块的横向缝隙裂开
+// 信息条方向（useLibraryWallLookStore 的 seamDirection；自动时按视口是不是竖着的，转屏时缝合上再换方向张开）：横向时
+// 首页窄缝 / 书脊、信息条 / 书脊与搜索框从块的横向缝隙裂开
 // （resolveSeamAxis），墙上下分开；面板、表单与海报仍是竖的。根节点与缝挂 data-bravais-seam-axis（此刻画着的内容的方向）。
 
 const expandBounds = (bounds: { left: number; right: number; top: number; bottom: number }, by: number) => ({
@@ -147,7 +149,12 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const tintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
     const tintIntensity = useLatticeSettingsStore(state => state.latticePosterTintIntensity);
     const stackEdges = useLibraryWallLookStore(state => state.collectionStackEdges);
-    const seamHorizontal = useLibraryWallLookStore(state => state.seamHorizontal);
+    const seamDirection = useLibraryWallLookStore(state => state.seamDirection);
+    const portrait = useMediaQuery(LIBRARY_WALL_PORTRAIT_QUERY);
+    const seamHorizontal = resolveLibraryWallSeamHorizontal(seamDirection, portrait);
+    // 换层编排里按层算开口时读最新的（不进回调的依赖）。
+    const seamHorizontalRef = useRef(seamHorizontal);
+    seamHorizontalRef.current = seamHorizontal;
 
     // 当前层：首页时是首页层，集合层打开时是顶层；顶层还没到（lazy、交接、回退给 grid）时沿用上一次画的层。
     const home = useBravaisStageStore(state => state.home);
@@ -183,7 +190,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             searchOpen: current.searchOpen,
             // 海报（歌手页、专辑页）只画在无限拼贴上：过滤生效（有限拼贴）时 rank 围着锚点两边排，海报会挡住一半。
             poster: (target.surface === 'artist' || Boolean(target.seam.album)) && target.mode !== 'finite',
-            horizontal: useLibraryWallLookStore.getState().seamHorizontal,
+            horizontal: seamHorizontalRef.current,
         };
     }, [frameRef]);
     const resolvedSeamTarget = layer
@@ -206,7 +213,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     ), [seamInputFor]);
     // 这一层的缝开在哪个方向；折叠时（没有方向）按设置给恢复后多半会用的方向。
     const axisFor = useCallback((target: BravaisLayer) => {
-        const horizontal = useLibraryWallLookStore.getState().seamHorizontal;
+        const horizontal = seamHorizontalRef.current;
         return resolveSeamAxis(resolveSeamTarget(seamInputFor(target)).variant, horizontal) ?? (horizontal ? 'y' : 'x');
     }, [seamInputFor]);
 

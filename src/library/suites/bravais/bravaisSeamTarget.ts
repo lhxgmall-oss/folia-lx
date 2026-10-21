@@ -69,7 +69,7 @@ export type BravaisSeamTargetInput = {
     searchOpen?: boolean;
     /** 这一层可以画海报（歌手页、专辑页，无限拼贴；过滤生效的有限拼贴不行）。由 stage 判定，这里不看 surface。 */
     poster?: boolean;
-    /** 信息条横向（useLibraryWallLookStore 的 seamHorizontal）。 */
+    /** 信息条此刻横着开（useLibraryWallLookStore 的 seamDirection 按视口解析后的结果）。 */
     horizontal?: boolean;
 };
 
