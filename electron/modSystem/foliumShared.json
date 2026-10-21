@@ -22,6 +22,7 @@
                 "folium.playback.playQueueItem"
             ]
         },
+        "playback.queue": { "guards": ["folium.playback.replaceQueue"] },
         "render.export": { "guards": ["api.render.exportVideo"] },
         "net.fetch": { "guards": ["folium.net.fetch"] },
         "net.embed": { "guards": ["folium.ui.embed"] },

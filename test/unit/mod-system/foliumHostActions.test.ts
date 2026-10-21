@@ -56,6 +56,7 @@ const appActions = (overrides: Partial<FoliumAppActions> = {}): FoliumAppActions
     navigateToPlayer: vi.fn(), navigateToHome: vi.fn(),
     shuffleQueue: vi.fn(), toggleLike: vi.fn(), openVolume: vi.fn(),
     isLiked: false, controlsDisabled: false, isLyricsLoading: false,
+    persistQueue: vi.fn(async () => undefined), refreshQueuePrefetch: vi.fn(),
     ...overrides,
 });
 
@@ -267,7 +268,7 @@ describe('folium play queue', () => {
 
         usePlaybackStore.setState({ playQueue: queue, currentSong: { ...queue[600] } as SongResult });
         let page = playback.getQueue();
-        expect(page).toMatchObject({ length: 1000, currentIndex: 600, kind: 'queue' });
+        expect(page).toMatchObject({ length: 1000, currentIndex: 600, kind: 'queue', version: expect.any(String) });
         expect(page.items).toHaveLength(500);
         expect(page.items[0].index).toBe(350);
         expect(page.items[499].index).toBe(849);

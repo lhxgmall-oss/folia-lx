@@ -171,7 +171,7 @@ const createFakeFolium = (context: 'main' | 'export' = 'main') => {
     const queue: FoliumSong[] = Array.from({ length: 120 }, (_, index) => ({
         id: String(index), title: `Song ${index}`, artist: 'Artist', album: null, source: 'local', ref: `ref-${index}`,
     }));
-    const state = { volume: 0.5, muted: false, loopMode: 'off' as FoliumLoopMode, currentIndex: 70 };
+    const state = { volume: 0.5, muted: false, loopMode: 'off' as FoliumLoopMode, currentIndex: 70, version: 'v1' };
     const RANK: Record<string, number> = { highest: 0, high: 1, normal: 2, low: 3, lowest: 4 };
 
     const emit = <K extends keyof FoliumEventMap>(type: K, payload: FoliumEventMap[K]) => {
@@ -202,6 +202,7 @@ const createFakeFolium = (context: 'main' | 'export' = 'main') => {
                 length: queue.length,
                 currentIndex: state.currentIndex,
                 kind: 'queue',
+                version: state.version,
             };
         },
         playQueueItem: vi.fn(async (index: number, expectedRef?: string) => queue[index]?.ref === expectedRef),
@@ -304,7 +305,7 @@ describe('sample-playback-console client', () => {
         expect(tracks()[0].textContent).toContain('Song 0');
         // A redraw keeps keyboard focus on the same entry.
         tracks()[5].focus();
-        fake.emit('playback.queueChanged', { length: 120, currentIndex: 10 });
+        fake.emit('playback.queueChanged', { length: 120, currentIndex: 10, version: 'v1', byThisMod: false });
         expect((document.activeElement as HTMLElement).dataset.index).toBe('5');
 
         fake.emit('playback.failed', {

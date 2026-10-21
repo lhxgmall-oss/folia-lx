@@ -80,6 +80,15 @@ describe('validateManifest', () => {
         }
     });
 
+    // Folium 1.7: replaceQueue's own permission, taken on its own (it needs no playback.control).
+    it('accepts playback.queue', () => {
+        const result = validateManifest({ ...validManifest, permissions: ['playback.queue'] });
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.value.permissions).toEqual(['playback.queue']);
+        }
+    });
+
     it('rejects duplicate permissions', () => {
         const result = validateManifest({ ...validManifest, permissions: ['render.export', 'render.export'] });
         expect(result.ok).toBe(false);

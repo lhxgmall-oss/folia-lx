@@ -76,7 +76,7 @@ describe('folium services import boundary', () => {
     it('reaches no app store and none of the main-window host layer', () => {
         const offenders = closure.files.filter(file => (
             /^src\/stores\//.test(file)
-            || /^src\/mods\/runtime\/host/.test(file)
+            || /^src\/mods\/runtime\/(?:host|queue\/)/.test(file)
         ));
         expect(offenders).toEqual([]);
     });
@@ -116,7 +116,7 @@ describe('folium.omni import boundary', () => {
 
     it('loads no online music service and none of the main-window host layer with api.ts', () => {
         expect(loaded.files.filter(file => /^src\/services\/onlineMusic\//.test(file))).toEqual([]);
-        expect(loaded.files.filter(file => /^src\/mods\/runtime\/(?:host|omni\/)/.test(file))).toEqual([]);
+        expect(loaded.files.filter(file => /^src\/mods\/runtime\/(?:host|omni\/|queue\/)/.test(file))).toEqual([]);
     });
 
     it('never reaches Omni or the host side of folium.omni from api.ts, lazily loaded chunks included', () => {

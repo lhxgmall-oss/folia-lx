@@ -241,7 +241,7 @@ export type FoliumLoopMode = 'off' | 'all' | 'one';
 export interface FoliumQueueItem {
     /** The song; its `ref` works with playSong, enqueue and playQueueItem. */
     readonly song: FoliumSong;
-    /** Its position in the host queue; stale as soon as the queue changes (`playback.queueChanged`). */
+    /** Its position in the host queue; stale as soon as the queue's `version` changes (`playback.queueChanged`). */
     readonly index: number;
 }
 
@@ -261,7 +261,91 @@ export interface FoliumQueueSnapshot {
      * Stage playback; the queue has nothing to do with what is playing, and playQueueItem refuses.
      */
     readonly kind: 'queue' | 'fm' | 'stage';
+    /**
+     * Folium 1.7: the queue's version. Equal strings mean the same songs in the same order and the same
+     * `kind`; it does not change when only the displayed song moves. Opaque and valid for this session:
+     * pass it to `replaceQueue`, never store it. Pages read with the same version belong to the same queue.
+     */
+    readonly version: string;
 }
+
+/**
+ * Folium 1.7: what a `playback.queueChanged` event carries. Frozen. Only the outline: read the songs with
+ * `playback.getQueue()`.
+ */
+export interface FoliumQueueChange {
+    /** Songs in the whole queue. */
+    readonly length: number;
+    /** Position of the displayed song in the queue (its first position); -1 when it is not in it. */
+    readonly currentIndex: number;
+    /**
+     * Folium 1.7: the queue's version now, as `FoliumQueueSnapshot.version` gives it. The same as in the
+     * event before when only the displayed song moved.
+     */
+    readonly version: string;
+    /**
+     * Folium 1.7: true only in the event the host fires for this mod's own `replaceQueue`, when nothing
+     * else changed the queue in the same task; false for every other mod, for a change anyone else made
+     * (the user's undo of it included), and when only the displayed song moved. A replacement made while
+     * this mod was not listening is never reported as its own later.
+     */
+    readonly byThisMod: boolean;
+}
+
+/**
+ * Folium 1.7: why `replaceQueue` left the queue as it was.
+ * `stage`: external Stage playback holds the player; try again after a `playback.queueChanged` whose
+ * snapshot `kind` is no longer `stage`.
+ * `transition`: an automix blend is under way (a few seconds, rarely more than half a minute); try again
+ * after the next `playback.queueChanged`, which the host also fires when the blend ends.
+ * `stale-version`: the queue is no longer the one `expectedVersion` names (the user, the host or a mod
+ * changed it); read it again and decide anew rather than replacing blindly.
+ * `stale-ref`: the song DTO at `index` has a `ref` that no longer resolves; read that song again.
+ * `not-queueable`: the song at `index` cannot be in the play queue (a song of external Stage playback).
+ * `rate-limited`: this mod replaced the queue a moment ago; try again after `retryAfterMs`.
+ * Checked in this order: stage, transition, stale-version, then the songs from first to last (stale-ref or
+ * not-queueable for the first song that fails, with its index), then rate-limited. Later minors may add
+ * reasons: treat one you do not know like `transition`.
+ */
+export type FoliumQueueReplaceRefusal =
+    | 'stage'
+    | 'transition'
+    | 'stale-version'
+    | 'stale-ref'
+    | 'not-queueable'
+    | 'rate-limited';
+
+/** Folium 1.7: `replaceQueue` replaced the queue, or found it already as asked. Frozen. */
+export interface FoliumQueueReplaced {
+    /** `replaced`. */
+    readonly status: 'replaced';
+    /** The queue's version now; the one you passed when nothing had to change. */
+    readonly version: string;
+    /** Songs in the queue now. */
+    readonly length: number;
+    /** Position of the displayed song in the new queue (its first position); -1 when it is not in it. */
+    readonly currentIndex: number;
+}
+
+/** Folium 1.7: `replaceQueue` left the queue as it was. Frozen. */
+export interface FoliumQueueReplaceRefused {
+    /** `refused`. */
+    readonly status: 'refused';
+    /** Why. */
+    readonly reason: FoliumQueueReplaceRefusal;
+    /** The queue's version now, which this call did not change. */
+    readonly version: string;
+    /** For `stale-ref` and `not-queueable`, the position in `songs` of the first song refused; null otherwise. */
+    readonly index: number | null;
+    /** For `rate-limited`, milliseconds until this mod may replace the queue again; null otherwise. */
+    readonly retryAfterMs: number | null;
+}
+
+/**
+ * Folium 1.7: what `replaceQueue` resolves. `status` is `replaced` or `refused`; later minors may add
+ * fields, not statuses.
+ */
+export type FoliumQueueReplaceResult = FoliumQueueReplaced | FoliumQueueReplaceRefused;
 
 /** The whole playback picture, as main entries read it with `api.runtime.getPlaybackSnapshot()`. */
 export interface FoliumPlaybackSnapshot {
@@ -1018,8 +1102,9 @@ export interface FoliumNotificationEvents {
     /**
      * The queue changed, or the displayed song moved within it. Only the outline: call
      * `playback.getQueue()` for the songs. Changes made in one task arrive as one event.
+     * Folium 1.7: also fired when an automix blend ends, so a replaceQueue refused `transition` can try again.
      */
-    'playback.queueChanged': { readonly length: number; readonly currentIndex: number };
+    'playback.queueChanged': FoliumQueueChange;
     /**
      * A song failed to play; reported once, after the host's own retries. `phase` says
      * where it failed: `play`, the host got no playable source for the song just picked (sign-in,
@@ -1149,8 +1234,8 @@ export interface FoliumEvents {
 
 /**
  * `folium.playback`. The readers (`getState`, `getVolume`, `getLoopMode` and `getQueue`)
- * need no permission; every other method needs the `playback.control` permission. All of it is unavailable
- * in the export window.
+ * need no permission; every other method needs the `playback.control` permission, except `replaceQueue`,
+ * which needs `playback.queue`. All of it is unavailable in the export window.
  */
 export interface FoliumPlaybackService {
     /**
@@ -1231,7 +1316,8 @@ export interface FoliumPlaybackService {
      * A page of the play queue. `limit` defaults to 500, the most one call returns; without
      * `offset` the page is centred on the displayed song. Song refs come from a pool of 5,000 shared with
      * every other song DTO, the least recently handed out dropped first: every ref of the page you just read
-     * resolves, so read the pages you show rather than the whole queue.
+     * resolves, so read the pages you show rather than the whole queue. To read a long queue whole, page it
+     * while `version` stays the same; a page with another version means the queue changed: start again.
      */
     getQueue(options?: { offset?: number; limit?: number }): FoliumQueueSnapshot;
     /**
@@ -1243,6 +1329,34 @@ export interface FoliumPlaybackService {
      * Needs `playback.control`.
      */
     playQueueItem(index: number, expectedRef?: string): Promise<boolean>;
+    /**
+     * Folium 1.7: replaces the whole play queue with `songs` (by `ref`) in one step, if the queue is still the
+     * one you read: `expectedVersion` is the `version` of your last `getQueue` page or `playback.queueChanged`
+     * event. Either the whole queue is replaced or nothing changes (see FoliumQueueReplaceRefusal).
+     *
+     * Nothing starts playing and the song playing now plays on; when it is not in `songs`, `currentIndex`
+     * becomes -1 and the next track is the first of `songs`. Should that song be played again while it is
+     * not in the queue (the user retries it after a failure, or the host reloads it), the host may put it
+     * back at the front, which reaches you as a `playback.queueChanged` with `byThisMod` false. Songs stay
+     * exactly as given, in order: a song listed twice stays twice (the host finds the current song at its
+     * first position), and songs their source marks unavailable stay too (the host deals with those when it
+     * comes to them, as in any queue). The user's queue-add setting plays no part. Personal FM ends, as when
+     * a list is played: the queue becomes `kind: 'queue'`. An empty array empties the queue. A list with the
+     * same songs in the same order, outside Personal FM, changes nothing and resolves `replaced` with the
+     * same version.
+     *
+     * At most 5,000 songs, the size of the shared ref pool (see `getQueue`): every ref must still resolve,
+     * so collect the songs just before you replace, and mirror a window around the current song rather than a
+     * very long queue. A replacement is saved like the host's own edits. The host tells the user which mod
+     * replaced the queue and lets them undo it until the queue changes again; an undo reaches you as a
+     * `playback.queueChanged` with `byThisMod` false. Your own replacement reaches you once, with `byThisMod`
+     * true, if you listen at the time.
+     *
+     * Rejects with a TypeError (`invalid-arguments: …`) for malformed arguments: `songs` not an array or longer
+     * than 5,000, an entry that is not a song DTO from the host (no `ref`, or a DTO that is not a song's, such
+     * as a `folium.omni` album), or no `expectedVersion` string. Needs `playback.queue`.
+     */
+    replaceQueue(songs: readonly FoliumSong[], options: { expectedVersion: string }): Promise<FoliumQueueReplaceResult>;
 }
 
 /** A local file the user picked for this mod. */
