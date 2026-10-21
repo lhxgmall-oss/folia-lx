@@ -115,7 +115,9 @@ const normalizeCollection = (raw: any, type = 'playlist'): ProviderCollection =>
         providerId: 'netease',
         id: raw?.id ?? 0,
         name: raw?.name || '',
-        type: raw?.type || (raw?.specialType === 'cloud' ? 'cloud' : type),
+        // 网易云的专辑对象自己带一个 `type`，是它的发行类型（「专辑」「EP/Single」这类），不是集合的种类：
+        // 按专辑或歌手读到的就是专辑或歌手。别的照旧取 raw.type，已经正规化过的歌单再读一遍不变。
+        type: type === 'album' || type === 'artist' ? type : raw?.type || (raw?.specialType === 'cloud' ? 'cloud' : type),
         coverUrl: raw?.coverUrl || raw?.coverImgUrl || raw?.picUrl,
         description: raw?.description || raw?.briefDesc || raw?.briefDescription || raw?.copywriter,
         trackCount: raw?.trackCount ?? raw?.size,

@@ -193,6 +193,21 @@ describe('neteaseProvider', () => {
         });
     });
 
+    it('reads an album as an album whatever release type NetEase gives it', async () => {
+        vi.mocked(neteaseApi.getAlbum).mockResolvedValue({
+            album: { id: 7, name: 'Album', type: '专辑', subType: '录音室版', size: 10 },
+            songs: [],
+        } as any);
+        vi.mocked(neteaseApi.getArtistAlbums).mockResolvedValue({
+            hotAlbums: [{ id: 8, name: 'Single', type: 'EP/Single' }, { id: 9, name: 'LP', type: '专辑' }],
+            more: false,
+        } as any);
+
+        await expect(neteaseProvider.catalog!.getAlbumDetail!(7)).resolves.toMatchObject({ id: 7, type: 'album' });
+        const page = await neteaseProvider.catalog!.getArtistAlbums!(3, 10, 0);
+        expect(page.items.map((album) => album.type)).toEqual(['album', 'album']);
+    });
+
     it('normalizes artist and full album biographies into the unified description field', async () => {
         vi.mocked(neteaseApi.getArtistDetail).mockResolvedValue({
             data: {
