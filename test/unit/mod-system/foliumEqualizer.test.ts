@@ -313,7 +313,8 @@ describe('applyCurve', () => {
     });
 
     it('throws a TypeError for gains it cannot take', () => {
-        for (const gains of [[], Array(11).fill(1), [1, Number.NaN], [1, Infinity], ['3'], 'flat', null]) {
+        // A hole in the array is no number either (new Array(3), [1, , 3]), though forEach would skip it.
+        for (const gains of [[], Array(11).fill(1), [1, Number.NaN], [1, Infinity], ['3'], 'flat', null, new Array(3), [1, , 3]]) {
             expect(() => eqMod().applyCurve(gains as unknown as number[]), JSON.stringify(gains)).toThrow(TypeError);
         }
         expect(audio().audioEqualizerModCurve).toBeNull();

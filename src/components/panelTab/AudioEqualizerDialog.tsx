@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     AUDIO_EQUALIZER_CUSTOM_SLOT_IDS,
+    areAudioEqualizerSettingsEqual,
     getAudioEqualizerCustomSlotIndex,
     isAudioEqualizerCustomSlotId,
+    resolveAudioEqualizerSettings,
     type AudioEqualizerCustomSlotId,
     type AudioEqualizerModeId,
     type AudioEqualizerSettings,
@@ -154,8 +156,11 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
     };
 
     // While a mod's curve plays the bands and effects are read-only; this keeps a stray commit from writing it into a slot.
+    // A let-go with nothing edited (a key, focus passing through, a press on a thumb) writes nothing either: any
+    // write ends a curve on hold, and only an edit of the listener's own sound is meant to.
     const commitDraft = () => {
         if (curveHeard) return;
+        if (areAudioEqualizerSettingsEqual(resolveAudioEqualizerSettings(draftRef.current), ownSettings)) return;
         commitSettings(draftRef.current);
     };
 
@@ -189,12 +194,12 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
                 />
                 {/* Dimmed while processing is off, and still in reach: an edit turns processing on. */}
                 {/* While a mod's curve plays they are read-only: keep it as a custom slot first. */}
+                {/* The grids take the faders and sliders out of reach themselves: a narrow window must still scroll the bands sideways to show them all. */}
                 <div
-                    inert={curveHeard}
                     className={`st-t-move flex flex-1 flex-col transition-opacity${draft.enabled && !curveHeard ? '' : ' opacity-40'}`}
                 >
-                    <EqualizerBandGrid gains={draft.gains} onBandChange={updateBandDraft} onCommit={commitDraft} />
-                    <AudioEffectGrid effects={draft.effects} onEffectChange={updateEffectDraft} onCommit={commitDraft} />
+                    <EqualizerBandGrid gains={draft.gains} onBandChange={updateBandDraft} onCommit={commitDraft} readOnly={curveHeard} />
+                    <AudioEffectGrid effects={draft.effects} onEffectChange={updateEffectDraft} onCommit={commitDraft} readOnly={curveHeard} />
                 </div>
             </div>
         </Sheet>

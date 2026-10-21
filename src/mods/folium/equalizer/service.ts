@@ -116,9 +116,11 @@ const gainsOf = (gains: unknown, bands: number): readonly number[] => {
     if (!Array.isArray(gains) || gains.length === 0 || gains.length > bands) {
         throw invalid(`gains must be an array of 1-${bands} numbers`);
     }
-    gains.forEach((gain, index) => {
+    // By index, not forEach: forEach skips the holes of a sparse array, which would then be read as 0 dB.
+    for (let index = 0; index < gains.length; index += 1) {
+        const gain: unknown = gains[index];
         if (typeof gain !== 'number' || !Number.isFinite(gain)) throw invalid(`gains[${index}] must be a finite number`);
-    });
+    }
     return Object.freeze([...gains] as number[]);
 };
 

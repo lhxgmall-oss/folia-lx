@@ -126,6 +126,14 @@ describe('the audio effects window', () => {
             expect(store().audioEqualizerModCurve).toMatchObject({ modId: 'eq-mod', gains: SMILE });
         });
 
+        it('leaves the band strip scrollable sideways: only the faders are out of reach', () => {
+            // A narrow window scrolls the ten bands sideways; an inert strip would take no wheel, swipe or bar drag.
+            const strip = sliders()[0].closest('.overflow-x-auto');
+            expect(strip).not.toBeNull();
+            expect(strip!.closest('[inert]')).toBeNull();
+            expect(sliders()[0].closest('[inert]')).not.toBeNull();
+        });
+
         it('flips only the switch, and the curve stays', () => {
             press(place.querySelector('[role="switch"]')!);
             expect(store().audioEqualizerSettings).toEqual({ ...ownSound(), enabled: false });
@@ -165,6 +173,45 @@ describe('the audio effects window', () => {
         press(buttonNamed(i18n.t('ui.equalizerModCurveDiscard')));
         expect(store().audioEqualizerModCurve).toBeNull();
         expect(store().audioEqualizerSettings).toEqual(ownSound());
+    });
+
+    it('keeps a curve on hold through a fader or an effect let go with nothing edited', () => {
+        store().handleApplyModEqualizerCurve({ modId: 'eq-mod', modName: 'EQ mod', gains: SMILE });
+        store().handleSetAudioEqualizerModCurveSuspended(true);
+        draw();
+        const all = sliders();
+        const settingsBytes = storage.get(AUDIO_EQUALIZER_STORAGE_KEY);
+
+        // Tabbing through a slider, and a press on its thumb that does not move it: each lets go of nothing.
+        for (const slider of [all[0], all[10]]) {
+            act(() => {
+                slider.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', bubbles: true }));
+                slider.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+                slider.dispatchEvent(new Event('lostpointercapture', { bubbles: true }));
+            });
+        }
+
+        expect(store().audioEqualizerModCurve).toMatchObject({ modId: 'eq-mod', gains: SMILE });
+        expect(storage.has(AUDIO_EQUALIZER_MOD_CURVE_KEY)).toBe(true);
+        expect(storage.get(AUDIO_EQUALIZER_STORAGE_KEY)).toBe(settingsBytes);
+        expect(place.textContent).toContain(i18n.t('ui.equalizerModCurveDormant', { name: 'EQ mod' }));
+    });
+
+    it('lets an edit of the listener\'s own sound discard a curve on hold', () => {
+        store().handleApplyModEqualizerCurve({ modId: 'eq-mod', modName: 'EQ mod', gains: SMILE });
+        store().handleSetAudioEqualizerModCurveSuspended(true);
+        draw();
+        const fader = sliders()[0];
+
+        act(() => {
+            fader.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+            fader.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowUp', bubbles: true }));
+        });
+
+        expect(store().audioEqualizerSettings.gains[0]).toBe(ownSound().gains[0] + 1);
+        expect(store().audioEqualizerSettings.preset).toBe('custom1');
+        expect(store().audioEqualizerModCurve).toBeNull();
+        expect(storage.has(AUDIO_EQUALIZER_MOD_CURVE_KEY)).toBe(false);
     });
 
     it('shows no notice without a curve', () => {
