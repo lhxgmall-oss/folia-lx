@@ -12,7 +12,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 
 > **模组开发与上架注意事项**
 >
-> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）、可以放进系统级全局快捷键的命令（`globalShortcut`），以及经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手）。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
+> - 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向本模组 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret` 与 `folium.secrets` / `api.secrets`）、登录状态（`folium.account` 与 `account.changed`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），以及经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手）。其他部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，尚不具备应用内置 Omni provider 的对等能力。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；接口缺口必然导致问题，浪费开发者和维护者的时间。
 > - 任何尝试导出 provider 的原始音频流或解密之后的原始音频文件的模组，都有极高的平台法律风险。无论采用何种实现方式，此类模组都不会上架官方模组市场。
 
 公开类型全部在 [`src/mods/folium/contract.ts`](../src/mods/folium/contract.ts)，这是契约的唯一来源；
@@ -38,7 +38,7 @@ Folium 是 Folia 的模组平台，形状参照 Minecraft Forge：模组通过**
 | 样例 | 演示 |
 | --- | --- |
 | `dev/folium/sample-home-tab` | 首页页面（homeTabs + `ui.openHomeTab`）：双栏页面、输入不触发宿主快捷键、挂载与清理、注销入口后回到原生首页，纯 client、不需要权限 |
-| `dev/folium/sample-playback-console` | 首页页面里的播放控制台：音量、静音与循环模式可调，`getQueue` 分页列出队列并用 `playQueueItem` 点播，订阅 `volumeChanged` / `loopModeChanged` / `queueChanged` / `failed`；main 入口把失败记录追加到 `api.storage.paths.data` 下的日志，在 `paths.cache` 放一个可重建的缓存 |
+| `dev/folium/sample-playback-console` | 首页页面里的播放控制台：音量、静音与循环模式可调，`getQueue` 分页列出队列并用 `playQueueItem` 点播，订阅 `volumeChanged` / `loopModeChanged` / `queueChanged` / `failed`；main 入口把失败记录追加到 `api.storage.paths.data` 下的日志，在 `paths.cache` 放一个可重建的缓存；1.7：`replaceQueue` 把队列倒过来 |
 | `dev/folium/sample-account-console` | Folium 1.7：设置区块里的 `secret` 字段（client 与 main 入口各读一次，只显示「已设置 / 未设置」）；main 入口定时和在 `rpc.handle` 里用 `api.rpc.send` 推消息，client 用 `folium.rpc.on` 收；`folium.account.getState()` 与 `account.changed`；实验接口 `platform.raw` 读 `user_record`（听歌排行），清单选用 `platform.raw`、声明 `platform.netease.read`；可以绑到系统级全局快捷键的命令（`globalShortcut`） |
 | `dev/folium/sample-omni-console` | Folium 1.7：`folium.omni` 列出音源与 `supports`、搜歌并用 `nextCursor` 翻页、`describeSong` 与歌词前几行、专辑第一页曲目（`getAlbum` → `getTracks`）、把存进 `folium.storage` 的 `{ source, id }` 在重启后用 `resolveSongs` 解析回来；`playback.control` 只用于加入队列，`filesystem.data` 只用于存键 |
 
@@ -167,6 +167,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `playback.read` | `api.runtime.getPlaybackSnapshot()`（main） |
 | `render.export` | `api.render.exportVideo()`（main） |
 | `playback.control` | `folium.playback` 的播放、暂停、跳转、切歌、入队、打乱队列、喜爱；1.5 起还有设置音量、静音、循环模式与点播队列里的歌 |
+| `playback.queue` | 1.7：`folium.playback.replaceQueue`（整表替换播放队列，并结束私人 FM）。不需要同时声明 `playback.control` |
 | `net.fetch` | `folium.net.fetch()`（经主进程代发，不受 CORS 限制） |
 | `net.embed` | `folium.ui.embed()`，还需要 `embedOrigins` |
 | `stageLayers` | `registries.stageLayers`（往播放页上画东西） |
@@ -175,6 +176,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 
 两个 `platform.*` 权限都要在 `experimental` 里选用 `platform.raw`，声明 `write` 也必须同时声明 `read`，否则清单校验不通过、模组不加载。
 启用确认窗口和模组面板的展开行会用一句话写明模组能以用户的账号读取（或改动）哪些平台的数据，见 [platform.raw](#platformraw实验17)。
+启用确认窗口和模组面板的展开行也会为 `playback.queue` 写一句说明：模组可以一次换掉整个播放队列并结束私人 FM，替换后宿主会提示是哪个模组换的，在队列再被改动之前可以撤销。
 密钥字段（`secret`）、`rpc.send` / `rpc.on`、`folium.account` 和 `folium.omni` 不需要权限。`folium.omni` 以你在 Folia 登录的平台账号向平台发请求，
 启用确认窗口里不会为它多写一句，见 [folium.omni](#foliumomni17)。
 
@@ -591,7 +593,7 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 | `playback.likeChanged` | `{ liked }`，`getState().liked` 变了（喜爱、取消喜爱，或换到喜爱状态不同的歌） |
 | `playback.volumeChanged` | `{ volume, muted }`，音量或静音开关变了，不论是谁改的；`volume` 在 0–1 |
 | `playback.loopModeChanged` | `{ mode }`：`'off'`、`'all'`（列表循环）或 `'one'`（单曲循环） |
-| `playback.queueChanged` | `{ length, currentIndex }`，队列变了或显示中的歌在队列里换了位置；只是轮廓，歌曲用 `playback.getQueue()` 读。同一个任务里的多次变化合成一次，不按载荷去重（打乱后长度和位置可能都没变） |
+| `playback.queueChanged` | `{ length, currentIndex, version, byThisMod }`，队列变了或显示中的歌在队列里换了位置；只是轮廓，歌曲用 `playback.getQueue()` 读。同一个任务里的多次变化合成一次，不按载荷去重（打乱后长度和位置可能都没变）。1.7 起多出 `version`（队列版本，和 `getQueue()` 的一样）与 `byThisMod`（只在本模组 `replaceQueue` 排出的那一个事件里为 `true`，见 [replaceQueue](#服务)）；automix 过渡结束时也发一次 |
 | `playback.failed` | `{ song, reason, phase, willAutoSkip }`，一首歌放不了，见下 |
 | `account.changed` | 1.7。`FoliumAccountState`（`{ providerId, status, user, accountKey }`），某个在线音源有人登录、退出或换了号，见 [folium.account](#foliumaccount17) |
 
@@ -640,26 +642,98 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
   `seek(line.startTime)` 会跳偏，所以点歌词跳转一律用 `seekToLyricTime`。visualizer 容器本身接收指针事件，
   在自己的元素上监听点击即可；在预览里（`ctx.isPreview`）不要触发跳转。
 
-1.5 补全了音量、循环模式和播放队列。读取不需要权限（和 `getState` 一样只要求在主窗口），写入需要 `playback.control`：
+1.5 补全了音量、循环模式和播放队列。读取不需要权限（和 `getState` 一样只要求在主窗口），写入需要 `playback.control`；1.7 的 `replaceQueue` 需要 `playback.queue`：
 
 - `getVolume()` 返回 `{ volume, muted }`，`volume` 在 0–1，静音开关独立于音量。`setVolume(volume)` 夹到 0–1，和宿主的音量滑块一样，
   不动静音开关；每次调用都会保存，所以只设最终值，不要拿它做渐变。`setMuted(muted)` 是设值而不是切换，两边同时操作不会互相抵消。
   参数不是有限数 / 布尔值时抛错。
 - `getLoopMode()` / `setLoopMode(mode)`：`'off' | 'all' | 'one'`。设成新值时宿主像点自己的循环按钮一样弹提示；设成当前值什么都不做；
   未知值抛错。外部 Stage 播放时也能设，循环模式是持久的偏好。
-- `getQueue({ offset, limit })` 返回队列的一页 `{ items, length, currentIndex, kind }`：
-  - `items` 是 `{ song, index }[]`，`index` 是在整个队列里的位置，队列一变就过期（见 `playback.queueChanged`）。
+- `getQueue({ offset, limit })` 返回队列的一页 `{ items, length, currentIndex, kind, version }`：
+  - `items` 是 `{ song, index }[]`，`index` 是在整个队列里的位置，`version` 一变就过期（见 `playback.queueChanged`）。
   - `length` 是整个队列的长度；`currentIndex` 是显示中的歌在队列里第一次出现的位置，不在队列里时为 -1。
   - `kind`：`queue`；`fm`（私人 FM，队列是当前这一批）；`stage`（外部 Stage 播放，队列与正在播放的内容无关）。
   - `limit` 缺省 500，也最多 500，最少 1；不传 `offset` 时这一页以显示中的歌为中心（不在队列里时从头取），传了就夹到 `[0, length]`。
     给了却不是有限数的 `offset` / `limit` 抛错，小数向下取整。
   - 歌曲的 `ref` 和其它歌曲 DTO 共用一个 5,000 条的池，最久没被交出去的先失效：刚读到的这一页里每个 `ref` 都有效。
     所以只读要显示的那几页，不要一次读完整个队列。
+  - 1.7：`version` 是队列的版本。字符串相同，就是同样的歌、同样的顺序、同样的 `kind`；只是显示中的歌换了位置时不变。它不透明、只在本次
+    会话有效：交给 `replaceQueue`，不要存起来。真要读完一个长队列，就在 `version` 不变的前提下翻页；某一页的 `version` 变了，说明队列变了，从头再读。
 - `playQueueItem(index, expectedRef?)` 播放队列里的第 `index` 项，播放和跳转与在宿主队列面板里点它相同；没播成时，失败提示里的
   “重试”和“跳过”按按下那一刻的队列走。私人 FM 下宿主面板不列队列，用它点播不退出 FM。
   给了 `expectedRef` 时，那个位置已经不是这首歌（两次调用之间队列变了）就不动、返回 `false`；比较的是同一首歌，宿主开播时把队列项
   换成等值副本，之前拿到的 `ref` 照样认得。越界、外部 Stage 播放、`ref` 已失效时也返回 `false`。`index` 不是整数、没有 `playback.control`
   时返回的 Promise 被拒绝。
+
+**`replaceQueue(songs, { expectedVersion })`**（1.7，需要 `playback.queue`，不需要 `playback.control`）一次换掉整个播放队列，给一起听、
+跨设备恢复这类要让本机队列「等于一份给定列表」的模组用：
+
+- **条件提交**：`expectedVersion` 必填，是你最后读到的 `getQueue()` 那一页或 `playback.queueChanged` 事件里的 `version`。队列已经不是那个版本就
+  什么都不动，答 `stale-version`。想盲写也得先读一次 `getQueue().version`，默认的路径是安全的。
+- **全有或全无**：校验和写入在宿主的同一个同步块里，要么整个换掉，要么一点不变，中间不会插进别的写入。返回的 Promise 目前立即兑现。
+- **不切歌**：正在放的歌接着放，播放 / 暂停不变。它不在新队列里时 `currentIndex` 是 -1，下一首（包括播完自动下一首）从新队列第一首开始，
+  和用户在面板里删掉正在放的那首一样；这时从这首到第一首是普通切歌，没有 automix 过渡，也没有预取。这首歌之后被重试（失败提示里的「重试」）
+  或被宿主重载（本地歌换了歌词）时，宿主可能把它放回队首，这会以 `byThisMod: false` 的 `queueChanged` 到达。
+- **原样放进去**：顺序照给的；同一首给两次就是两次（宿主按第一次出现的位置找当前歌）；平台标了不可用的歌也留着，轮到它时宿主照常处理；
+  不受用户「加入队列方式」影响。
+- **结束私人 FM**：和「播放一个列表」一样，替换后 `kind` 是 `queue`。不在 FM 里、和现在的队列同歌同序时什么都不做，答 `replaced` 和原来的版本。
+  空数组清空队列。
+- **上限 5,000 首**，等于 ref 池的大小（见 `getQueue`）：每个 `ref` 都得还认得，所以替换之前现取。`getQueue` 一页最多 500，读完 5,000 首的队列
+  要在同一个 `version` 下翻 10 页，而队列、别的模组和 `folium.omni` 都在用这个池，`ref` 会被挤掉；镜像当前歌附近的一个窗口，比镜像一整张很长的
+  队列稳。
+- **拒绝靠返回值**：`{ status: 'refused', reason, version, index, retryAfterMs }`，`version` 是此刻的版本，`index` 只有歌曲那两种原因有，
+  `retryAfterMs` 只有 `rate-limited` 有，其余为 `null`。按下表从上到下检查，第一条成立的就是原因；歌曲从 `songs[0]` 往后查，第一首不行的
+  那首说了算（下标优先：`songs[0]` 是 Stage 的歌、`songs[3]` 的 `ref` 过期，答 `not-queueable`、`index: 0`）。以后的 minor 可能新增原因，
+  不认识的按 `transition` 处理。
+
+| 原因 | 什么时候 | 模组该怎么办 |
+| --- | --- | --- |
+| `stage` | 外部 Stage 播放占着播放器 | 等一个 `queueChanged`，`getQueue().kind` 不再是 `stage` 时再试 |
+| `transition` | automix 过渡中（几秒，很少超过半分钟） | 等下一个 `queueChanged`（过渡结束时宿主一定发）再试 |
+| `stale-version` | 队列已经不是 `expectedVersion` 那一个（用户、宿主或别的模组改了它） | 重读、重新决定；不要拿新版本直接盲写 |
+| `stale-ref` | `songs[index]` 的 `ref` 已经认不出 | 重新取那首歌的 DTO |
+| `not-queueable` | `songs[index]` 不能进播放队列（外部 Stage 的歌） | 去掉它 |
+| `rate-limited` | 本模组上一次替换不到 1 秒 | `retryAfterMs` 之后用最新的列表再提交 |
+
+- **调用写错才拒绝 Promise**：`songs` 不是数组或超过 5,000 首、某一项不是宿主给的歌曲 DTO（没有 `ref`，或者是 `folium.omni` 的专辑 / 歌手 DTO、
+  自己拼的对象）、没给 `expectedVersion` 字符串，都拒绝 `TypeError('invalid-arguments: …')`，不带 `code`；传错了种类重读也修不好，所以不算 `stale-ref`。
+  没声明 `playback.queue` 拒绝 `permission-denied:playback.queue`（声明了 `playback.control` 也一样），导出窗口里拒绝
+  `playback-unavailable-in-export-context`。
+- **提示与撤销**：替换后宿主的提示条写明是哪个模组换的，带「撤销」按钮；提示条一次只有一条、会被别的提示顶掉，所以命令面板里另有「撤销模组替换的
+  队列」。在队列再被改动之前都能撤销；同一个模组连续替换，撤销回到它第一次替换之前用户的队列，私人 FM 也一起还回去（显示的歌还是当时那首的话）。
+  撤销以 `byThisMod: false` 的 `queueChanged` 到达。替换和宿主自己的编辑一样，存进上次播放的记录。
+- **防回声**：`queueChanged` 的 `byThisMod` 只在本模组这次 `replaceQueue` 排出的那一个事件里为 `true`，而且要你在替换的那一刻就在听；别的模组、
+  用户的改动（包括撤销）、只是显示的歌换了位置，都是 `false`。同步模组靠它不把自己的替换当成用户的改动再广播出去。
+- **能力探测与 1.6**：`folium.host.folium.minor >= 7 && typeof folium.playback.replaceQueue === 'function'`。1.6 的宿主没有这个方法，而且声明了
+  `playback.queue` 的清单在 1.6 上整份被拒、模组根本不加载：要兼容 1.6 的模组不能声明它。main 入口没有 `replaceQueue`，用 `api.rpc.send` 让
+  client 去调，再 `folium.rpc.call` 把结果交回（结果是纯数据）。
+
+一个同步模组的骨架（读 → 计算 → 提交 → 按原因重试），`resolve` 和 `broadcast` 是模组自己的：
+
+```js
+let waiting = null;
+const sync = async (wanted) => {
+  const songs = await resolve(wanted);            // 例如 folium.omni.resolveSongs，换成宿主的歌曲 DTO
+  const { version } = folium.playback.getQueue({ limit: 1 });
+  const result = await folium.playback.replaceQueue(songs, { expectedVersion: version });
+  if (result.status === 'replaced') return;
+  if (result.reason === 'rate-limited') setTimeout(() => sync(wanted), result.retryAfterMs);
+  else if (result.reason === 'stale-ref') void sync(wanted);          // 重新取歌
+  else if (result.reason === 'not-queueable') { /* songs[result.index] 放不进队列：去掉它再提交 */ }
+  else if (result.reason === 'stale-version') { /* 有人刚改了队列：重新决定要不要覆盖它 */ }
+  else waiting = wanted;                           // stage、transition 和以后的新原因：等下一个 queueChanged
+};
+folium.events.on('playback.queueChanged', (event) => {
+  if (event.byThisMod) return;                     // 自己的替换，不再广播
+  if (waiting) {
+    const wanted = waiting;
+    waiting = null;
+    void sync(wanted);
+    return;
+  }
+  broadcast(event.version);                        // 把本机的改动告诉别的设备
+});
+```
 
 **`folium.ui`**：
 
@@ -918,8 +992,9 @@ Folia 自带的音源限了所有模组合计的次数：几个模组同时大�
 
 已知做不到的：
 
-- **整表替换播放队列**不在 1.7。拿 `enqueue` 一首首重建队列会走样：它按用户的「加入队列方式」加，设为「下一首」时一首首加进去，顺序整个反过来；
-  已经在队列里的歌被挪过去、不加第二遍；正在放的歌和平台标了不可用的歌不加；每加一首宿主都弹一次自己的提示。
+- **整表替换播放队列**不在 `folium.omni` 里：用 1.7 的 `folium.playback.replaceQueue`（权限 `playback.queue`，见[服务](#服务)）。不要拿 `enqueue`
+  一首首重建队列，那会走样：它按用户的「加入队列方式」加，设为「下一首」时一首首加进去，顺序整个反过来；已经在队列里的歌被挪过去、不加第二遍；
+  正在放的歌和平台标了不可用的歌不加；每加一首宿主都弹一次自己的提示；而且从不删歌。
 
 #### 导出窗口、main 入口与旧宿主
 
@@ -1278,7 +1353,11 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 - 经 Omni 只读在线音源：`folium.omni`（`listProviders`、`searchSongs`、`resolveSongs`、`describeSong`、`getLyrics`、`getAlbum`、`getArtists`、
   `resolveCollection`、`getTracks`、`getArtistAlbums`），以用户在 Folia 登录的平台账号发请求，按模组限额。稳定，不需要权限。见 [folium.omni](#foliumomni17)。
   随之：歌曲 `ref` 的池从 2,000 条扩到 5,000 条；`platform.raw` 的额度和 `folium.omni` 共用，改为按模组 id 计，重载模组不再重置这一分钟的计数。
-- 示范模组：`dev/folium/sample-account-console` 演示推送消息、密钥字段、登录状态、`platform.raw` 和全局快捷键；`dev/folium/sample-omni-console` 演示 `folium.omni`。
+- 整表替换播放队列：`folium.playback.replaceQueue(songs, { expectedVersion })`，按队列版本条件提交，全有或全无，结束私人 FM。稳定，新权限
+  `playback.queue`。随之：`FoliumQueueSnapshot.version`；`playback.queueChanged` 多出 `version` 与 `byThisMod`，automix 过渡结束时也发一次；
+  替换后宿主提示是哪个模组换的，并可以撤销。见[服务](#服务)。
+- 示范模组：`dev/folium/sample-account-console` 演示推送消息、密钥字段、登录状态、`platform.raw` 和全局快捷键；`dev/folium/sample-omni-console` 演示 `folium.omni`；
+  `dev/folium/sample-playback-console` 演示 `replaceQueue`（把队列倒过来）。
 
 ## 从 UI 安装与管理
 

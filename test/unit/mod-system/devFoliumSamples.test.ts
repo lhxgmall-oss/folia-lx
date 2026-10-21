@@ -16,6 +16,8 @@ import type {
     FoliumPanelContext,
     FoliumPlaybackService,
     FoliumPlatformResponse,
+    FoliumQueueReplaceRefusal,
+    FoliumQueueReplaceResult,
     FoliumQueueSnapshot,
     FoliumSettingsSectionDef,
     FoliumSong,
@@ -162,8 +164,10 @@ describe('sample-playback-console main entry', () => {
 /*
  * A stand-in for the parts of folium the client uses. The playback half follows the contract's
  * types, and getQueue pages the way the host does (centred on the current song without an offset).
+ * replaceQueue answers from `replaceAnswers` while it holds any; past them it replaces: the queue takes
+ * the songs given, the version moves on, and the mod hears its own change (byThisMod).
  */
-const createFakeFolium = (context: 'main' | 'export' = 'main') => {
+const createFakeFolium = (context: 'main' | 'export' = 'main', { minor = 5 } = {}) => {
     const handlers = new Map<string, Array<{ handler: (event: unknown) => void; rank: number }>>();
     const homeTabs: FoliumHomeTabDef[] = [];
     const commands: FoliumCommandDef[] = [];
@@ -173,11 +177,12 @@ const createFakeFolium = (context: 'main' | 'export' = 'main') => {
     }));
     const state = { volume: 0.5, muted: false, loopMode: 'off' as FoliumLoopMode, currentIndex: 70, version: 'v1' };
     const RANK: Record<string, number> = { highest: 0, high: 1, normal: 2, low: 3, lowest: 4 };
+    const replaceAnswers: FoliumQueueReplaceResult[] = [];
 
     const emit = <K extends keyof FoliumEventMap>(type: K, payload: FoliumEventMap[K]) => {
         (handlers.get(type) ?? []).forEach(({ handler }) => handler(Object.freeze({ ...payload })));
     };
-    const playback: Pick<FoliumPlaybackService, 'getVolume' | 'setVolume' | 'setMuted' | 'getLoopMode' | 'setLoopMode' | 'getQueue' | 'playQueueItem'> = {
+    const playback: Pick<FoliumPlaybackService, 'getVolume' | 'setVolume' | 'setMuted' | 'getLoopMode' | 'setLoopMode' | 'getQueue' | 'playQueueItem' | 'replaceQueue'> = {
         getVolume: () => ({ volume: state.volume, muted: state.muted }),
         setVolume: vi.fn((volume: number) => {
             state.volume = volume;
@@ -206,10 +211,18 @@ const createFakeFolium = (context: 'main' | 'export' = 'main') => {
             };
         },
         playQueueItem: vi.fn(async (index: number, expectedRef?: string) => queue[index]?.ref === expectedRef),
+        replaceQueue: vi.fn(async (songs: readonly FoliumSong[], _options: { expectedVersion: string }): Promise<FoliumQueueReplaceResult> => {
+            const answer = replaceAnswers.shift();
+            if (answer) return answer;
+            queue.splice(0, queue.length, ...songs);
+            state.version = `v${Number(state.version.slice(1)) + 1}`;
+            emit('playback.queueChanged', { length: queue.length, currentIndex: state.currentIndex, version: state.version, byThisMod: true });
+            return { status: 'replaced', version: state.version, length: queue.length, currentIndex: state.currentIndex };
+        }),
     };
     const folium = {
         modId: 'sample-playback-console',
-        host: { folium: { major: 1, minor: 5 }, folia: '0.7.20' },
+        host: { folium: { major: 1, minor }, folia: '0.7.20' },
         env: { context },
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
         registries: {
@@ -232,7 +245,7 @@ const createFakeFolium = (context: 'main' | 'export' = 'main') => {
             },
         },
     } as unknown as FoliumClientApi;
-    return { folium, homeTabs, commands, rpcCalls, emit, playback, state, handlerCount: () => [...handlers.values()].reduce((sum, list) => sum + list.length, 0) };
+    return { folium, homeTabs, commands, rpcCalls, emit, playback, state, replaceAnswers, handlerCount: () => [...handlers.values()].reduce((sum, list) => sum + list.length, 0) };
 };
 
 // The sample is written for Folium 1.5, which named onChange `subscribe`; the host hands it both.
@@ -327,6 +340,92 @@ describe('sample-playback-console client', () => {
         expect(container.childElementCount).toBe(0);
         deactivate?.();
         expect(fake.handlerCount()).toBe(0);
+    });
+});
+
+// Folium 1.7: "Reverse the queue" hands the whole queue back reversed with replaceQueue, and answers
+// each refusal once: the next queueChanged for a passing one, retryAfterMs for the rate limit, a fresh read
+// for a stale ref, and none for a stale version (the queue changed: the user decides again).
+describe('sample-playback-console client: replaceQueue', () => {
+    const loadClient = async () => (await import('../../../dev/folium/sample-playback-console/client.mjs')).default as (folium: FoliumClientApi) => (() => void) | undefined;
+    const mountPage = async (minor: number) => {
+        const activate = await loadClient();
+        const fake = createFakeFolium('main', { minor });
+        const deactivate = activate(fake.folium);
+        await flush();
+        const container = document.createElement('div');
+        document.body.append(container);
+        const dispose = fake.homeTabs[0].mount(container, panelContext('en')) as () => void;
+        const buttonNamed = (name: string) => [...container.querySelectorAll('button')].find((node) => node.textContent === name);
+        return { fake, container, buttonNamed, close: () => { dispose(); deactivate?.(); container.remove(); } };
+    };
+    const refusal = (fake: ReturnType<typeof createFakeFolium>, reason: FoliumQueueReplaceRefusal, extra: { index?: number; retryAfterMs?: number } = {}): FoliumQueueReplaceResult => ({
+        status: 'refused', reason, version: fake.state.version, index: extra.index ?? null, retryAfterMs: extra.retryAfterMs ?? null,
+    });
+
+    it('offers no reversal on a host before Folium 1.7', async () => {
+        const { buttonNamed, close } = await mountPage(5);
+        expect(buttonNamed('Reverse the queue')).toBeUndefined();
+        close();
+    });
+
+    it('reads the whole queue under one version and hands it back reversed, trying a blend\'s refusal again on the next queueChanged', async () => {
+        const { fake, container, buttonNamed, close } = await mountPage(7);
+        const replaceQueue = vi.mocked(fake.playback.replaceQueue);
+        fake.replaceAnswers.push(refusal(fake, 'transition'));
+
+        buttonNamed('Reverse the queue')!.click();
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(1);
+        const [songs, options] = replaceQueue.mock.calls[0];
+        expect(songs.map((song) => song.title)).toEqual(Array.from({ length: 120 }, (_, index) => `Song ${119 - index}`));
+        expect(options).toEqual({ expectedVersion: 'v1' });
+        expect(container.textContent).toContain('A blend (automix) is under way');
+
+        // The blend ends: the host's queueChanged, not this mod's.
+        fake.emit('playback.queueChanged', { length: 120, currentIndex: 70, version: 'v1', byThisMod: false });
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(2);
+        expect(container.textContent).toContain('The queue is reversed');
+        expect(container.textContent).toContain('That was this mod\'s replacement.');
+        // Tried once: a later change does not start it again.
+        fake.emit('playback.queueChanged', { length: 120, currentIndex: 70, version: fake.state.version, byThisMod: false });
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(2);
+        expect(container.textContent).not.toContain('That was this mod\'s replacement.');
+        close();
+    });
+
+    it('refreshes and stops on a stale version, waits out the rate limit once, and reads again for a stale ref', async () => {
+        const { fake, container, buttonNamed, close } = await mountPage(7);
+        const replaceQueue = vi.mocked(fake.playback.replaceQueue);
+        const reverse = buttonNamed('Reverse the queue')!;
+
+        fake.replaceAnswers.push(refusal(fake, 'stale-version'));
+        reverse.click();
+        await flush();
+        expect(container.textContent).toContain('The queue just changed; the list is refreshed.');
+        fake.emit('playback.queueChanged', { length: 120, currentIndex: 70, version: 'v1', byThisMod: false });
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(1);
+
+        fake.replaceAnswers.push(refusal(fake, 'rate-limited', { retryAfterMs: 5 }));
+        reverse.click();
+        await flush();
+        expect(container.textContent).toContain('Replaced a moment ago');
+        expect(replaceQueue).toHaveBeenCalledTimes(2);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        expect(replaceQueue).toHaveBeenCalledTimes(3);
+        expect(container.textContent).toContain('The queue is reversed');
+
+        fake.replaceAnswers.push(refusal(fake, 'stale-ref', { index: 3 }));
+        reverse.click();
+        await flush();
+        expect(replaceQueue).toHaveBeenCalledTimes(5);
+        // Read again after the refusal: the version the rate limit's retry left.
+        expect(replaceQueue.mock.calls[4][1]).toEqual({ expectedVersion: 'v2' });
+        expect(container.textContent).toContain('The queue is reversed');
+        close();
     });
 });
 

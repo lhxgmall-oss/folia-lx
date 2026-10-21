@@ -6,7 +6,7 @@ Folium 模组系统在窗口里的一半：契约（`folium/contract.ts` 是 cli
 
 应用和 `src/mods` 只在下面这些地方相连，各自写了用的是什么、为什么。加一个接入点时写进来；去掉模组系统时，要改的就是这些地方。
 
-`src/mods/folium/` 反过来引用应用自己的模块（例如把模组的歌词动画放进 `@/components/visualizer/registry`，把模组的命令放进命令面板），那是适配层的本分，不列在这里。`runtime/` 里只在主窗口装的宿主层也一样：`hostEvents.ts` 读播放、视图等 store 发通知，`hostAccount.ts` 经 omni 读账号 store，是 `folium.account` 与 `account.changed` 的来源（Folium 1.7）；`runtime/omni/` 经 omni 读在线音源，是 `folium.omni` 的来源（Folium 1.7）。这里也不放一个把各个注册表一起导出的总入口文件：每个注册表模块一加载就建好自己的注册表，总入口会让每个引用它的地方都带上全部注册表，还可能把它们挪进更早加载的代码块。
+`src/mods/folium/` 反过来引用应用自己的模块（例如把模组的歌词动画放进 `@/components/visualizer/registry`，把模组的命令放进命令面板），那是适配层的本分，不列在这里。`runtime/` 里只在主窗口装的宿主层也一样：`hostEvents.ts` 读播放、视图等 store 发通知，`hostAccount.ts` 经 omni 读账号 store，是 `folium.account` 与 `account.changed` 的来源（Folium 1.7）；`runtime/omni/` 经 omni 读在线音源，是 `folium.omni` 的来源（Folium 1.7）；`runtime/queue/` 读写播放 store，是 `folium.playback.replaceQueue`、队列版本与撤销的来源（Folium 1.7）。这里也不放一个把各个注册表一起导出的总入口文件：每个注册表模块一加载就建好自己的注册表，总入口会让每个引用它的地方都带上全部注册表，还可能把它们挪进更早加载的代码块。
 
 ### 有意留的接入点
 
@@ -26,6 +26,9 @@ Folium 模组系统在窗口里的一半：契约（`folium/contract.ts` 是 cli
 | `src/components/visualizer/VisualizerShell.tsx` 等播放页控件 | `usePlayerOverlayReservation`（`src/hooks/usePlayerOverlayLayout.ts`），读的是 `src/services/playerOverlayLayout.ts` | 实验接口 `player.layout`：舞台上下文的 `getLayout()`，由 `folium/registries/stageRegistry.ts` 按模组的选用发给它的挂载 |
 | `src/components/app/playback/bridges/useElectronPlaybackBridge.ts`、`src/services/remoteControlActions.ts`、`src/components/remote/RemoteSheet.tsx` | `folium/registries/remoteActions.ts` | 实验接口 `remote.actions`：模组加在遥控窗口「更多」里「模组」页的按钮，点下去在主窗口执行 |
 | `src/vite-env.d.ts` | `src/mods/types.ts` 里的类型 | `window.electron.mods` 这座桥的类型 |
+| `src/services/wholeQueueWrites.ts` | `noteWholeQueueWrite` / `wholeQueueWritesSoFar`：不引用 `src/mods`；`runtime/queue/` 的替换与撤销往里计数，队列控制器、库控制器与几处恢复读它 | 整表写入（Folium 1.7 `replaceQueue` 和它的撤销）之后，等待中的播放、失败后的延后动作、FM 补歌、舞台编辑、会话恢复与窗口交接不把它盖回去。去掉模组系统时可以留着：没有写入者时计数不变，宿主行为不变 |
+| `src/stores/usePlaybackStore.ts` | `replacePlayQueue` | 替换与撤销一次写队列和私人 FM，订阅者只看到一次变化（Folium 1.7 `replaceQueue`） |
+| `src/components/command-palette/commands/playbackCommands.ts` | `useFoliumQueueUndoStore`、`undoFoliumQueueReplace`（`runtime/queue/queueReplaceUndo.ts`） | 命令面板里的「撤销模组替换的队列」：提示条会被别的提示顶掉，这里是持久的入口。去掉模组系统时删这条命令 |
 | `src/services/hostExtensionHooks.ts` | 不引用 `src/mods`；`runtime/hostEvents.ts` 和 `folium/experimental.ts` 往里装钩子 | 应用在歌词进来、一首歌开始放的地方调它；没装钩子时原样通过，应用不需要知道有模组。`folium.omni` 的读取绕过钩子（见下一行的 `extensionHooks`） |
 | `src/services/onlineMusic/omni.ts` 的 `getRawRequestInfo`、`describeRawEndpoint`、`requestProviderRaw`，它剥凭据用的 `rawResponse.ts`；`src/types/onlineMusic.ts` 的 `OnlineRawRequestProvider`；平台的 `raw`（网易云：`netease/neteaseRaw.ts` 和 `netease.ts` 的 `requestNeteaseRoute`） | 不引用 `src/mods`；`folium/platformRaw.ts` 调 omni 的这三个方法 | 实验接口 `platform.raw`（Folium 1.7）：以登录的账号调平台后端原始接口的后备通道，只有它用。会话由平台的 provider 补上，哪些接口能调由平台自己的分类表定；去掉模组系统时这几处一起删 |
 | `src/services/onlineMusic/omni.ts` 的 `getLyrics` 的 `extensionHooks` 选项，`searchSongs` / `searchProviderSongs` 的 `session`（`src/types/onlineMusic.ts` 的 `ProviderSearchContext`） | 不引用 `src/mods`；`runtime/omni/hostOmni.ts` 读歌词时传 `extensionHooks: false`，搜索时传 `folium:<模组 id>` | 只给 `folium.omni`（Folium 1.7）用：模组读到平台原样的歌词，不跑模组的 `omni.lyricsResolved` 钩子（模组在自己的钩子里再读会调到自己）；模组的搜索翻页另存一份，不重置也不挤掉界面的搜索。去掉模组系统时这两个参数可以留着不用 |
