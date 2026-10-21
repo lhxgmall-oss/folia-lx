@@ -160,6 +160,13 @@ describe('validateManifest Folium entries and opt-ins', () => {
         expect(platform([]).ok).toBe(true);
     });
 
+    // Folium 1.7: folium.equalizer's writes; no opt-in and no other permission goes with it.
+    it('accepts equalizer.control on its own', () => {
+        const result = validateManifest({ ...validManifest, permissions: ['equalizer.control'] });
+        expect(result.ok).toBe(true);
+        expect(result.value.permissions).toEqual(['equalizer.control']);
+    });
+
     it('accepts an optional preview image path inside the mod directory', () => {
         expect(validateManifest({ ...validManifest, preview: 'preview.jpg' }).ok).toBe(true);
         expect(validateManifest({ ...validManifest, preview: 'assets/cover.webp' }).ok).toBe(true);

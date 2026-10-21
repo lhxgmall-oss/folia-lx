@@ -1076,6 +1076,7 @@ export default {
     "queueReplaceUndone": "The play queue from before the replacement is back",
     "queueReplaceUndoGone": "The queue has changed since it was replaced, so there is nothing to undo",
     "queueReplaceHint": "Can replace the whole play queue at once and end Personal FM; Folia then says which mod did it, and you can undo it until the queue changes again.",
+    "equalizerControlHint": "Changes your sound settings: can switch your sound preset, or put its own equalizer curve in place.",
     "signatureVerified": "Verified",
     "signatureVerifiedDetail": "Carries a valid official Folium signature ({{key}}): its source and content were reviewed by Folium and have not changed since signing. Once enabled it still runs with the app's full privileges.",
     "signatureBeta": "Preview",

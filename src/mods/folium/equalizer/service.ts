@@ -9,6 +9,7 @@ import type {
     FoliumEqualizerWriteResult,
 } from '../contract';
 import type { FoliumStoppedCheck } from '../api';
+import type { FoliumPermissionId } from '../shared';
 
 // src/mods/folium/equalizer/service.ts
 // `folium.equalizer` (Folium 1.7) as a mod sees it, and the seam it goes through. Like account.ts and
@@ -60,7 +61,7 @@ void presetIdsComplete;
 void customIdsComplete;
 
 /** The permission every write needs. */
-const EQUALIZER_CONTROL = 'equalizer.control';
+const EQUALIZER_CONTROL: FoliumPermissionId = 'equalizer.control';
 
 /** The shortest time between two counted writes of one mod. */
 const EQUALIZER_WRITE_MIN_INTERVAL_MS = 1000;

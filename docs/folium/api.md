@@ -38,6 +38,7 @@
 | `playback.read` | `api.runtime.getPlaybackSnapshot` |
 | `playback.control` | `folium.playback.play`、`folium.playback.pause`、`folium.playback.toggle`、`folium.playback.seek`、`folium.playback.seekToLyricTime`、`folium.playback.next`、`folium.playback.previous`、`folium.playback.playSong`、`folium.playback.enqueue`、`folium.playback.shuffleQueue`、`folium.playback.toggleLike`、`folium.playback.setVolume`、`folium.playback.setMuted`、`folium.playback.setLoopMode`、`folium.playback.playQueueItem` |
 | `playback.queue` | `folium.playback.replaceQueue` |
+| `equalizer.control` | `folium.equalizer.setMode`、`folium.equalizer.applyCurve`、`folium.equalizer.releaseCurve` |
 | `render.export` | `api.render.exportVideo` |
 | `net.fetch` | `folium.net.fetch` |
 | `net.embed` | `folium.ui.embed` |

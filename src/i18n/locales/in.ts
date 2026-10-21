@@ -1076,6 +1076,7 @@ export default {
     "queueReplaceUndone": "Antrean putar sebelum penggantian sudah dipulihkan",
     "queueReplaceUndoGone": "Antrean sudah berubah setelah diganti, jadi tidak ada yang bisa diurungkan",
     "queueReplaceHint": "Dapat mengganti seluruh antrean putar sekaligus dan mengakhiri FM Pribadi; Folia lalu memberi tahu mod mana yang melakukannya, dan Anda dapat mengurungkannya selama antrean belum diubah lagi.",
+    "equalizerControlHint": "Mengubah pengaturan suara Anda: dapat mengganti preset suara, atau memasang kurva equalizer miliknya sendiri.",
     "signatureVerified": "Terverifikasi",
     "signatureVerifiedDetail": "Memiliki tanda tangan resmi Folium yang valid ({{key}}): sumber dan isinya telah ditinjau Folium dan tidak berubah sejak ditandatangani. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.",
     "signatureBeta": "Pratinjau",
