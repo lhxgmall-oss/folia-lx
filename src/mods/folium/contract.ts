@@ -1181,7 +1181,12 @@ export interface FoliumPlaybackService {
     previous(): void;
     /** Plays a song by its host `ref`. Resolves false when the ref is unknown. Needs `playback.control`. */
     playSong(song: FoliumSong): Promise<boolean>;
-    /** Appends a song (by `ref`) to the queue. Needs `playback.control`. */
+    /**
+     * Adds a song (by `ref`) to the queue the way the user's queue-add setting says (next or last), as the
+     * host's own add does: a song already queued moves there; the song playing now, and a song its source
+     * marks unavailable, are not added; the host shows its own notice. False when the ref is unknown; true
+     * otherwise, also when the queue did not change. Needs `playback.control`.
+     */
     enqueue(song: FoliumSong): boolean;
     /**
      * Shuffles the play queue, keeping the current song first.
@@ -1217,7 +1222,7 @@ export interface FoliumPlaybackService {
     setLoopMode(mode: FoliumLoopMode): void;
     /**
      * A page of the play queue. `limit` defaults to 500, the most one call returns; without
-     * `offset` the page is centred on the displayed song. Song refs come from a pool of 2,000 shared with
+     * `offset` the page is centred on the displayed song. Song refs come from a pool of 5,000 shared with
      * every other song DTO, the least recently handed out dropped first: every ref of the page you just read
      * resolves, so read the pages you show rather than the whole queue.
      */
@@ -1390,6 +1395,264 @@ export interface FoliumAccountService {
      * provider id the host does not know. Follow changes with the `account.changed` event.
      */
     getState(providerId?: string): FoliumAccountState | null;
+}
+
+/** Folium 1.7: a song's portable identity, as `FoliumSong.source` and `FoliumSong.id` give it. */
+export interface FoliumSongKey {
+    /** An Omni provider id (`FoliumSong.source`). */
+    readonly source: string;
+    /** The song id within that source (`FoliumSong.id`), as a string. */
+    readonly id: string;
+}
+
+/**
+ * Folium 1.7: one online source of the host, as `folium.omni.listProviders()` lists it. Frozen.
+ * More `supports` flags may come in later minors; a flag that is absent reads as false.
+ */
+export interface FoliumOmniProviderInfo {
+    /** The Omni provider id, as `FoliumSong.source` and `FoliumAccountState.providerId` name it. */
+    readonly providerId: string;
+    /** Full name, as the host's source switcher shows it. */
+    readonly displayName: string;
+    /** Short name, as the search overlay's source chip shows it. */
+    readonly shortName: string;
+    /** `host`: built into Folia. `mod`: registered by a mod (`omni.providers`); gone while that mod is off. */
+    readonly origin: 'host' | 'mod';
+    /** Whether this is the source the host has selected now (what `searchSongs` uses without `providerId`). */
+    readonly selected: boolean;
+    /** False when the source is not set up in this host. True does not promise that a request succeeds. */
+    readonly configured: boolean;
+    /** What of `folium.omni` this source answers; a method on a source without its flag rejects `unsupported`. */
+    readonly supports: {
+        /** `searchSongs` can search it. */
+        readonly search: boolean;
+        /** `resolveSongs` can look its songs up by id. */
+        readonly resolve: boolean;
+        /** `getLyrics` can read its songs' lyrics. */
+        readonly lyrics: boolean;
+        /** `getAlbum`, and albums in `resolveCollection` / `getTracks`. */
+        readonly albums: boolean;
+        /** `getArtists`, and artists in `resolveCollection` / `getTracks` / `getArtistAlbums`. */
+        readonly artists: boolean;
+    };
+}
+
+/**
+ * Folium 1.7: one page of a list `folium.omni` reads. Frozen. Ask for the next page with `nextCursor`;
+ * sources page differently, so there is no offset to compute.
+ */
+export interface FoliumOmniPage<T> {
+    /** The page, in the source's order; never more items than the `limit` asked for. */
+    readonly items: readonly T[];
+    /**
+     * Pass it as `cursor` for the next page of the same list; null when the source has no more. Opaque, valid
+     * for this session only, and a cursor not used for a while stops resolving (`stale-ref`): start again
+     * without one.
+     */
+    readonly nextCursor: string | null;
+    /** The whole list's length when the source says it; null otherwise. */
+    readonly total: number | null;
+}
+
+/**
+ * Folium 1.7: what `resolveSongs` found for one key, in the order of the keys.
+ * `found`: the song, with a `ref` for playSong and enqueue.
+ * `not-found`: the source answered and has no such song.
+ * `unsupported`: this host cannot look it up now: no source by that id (a mod's source while that mod is
+ * off, a source of another Folia build), a source that is not online (`local`, `navidrome`, `stage`), or one
+ * that cannot look songs up by id. This may change as sources come and go: keep the key.
+ * `failed`: the lookup did not get an answer; `code` says why (never `unsupported`), and a later try may work.
+ * Later minors may add statuses: treat one you do not know as `failed`.
+ */
+export type FoliumSongResolution =
+    | { readonly status: 'found'; readonly song: FoliumSong }
+    | { readonly status: 'not-found' }
+    | { readonly status: 'unsupported' }
+    | { readonly status: 'failed'; readonly code: FoliumOmniErrorCode };
+
+/** Folium 1.7: what `describeSong` knows of an online song without asking its source. Frozen. */
+export interface FoliumSongDetails {
+    /** Duration in milliseconds; null when the source did not give it. */
+    readonly durationMs: number | null;
+    /** Cover image URL; null when there is none. */
+    readonly coverUrl: string | null;
+    /**
+     * `playable`: the source marks nothing against it. `taken-down`: the source took it down. `restricted`:
+     * the source marks it as limited (paying accounts, regions); whether it plays is found out when it is
+     * played. `unknown`: the source says nothing either way. It is what the source told the account signed
+     * in to it, so it may change with that account. Later minors may add values: treat one you do not know
+     * as `unknown`.
+     */
+    readonly availability: 'playable' | 'taken-down' | 'restricted' | 'unknown';
+    /** The song's public web page at its source; null when the source has none. */
+    readonly pageUrl: string | null;
+}
+
+/**
+ * Folium 1.7: an online song's lyrics, as `folium.omni.getLyrics` reads them. Frozen. `lines` and
+ * `isWordByWord` mean what they mean for `folium.lyrics.parse`; a line's `isChorus` is the source's marking
+ * or the host's detection from repeated lines.
+ */
+export interface FoliumOmniLyrics extends FoliumParsedLyrics {
+    /** The source marks the song as instrumental. */
+    readonly isPureMusic: boolean;
+}
+
+/** Folium 1.7: a portable key of an album or an artist, as `FoliumCollection` carries it. */
+export interface FoliumCollectionKey {
+    /** An Omni provider id (`FoliumCollection.source`). */
+    readonly source: string;
+    /** `album` or `artist`. */
+    readonly kind: 'album' | 'artist';
+    /** The id within that source and kind (`FoliumCollection.id`). */
+    readonly id: string;
+}
+
+/**
+ * Folium 1.7: an album or an artist at an online source. Frozen. Key data of your own on `source`, `kind`
+ * and `id` together; `ref` is valid for this session only. Later minors may add kinds: treat a kind you do
+ * not know as one you cannot read.
+ */
+export interface FoliumCollection {
+    /** `album` or `artist`. */
+    readonly kind: 'album' | 'artist';
+    /** The Omni provider id. */
+    readonly source: string;
+    /** The id within the source and kind; `resolveCollection` takes it back. */
+    readonly id: string;
+    /** Its name. */
+    readonly name: string;
+    /** For an album, its artists joined with ` / `; '' for an artist or when unknown. */
+    readonly artist: string;
+    /** Cover or portrait URL; null when there is none. */
+    readonly coverUrl: string | null;
+    /** The source's description; null when it gives none. */
+    readonly description: string | null;
+    /** Songs on an album; null when unknown (a summary from a song or a list carries less). */
+    readonly trackCount: number | null;
+    /** An artist's albums; null when unknown. */
+    readonly albumCount: number | null;
+    /** An album's release time, milliseconds since the epoch; null when unknown. */
+    readonly publishedAt: number | null;
+    /** Opaque handle for getTracks / getArtistAlbums; valid for the session. */
+    readonly ref: string;
+}
+
+/**
+ * Folium 1.7: why a `folium.omni` call failed, as the rejection's `code` (and its message), or as a
+ * `failed` resolution's `code`.
+ * `unsupported`: the source does not answer this (its `supports` flag is false), or there is no such source.
+ * `unavailable`: the source cannot take requests now (not set up, its service not running, or it refused).
+ * `region-restricted`: the source does not answer from this region.
+ * `not-signed-in` / `session-expired`: the source needs a signed-in account for this.
+ * `vip-required`: only paying accounts may.
+ * `rate-limited`: too many requests (see FoliumOmniService), or the source says so.
+ * `network`: no answer in time, or a failure the source did not explain.
+ * `account-changed`: the selected source or its account changed while the call was under way, so the
+ * answer was dropped.
+ * `stale-ref`: the DTO's `ref`, or the `cursor`, no longer resolves; read it again.
+ * `aborted`: the call's `signal` aborted, or the mod stopped.
+ * Later minors may add codes: treat one you do not know as `network`.
+ */
+export type FoliumOmniErrorCode =
+    | 'unsupported'
+    | 'unavailable'
+    | 'region-restricted'
+    | 'not-signed-in'
+    | 'session-expired'
+    | 'vip-required'
+    | 'rate-limited'
+    | 'network'
+    | 'account-changed'
+    | 'stale-ref'
+    | 'aborted';
+
+/**
+ * Folium 1.7: `folium.omni`, the host's online music sources (Omni), read only: search, songs by id,
+ * lyrics, albums and artists. Needs no permission. Requests are made as the account signed in to that
+ * source in Folia. Songs come with a `ref`, so `folium.playback.playSong` and `enqueue` take them as they
+ * are. Nothing here reads the signed-in account's own library, hands out audio URLs or changes anything at
+ * a source.
+ *
+ * A song's `ref` is not its identity: the same song read twice (from the queue and from `resolveSongs`, say)
+ * may come with different refs. Compare `source` and `id`.
+ *
+ * Each time the host has to ask a source for you counts once against this mod's allowance, shared with
+ * `platform.raw`: currently 120 a minute (past it a call rejects `rate-limited`) and 8 at a time (past it a
+ * call waits its turn). Looking up many songs may ask more than once; the host may answer from what it read
+ * recently. The host may also limit requests per source across all mods, which rejects `rate-limited` too.
+ * Requests to a source a mod provides (origin `mod`) count against the minute but never wait. A call that
+ * gets no answer in a while rejects `network`. `aborted` (the call's `signal`, or the mod stopping) only
+ * drops the answer: the request at the source may still run, and counts as under way until it ends.
+ *
+ * Main window only: in the export window the synchronous methods throw, and the others reject, an Error
+ * whose message is `omni-unavailable-in-export-context` (it has no `code`). The main entry has no `omni`; ask
+ * the client over `rpc`. An older host has no `folium.omni`: check `folium.host.folium.minor >= 7` first.
+ * Async methods reject with an Error whose `code` is a FoliumOmniErrorCode, and with a TypeError
+ * (`invalid-arguments: …`, no `code`) for malformed arguments, a song DTO without a `ref` included.
+ */
+export interface FoliumOmniService {
+    /** The host's online sources, in the host's order. Synchronous; asks no source. */
+    listProviders(): readonly FoliumOmniProviderInfo[];
+    /**
+     * Searches songs at `providerId`, or at the source the host has selected now. `query` is 1–200
+     * characters after trimming. Without `cursor` it reads the first page; `limit` (default 30, at most 50)
+     * is read only then, and later pages keep it. Song refs come from the host's shared pool (see
+     * `playback.getQueue`): read the pages you show.
+     */
+    searchSongs(
+        query: string,
+        options?: { providerId?: string; cursor?: string; limit?: number; signal?: AbortSignal },
+    ): Promise<FoliumOmniPage<FoliumSong>>;
+    /**
+     * Looks songs up by their portable identity (`FoliumSong.source` + `FoliumSong.id`), 1–50 keys a call;
+     * resolves one FoliumSongResolution per key, in order. A key that fails does not fail the call; the
+     * call rejects only for malformed arguments, the export window and `aborted`. A source without a way to
+     * look many songs up at once is asked once per key: resolve the keys you are about to show. A song that
+     * only existed on another device (a local file, a cloud upload, a source not installed here) may not
+     * resolve, or may resolve to that source's public version. Nothing is played, and no audio address is
+     * fetched.
+     */
+    resolveSongs(keys: readonly FoliumSongKey[], options?: { signal?: AbortSignal }): Promise<readonly FoliumSongResolution[]>;
+    /**
+     * What the host knows of a song (by `ref`) without asking its source. Null for a song that is not
+     * online, or whose `ref` no longer resolves. Synchronous.
+     */
+    describeSong(song: FoliumSong): FoliumSongDetails | null;
+    /**
+     * The lyrics of an online song (by `ref`), as its source gives them, parsed by the host. Mods'
+     * `omni.lyricsResolved` hooks do not run for this read. Rejects `unsupported` for a song that is not
+     * online or whose source has no lyrics.
+     */
+    getLyrics(song: FoliumSong, options?: { signal?: AbortSignal }): Promise<FoliumOmniLyrics>;
+    /**
+     * The album of an online song (by `ref`); null when its source has no album for it. May ask the source.
+     * Rejects `unsupported` for a song that is not online or whose source has no albums.
+     */
+    getAlbum(song: FoliumSong, options?: { signal?: AbortSignal }): Promise<FoliumCollection | null>;
+    /**
+     * The artists of an online song (by `ref`) its source can open; empty when none. May ask the source.
+     * Rejects `unsupported` for a song that is not online or whose source has no artists.
+     */
+    getArtists(song: FoliumSong, options?: { signal?: AbortSignal }): Promise<readonly FoliumCollection[]>;
+    /**
+     * An album or artist by its key, with the details its source gives; null when the source has none. A
+     * source may also reject `unavailable` or `network` for an id it does not know.
+     */
+    resolveCollection(key: FoliumCollectionKey, options?: { signal?: AbortSignal }): Promise<FoliumCollection | null>;
+    /**
+     * A page of an album's songs, or of an artist's songs (in the source's order, most popular first for
+     * most sources). Without `cursor` the first page; `limit` (default 50, at most 100) is read only then.
+     */
+    getTracks(
+        collection: FoliumCollection,
+        options?: { cursor?: string; limit?: number; signal?: AbortSignal },
+    ): Promise<FoliumOmniPage<FoliumSong>>;
+    /** A page of an artist's albums; paged as `getTracks`. */
+    getArtistAlbums(
+        artist: FoliumCollection,
+        options?: { cursor?: string; limit?: number; signal?: AbortSignal },
+    ): Promise<FoliumOmniPage<FoliumCollection>>;
 }
 
 // ---------------------------------------------------------------- Experimental
@@ -1801,6 +2064,8 @@ export interface FoliumClientApi {
     readonly theme: FoliumThemeHelpers;
     /** Folium 1.7: who is signed in to the online sources. */
     readonly account: FoliumAccountService;
+    /** Folium 1.7: the host's online music sources, read only: search, songs by id, lyrics, albums, artists. */
+    readonly omni: FoliumOmniService;
     /**
      * Calls `listener` every `ms` milliseconds (at least 16) until the mod stops; the host stops
      * it then.

@@ -15,7 +15,7 @@
 - **注册表与条目**：[注册表一览](#注册表一览) · [FoliumVisualizerDef](#foliumvisualizerdef) · [FoliumTuningDef](#foliumtuningdef) · [FoliumCommandContext](#foliumcommandcontext) · [FoliumCommandDef](#foliumcommanddef) · [FoliumBackgroundContext](#foliumbackgroundcontext) · [FoliumBackgroundDef](#foliumbackgrounddef) · [FoliumStageSlot](#foliumstageslot) · [FoliumStageLayerDef](#foliumstagelayerdef) · [FoliumSettingsSectionDef](#foliumsettingssectiondef) · [FoliumPlayerPanelTabDef](#foliumplayerpaneltabdef) · [FoliumHomeTabDef](#foliumhometabdef) · [FoliumProgressContext](#foliumprogresscontext) · [FoliumProgressButtonSlot](#foliumprogressbuttonslot) · [FoliumProgressButtonDef](#foliumprogressbuttondef) · [FoliumProgressLayerDef](#foliumprogresslayerdef) · [FoliumStyleDef](#foliumstyledef) · [FoliumRegistryHandle](#foliumregistryhandle) · [FoliumSettingsSectionHandle](#foliumsettingssectionhandle) · [FoliumRegistry](#foliumregistry) · [FoliumRegistries](#foliumregistries)
 - **宿主容器与上下文**：[FoliumMount](#foliummount) · [FoliumSize](#foliumsize) · [FoliumMountHelpers](#foliummounthelpers) · [FoliumPanelContext](#foliumpanelcontext) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext) · [FoliumClock](#foliumclock) · [FoliumSurface](#foliumsurface) · [FoliumAudioBands](#foliumaudiobands) · [FoliumAudio](#foliumaudio) · [FoliumDisplay](#foliumdisplay) · [FoliumStageContext](#foliumstagecontext)
 - **事件**：[事件一览](#事件一览) · [FoliumEventPriority](#foliumeventpriority) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumNotificationEvents](#foliumnotificationevents) · [FoliumLyricsTransformEvent](#foliumlyricstransformevent) · [FoliumBeforePlayEvent](#foliumbeforeplayevent) · [FoliumOmniLyricsEvent](#foliumomnilyricsevent) · [FoliumOmniAudioEvent](#foliumomniaudioevent) · [FoliumHookEvents](#foliumhookevents) · [FoliumEventMap](#foliumeventmap) · [FoliumEvents](#foliumevents)
-- **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumNetService](#foliumnetservice) · [FoliumAccountState](#foliumaccountstate) · [FoliumAccountService](#foliumaccountservice)
+- **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumNetService](#foliumnetservice) · [FoliumAccountState](#foliumaccountstate) · [FoliumAccountService](#foliumaccountservice) · [FoliumSongKey](#foliumsongkey) · [FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollectionKey](#foliumcollectionkey) · [FoliumCollection](#foliumcollection) · [FoliumOmniErrorCode](#foliumomnierrorcode) · [FoliumOmniService](#foliumomniservice)
 - **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
 - **设置 schema**：[FoliumSettingType](#foliumsettingtype) · [FoliumSettingOption](#foliumsettingoption) · [FoliumSetting](#foliumsetting) · [FoliumSettingValues](#foliumsettingvalues) · [FoliumSettingAccess](#foliumsettingaccess)
 - **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
@@ -150,11 +150,12 @@ The object a client entry's `activate(folium)` receives.
 | `readonly lyrics` | `FoliumLyricsService` | The lyric helpers builtin modes use, and the displayed song's lyrics. |
 | `readonly theme` | `FoliumThemeHelpers` | The theme helpers builtin modes use. |
 | `readonly account` | `FoliumAccountService` | Folium 1.7: who is signed in to the online sources. |
+| `readonly omni` | `FoliumOmniService` | Folium 1.7: the host's online music sources, read only: search, songs by id, lyrics, albums, artists. |
 | `every()` | `(ms: number, listener: () => void): FoliumDisposer` | Calls `listener` every `ms` milliseconds (at least 16) until the mod stops; the host stops it then. |
 | `onDispose()` | `(disposer: FoliumDisposer): void` | Runs `disposer` when the mod stops, after the disposer `activate` returned; at once when the mod has already stopped. |
 | `readonly experimental` | `Readonly<Record<string, unknown>>` | Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. |
 
-相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumAccountService](#foliumaccountservice) · [FoliumDisposer](#foliumdisposer)
+相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumAccountService](#foliumaccountservice) · [FoliumOmniService](#foliumomniservice) · [FoliumDisposer](#foliumdisposer)
 
 ### FoliumClientModule
 
@@ -863,7 +864,7 @@ The event bus, as `folium.events`.
 
 ## 服务
 
-`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account`（不需要权限）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。
+`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。
 
 ### FoliumPlaybackService
 
@@ -882,7 +883,7 @@ in the export window.
 | `next()` | `(): void` | Next track. Needs `playback.control`. |
 | `previous()` | `(): void` | Previous track. Needs `playback.control`. |
 | `playSong()` | `(song: FoliumSong): Promise<boolean>` | Plays a song by its host `ref`. Resolves false when the ref is unknown. Needs `playback.control`. |
-| `enqueue()` | `(song: FoliumSong): boolean` | Appends a song (by `ref`) to the queue. Needs `playback.control`. |
+| `enqueue()` | `(song: FoliumSong): boolean` | Adds a song (by `ref`) to the queue the way the user's queue-add setting says (next or last), as the host's own add does: a song already queued moves there; the song playing now, and a song its source marks unavailable, are not added; the host shows its own notice. False when the ref is unknown; true otherwise, also when the queue did not change. Needs `playback.control`. |
 | `shuffleQueue()` | `(): boolean` | Shuffles the play queue, keeping the current song first. False when there is nothing to shuffle (Personal FM, a queue of one, external Stage playback). Needs `playback.control`. |
 | `toggleLike()` | `(): boolean` | Likes or unlikes the displayed song, like the host's like button, which also reports the result. False when `canLike` is false. Needs `playback.control`. |
 | `getVolume()` | `(): { volume: number; muted: boolean }` | Output volume (0–1) and the mute switch, which is separate from it. |
@@ -890,7 +891,7 @@ in the export window.
 | `setMuted()` | `(muted: boolean): void` | Mutes or unmutes. A set rather than a toggle, so two windows acting at once cannot cancel each other out. Needs `playback.control`. |
 | `getLoopMode()` | `(): FoliumLoopMode` | The repeat mode. |
 | `setLoopMode()` | `(mode: FoliumLoopMode): void` | Sets the repeat mode; the host reports the change like its own repeat button does. Setting the mode already in effect does nothing. Needs `playback.control`. |
-| `getQueue()` | `(options?: { offset?: number; limit?: number }): FoliumQueueSnapshot` | A page of the play queue. `limit` defaults to 500, the most one call returns; without `offset` the page is centred on the displayed song. Song refs come from a pool of 2,000 shared with every other song DTO, the least recently handed out dropped first: every ref of the page you just read resolves, so read the pages you show rather than the whole queue. |
+| `getQueue()` | `(options?: { offset?: number; limit?: number }): FoliumQueueSnapshot` | A page of the play queue. `limit` defaults to 500, the most one call returns; without `offset` the page is centred on the displayed song. Song refs come from a pool of 5,000 shared with every other song DTO, the least recently handed out dropped first: every ref of the page you just read resolves, so read the pages you show rather than the whole queue. |
 | `playQueueItem()` | `(index: number, expectedRef?: string): Promise<boolean>` | Plays queue entry `index`, with the same playback and navigation as clicking it in the host's queue panel; if it fails to play, the retry and skip buttons follow the queue as it is when pressed. In Personal FM, where the panel lists no queue, it plays the entry and FM stays on. With `expectedRef`, resolves false without acting when that position no longer holds that song (the queue changed between your calls). False for an index out of range and during external Stage playback. Needs `playback.control`. |
 
 相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueSnapshot](#foliumqueuesnapshot)
@@ -1018,6 +1019,187 @@ no user id, cookie or token. Unavailable in the export window: `getState` throws
 | `getState()` | `(providerId?: string): FoliumAccountState \| null` | The state of one source; without `providerId`, of the source the host has selected now. Null for a provider id the host does not know. Follow changes with the `account.changed` event. |
 
 相关：[FoliumAccountState](#foliumaccountstate)
+
+### FoliumSongKey
+
+Folium 1.7: a song's portable identity, as `FoliumSong.source` and `FoliumSong.id` give it.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly source` | `string` | An Omni provider id (`FoliumSong.source`). |
+| `readonly id` | `string` | The song id within that source (`FoliumSong.id`), as a string. |
+
+### FoliumOmniProviderInfo
+
+Folium 1.7: one online source of the host, as `folium.omni.listProviders()` lists it. Frozen.
+More `supports` flags may come in later minors; a flag that is absent reads as false.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly providerId` | `string` | The Omni provider id, as `FoliumSong.source` and `FoliumAccountState.providerId` name it. |
+| `readonly displayName` | `string` | Full name, as the host's source switcher shows it. |
+| `readonly shortName` | `string` | Short name, as the search overlay's source chip shows it. |
+| `readonly origin` | `'host' \| 'mod'` | `host`: built into Folia. `mod`: registered by a mod (`omni.providers`); gone while that mod is off. |
+| `readonly selected` | `boolean` | Whether this is the source the host has selected now (what `searchSongs` uses without `providerId`). |
+| `readonly configured` | `boolean` | False when the source is not set up in this host. True does not promise that a request succeeds. |
+| `readonly supports` | `{ readonly search: boolean; readonly resolve: boolean; readonly lyrics: boolean; readonly albums: boolean; readonly artists: boolean; }` | What of `folium.omni` this source answers; a method on a source without its flag rejects `unsupported`. |
+| `readonly supports.search` | `boolean` | `searchSongs` can search it. |
+| `readonly supports.resolve` | `boolean` | `resolveSongs` can look its songs up by id. |
+| `readonly supports.lyrics` | `boolean` | `getLyrics` can read its songs' lyrics. |
+| `readonly supports.albums` | `boolean` | `getAlbum`, and albums in `resolveCollection` / `getTracks`. |
+| `readonly supports.artists` | `boolean` | `getArtists`, and artists in `resolveCollection` / `getTracks` / `getArtistAlbums`. |
+
+### FoliumOmniPage
+
+Folium 1.7: one page of a list `folium.omni` reads. Frozen. Ask for the next page with `nextCursor`;
+sources page differently, so there is no offset to compute.
+
+```ts
+interface FoliumOmniPage<T>
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly items` | `readonly T[]` | The page, in the source's order; never more items than the `limit` asked for. |
+| `readonly nextCursor` | `string \| null` | Pass it as `cursor` for the next page of the same list; null when the source has no more. Opaque, valid for this session only, and a cursor not used for a while stops resolving (`stale-ref`): start again without one. |
+| `readonly total` | `number \| null` | The whole list's length when the source says it; null otherwise. |
+
+### FoliumSongResolution
+
+Folium 1.7: what `resolveSongs` found for one key, in the order of the keys.
+`found`: the song, with a `ref` for playSong and enqueue.
+`not-found`: the source answered and has no such song.
+`unsupported`: this host cannot look it up now: no source by that id (a mod's source while that mod is
+off, a source of another Folia build), a source that is not online (`local`, `navidrome`, `stage`), or one
+that cannot look songs up by id. This may change as sources come and go: keep the key.
+`failed`: the lookup did not get an answer; `code` says why (never `unsupported`), and a later try may work.
+Later minors may add statuses: treat one you do not know as `failed`.
+
+```ts
+type FoliumSongResolution = | { readonly status: 'found'; readonly song: FoliumSong } | { readonly status: 'not-found' } | { readonly status: 'unsupported' } | { readonly status: 'failed'; readonly code: FoliumOmniErrorCode }
+```
+
+相关：[FoliumSong](#foliumsong) · [FoliumOmniErrorCode](#foliumomnierrorcode)
+
+### FoliumSongDetails
+
+Folium 1.7: what `describeSong` knows of an online song without asking its source. Frozen.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly durationMs` | `number \| null` | Duration in milliseconds; null when the source did not give it. |
+| `readonly coverUrl` | `string \| null` | Cover image URL; null when there is none. |
+| `readonly availability` | `'playable' \| 'taken-down' \| 'restricted' \| 'unknown'` | `playable`: the source marks nothing against it. `taken-down`: the source took it down. `restricted`: the source marks it as limited (paying accounts, regions); whether it plays is found out when it is played. `unknown`: the source says nothing either way. It is what the source told the account signed in to it, so it may change with that account. Later minors may add values: treat one you do not know as `unknown`. |
+| `readonly pageUrl` | `string \| null` | The song's public web page at its source; null when the source has none. |
+
+### FoliumOmniLyrics
+
+Folium 1.7: an online song's lyrics, as `folium.omni.getLyrics` reads them. Frozen. `lines` and
+`isWordByWord` mean what they mean for `folium.lyrics.parse`; a line's `isChorus` is the source's marking
+or the host's detection from repeated lines.
+
+```ts
+interface FoliumOmniLyrics extends FoliumParsedLyrics
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly isPureMusic` | `boolean` | The source marks the song as instrumental. |
+| `lines` | `readonly FoliumLine[]` | 继承自 [FoliumParsedLyrics](#foliumparsedlyrics)。The parsed lines; empty when the text holds none. The host's lyric display filter is not applied. |
+| `isWordByWord` | `boolean` | 继承自 [FoliumParsedLyrics](#foliumparsedlyrics)。Whether the lines carry real word timings rather than timings the host estimated. |
+
+相关：[FoliumParsedLyrics](#foliumparsedlyrics)
+
+### FoliumCollectionKey
+
+Folium 1.7: a portable key of an album or an artist, as `FoliumCollection` carries it.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly source` | `string` | An Omni provider id (`FoliumCollection.source`). |
+| `readonly kind` | `'album' \| 'artist'` | `album` or `artist`. |
+| `readonly id` | `string` | The id within that source and kind (`FoliumCollection.id`). |
+
+### FoliumCollection
+
+Folium 1.7: an album or an artist at an online source. Frozen. Key data of your own on `source`, `kind`
+and `id` together; `ref` is valid for this session only. Later minors may add kinds: treat a kind you do
+not know as one you cannot read.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly kind` | `'album' \| 'artist'` | `album` or `artist`. |
+| `readonly source` | `string` | The Omni provider id. |
+| `readonly id` | `string` | The id within the source and kind; `resolveCollection` takes it back. |
+| `readonly name` | `string` | Its name. |
+| `readonly artist` | `string` | For an album, its artists joined with ` / `; '' for an artist or when unknown. |
+| `readonly coverUrl` | `string \| null` | Cover or portrait URL; null when there is none. |
+| `readonly description` | `string \| null` | The source's description; null when it gives none. |
+| `readonly trackCount` | `number \| null` | Songs on an album; null when unknown (a summary from a song or a list carries less). |
+| `readonly albumCount` | `number \| null` | An artist's albums; null when unknown. |
+| `readonly publishedAt` | `number \| null` | An album's release time, milliseconds since the epoch; null when unknown. |
+| `readonly ref` | `string` | Opaque handle for getTracks / getArtistAlbums; valid for the session. |
+
+### FoliumOmniErrorCode
+
+Folium 1.7: why a `folium.omni` call failed, as the rejection's `code` (and its message), or as a
+`failed` resolution's `code`.
+`unsupported`: the source does not answer this (its `supports` flag is false), or there is no such source.
+`unavailable`: the source cannot take requests now (not set up, its service not running, or it refused).
+`region-restricted`: the source does not answer from this region.
+`not-signed-in` / `session-expired`: the source needs a signed-in account for this.
+`vip-required`: only paying accounts may.
+`rate-limited`: too many requests (see FoliumOmniService), or the source says so.
+`network`: no answer in time, or a failure the source did not explain.
+`account-changed`: the selected source or its account changed while the call was under way, so the
+answer was dropped.
+`stale-ref`: the DTO's `ref`, or the `cursor`, no longer resolves; read it again.
+`aborted`: the call's `signal` aborted, or the mod stopped.
+Later minors may add codes: treat one you do not know as `network`.
+
+```ts
+type FoliumOmniErrorCode = | 'unsupported' | 'unavailable' | 'region-restricted' | 'not-signed-in' | 'session-expired' | 'vip-required' | 'rate-limited' | 'network' | 'account-changed' | 'stale-ref' | 'aborted'
+```
+
+### FoliumOmniService
+
+Folium 1.7: `folium.omni`, the host's online music sources (Omni), read only: search, songs by id,
+lyrics, albums and artists. Needs no permission. Requests are made as the account signed in to that
+source in Folia. Songs come with a `ref`, so `folium.playback.playSong` and `enqueue` take them as they
+are. Nothing here reads the signed-in account's own library, hands out audio URLs or changes anything at
+a source.
+
+A song's `ref` is not its identity: the same song read twice (from the queue and from `resolveSongs`, say)
+may come with different refs. Compare `source` and `id`.
+
+Each time the host has to ask a source for you counts once against this mod's allowance, shared with
+`platform.raw`: currently 120 a minute (past it a call rejects `rate-limited`) and 8 at a time (past it a
+call waits its turn). Looking up many songs may ask more than once; the host may answer from what it read
+recently. The host may also limit requests per source across all mods, which rejects `rate-limited` too.
+Requests to a source a mod provides (origin `mod`) count against the minute but never wait. A call that
+gets no answer in a while rejects `network`. `aborted` (the call's `signal`, or the mod stopping) only
+drops the answer: the request at the source may still run, and counts as under way until it ends.
+
+Main window only: in the export window the synchronous methods throw, and the others reject, an Error
+whose message is `omni-unavailable-in-export-context` (it has no `code`). The main entry has no `omni`; ask
+the client over `rpc`. An older host has no `folium.omni`: check `folium.host.folium.minor >= 7` first.
+Async methods reject with an Error whose `code` is a FoliumOmniErrorCode, and with a TypeError
+(`invalid-arguments: …`, no `code`) for malformed arguments, a song DTO without a `ref` included.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `listProviders()` | `(): readonly FoliumOmniProviderInfo[]` | The host's online sources, in the host's order. Synchronous; asks no source. |
+| `searchSongs()` | `(query: string, options?: { providerId?: string; cursor?: string; limit?: number; signal?: AbortSignal }): Promise<FoliumOmniPage<FoliumSong>>` | Searches songs at `providerId`, or at the source the host has selected now. `query` is 1–200 characters after trimming. Without `cursor` it reads the first page; `limit` (default 30, at most 50) is read only then, and later pages keep it. Song refs come from the host's shared pool (see `playback.getQueue`): read the pages you show. |
+| `resolveSongs()` | `(keys: readonly FoliumSongKey[], options?: { signal?: AbortSignal }): Promise<readonly FoliumSongResolution[]>` | Looks songs up by their portable identity (`FoliumSong.source` + `FoliumSong.id`), 1–50 keys a call; resolves one FoliumSongResolution per key, in order. A key that fails does not fail the call; the call rejects only for malformed arguments, the export window and `aborted`. A source without a way to look many songs up at once is asked once per key: resolve the keys you are about to show. A song that only existed on another device (a local file, a cloud upload, a source not installed here) may not resolve, or may resolve to that source's public version. Nothing is played, and no audio address is fetched. |
+| `describeSong()` | `(song: FoliumSong): FoliumSongDetails \| null` | What the host knows of a song (by `ref`) without asking its source. Null for a song that is not online, or whose `ref` no longer resolves. Synchronous. |
+| `getLyrics()` | `(song: FoliumSong, options?: { signal?: AbortSignal }): Promise<FoliumOmniLyrics>` | The lyrics of an online song (by `ref`), as its source gives them, parsed by the host. Mods' `omni.lyricsResolved` hooks do not run for this read. Rejects `unsupported` for a song that is not online or whose source has no lyrics. |
+| `getAlbum()` | `(song: FoliumSong, options?: { signal?: AbortSignal }): Promise<FoliumCollection \| null>` | The album of an online song (by `ref`); null when its source has no album for it. May ask the source. Rejects `unsupported` for a song that is not online or whose source has no albums. |
+| `getArtists()` | `(song: FoliumSong, options?: { signal?: AbortSignal }): Promise<readonly FoliumCollection[]>` | The artists of an online song (by `ref`) its source can open; empty when none. May ask the source. Rejects `unsupported` for a song that is not online or whose source has no artists. |
+| `resolveCollection()` | `(key: FoliumCollectionKey, options?: { signal?: AbortSignal }): Promise<FoliumCollection \| null>` | An album or artist by its key, with the details its source gives; null when the source has none. A source may also reject `unavailable` or `network` for an id it does not know. |
+| `getTracks()` | `(collection: FoliumCollection, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<FoliumOmniPage<FoliumSong>>` | A page of an album's songs, or of an artist's songs (in the source's order, most popular first for most sources). Without `cursor` the first page; `limit` (default 50, at most 100) is read only then. |
+| `getArtistAlbums()` | `(artist: FoliumCollection, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<FoliumOmniPage<FoliumCollection>>` | A page of an artist's albums; paged as `getTracks`. |
+
+相关：[FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSong](#foliumsong) · [FoliumSongKey](#foliumsongkey) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollection](#foliumcollection) · [FoliumCollectionKey](#foliumcollectionkey)
 
 ## 共享工具
 
