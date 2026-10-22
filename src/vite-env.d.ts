@@ -29,12 +29,26 @@ declare global {
   /** Unsaved AI settings sent by the "test connection" button. */
   interface AiConnectionTestPayload {
     provider: 'gemini' | 'openai';
+    /**
+     * The form's preset (shared/ai/providerRegistry.mjs). 'custom' requires apiUrl: a custom
+     * connection must never fall back to a built-in endpoint. Requests follow apiUrl's host.
+     */
+    presetId?: string;
     /** Typed key; empty means "use the saved key", which only the main process can read. */
     apiKey: string;
     apiUrl?: string;
     model?: string;
     stream?: boolean;
     useSystemProxy?: boolean;
+  }
+
+  interface AiModelListResult {
+    ok: boolean;
+    models?: { id: string; name: string }[];
+    status?: number;
+    errorKind?: 'invalid' | 'config' | 'auth' | 'http' | 'network' | 'timeout' | 'empty';
+    /** On a failure: model ids the provider suggests instead (shared/ai adapters' suggestedModels). */
+    suggestedModels?: string[];
   }
 
   interface AiConnectionTestResult {
@@ -884,6 +898,7 @@ declare global {
       segmentLyrics: (lines: string[]) => Promise<string[][]>;
       /** Sends "hello" with the unsaved AI settings from the form and reports the reply. Never rejects on connection failures. */
       testAiConnection: (settings: AiConnectionTestPayload) => Promise<AiConnectionTestResult>;
+      listAiModels: (settings: AiConnectionTestPayload) => Promise<AiModelListResult>;
       fetchLyricProxy: (
         url: string,
         init?: {
