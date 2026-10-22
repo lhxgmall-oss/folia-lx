@@ -25,7 +25,7 @@ import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticR
 import { collectQqLoginDiagnostics } from './qqLoginDiagnostics';
 import { getQqSongDetailById, getQqSongDetails, QQ_SONG_DETAILS_PER_REQUEST, requestQqSongDetail } from './qqSongDetail';
 import { qqRecommendations } from './qqRecommendations';
-import { searchQqSongs } from './qqSearch';
+import { resetQqSearchFallbackMemory, searchQqSongs } from './qqSearch';
 import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
 import { describeQqLoginFailure, qqAccountHintNote, qqCheckFailure, qqHintFailure } from './qqLoginFailure';
 import { describeQqFailure } from './qqFailure';
@@ -123,6 +123,7 @@ export const resetQqProviderRuntimeCache = (): void => {
     playlistRound = null;
     resetQqVipMemory();
     resetQqSessionRefresh();
+    resetQqSearchFallbackMemory();
 };
 
 /**
