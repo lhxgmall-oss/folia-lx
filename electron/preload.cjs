@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('wallpaper-accessibility-suggested', listener);
         return () => ipcRenderer.removeListener('wallpaper-accessibility-suggested', listener);
     },
+    getGpuPreferenceState: () => ipcRenderer.invoke('gpu-preference-state'),
     getWallpaperDisplays: () => ipcRenderer.invoke('wallpaper-displays-get'),
     setWallpaperDisplay: (displayId) => ipcRenderer.invoke('wallpaper-display-set', displayId),
     onWallpaperDisplaysChanged: (callback) => {

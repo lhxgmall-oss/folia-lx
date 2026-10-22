@@ -852,6 +852,16 @@ declare global {
       onWallpaperInputMonitorRequested?: (callback: () => void) => () => void;
       /** macOS wallpaper mode with Stage Manager on and the desktop icons shown, without the Accessibility grant the click guard needs (issue #698). */
       onWallpaperAccessibilitySuggested?: (callback: () => void) => () => void;
+      /**
+       * Windows only: the GPU choice this run started with (a later change waits for a restart), whether
+       * it came from the setting or a command-line switch, and the name of the adapter Chromium renders
+       * on. null off Windows or when the asking page is not the main window.
+       */
+      getGpuPreferenceState?: () => Promise<{
+          applied: 'auto' | 'high-performance' | 'low-power';
+          source: 'setting' | 'command-line';
+          activeGpu: string | null;
+      } | null>;
       /** The connected displays and the display chosen for wallpaper mode. null when the asking page is not the main window. */
       getWallpaperDisplays?: () => Promise<ElectronWallpaperDisplaysState | null>;
       /** Chooses a connected display by id, or automatic with null; a running wallpaper moves at once. Answers the new state. */
