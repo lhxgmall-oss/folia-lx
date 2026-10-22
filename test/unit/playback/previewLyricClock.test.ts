@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LyricData } from '@/types';
 import { PlayerState } from '@/types';
 import { currentTime, handoffLyricCurrentTime, lyricCurrentTime } from '@/stores/motionSignals';
+import { setCurrentLineIndex } from '@/stores/usePlaybackStore';
 import { usePlaybackVisualizerBridge } from '@/components/app/playback/bridges/usePlaybackVisualizerBridge';
 import { buildObsBrowserSourceClock, resolveObsBrowserSourceClockTime } from '@/utils/obsBrowserSource';
 
@@ -60,6 +61,22 @@ const mount = (incoming: HTMLAudioElement, displayed: HTMLAudioElement | null = 
     }
 };
 const frame = () => { expect(env.frame).not.toBeNull(); env.frame!(0); };
+// The paused-deck sync listens on the document in the capture phase; a stand-in that keeps the listeners.
+const mediaEvents = () => {
+    const listeners = new Map<string, Set<(event: Event) => void>>();
+    vi.stubGlobal('document', {
+        addEventListener: (type: string, fn: (event: Event) => void, capture: boolean) => {
+            expect(capture).toBe(true);
+            if (!listeners.has(type)) listeners.set(type, new Set());
+            listeners.get(type)!.add(fn);
+        },
+        removeEventListener: (type: string, fn: (event: Event) => void) => { listeners.get(type)?.delete(fn); },
+    });
+    return (type: 'loadedmetadata' | 'seeked', target: HTMLAudioElement) => {
+        listeners.get(type)?.forEach(fn => fn({ type, target } as unknown as Event));
+    };
+};
+const pausedAudio = (url: string, time = 0) => Object.assign(audio(url, time), { paused: true }) as HTMLAudioElement;
 const obs = (url: string, manualOffsetMs = 500) => buildObsBrowserSourceClock({
     currentTime: currentTime.get(), duration: 30, playerState: PlayerState.PLAYING,
     sentAtMs: 1000, playbackRate: 1, lyricOffsetMs: manualOffsetMs,
@@ -152,5 +169,67 @@ describe('preview lyric clock consumers', () => {
         expect(currentTime.get()).toBe(3);
         expect(lyricCurrentTime.get()).toBe(62);
         expect(resolveObsBrowserSourceClockTime(obs(incoming.currentSrc, 1000), 1000)).toBe(62);
+    });
+
+    it('puts a paused restored preview clip at its clip start, then at its saved position, with no jump on play', () => {
+        const dispatch = mediaEvents();
+        const url = 'https://audio.test/restored-paused-preview';
+        env.starts.set(url, 64300);
+        const deck = pausedAudio(url);
+        mount(deck);
+        // The song change reset the read-head to the top of the whole song (500 ms manual offset).
+        lyricCurrentTime.set(-0.5);
+        frame();
+        expect(lyricCurrentTime.get()).toBe(-0.5);
+        dispatch('loadedmetadata', deck);
+        expect(lyricCurrentTime.get()).toBeCloseTo(63.8, 6);
+        expect(setCurrentLineIndex).toHaveBeenLastCalledWith(0);
+        // App applies the saved position after the metadata, which the deck answers with `seeked`.
+        deck.currentTime = 7;
+        dispatch('seeked', deck);
+        expect(lyricCurrentTime.get()).toBeCloseTo(70.8, 6);
+        frame();
+        expect(lyricCurrentTime.get()).toBeCloseTo(70.8, 6);
+        Object.assign(deck, { paused: false });
+        frame();
+        expect(lyricCurrentTime.get()).toBeCloseTo(70.8, 6);
+    });
+
+    it('leaves a full song paused at its start where the song-change reset put it', () => {
+        const dispatch = mediaEvents();
+        const deck = pausedAudio('blob:http://localhost/full-song');
+        mount(deck);
+        lyricCurrentTime.set(-0.5);
+        dispatch('loadedmetadata', deck);
+        expect(lyricCurrentTime.get()).toBe(-0.5);
+    });
+
+    it('ignores the other deck, a held blend, a playing deck and a stage clock', () => {
+        const dispatch = mediaEvents();
+        const url = 'https://audio.test/paused-preview';
+        env.starts.set(url, 30000);
+        const deck = pausedAudio(url, 4);
+        const other = pausedAudio('https://audio.test/other', 9);
+        mount(deck, other);
+        lyricCurrentTime.set(-0.5);
+        // A blend holds the picture on the other deck: this one is the incoming track.
+        dispatch('loadedmetadata', deck);
+        dispatch('seeked', other);
+        expect(lyricCurrentTime.get()).toBe(-0.5);
+        env.cleanup.forEach(fn => fn()); env.cleanup = [];
+
+        mount(deck);
+        dispatch('seeked', other);
+        expect(lyricCurrentTime.get()).toBe(-0.5);
+        Object.assign(deck, { paused: false });
+        dispatch('seeked', deck);
+        expect(lyricCurrentTime.get()).toBe(-0.5);
+        Object.assign(deck, { paused: true });
+        env.cleanup.forEach(fn => fn()); env.cleanup = [];
+
+        env.state = { ...env.state, activePlaybackContext: 'stage' };
+        mount(deck);
+        dispatch('seeked', deck);
+        expect(lyricCurrentTime.get()).toBe(-0.5);
     });
 });
