@@ -1456,7 +1456,7 @@ export default {
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginNoteYtmBrowser": "A separate browser window opens. Sign in to Google there, and close that window once YouTube Music shows your account.",
     "loginNoteYtmBrowserMac": "A separate browser window opens. Sign in to Google there, and quit that browser (⌘Q) once YouTube Music shows your account.",
-    "loginNoBrowserYtm": "Signing in to YouTube Music needs Chrome, Edge, Chromium or Brave installed.",
+    "loginNoBrowserYtm": "Signing in to YouTube Music needs Chrome (Beta, Dev or Canary also work), Edge, Chromium, Brave or Helium installed.",
     "loginCodeWaiting": "Waiting for confirmation in your browser",
     "loginTitleSpotify": "Sign in to Spotify",
     "loginNoteSpotify": "Choose Agree on the Spotify page that opens in your browser",
