@@ -89,9 +89,9 @@ describe('runAiConnectionTest (OpenAI compatible)', () => {
         expect(result).toMatchObject({ ok: true, text: 'Hello', model: 'streamed-model' });
     });
 
-    it.each([false, true])('accepts an always-thinking GLM model (stream=%s)', async (stream) => {
+    it.each([false, true])('asks an always-thinking GLM model for its lowest level, which it accepts (stream=%s)', async (stream) => {
         const { calls, customFetch } = makeFetch((call) => (
-            call.body.reasoning_effort !== undefined
+            call.body.reasoning_effort !== 'low'
             || call.body.thinking !== undefined
             || call.body.chat_template_kwargs !== undefined
         )
@@ -104,7 +104,26 @@ describe('runAiConnectionTest (OpenAI compatible)', () => {
         }), { customFetch });
         expect(calls).toHaveLength(1);
         expect(calls[0].url).toBe('https://open.bigmodel.cn/api/paas/v4/chat/completions');
+        expect(calls[0].body).toMatchObject({ reasoning_effort: 'low', max_tokens: 4096 });
         expect(result).toMatchObject({ ok: true, text: 'hi' });
+    });
+
+    it('falls back to a bare hello when a GLM endpoint rejects the level', async () => {
+        const { calls, customFetch } = makeFetch((call) => (call.body.reasoning_effort !== undefined
+            ? json({ error: { code: '1214', message: '`reasoning_effort` 参数非法。请检查文档' } }, 400)
+            : json({ choices: [{ message: { content: 'hi' }, finish_reason: 'stop' }] })));
+        const result = await client.runAiConnectionTest(openai({
+            apiUrl: 'https://open.bigmodel.cn/api/coding/paas/v4', model: 'glm-5.3-flash',
+        }), { customFetch });
+        expect(calls.map(call => call.body.reasoning_effort)).toEqual(['low', undefined]);
+        expect(calls[1].body).toEqual({ model: 'glm-5.3-flash', messages: [{ role: 'user', content: 'hello' }], max_tokens: 4096 });
+        expect(result).toMatchObject({ ok: true, text: 'hi' });
+    });
+
+    it('still sends a bare hello to an unknown endpoint', async () => {
+        const { calls, customFetch } = makeFetch(() => json({ choices: [{ message: { content: 'hi' } }] }));
+        await client.runAiConnectionTest(openai(), { customFetch });
+        expect(calls.map(call => call.body)).toEqual([{ model: 'my-model', messages: [{ role: 'user', content: 'hello' }], max_tokens: 512 }]);
     });
 
     it('switches DeepSeek thinking off, as segmentation does', async () => {

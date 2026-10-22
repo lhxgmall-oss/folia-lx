@@ -31,18 +31,17 @@ describe('provider presets and migration', () => {
 });
 
 describe('model discovery', () => {
-    it.each(AI_PROVIDER_PRESETS.filter(p => p.protocol === 'openai' && p.id !== 'custom'))('uses the %s base path and Bearer authentication', async preset => {
+    // GLM has no listing (shared/ai/glm.mjs); see 'model discovery as described by the adapters'.
+    it.each(AI_PROVIDER_PRESETS.filter(p => p.protocol === 'openai' && p.id !== 'custom' && p.id !== 'glm'))('uses the %s base path and Bearer authentication', async preset => {
         // A model the provider's own listing filter keeps.
         const modelId = preset.recommendedModel ?? 'model-one';
-        const customFetch = vi.fn().mockResolvedValue(json(preset.id === 'glm'
-            ? { rows: [{ modelCode: modelId, modelName: 'One' }], total: 1 }
-            : { data: [{ id: modelId }] }));
+        const customFetch = vi.fn().mockResolvedValue(json({ data: [{ id: modelId }] }));
         const result = await listAiModels({ ...payload, apiUrl: preset.baseUrl }, { customFetch });
         const url = new URL(customFetch.mock.calls[0][0]);
         expect(url.origin).toBe(new URL(preset.baseUrl).origin);
         // <API base>/models, the base as requests normalise it (DeepSeek's bare origin gains /v1).
         const base = new URL(client.normalizeOpenAIChatCompletionsUrl(preset.baseUrl)).pathname.replace(/\/chat\/completions$/, '');
-        expect(url.pathname).toBe(preset.id === 'glm' ? '/api/fine-tuning/model_center/list' : base + '/models');
+        expect(url.pathname).toBe(base + '/models');
         expect(customFetch.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: 'Bearer test-secret' }, redirect: 'error' });
         expect(result).toMatchObject({ ok: true, models: [{ id: modelId }] });
     });
@@ -122,12 +121,11 @@ describe('model discovery as described by the adapters', () => {
         expect(modelListUrl(adapter({}, 'anthropic'), 'https://api.anthropic.com/v1/messages').toString()).toBe('https://api.anthropic.com/v1/models');
     });
 
-    it('keeps reading the GLM model centre on both GLM sites', async () => {
+    it('sends no listing request to either GLM site, whose model centre is undocumented', async () => {
         for (const apiUrl of ['https://open.bigmodel.cn/api/paas/v4', 'https://api.z.ai/api/paas/v4']) {
-            const customFetch = vi.fn().mockResolvedValue(json({ rows: [{ modelCode: 'glm-one', modelName: 'One' }], total: 1 }));
-            expect(await listAiModels({ ...payload, apiUrl }, { customFetch })).toEqual({ ok: true, models: [{ id: 'glm-one', name: 'One' }] });
-            const url = new URL(customFetch.mock.calls[0][0]);
-            expect([url.origin, url.pathname, url.search]).toEqual([new URL(apiUrl).origin, '/api/fine-tuning/model_center/list', '?pageSize=100&pageNum=1']);
+            const customFetch = vi.fn();
+            expect(await listAiModels({ ...payload, apiUrl }, { customFetch })).toEqual({ ok: false, errorKind: 'empty' });
+            expect(customFetch).not.toHaveBeenCalled();
         }
     });
 
@@ -136,7 +134,7 @@ describe('model discovery as described by the adapters', () => {
         const customFetch = vi.fn()
             .mockResolvedValueOnce(page(Array.from({ length: 100 }, (_, index) => `m${index}`)))
             .mockResolvedValueOnce(page(['last']));
-        const result = await listAiModels({ ...payload, apiUrl: 'https://open.bigmodel.cn/api/paas/v4' }, { customFetch });
+        const result = await listAiModels(payload, { customFetch });
         expect(result.models).toHaveLength(101);
         expect(new URL(customFetch.mock.calls[1][0]).searchParams.get('pageNum')).toBe('2');
     });
