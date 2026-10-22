@@ -91,6 +91,11 @@ export const buildPlaybackCommandContext = (
         personalFmCatalog: usePersonalFmModeStore.getState().catalogs[useOnlineProviderAccountStore.getState().activeProviderId],
         openAudioEqualizer: audio.openAudioEqualizer,
         applyAudioSoundPreset: audio.handleApplyAudioSoundPreset,
+        // Read at the press: a mod's curve comes and goes without this context being rebuilt.
+        hasModEqualizerCurve: () => useAudioSettingsStore.getState().audioEqualizerModCurve !== null,
+        releaseModEqualizerCurve: () => {
+            useAudioSettingsStore.getState().handleReleaseModEqualizerCurve({ kind: 'command' });
+        },
     };
 };
 
