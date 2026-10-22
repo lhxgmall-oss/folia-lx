@@ -166,10 +166,8 @@ describe('budgets', () => {
         expect(budgetFor('test', 512, { reasoningOff: false })).toBe(4096);
     });
 
-    it('sends no cap without an answer budget, and honours an explicit maxTokens', () => {
+    it('sends no cap without an answer budget', () => {
         expect(budgetFor('theme', undefined, { reasoningOff: false })).toBeUndefined();
-        expect(budgetFor('theme', 8192, { reasoningOff: true, maxTokens: 4096 })).toBe(4096);
-        expect(budgetFor('theme', 8192, { reasoningOff: true, maxTokens: null })).toBeUndefined();
     });
 
     it('keeps the custom ladder\'s old x4 last rung for segmentation', () => {

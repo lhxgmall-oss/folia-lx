@@ -32,15 +32,17 @@ describe('provider presets and migration', () => {
 
 describe('model discovery', () => {
     it.each(AI_PROVIDER_PRESETS.filter(p => p.protocol === 'openai' && p.id !== 'custom'))('uses the %s base path and Bearer authentication', async preset => {
+        // A model the provider's own listing filter keeps.
+        const modelId = preset.recommendedModel ?? 'model-one';
         const customFetch = vi.fn().mockResolvedValue(json(preset.id === 'glm'
-            ? { rows: [{ modelCode: 'model-one', modelName: 'One' }], total: 1 }
-            : { data: [{ id: 'model-one' }] }));
+            ? { rows: [{ modelCode: modelId, modelName: 'One' }], total: 1 }
+            : { data: [{ id: modelId }] }));
         const result = await listAiModels({ ...payload, apiUrl: preset.baseUrl }, { customFetch });
         const url = new URL(customFetch.mock.calls[0][0]);
         expect(url.origin).toBe(new URL(preset.baseUrl).origin);
         expect(url.pathname).toBe(preset.id === 'glm' ? '/api/fine-tuning/model_center/list' : new URL(preset.baseUrl).pathname + '/models');
         expect(customFetch.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: 'Bearer test-secret' }, redirect: 'error' });
-        expect(result).toMatchObject({ ok: true, models: [{ id: 'model-one' }] });
+        expect(result).toMatchObject({ ok: true, models: [{ id: modelId }] });
     });
     it('filters Gemini non-chat models, normalises names and follows page tokens on the same host', async () => {
         const customFetch = vi.fn()

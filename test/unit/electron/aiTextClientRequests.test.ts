@@ -79,14 +79,14 @@ describe('the theme ask', () => {
     const GEMINI_SCHEMA = { type: 'OBJECT', properties: { light: { type: 'OBJECT' }, dark: { type: 'OBJECT' } } };
     const MESSAGES = [{ role: 'system', content: SYSTEM }, { role: 'user', content: SOURCE }];
 
-    // The 'generate-theme' handler asks for 8192 answer tokens; the OpenAI adapter still caps
-    // OpenAI itself at the 4096 the handler used to give it.
+    // The 'generate-theme' handler asks for 8192 answer tokens; a model that keeps reasoning gets
+    // room for that on top (shared/ai/aiTasks.mjs).
     const askOpenAi = (store: unknown, customFetch: unknown) => client.runAiJsonCompletion({
         store, task: 'theme', systemPrompt: SYSTEM, sourcePrompt: SOURCE, schema: SCHEMA, schemaName: 'dual_theme', customFetch,
         answerTokens: 8192,
     });
 
-    it('to OpenAI itself: its address, the default model, the schema as a structured output', async () => {
+    it('to OpenAI itself: its address, the default model at low effort with no temperature, the schema as a structured output', async () => {
         const { requests, customFetch } = record(openAiAnswer('{"light":{},"dark":{}}'));
 
         const answer = await askOpenAi(OPENAI_STORE, customFetch);
@@ -98,8 +98,8 @@ describe('the theme ask', () => {
             body: {
                 model: 'gpt-5.6-luna',
                 messages: MESSAGES,
-                temperature: 0.7,
-                max_completion_tokens: 4096,
+                max_completion_tokens: 8192 + 16384,
+                reasoning_effort: 'low',
                 response_format: { type: 'json_schema', json_schema: { name: 'dual_theme', strict: true, schema: SCHEMA } },
             },
         }]);
@@ -248,7 +248,7 @@ describe('the segmentation ask', () => {
         expect(answer).toBe('{"lines":[]}');
     });
 
-    it('to OpenAI itself: reasoning asked off first, the schema as a structured output', async () => {
+    it('to OpenAI itself: reasoning off and no temperature, the schema as a structured output', async () => {
         const { requests, customFetch } = record(openAiAnswer('{"lines":[]}'));
 
         const answer = await ask(OPENAI_STORE, customFetch);
@@ -260,7 +260,6 @@ describe('the segmentation ask', () => {
             body: {
                 model: 'gpt-5.6-luna',
                 messages: MESSAGES,
-                temperature: 0.7,
                 max_completion_tokens: 8192,
                 reasoning_effort: 'none',
                 response_format: {
@@ -312,7 +311,7 @@ describe('the connection test', () => {
         expect(result).toMatchObject({ ok: true, status: 200, text: 'Hello!', model: 'gemini-3-flash-preview' });
     });
 
-    it('to OpenAI itself with nothing but a key in the form: its address and the default model', async () => {
+    it('to OpenAI itself with nothing but a key in the form: its address, the default model, reasoning off as segmentation asks', async () => {
         const { requests, customFetch } = record(openAiAnswer('Hello!'));
 
         const result = await client.runAiConnectionTest({ provider: 'openai', apiKey: KEY }, { customFetch });
@@ -325,6 +324,7 @@ describe('the connection test', () => {
                 model: 'gpt-5.6-luna',
                 messages: [{ role: 'user', content: 'hello' }],
                 max_completion_tokens: 512,
+                reasoning_effort: 'none',
             },
         }]);
         expect(result).toMatchObject({ ok: true, status: 200, text: 'Hello!', model: 'gpt-5.6-luna' });

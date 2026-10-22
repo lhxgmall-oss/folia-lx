@@ -32,7 +32,6 @@ import { tencentcloudAdapter } from './tencentcloud.mjs';
  *   params: Record<string, unknown>,  // OpenAI-compatible and Anthropic: top-level body fields; Gemini: the content of thinkingConfig
  *   knobs: string[],                  // move on when one of these top-level fields is rejected ('thinking.type' counts as 'thinking')
  *   sendTemperature?: boolean,        // overrides the adapter's sendsTemperature for this attempt
- *   maxTokens?: number | null,        // only to reproduce a request that predates budgetFor: a fixed cap, or null for none
  * }} AiAttempt
  */
 

@@ -13,21 +13,15 @@ export const AI_TASKS = Object.freeze(['segmentation', 'theme', 'test']);
 export const REASONING_ALLOWANCE = Object.freeze({ segmentation: 24576, theme: 16384, test: 3584 });
 
 /**
- * Output-token cap for one attempt, or undefined for "send no cap".
- *
- * `attempt.maxTokens`, when present, wins: a number is sent as is and null sends no cap. It exists
- * only to reproduce a request that predates this budget rule; new attempts leave it out and say
- * through `reasoningOff` whether the model is expected to think.
+ * Output-token cap for one attempt, or undefined for "send no cap". An attempt says through
+ * `reasoningOff` whether the model is expected to think.
  *
  * @param {AiTask} task
  * @param {number | undefined} answerTokens what the answer itself needs; falsy sends no cap
- * @param {{ reasoningOff: boolean, maxTokens?: number | null }} attempt
+ * @param {{ reasoningOff: boolean }} attempt
  * @returns {number | undefined}
  */
 export const budgetFor = (task, answerTokens, attempt) => {
-    if (attempt.maxTokens !== undefined) {
-        return attempt.maxTokens === null ? undefined : attempt.maxTokens;
-    }
     if (!answerTokens) {
         return undefined;
     }

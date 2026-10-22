@@ -191,7 +191,8 @@ describe('a lyric segmentation from the service both /api/segment-lyrics routes 
             body: {
                 model: expected.model,
                 messages: MESSAGES,
-                temperature: expected.temperature,
+                // OpenAI itself is never sent a temperature (shared/ai/openai.mjs).
+                ...(expected.official ? {} : { temperature: expected.temperature }),
                 ...(expected.official ? { max_completion_tokens: 8192 } : { max_tokens: 8192 }),
                 ...(expected.deepseek ? { thinking: { type: 'disabled' } } : {}),
                 reasoning_effort: 'none',
