@@ -221,7 +221,7 @@ describe('the desktop sender', () => {
 });
 
 describe('model listing', () => {
-    it('asks for 1000 a page, follows the page token, and keeps only text-generation models', async () => {
+    it('asks for 1000 a page, follows the page token, and keeps only Gemini text-generation models', async () => {
         const row = (id: string, methods = ['generateContent']) => ({ name: `models/${id}`, supportedGenerationMethods: methods });
         const customFetch = vi.fn()
             .mockResolvedValueOnce(Response.json({ models: [
@@ -232,6 +232,9 @@ describe('model listing', () => {
                 row('gemini-2.5-flash-native-audio-latest'),
                 row('gemini-embedding-001', ['embedContent', 'generateContent']),
                 row('aqa'),
+                // Gemma takes no system instruction and no JSON mode.
+                row('gemma-3-27b-it'),
+                row('gemma-4-e4b-it'),
             ], nextPageToken: 'next-page' }))
             .mockResolvedValueOnce(Response.json({ models: [row('gemini-3-flash-preview')] }));
 

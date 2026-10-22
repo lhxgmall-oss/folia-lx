@@ -184,21 +184,21 @@ describe('discovery IPC credential boundary', () => {
             { id: 'saved-secret' },
             { id: 'one', display_name: 'x-api-key: saved-secret' },
         ] } },
-        { provider: 'gemini', catalogue: { models: [
-            { name: 'models/saved-secret', supportedGenerationMethods: ['generateContent'] },
-            { name: 'models/one', displayName: 'x-goog-api-key: saved-secret', supportedGenerationMethods: ['generateContent'] },
+        { provider: 'gemini', shownId: 'gemini-one', catalogue: { models: [
+            { name: 'models/gemini-saved-secret', supportedGenerationMethods: ['generateContent'] },
+            { name: 'models/gemini-one', displayName: 'x-goog-api-key: saved-secret', supportedGenerationMethods: ['generateContent'] },
         ] } },
         { provider: 'openai', catalogue: { rows: [
             { modelCode: 'saved-secret' },
             { modelCode: 'one', modelName: 'Model saved-secret' },
         ], total: 2 } },
-    ])('sanitises successful $provider catalogue fields before returning saved credentials to the renderer', async ({ catalogue, ...connection }) => {
+    ])('sanitises successful $provider catalogue fields before returning saved credentials to the renderer', async ({ catalogue, shownId = 'one', ...connection }) => {
         const test = setup();
         test.fetchWithOptionalSystemProxy.mockImplementation(async () => json(catalogue));
         const result = await test.invoke({ ...payload, ...connection, apiKey: '' });
         expect(result.ok).toBe(true);
         expect(result.models).toHaveLength(1);
-        expect(result.models[0].id).toBe('one');
+        expect(result.models[0].id).toBe(shownId);
         expect(result.models[0].name).toContain('***');
         expect(JSON.stringify(result)).not.toContain('saved-secret');
     });

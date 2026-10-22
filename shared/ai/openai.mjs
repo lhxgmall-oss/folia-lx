@@ -58,9 +58,12 @@ const attemptsFor = (task, model) => {
     return task === 'theme' ? [EFFORT_LOW, LAST_RESORT] : [EFFORT_NONE, EFFORT_LOW, LAST_RESORT];
 };
 
-// The model listing keeps chat models only. [OpenAI·models-list]
+// The model listing keeps chat models only. [OpenAI·models-list] The -pro models (gpt-5-pro,
+// o3-pro, o1-pro) and the codex ones answer on the Responses API only; these asks use Chat
+// Completions, so they would be refused on the first request.
 const CHAT_MODEL = /^(?:ft:)?(?:gpt-|o\d|chatgpt-)/;
-const NOT_CHAT = /tts|transcribe|realtime|audio|image|embedding|moderation|search|dall-e|whisper/;
+const NOT_CHAT = /tts|transcribe|realtime|audio|image|embedding|moderation|search|dall-e|whisper|codex/;
+const RESPONSES_ONLY_PRO = new RegExp(`-pro${SNAPSHOT}`);
 
 /** True when the row's `shutdown_date` (a YYYY-MM-DD string, or null) has been reached. [OpenAI·models-list] */
 export const isShutDown = (row, now = Date.now()) => {
@@ -103,7 +106,7 @@ export const openaiAdapter = {
         name: () => undefined,
         keep: (row, id) => {
             const name = id.toLowerCase();
-            return CHAT_MODEL.test(name) && !NOT_CHAT.test(name) && !isShutDown(row);
+            return CHAT_MODEL.test(name) && !NOT_CHAT.test(name) && !RESPONSES_ONLY_PRO.test(name) && !isShutDown(row);
         },
         next: () => null,
     },

@@ -70,6 +70,10 @@ const familyOf = (model) => {
 // Ids in the catalogue that answer generateContent but are not for text: speech, images, the Live
 // API, embeddings, attributed QA [Gemini·models-api].
 const NOT_FOR_TEXT = /tts|image|live|embedding|aqa|native-audio/i;
+// Only Gemini models are offered. The catalogue also lists Gemma (gemma-*), which answers
+// generateContent but takes neither a system instruction ("Developer instruction is not enabled")
+// nor JSON mode, both of which every ask but the test sends.
+const GEMINI_MODEL = /^gemini-/i;
 
 /** The message of a Gemini error body (`{ error: { message } }`), or the raw text. */
 const errorMessageOf = (errorBody) => {
@@ -144,6 +148,7 @@ export const geminiAdapter = {
         keep: (row, id) => Array.isArray(row.supportedGenerationMethods)
             && row.supportedGenerationMethods.includes('generateContent')
             && /^[\w.-]+$/.test(id)
+            && GEMINI_MODEL.test(id)
             && !NOT_FOR_TEXT.test(id),
         next: (json) => (json.nextPageToken ? { param: 'pageToken', value: String(json.nextPageToken) } : null),
     },

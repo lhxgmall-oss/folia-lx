@@ -184,6 +184,12 @@ describe('the model listing', () => {
             { id: 'dall-e-3' },
             { id: 'whisper-1' },
             { id: 'babbage-002' },
+            // Responses API only.
+            { id: 'gpt-5-pro' },
+            { id: 'o3-pro-2025-06-10' },
+            { id: 'o1-pro' },
+            { id: 'gpt-5-codex' },
+            { id: 'gpt-5.1-codex-mini' },
         ], has_more: true, last_id: 'whisper-1' }));
 
         const result = await listAiModels({ provider: 'openai', apiKey: 'test-secret', apiUrl: 'https://api.openai.com/v1' }, { customFetch });
