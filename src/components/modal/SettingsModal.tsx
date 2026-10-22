@@ -24,7 +24,6 @@ import HelpPage from './settings/pages/HelpPage';
 import { SettingsPageContext, type CacheCategory, type SettingsPageContextValue } from './settings/pages/settingsPageContext';
 import { AiHelpPromptModal } from './AiHelpPromptModal';
 import ReleaseNotesDialog from './ReleaseNotesDialog';
-import { DEFAULT_GEMINI_MODEL } from '../../services/aiText';
 import meowImageUrl from '../../../build/miao.png';
 import type { LyricData } from '../../types';
 import { type SettingsModalState, type SettingsSubviewId, type VisualizerSettingsSection } from '../../stores/useSettingsModalStore';
@@ -387,7 +386,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [isElectron, setIsElectron] = useState(hasElectronBridge);
     const [electronSettings, setElectronSettings] = useState({
         GEMINI_API_KEY: '',
-        GEMINI_API_MODEL: DEFAULT_GEMINI_MODEL,
+        // Blank: the default model, worked out when the request is made (nothing is written back).
+        GEMINI_API_MODEL: '',
         AI_PROVIDER_PRESET: '',
         OPENAI_API_KEY: '',
         OPENAI_API_URL: '',

@@ -4,7 +4,6 @@ import { sanitizeDualTheme } from "./themeSanitizer";
 import { getWebAiProvider, type WebAiProvider } from "./runtimeConfig";
 export {
   AI_PROVIDER_PRESETS,
-  DEFAULT_GEMINI_MODEL,
   modelAlwaysThinks,
   resolveAiConnection,
   resolveAiProviderPreset,

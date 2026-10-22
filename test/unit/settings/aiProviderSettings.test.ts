@@ -97,6 +97,14 @@ describe('AI provider form connection guards', () => {
         await act(async () => { button('options.aiTestConnection').click(); });
         expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ presetId: 'openai', model: '' }));
     });
+    it('leaves a blank Gemini model blank, standing for the default, instead of filling the default in', async () => {
+        (window as any).electron = { testAiConnection };
+        await render({ AI_PROVIDER: 'gemini', AI_PROVIDER_PRESET: 'gemini', GEMINI_API_MODEL: '' });
+        expect(combobox('options.aiModel').textContent).toBe('options.aiModelDefault');
+        expect(button('options.save').disabled).toBe(false);
+        await act(async () => { button('options.aiTestConnection').click(); });
+        expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ provider: 'gemini', presetId: 'gemini', model: '' }));
+    });
     it('still needs a model where the provider has no default', async () => {
         (window as any).electron = { testAiConnection };
         await render({ AI_PROVIDER_PRESET: 'anthropic', OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_MODEL: '' });
@@ -147,6 +155,31 @@ describe('AI provider form per provider', () => {
         expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ presetId: 'kimi', apiUrl: 'https://api.moonshot.ai/v1' }));
         await render({ AI_PROVIDER_PRESET: 'qwen', OPENAI_API_URL: 'https://ws-1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1', OPENAI_API_MODEL: 'qwen3.8-flash' });
         expect(combobox('options.aiEndpoint').textContent).toBe('ws-1.cn-beijing.maas.aliyuncs.com');
+    });
+    it('shows in full an address that is on none of the sites, even on a listed host, and keeps it when switching to custom', async () => {
+        const codingPlan = 'https://open.bigmodel.cn/api/coding/paas/v4';
+        await render({ AI_PROVIDER_PRESET: 'glm', OPENAI_API_URL: codingPlan, OPENAI_API_MODEL: 'glm-5.2' });
+        // The China site has the same host, but not this path: it is not shown as the China site.
+        expect(combobox('options.aiEndpoint').textContent).toBe('open.bigmodel.cn');
+        expect(host.textContent).toContain(codingPlan);
+        expect(host.textContent).toContain('options.aiApiUrlUnlistedDesc');
+        const options = await optionsOf('options.aiProvider');
+        await pick(options.indexOf('options.aiProvider_custom'));
+        expect(changed({}).OPENAI_API_URL).toBe(codingPlan);
+
+        // A provider with one site has no picker, and shows such an address all the same.
+        await render({ AI_PROVIDER_PRESET: 'deepseek', OPENAI_API_URL: 'https://api.deepseek.com/beta' });
+        expect(host.textContent).toContain('https://api.deepseek.com/beta');
+        expect(host.textContent).toContain('options.aiApiUrlUnlistedDesc');
+    });
+    it.each([
+        ['deepseek', 'https://api.deepseek.com/v1'],
+        ['kimi', 'https://api.moonshot.cn/v1/chat/completions'],
+        ['anthropic', 'https://api.anthropic.com/v1/messages'],
+        ['openai', ''],
+    ])('reads %s %j as its listed site', async (presetId, apiUrl) => {
+        await render({ AI_PROVIDER_PRESET: presetId, OPENAI_API_URL: apiUrl, OPENAI_API_MODEL: 'some-model' });
+        expect(host.textContent).not.toContain('options.aiApiUrlUnlistedDesc');
     });
     it('has no site picker for a provider with one site, nor for a custom address', async () => {
         await render({ AI_PROVIDER_PRESET: 'deepseek', OPENAI_API_URL: 'https://api.deepseek.com' });

@@ -1798,6 +1798,7 @@ export default {
     "aiModelRetired": "{{model}} 已停用，建议改用 {{replacement}}。",
     "aiModelAlwaysThinks": "这个模型无法关闭思考，歌词分词会慢一些。",
     "aiEndpoint": "站点",
+    "aiApiUrlUnlistedDesc": "不是这个供应商列出的站点。选一个站点可以替换它；要修改它，请切到“自定义兼容接口”。",
     "aiEndpoint_cn": "中国站",
     "aiEndpoint_global": "国际站",
     "aiEndpoint_singapore": "新加坡",

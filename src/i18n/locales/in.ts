@@ -1798,6 +1798,7 @@ export default {
     "aiModelRetired": "{{model}} sudah dihentikan. Beralihlah ke {{replacement}}.",
     "aiModelAlwaysThinks": "Model ini tidak bisa mematikan mode berpikir, jadi segmentasi lirik akan lebih lambat.",
     "aiEndpoint": "Situs",
+    "aiApiUrlUnlistedDesc": "Bukan salah satu situs yang tercantum untuk penyedia ini. Pilih situs untuk menggantinya, atau beralih ke Endpoint kompatibel kustom untuk mengubahnya.",
     "aiEndpoint_cn": "Tiongkok",
     "aiEndpoint_global": "Internasional",
     "aiEndpoint_singapore": "Singapura",

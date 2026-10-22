@@ -1,7 +1,7 @@
 import React from 'react';
 import { Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { AI_PROVIDER_PRESETS, DEFAULT_GEMINI_MODEL, modelAlwaysThinks, resolveAiConnection, resolveAiProviderPreset, retiredModelHint } from '../../../../../services/aiText';
+import { AI_PROVIDER_PRESETS, modelAlwaysThinks, resolveAiConnection, resolveAiProviderPreset, retiredModelHint } from '../../../../../services/aiText';
 import { openAIEndpointOf } from '../../../../../utils/openAIEndpoint';
 import { Button, FoldedGroup, NumberField, Reveal, Row, Select, TextField, Toggle, Value, option, parseNumberText, type SettingsGroupDef, type SettingsOptionDef } from '../../kit';
 import { AiConnectionTestReply, AiConnectionTestStatus, useAiConnectionTest } from '../AiConnectionTest';
@@ -28,6 +28,22 @@ export const AI_SETTINGS_OPTIONS: SettingsOptionDef[] = Object.values(O);
 const hostOf = (url: string) => {
     try {
         return new URL(url).hostname.toLowerCase();
+    } catch {
+        return '';
+    }
+};
+
+/**
+ * Where an address sends its requests, for telling whether it is one of a provider's sites: origin
+ * and path as the main process completes them (no trailing slash, `/chat/completions` or
+ * `/messages` left off, an empty path read as `/v1`), so a host with and without `/v1` is the same
+ * site, and a Coding Plan path on a site's host is not.
+ */
+const requestAddressOf = (url: string) => {
+    try {
+        const parsed = new URL(url.trim());
+        const path = parsed.pathname.replace(/\/+$/, '').replace(/\/(?:chat\/completions|messages)$/, '');
+        return `${parsed.protocol}//${parsed.host.toLowerCase()}${path || '/v1'}`;
     } catch {
         return '';
     }
@@ -62,7 +78,9 @@ const AiProviderSettings: React.FC = () => {
         ? savedOpenAIKeyEndpoint : null;
     const usableSavedKey = savedAiApiKeys[keyName] && !mismatchedEndpoint;
     const setAi = (patch: Partial<ElectronSettingsState>) => setElectronSettings(previous => ({ ...previous, ...patch }));
-    const model = gemini ? settings.GEMINI_API_MODEL || DEFAULT_GEMINI_MODEL : settings.OPENAI_API_MODEL || '';
+    // Blank stands for the provider's default, Gemini's too: it is what is saved, so a later change of
+    // default reaches settings that never picked a model.
+    const model = (gemini ? settings.GEMINI_API_MODEL : settings.OPENAI_API_MODEL) || '';
     // A blank model is fine where the provider has a default one (old settings rely on it).
     const connectionReady = Boolean(resolved.model) && (preset.id !== 'custom' || Boolean(apiUrl.trim()));
     const payload: AiConnectionTestPayload = {
@@ -84,18 +102,25 @@ const AiProviderSettings: React.FC = () => {
             GEMINI_API_KEY: '',
             OPENAI_API_KEY: '',
             // Prefilled with the provider's recommended model, so a typed key can be tested right away.
-            ...(next.protocol !== 'gemini' ? { OPENAI_API_URL: next.baseUrl, OPENAI_API_MODEL: next.recommendedModel ?? '' } : {}),
+            // Custom keeps the address in use, so an address the presets do not list can be edited
+            // there rather than typed again.
+            ...(next.protocol !== 'gemini' ? {
+                OPENAI_API_URL: next.id === 'custom' && !gemini ? storedUrl : next.baseUrl,
+                OPENAI_API_MODEL: next.recommendedModel ?? '',
+            } : {}),
         });
     };
     const keyHint = mismatchedEndpoint && !key.trim()
         ? t('options.aiApiKeyEndpointMismatchDesc', { endpoint: mismatchedEndpoint })
         : usableSavedKey ? t('options.aiApiKeySavedDesc') : undefined;
 
-    // Sites: the one whose host the address uses; an address on none of them (a workspace domain,
-    // a site we do not list) is shown by its host until another site is picked.
+    // Sites: the one the address sends to. An address on none of them (a workspace domain, a Coding
+    // Plan path, a site we do not list) is shown by its host in the picker, and in full under it,
+    // until another site is picked.
     const sites = gemini || preset.id === 'custom' ? [] : preset.endpoints;
     const siteHost = hostOf(apiUrl);
-    const site = sites.find(endpoint => hostOf(endpoint.baseUrl) === siteHost);
+    const site = sites.find(endpoint => requestAddressOf(endpoint.baseUrl) === requestAddressOf(apiUrl));
+    const unlistedAddress = sites.length > 0 && !site;
     const siteOptions = [
         ...(site ? [] : [{ value: '', label: siteHost || apiUrl }]),
         ...sites.map(endpoint => ({ value: endpoint.id, label: t('options.aiEndpoint_' + endpoint.id) })),
@@ -116,6 +141,11 @@ const AiProviderSettings: React.FC = () => {
                         const next = sites.find(endpoint => endpoint.id === id);
                         if (next) setAi({ OPENAI_API_URL: next.baseUrl });
                     }} />
+                </Row>
+            )}
+            {unlistedAddress && (
+                <Row sub option={O.url} hint={t('options.aiApiUrlUnlistedDesc')}>
+                    <Value tip={apiUrl}>{apiUrl}</Value>
                 </Row>
             )}
             {preset.id === 'custom' && (
