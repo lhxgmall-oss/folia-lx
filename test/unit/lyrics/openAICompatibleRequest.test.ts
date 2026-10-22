@@ -44,6 +44,31 @@ describe('parameter rejection evidence', () => {
         )).toBe(true);
     });
 
+    it('reads the field from error.param, including a sub-path of it', () => {
+        const body = (param: string) => JSON.stringify({ error: { message: 'Bad request', param, code: 'invalid_value' } });
+        expect(rejectsOpenAICompatibleParameter(400, body('reasoning_effort'), 'reasoning_effort')).toBe(true);
+        expect(rejectsOpenAICompatibleParameter(400, body('thinking.type'), 'thinking')).toBe(true);
+        expect(rejectsOpenAICompatibleParameter(400, body('thinking_budget'), 'thinking')).toBe(false);
+    });
+
+    it.each([
+        ['OpenAI unsupported value', "Unsupported value: 'reasoning_effort' does not support 'none' with this model. Supported values are: 'low', 'medium', and 'high'.", 'reasoning_effort'],
+        ['OpenAI unrecognized argument', 'Unrecognized request argument supplied: reasoning_effort', 'reasoning_effort'],
+        ['GLM 1214', JSON.stringify({ error: { code: '1214', message: 'Parameter `reasoning_effort` is invalid' } }), 'reasoning_effort'],
+        ['GLM 1214 naming a sub-field', JSON.stringify({ error: { code: '1214', message: 'Parameter `thinking.type` is invalid' } }), 'thinking'],
+        ['OpenAI unsupported value without param', JSON.stringify({ error: {
+            message: "Unsupported value: 'reasoning_effort' does not support 'none' with this model.",
+            type: 'invalid_request_error', param: null, code: 'unsupported_value',
+        } }), 'reasoning_effort'],
+    ])('recognises the %s wording', (_name, text, parameter) => {
+        expect(rejectsOpenAICompatibleParameter(400, text, parameter)).toBe(true);
+    });
+
+    it('does not take a similarly named field for the asked one', () => {
+        const text = JSON.stringify({ error: { code: '1214', message: 'Parameter `thinking_budget` is invalid' } });
+        expect(rejectsOpenAICompatibleParameter(400, text, 'thinking')).toBe(false);
+    });
+
     it('does not mistake an echoed request body for the rejected parameter', () => {
         const text = 'Invalid parameter: temperature. Request body: '
             + '{"response_format":{"type":"json_object"},"max_tokens":8192}';
@@ -130,5 +155,21 @@ describe('feature reasoning policy', () => {
         }, fetchImpl);
 
         expect(bodies[0].thinking).toEqual({ type: 'disabled' });
+    });
+
+    it('walks the web segmentation ladder down when only the raw error body names the parameter', async () => {
+        const bodies: any[] = [];
+        const fetchImpl = vi.fn(async (_url, init) => {
+            const body = JSON.parse(String(init?.body));
+            bodies.push(body);
+            return body.reasoning_effort !== undefined
+                ? Response.json({ error: { message: 'Bad request', param: 'reasoning_effort', code: 'invalid_value' } }, { status: 400 })
+                : Response.json({ choices: [{ finish_reason: 'stop', message: { content: '{"lines":[["hello"]]}' } }] });
+        });
+        await segmentLyricLines(['hello'], {
+            AI_PROVIDER: 'openai', OPENAI_API_KEY: 'key', OPENAI_API_URL: 'https://param-only.example.test/v1',
+        }, fetchImpl);
+
+        expect(bodies.map((body) => body.reasoning_effort)).toEqual(['none', undefined]);
     });
 });

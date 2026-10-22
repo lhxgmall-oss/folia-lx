@@ -35,16 +35,34 @@ const parseErrorPayload = (text) => {
 
 const rejectionPattern = (parameter) => {
   const escaped = parameter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // A field may be named with its sub-path (GLM writes `thinking.type` for a rejected `thinking`).
+  const named = `["'\`]${escaped}(?:[.[][^"'\`\\s]*)?["'\`]`;
   return new RegExp(
-    `(?:unsupported|invalid|unknown|unrecognized|not allowed)\\s+(?:(?:parameter|argument|field)\\s*)?[:=]?\\s*["']?${escaped}\\b`
+    `(?:unsupported|invalid|unknown|unrecognized|not allowed)\\s+(?:(?:parameter|argument|field)\\s*)?[:=]?\\s*["'\`]?${escaped}\\b`
       + `|\\b${escaped}\\b\\s+(?:is\\s+)?(?:unsupported|not supported|not allowed|unrecognized)`
-      + `|extra_forbidden[^\\r\\n]*\\bloc(?:ation)?\\s*[:=]\\s*["']?${escaped}\\b`
-      + `|\\bloc(?:ation)?\\s*[:=]\\s*["']?${escaped}\\b[^\\r\\n]*extra_forbidden`,
+      // GLM 1214: Parameter `x` is invalid.
+      + `|\\bparameter\\s*${named}\\s+(?:is\\s+)?(?:invalid|unsupported|not supported|not allowed|unrecognized)`
+      // OpenAI: Unsupported value: 'x' does not support 'none' with this model.
+      + `|\\bunsupported value:\\s*${named}`
+      // OpenAI: Unrecognized request argument supplied: x
+      + `|\\bunrecognized request arguments? supplied:\\s*["'\`]?${escaped}\\b`
+      + `|extra_forbidden[^\\r\\n]*\\bloc(?:ation)?\\s*[:=]\\s*["'\`]?${escaped}\\b`
+      + `|\\bloc(?:ation)?\\s*[:=]\\s*["'\`]?${escaped}\\b[^\\r\\n]*extra_forbidden`,
     'i',
   );
 };
 
-/** True only when a 400/422 explicitly identifies the rejected request field. */
+/** `thinking.type` and `thinking[0]` name the `thinking` field as well. */
+const namesParameter = (named, parameter) => typeof named === 'string'
+  && (named === parameter || named.startsWith(`${parameter}.`) || named.startsWith(`${parameter}[`));
+
+/**
+ * True only when a 400/422 explicitly identifies the rejected request field.
+ *
+ * `text` should be the provider's raw error body: a formatted message keeps only `error.message`
+ * and loses `error.param` and `error.code`, which are often the only place the field is named.
+ * A formatted "OpenAI compatible API error (400): …" string is still accepted.
+ */
 export const rejectsOpenAICompatibleParameter = (status, text, parameter) => {
   if ((status !== 400 && status !== 422) || /rate.?limit|concurrency|quota/i.test(text)) return false;
 
@@ -52,7 +70,7 @@ export const rejectsOpenAICompatibleParameter = (status, text, parameter) => {
   if (payload && typeof payload === 'object') {
     const error = payload.error && typeof payload.error === 'object' ? payload.error : null;
     const exactParameter = error?.param ?? payload.param;
-    if (exactParameter === parameter) {
+    if (namesParameter(exactParameter, parameter)) {
       const detail = `${error?.code ?? payload.code ?? ''} ${error?.message ?? payload.message ?? ''}`;
       return /unsupported|invalid|unknown|unrecognized|not allowed|extra_forbidden/i.test(detail);
     }

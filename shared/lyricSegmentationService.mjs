@@ -103,8 +103,11 @@ const resolveTemperature = (value) => {
     : DEFAULT_OPENAI_TEMPERATURE;
 };
 
-const readErrorDetail = async (response) => {
-  const rawText = await response.text();
+// The raw error body kept for deciding whether a parameter was rejected, bounded like the desktop's.
+const MAX_ERROR_BODY_CHARS = 16 * 1024;
+
+/** The provider's own message out of a raw error body, or the body itself when it is not JSON. */
+const errorDetailOf = (rawText) => {
   try {
     const parsed = JSON.parse(rawText);
     const error = parsed && parsed.error;
@@ -116,6 +119,8 @@ const readErrorDetail = async (response) => {
   }
   return rawText.trim();
 };
+
+const readErrorDetail = async (response) => errorDetailOf(await response.text());
 
 const extractContentText = (message) => {
   if (!message) return null;
@@ -178,11 +183,14 @@ const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
   }
 
   if (!response.ok) {
-    const detail = await readErrorDetail(response);
+    // errorText is for people; errorBody keeps error.param and error.code for the ladder.
+    const rawText = await response.text();
+    const detail = errorDetailOf(rawText);
     return {
       ok: false,
       status: response.status,
       errorText: `OpenAI compatible API error (${response.status})${detail ? `: ${detail}` : ''}`,
+      errorBody: rawText.slice(0, MAX_ERROR_BODY_CHARS),
     };
   }
 
@@ -240,7 +248,7 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
 
     if (!result.ok) {
       if (!isLastAttempt
-        && Object.keys(params).some((key) => rejectsOpenAICompatibleParameter(result.status, result.errorText, key))) {
+        && Object.keys(params).some((key) => rejectsOpenAICompatibleParameter(result.status, result.errorBody ?? result.errorText, key))) {
         continue;
       }
       throw new SegmentationRequestError(result.errorText, 502);

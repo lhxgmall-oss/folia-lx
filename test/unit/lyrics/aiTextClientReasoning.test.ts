@@ -76,6 +76,20 @@ describe('reasoning suppression ladder', () => {
         expect(attempts[attempts.length - 1].body.reasoning_effort).toBeUndefined();
     });
 
+    it('walks down when only the raw error body names the parameter', async () => {
+        // The message says nothing; error.param is the only evidence, and it is lost once the error
+        // is formatted for display.
+        const { attempts, fetchImpl } = makeFetch((body) => (
+            body.reasoning_effort !== undefined
+                ? { status: 400, payload: { error: { message: 'Bad request', param: 'reasoning_effort', code: 'invalid_value' } } }
+                : answered('{"ok":1}')
+        ));
+
+        await expect(run(fetchImpl, 'http://b2.test/v1')).resolves.toBe('{"ok":1}');
+        expect(attempts).toHaveLength(2);
+        expect(attempts[1].body.reasoning_effort).toBeUndefined();
+    });
+
     it('walks down when the parameter is accepted but the model reasons anyway', async () => {
         const { attempts, fetchImpl } = makeFetch((body, attempt) => (
             attempt < 2 ? reasonedItself_dry(Number(body.max_tokens)) : answered('{"ok":1}')

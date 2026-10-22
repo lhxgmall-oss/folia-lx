@@ -164,8 +164,16 @@ function extractProviderErrorMessage(payload) {
   return typeof payload.message === 'string' ? payload.message : null;
 }
 
+// The raw error body kept for deciding whether a parameter was rejected. Bounded, because a
+// misconfigured URL can answer with a whole HTML page.
+const MAX_ERROR_BODY_CHARS = 16 * 1024;
+
 async function formatOpenAICompatibleError(response) {
-  const rawText = await response.text();
+  return formatOpenAICompatibleErrorText(response, await response.text());
+}
+
+/** The displayable error line for a failed response whose body has already been read. */
+function formatOpenAICompatibleErrorText(response, rawText) {
   let detail = rawText.trim();
 
   try {
@@ -472,7 +480,14 @@ async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeout
   }
 
   if (!response.ok) {
-    return { ok: false, status: response.status, errorText: await formatOpenAICompatibleError(response) };
+    // errorText is for people; errorBody keeps error.param and error.code for the ladder.
+    const rawText = await response.text();
+    return {
+      ok: false,
+      status: response.status,
+      errorText: formatOpenAICompatibleErrorText(response, rawText),
+      errorBody: rawText.slice(0, MAX_ERROR_BODY_CHARS),
+    };
   }
 
   if (body && body.stream === true) {
@@ -565,7 +580,7 @@ async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt
       // A rejected parameter is information, not a failure: this endpoint does not speak that
       // dialect, so move down the ladder. Everything else is the user's problem to see.
       if (!isLastAttempt
-        && Object.keys(params).some((key) => rejectsOpenAICompatibleParameter(result.status, result.errorText, key))) {
+        && Object.keys(params).some((key) => rejectsOpenAICompatibleParameter(result.status, result.errorBody ?? result.errorText, key))) {
         console.log(`[ai] ${described} rejected by the endpoint, trying the next option`);
         continue;
       }
