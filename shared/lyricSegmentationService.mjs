@@ -1,8 +1,11 @@
 import {
   detectOpenAICompatibleProvider,
-  rejectsOpenAICompatibleParameter,
   sendOpenAICompatibleRequest,
 } from './openAICompatibleRequest.mjs';
+import { budgetFor } from './ai/aiTasks.mjs';
+import { runAttempts } from './ai/attemptRunner.mjs';
+import { exhaustedByReasoning } from './ai/compatibleBody.mjs';
+import { customAdapter } from './ai/custom.mjs';
 
 // shared/lyricSegmentationService.mjs
 // Server-side lyric word segmentation, shared by the Vercel edge handler and the Cloudflare
@@ -14,7 +17,6 @@ import {
 // build there is no user-facing setting here: the web deployment owns the credentials.
 
 import {
-  REASONING_SUPPRESSION_ATTEMPTS,
   SEGMENTATION_GEMINI_GENERATION_CONFIG,
   SEGMENTATION_JSON_SCHEMA,
   SEGMENTATION_MAX_OUTPUT_TOKENS,
@@ -138,15 +140,6 @@ const extractContentText = (message) => {
   return null;
 };
 
-/** Remembers the working request shape per endpoint+model, so probing is paid once per instance. */
-const reasoningAttemptCache = new Map();
-
-const exhaustedByReasoning = (choice, usage) => {
-  const reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens;
-  const hasReasoning = Boolean(reasoningTokens || choice?.message?.reasoning_content);
-  return hasReasoning && choice?.finish_reason === 'length';
-};
-
 const describeEmpty = (choice, usage, model) => {
   const reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens;
   if (exhaustedByReasoning(choice, usage)) {
@@ -200,15 +193,17 @@ const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
 };
 
 /**
- * Walks REASONING_SUPPRESSION_ATTEMPTS instead of assuming what the deployment configured. The
- * base URL and model are env, so they can name anything; the working shape is discovered and then
- * cached. See the ladder's definition for the measurements behind it.
+ * Walks the custom adapter's segmentation attempts (REASONING_SUPPRESSION_ATTEMPTS) instead of
+ * assuming what the deployment configured. The base URL and model are env, so they can name
+ * anything; the working shape is discovered and then remembered by the shared runner. See the
+ * ladder's definition for the measurements behind it.
  */
 const runOpenAICompatible = async (lines, env, fetchImpl) => {
   const apiUrl = normalizeOpenAIChatCompletionsUrl(env.OPENAI_API_URL);
   const model = resolveOpenAICompatibleModel(apiUrl, env.OPENAI_API_MODEL);
   const provider = detectOpenAICompatibleProvider(apiUrl);
   const temperature = resolveTemperature(env.OPENAI_API_TEMPERATURE);
+  const adapter = customAdapter;
 
   const messages = [
     { role: 'system', content: buildSegmentationSystemPrompt() },
@@ -223,53 +218,32 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
     }
     : { type: 'json_object' };
 
-  const cacheKey = `${apiUrl}|${model}`;
-  const learned = reasoningAttemptCache.get(cacheKey);
-  const firstIndex = typeof learned === 'number' ? learned : 0;
+  return runAttempts({
+    adapter,
+    task: 'segmentation',
+    url: apiUrl,
+    model,
+    attempts: adapter.attempts('segmentation', model),
+    describeEmpty: (result) => describeEmpty(result.choice, result.usage, model),
+    fail: (message) => new SegmentationRequestError(message, 502),
+    send: async (attempt) => {
+      // DeepSeek's official switch belongs to segmentation policy, not the generic HTTP transport.
+      const reasoningParams = provider === 'deepseek'
+        ? { thinking: { type: 'disabled' }, ...attempt.params }
+        : attempt.params;
 
-  let lastEmpty = null;
-  for (let index = firstIndex; index < REASONING_SUPPRESSION_ATTEMPTS.length; index += 1) {
-    const { params } = REASONING_SUPPRESSION_ATTEMPTS[index];
-    const isLastAttempt = index === REASONING_SUPPRESSION_ATTEMPTS.length - 1;
-    const budget = isLastAttempt ? SEGMENTATION_MAX_OUTPUT_TOKENS * 4 : SEGMENTATION_MAX_OUTPUT_TOKENS;
-    // DeepSeek's official switch belongs to segmentation policy, not the generic HTTP transport.
-    const reasoningParams = provider === 'deepseek'
-      ? { thinking: { type: 'disabled' }, ...params }
-      : params;
-
-    const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, {
-      model,
-      messages,
-      temperature,
-      [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: budget,
-      ...reasoningParams,
-      response_format: responseFormat,
-    }, fetchImpl);
-
-    if (!result.ok) {
-      if (!isLastAttempt
-        && Object.keys(params).some((key) => rejectsOpenAICompatibleParameter(result.status, result.errorBody ?? result.errorText, key))) {
-        continue;
-      }
-      throw new SegmentationRequestError(result.errorText, 502);
-    }
-
-    if (result.content) {
-      reasoningAttemptCache.set(cacheKey, index);
-      return result.content;
-    }
-
-    lastEmpty = result;
-    if (!isLastAttempt && exhaustedByReasoning(result.choice, result.usage)) {
-      continue;
-    }
-    break;
-  }
-
-  throw new SegmentationRequestError(
-    describeEmpty(lastEmpty?.choice, lastEmpty?.usage, model),
-    502,
-  );
+      const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, {
+        model,
+        messages,
+        temperature,
+        [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']:
+          budgetFor('segmentation', SEGMENTATION_MAX_OUTPUT_TOKENS, attempt),
+        ...reasoningParams,
+        response_format: responseFormat,
+      }, fetchImpl);
+      return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : result;
+    },
+  });
 };
 
 const runGemini = async (lines, env, fetchImpl) => {

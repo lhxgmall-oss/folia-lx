@@ -1,7 +1,5 @@
 "use strict";
 
-const { REASONING_SUPPRESSION_ATTEMPTS } = require('../shared/lyricSegmentationPrompt.cjs');
-
 // electron/aiTextClient.cjs
 // Provider-agnostic "send a system + user prompt, get JSON back" client for the main process.
 //
@@ -118,12 +116,18 @@ function providerSupportsStructuredOutputs(provider) {
   return provider === 'openai';
 }
 
-/**
- * Remembers which rung of REASONING_SUPPRESSION_ATTEMPTS worked for an endpoint+model, so the
- * probing is paid once per process rather than on every batch. Keyed by both because one base URL
- * can serve models with completely different capabilities.
- */
-const reasoningAttemptCache = new Map();
+// The shared AI modules (adapters, the attempt runner) are ESM; they are loaded once, on first use.
+// Which rung of an adapter's attempts worked for an endpoint+model is remembered by the runner, so
+// the probing is paid once per process rather than on every batch.
+let aiModules = null;
+const loadAiModules = () => {
+  aiModules ??= Promise.all([
+    import('../shared/ai/attemptRunner.mjs'),
+    import('../shared/ai/aiTasks.mjs'),
+    import('../shared/ai/custom.mjs'),
+  ]).then(([runner, tasks, custom]) => ({ ...runner, ...tasks, ...custom }));
+  return aiModules;
+};
 
 /**
  * True when the model answered nothing because reasoning consumed the whole budget. This is the
@@ -519,7 +523,8 @@ async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeout
 /**
  * Raw JSON text from an OpenAI-compatible endpoint, using the user's configured connection.
  *
- * When `disableReasoning` is set this walks REASONING_SUPPRESSION_ATTEMPTS rather than assuming
+ * When `disableReasoning` is set this walks the custom adapter's segmentation attempts
+ * (REASONING_SUPPRESSION_ATTEMPTS) through shared/ai/attemptRunner.mjs rather than assuming
  * anything about the provider, advancing on the two failures that mean "that rung does not apply
  * here": the server rejecting the parameter, and the model answering nothing because reasoning ate
  * the budget. Any other error is real and is reported immediately, so a bad key or a wrong model
@@ -550,63 +555,37 @@ async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt
   const provider = detectOpenAICompatibleProvider(apiUrl);
   const stream = store.get('OPENAI_API_STREAM') === true;
 
-  const attempts = disableReasoning ? REASONING_SUPPRESSION_ATTEMPTS : [{ params: {} }];
-  const cacheKey = `${apiUrl}|${model}`;
-  const learned = disableReasoning ? reasoningAttemptCache.get(cacheKey) : 0;
-  const firstIndex = typeof learned === 'number' ? learned : 0;
+  const ai = await loadAiModules();
+  const task = disableReasoning ? 'segmentation' : 'theme';
+  const adapter = ai.customAdapter;
 
-  const { rejectsOpenAICompatibleParameter } = await import('../shared/openAICompatibleRequest.mjs');
-
-  let lastEmpty = null;
-  for (let index = firstIndex; index < attempts.length; index += 1) {
-    const { params } = attempts[index];
-    const isLastAttempt = index === attempts.length - 1;
-    // The final rung is for models whose reasoning cannot be turned off, so it needs room for the
-    // reasoning AND the answer; the earlier rungs expect no reasoning at all.
-    const budget = isLastAttempt && disableReasoning && maxTokens ? maxTokens * 4 : maxTokens;
-    const reasoningParams = disableReasoning && provider === 'deepseek'
-      ? { thinking: { type: 'disabled' }, ...params }
-      : params;
-    const body = buildOpenAICompatibleRequestBody(
-      model, provider, systemPrompt, sourcePrompt, temperature, schema, schemaName, budget, reasoningParams, stream,
-    );
-
-    const described = Object.keys(params).length ? Object.keys(params).join('+') : 'plain';
-    console.log(`[ai] POST ${redactUrl(apiUrl)} model=${model} provider=${provider} reasoning=${described}${stream ? ' stream=on' : ''}`);
-    const startedAt = Date.now();
-    const result = await sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs });
-
-    if (!result.ok) {
-      // A rejected parameter is information, not a failure: this endpoint does not speak that
-      // dialect, so move down the ladder. Everything else is the user's problem to see.
-      if (!isLastAttempt
-        && Object.keys(params).some((key) => rejectsOpenAICompatibleParameter(result.status, result.errorBody ?? result.errorText, key))) {
-        console.log(`[ai] ${described} rejected by the endpoint, trying the next option`);
-        continue;
-      }
-      throw new Error(result.errorText);
-    }
-
-    console.log(`[ai] ${redactUrl(apiUrl)} answered in ${Date.now() - startedAt}ms`);
-
-    if (result.content) {
-      reasoningAttemptCache.set(cacheKey, index);
-      return result.content;
-    }
-
-    lastEmpty = result;
-    if (!isLastAttempt && exhaustedByReasoning(result.choice, result.usage)) {
-      console.log(`[ai] ${described} did not stop the model reasoning, trying the next option`);
-      continue;
-    }
-    break;
-  }
-
-  throw new Error(describeEmptyCompletion(
-    lastEmpty && lastEmpty.choice,
-    lastEmpty && lastEmpty.usage,
+  return ai.runAttempts({
+    adapter,
+    task,
+    url: apiUrl,
     model,
-  ));
+    attempts: adapter.attempts(task, model),
+    log: (line) => console.log(line),
+    describeEmpty: (result) => describeEmptyCompletion(result.choice, result.usage, model),
+    send: async (attempt) => {
+      const reasoningParams = disableReasoning && provider === 'deepseek'
+        ? { thinking: { type: 'disabled' }, ...attempt.params }
+        : attempt.params;
+      const body = buildOpenAICompatibleRequestBody(
+        model, provider, systemPrompt, sourcePrompt, temperature, schema, schemaName,
+        ai.budgetFor(task, maxTokens, attempt), reasoningParams, stream,
+      );
+
+      console.log(`[ai] POST ${redactUrl(apiUrl)} model=${model} provider=${provider} reasoning=${attempt.label}${stream ? ' stream=on' : ''}`);
+      const startedAt = Date.now();
+      const result = await sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs });
+      if (!result.ok) {
+        return result;
+      }
+      console.log(`[ai] ${redactUrl(apiUrl)} answered in ${Date.now() - startedAt}ms`);
+      return { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) };
+    },
+  });
 }
 
 /**
