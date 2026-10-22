@@ -38,9 +38,9 @@ export const buildLocalSongLyricMatchContext = (
         || song.onlineMetadata?.album?.name
         || song.importedMetadata.albumName
         || '';
-    const source = getPlatformLyricSource(song.onlineMetadata?.source)?.id;
+    const source = getPlatformLyricSource(song.onlineMetadata?.source);
     const songId = song.onlineMetadata?.songId;
-    const hasSelectedIdentity = source !== undefined
+    const hasSelectedIdentity = source?.localMetadataIdentity === true
         && songId !== undefined
         && songId !== null
         && String(songId).trim() !== '';
@@ -52,7 +52,7 @@ export const buildLocalSongLyricMatchContext = (
         durationMs: song.duration || 0,
         ...(hasSelectedIdentity ? {
             metadataCandidate: {
-                source,
+                source: source.id,
                 songId,
             },
         } : {}),

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalSong } from '@/types';
 import { buildLocalSongLyricMatchContext, shouldRefreshLocalSongLyricsFromMetadata, shouldRunLocalSongAutomaticMatch } from '@/utils/lyrics/localSongMatchContext';
-import { getPlatformLyricSource, LYRIC_SOURCES } from '@/utils/lyrics/lyricSources';
 
 // test/unit/lyrics/localSongMatchContext.test.ts
 
@@ -20,10 +19,7 @@ const song = (patch: Partial<LocalSong> = {}): LocalSong => ({
 });
 
 describe('localSongMatchContext', () => {
-    it.each(LYRIC_SOURCES.flatMap(source => {
-        const platform = getPlatformLyricSource(source.id);
-        return platform ? [platform.id] : [];
-    }))('retains the selected %s identity for automatic and legacy lyric matching', source => {
+    it.each(['netease', 'qq', 'kugou', 'qishui'] as const)('retains the selected %s identity for automatic and legacy lyric matching', source => {
         const selected = song({
             noAutoMatch: true,
             onlineMetadata: { source, songId: 'selected-id', artists: [], matchMode: 'manual', matchedAt: 1 },
@@ -34,6 +30,20 @@ describe('localSongMatchContext', () => {
         expect(shouldRefreshLocalSongLyricsFromMetadata(selected)).toBe(true);
         expect(shouldRefreshLocalSongLyricsFromMetadata({ ...selected, hasManualLyricSelection: true })).toBe(false);
         expect(shouldRefreshLocalSongLyricsFromMetadata({ ...selected, markedPureMusic: true })).toBe(false);
+    });
+    it('keeps Spotify metadata from overriding disabled automatic matching or refreshing legacy lyrics', () => {
+        const selected = song({
+            noAutoMatch: true,
+            onlineMetadata: { source: 'spotify', songId: 'selected-id', artists: [], matchMode: 'manual', matchedAt: 1 },
+            matchedLyrics: { lines: [], isWordByWord: true },
+        });
+
+        expect(buildLocalSongLyricMatchContext(selected).metadataCandidate).toBeUndefined();
+        expect(shouldRunLocalSongAutomaticMatch(selected)).toBe(false);
+        expect(shouldRefreshLocalSongLyricsFromMetadata(selected)).toBe(false);
+        expect(shouldRefreshLocalSongLyricsFromMetadata({ ...selected, matchedLyrics: undefined, matchedIsPureMusic: true })).toBe(false);
+        // Ordinary automatic matching is still offered when the listener has not disabled it.
+        expect(shouldRunLocalSongAutomaticMatch({ ...selected, noAutoMatch: false })).toBe(true);
     });
     it('uses the selected online identity and metadata for lyric matching', () => {
         const context = buildLocalSongLyricMatchContext(song({

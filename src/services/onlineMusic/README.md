@@ -91,7 +91,7 @@ UI / hooks / stores / app services
 - 登录要靠的本地服务：`auth.localService`，登录窗口会显示它的错误和重启按钮。
 - 多种登录方式和图标：`auth.getLoginMethods` 回 `iconKey`，图标放 `src/assets/providers/<iconKey>.svg`。
 - 跨源歌词匹配的来源：`src/utils/lyrics/lyricSources.ts` 的 `ENTRIES` 加一行，三份语言文件加 `lyricProvider.foo`。`platform: true` 的来源经它的 provider 去搜，`lyricMatchSources.ts` 不用改。只在桌面端可用的平台（provider 的 `getAvailability` 在网页版回 `configured: false`）在 `ENTRIES` 里还要设 `needsConfiguredProvider: true`，否则网页版的匹配窗口和自动匹配也会去问它（汽水这样设）。按 id 就能取到歌词的平台，可以在 `lyricMatchSources.ts` 的 `OWN_ACCESS` 里给它加 `knownById`：本地歌匹配过这个平台的歌以后，自动匹配按 id 直接取，不再只在搜索结果里找（网易云、汽水这样做；id 超出 number 精度的按字符串回，不转成数）。
-- 本地歌匹配在线信息：`src/components/modal/LocalSongMetadataMatchDialog.tsx` 的平台按钮和 `src/services/onlineMetadataSearchService.ts` 的自动匹配顺序都只写了网易云、QQ、酷狗；要让新平台参加，改这两处。
+- 本地歌匹配在线信息：`src/components/modal/LocalSongMetadataMatchDialog.tsx` 的平台按钮和 `src/services/onlineMetadataSearchService.ts` 的自动匹配顺序都只写了网易云、QQ、酷狗；要让新平台参加，改这两处。已选元数据能否恢复自动匹配、刷新旧歌词由歌词来源表的 `localMetadataIdentity` 单独声明，不从 `platform: true` 推断：目前保留网易云、QQ、酷狗并新增汽水，不改变 Spotify 对 `noAutoMatch` 和旧歌词的处理。
 - 命令面板的“搜某平台的歌”：`src/components/command-palette/commands/searchCommands.ts` 现在只有网易云一条。
 - 封面按尺寸取图：`src/utils/coverUrl.ts` 的 `CoverProvider` 和 `describeCoverUrl` 按地址的主机认平台；认不出的封面按原图用。
 - 新的缓存键：用 `providerStorage.ts` 的 `online_provider_<id>_...` 前缀就不用改；新的前缀要登记到 `src/services/repositories/cacheRepository.ts` 的 `getCacheTableName` 和 `matchesCategory`。
