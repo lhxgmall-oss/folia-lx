@@ -57,6 +57,12 @@ describe('requests per model', () => {
         ['claude-haiku-4-5-20251001', 'segmentation', [[undefined, undefined, CAP.segmentation.off]]],
         ['claude-sonnet-4-5', 'theme', [[undefined, undefined, CAP.theme.off]]],
         ['claude-opus-4-5@20251101', 'segmentation', [[undefined, undefined, CAP.segmentation.off]]],
+        // The retired 4.0 and 4.1 models take no effort either: nothing sent, no fallback to pay for.
+        ['claude-opus-4-1-20250805', 'segmentation', [[undefined, undefined, CAP.segmentation.off]]],
+        ['claude-opus-4-0', 'test', [[undefined, undefined, CAP.test.off]]],
+        ['claude-sonnet-4-0', 'theme', [[undefined, undefined, CAP.theme.off]]],
+        ['claude-opus-4-20250514', 'segmentation', [[undefined, undefined, CAP.segmentation.off]]],
+        ['claude-sonnet-4-20250514', 'test', [[undefined, undefined, CAP.test.off]]],
         // Anything else: off, then low effort, then nothing.
         ['claude-nova-6', 'segmentation', [[DISABLED, 'low', CAP.segmentation.off], [undefined, 'low', CAP.segmentation.on], [undefined, undefined, CAP.segmentation.on]]],
         ['claude-nova-6', 'test', [[DISABLED, 'low', CAP.test.off], [undefined, 'low', CAP.test.on], [undefined, undefined, CAP.test.on]]],
@@ -113,14 +119,15 @@ describe('requests per model', () => {
 });
 
 describe('the schema structured outputs receive', () => {
-    it('drops unsupported keywords at schema positions only, and closes every object', () => {
+    it('keeps only what structured outputs support, at schema positions only, and closes objects whose properties are listed', () => {
         const schema = {
             type: 'object',
             properties: {
                 minimum: { type: 'integer', minimum: 0, maximum: 9, multipleOf: 3 },
-                name: { type: 'string', minLength: 1, maxLength: 10, pattern: '^[a-z]+$' },
+                name: { type: 'string', minLength: 1, maxLength: 10, pattern: '^[a-z]+$', format: 'email', title: 'Name', default: 'a' },
                 tags: { type: 'array', minItems: 1, maxItems: 4, uniqueItems: true, items: { type: 'object', properties: { word: { type: 'string' } } } },
-                either: { anyOf: [{ type: 'object', properties: {}, additionalProperties: true }, { type: 'null' }] },
+                either: { anyOf: [{ type: 'object', properties: {}, additionalProperties: false }, { type: 'null' }] },
+                kind: { enum: ['a', 'b', null], description: 'plain values' },
             },
             required: ['minimum'],
             $defs: { color: { type: 'object', minProperties: 1, properties: { hex: { type: 'string' } } } },
@@ -132,14 +139,86 @@ describe('the schema structured outputs receive', () => {
             additionalProperties: false,
             properties: {
                 minimum: { type: 'integer' },
-                name: { type: 'string', pattern: '^[a-z]+$' },
-                tags: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { word: { type: 'string' } } } },
+                name: { type: 'string', pattern: '^[a-z]+$', format: 'email', title: 'Name', default: 'a' },
+                tags: { type: 'array', minItems: 1, items: { type: 'object', additionalProperties: false, properties: { word: { type: 'string' } } } },
                 either: { anyOf: [{ type: 'object', properties: {}, additionalProperties: false }, { type: 'null' }] },
+                kind: { enum: ['a', 'b', null], description: 'plain values' },
             },
             required: ['minimum'],
             $defs: { color: { type: 'object', additionalProperties: false, properties: { hex: { type: 'string' } } } },
         });
         expect(JSON.stringify(schema)).toBe(before);
+    });
+
+    it('drops every other keyword, nested ones included, and reads oneOf as anyOf', () => {
+        const string = { type: 'string' };
+        expect(structuredOutputSchema({
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                tuple: { type: 'array', prefixItems: [string], items: string, minItems: 2, contains: string },
+                notX: { type: 'string', not: { const: 'x' } },
+                conditional: { type: 'string', if: { minLength: 1 }, then: { minLength: 2 }, else: {} },
+                lookahead: { type: 'string', format: 'regex', pattern: '^(?=a)b' },
+                boundary: { type: 'string', pattern: String.raw`\bword\b` },
+                choice: { oneOf: [string, { type: 'null' }] },
+                complexEnum: { enum: ['a', { b: 1 }] },
+                positional: { type: 'array', items: [string, string] },
+            },
+            patternProperties: { '^x': string },
+            propertyNames: { pattern: '^x' },
+            dependentRequired: { tuple: ['notX'] },
+            unevaluatedProperties: false,
+        })).toEqual({
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+                tuple: { type: 'array', items: string },
+                notX: string,
+                conditional: string,
+                lookahead: string,
+                boundary: string,
+                choice: { anyOf: [string, { type: 'null' }] },
+                complexEnum: {},
+                positional: { type: 'array' },
+            },
+        });
+    });
+
+    it('follows local $refs into the definitions', () => {
+        const schema = {
+            type: 'object',
+            properties: { a: { $ref: '#/$defs/leaf' }, b: { $ref: '#/definitions/other' }, c: { $ref: '#/$defs/leaf' } },
+            $defs: { leaf: { type: 'object', properties: { x: { type: 'string', maxLength: 3 } } } },
+            definitions: { other: { type: 'string' } },
+        };
+        expect(structuredOutputSchema(schema)).toEqual({
+            type: 'object',
+            additionalProperties: false,
+            properties: { a: { $ref: '#/$defs/leaf' }, b: { $ref: '#/definitions/other' }, c: { $ref: '#/$defs/leaf' } },
+            $defs: { leaf: { type: 'object', additionalProperties: false, properties: { x: { type: 'string' } } } },
+            definitions: { other: { type: 'string' } },
+        });
+    });
+
+    it.each([
+        ['a map of strings', { type: 'object', properties: { map: { type: 'object', additionalProperties: { type: 'string' } } } }, '#/properties/map'],
+        ['an explicitly open object', { type: 'object', properties: { open: { type: 'object', properties: { a: { type: 'string' } }, additionalProperties: true } } }, '#/properties/open'],
+        ['an object with no properties listed', { type: 'object', properties: { any: { type: 'object' } } }, '#/properties/any'],
+        ['a $ref to the root', { type: 'object', properties: { self: { $ref: '#' } } }, 'recursive'],
+        ['a definition that refers to itself', {
+            type: 'object', properties: { tree: { $ref: '#/$defs/node' } },
+            $defs: { node: { type: 'object', properties: { child: { $ref: '#/$defs/node' } } } },
+        }, 'recursive'],
+        ['two definitions that refer to each other', {
+            type: 'object', properties: { a: { $ref: '#/$defs/a' } },
+            $defs: { a: { type: 'object', properties: { b: { $ref: '#/$defs/b' } } }, b: { type: 'object', properties: { a: { $ref: '#/$defs/a' } } } },
+        }, 'recursive'],
+        ['another document', { type: 'object', properties: { x: { $ref: 'https://example.test/schema.json' } } }, 'https://example.test/schema.json'],
+        ['a missing definition', { type: 'object', properties: { x: { $ref: '#/$defs/missing' } } }, 'unresolved'],
+        ['allOf with a $ref', { type: 'object', properties: { x: { allOf: [{ $ref: '#/$defs/s' }] } }, $defs: { s: { type: 'string' } } }, 'allOf'],
+    ])('refuses %s instead of changing what it means', (_name, schema, mentions) => {
+        expect(() => structuredOutputSchema(schema)).toThrow(mentions);
     });
 
     it('leaves a schema that already fits unchanged', () => {

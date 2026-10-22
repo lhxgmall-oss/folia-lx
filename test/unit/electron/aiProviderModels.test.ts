@@ -304,10 +304,10 @@ describe('selected model completion', () => {
         const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic', OPENAI_API_KEY: 'test-secret',
             OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_MODEL: 'claude-selected', OPENAI_API_STREAM: true });
         expect(await client.runAiJsonCompletion({ store, task: 'theme', systemPrompt: 'system', sourcePrompt: 'source',
-            schema: { type: 'object' }, schemaName: 'result', customFetch })).toBe('{"lines":[]}');
+            schema: { type: 'object', properties: { lines: { type: 'array' } } }, schemaName: 'result', customFetch })).toBe('{"lines":[]}');
         expect(calls[0].url).toBe('https://api.anthropic.com/v1/messages');
         expect(calls[0].body).toMatchObject({ model: 'claude-selected', system: 'system',
-            output_config: { effort: 'low', format: { type: 'json_schema', schema: { type: 'object', additionalProperties: false } } } });
+            output_config: { effort: 'low', format: { type: 'json_schema', schema: { type: 'object', properties: { lines: { type: 'array' } }, additionalProperties: false } } } });
         expect(calls[0].body.tools).toBeUndefined();
         expect(calls[0].body.tool_choice).toBeUndefined();
         expect(calls[0].body.stream).toBeUndefined();

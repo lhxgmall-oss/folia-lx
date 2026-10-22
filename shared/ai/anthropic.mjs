@@ -50,8 +50,11 @@ const FAMILIES = new Map([
     ...['opus-5-5', 'fable-5-1', 'fable-5', 'mythos-5-1', 'mythos-5']
         .map((name) => [name, { quiet: [LOW], theme: [LOW], alwaysThinks: true }]),
     // No thinking unless asked for. haiku-4-5 and sonnet-4-5 also reject effort, so nothing is sent
-    // to any of them [Anthropic·effort].
-    ...['opus-4-8', 'opus-4-7', 'opus-4-6', 'sonnet-4-6', 'opus-4-5', 'sonnet-4-5', 'haiku-4-5']
+    // to any of them [Anthropic·effort]. The retired 4.0 and 4.1 models (opus-4-1, opus-4-0,
+    // sonnet-4-0 and the dated claude-opus-4-20250514 style, read as opus-4 / sonnet-4) take no
+    // effort either: sending them the fallback below would cost two rejected requests first.
+    ...['opus-4-8', 'opus-4-7', 'opus-4-6', 'sonnet-4-6', 'opus-4-5', 'sonnet-4-5', 'haiku-4-5',
+        'opus-4-1', 'opus-4-0', 'sonnet-4-0', 'opus-4', 'sonnet-4']
         .map((name) => [name, { quiet: [QUIET], theme: [QUIET] }]),
 ]);
 
@@ -71,47 +74,111 @@ const familyOf = (model) => {
     return FAMILIES.get(minor === undefined ? `${family}-${major}` : `${family}-${major}-${minor}`);
 };
 
-// JSON Schema keywords structured outputs do not support: numerical, string-length and array or
-// object size constraints [Anthropic·structured-outputs]. Our two schemas use none of them today.
-const UNSUPPORTED_KEYWORDS = new Set([
-    'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf',
-    'minLength', 'maxLength',
-    'minItems', 'maxItems', 'uniqueItems', 'contains', 'minContains', 'maxContains',
-    'minProperties', 'maxProperties',
-]);
-const SCHEMA_LISTS = ['anyOf', 'allOf', 'oneOf', 'prefixItems'];
-const SCHEMA_MAPS = ['properties', '$defs', 'definitions'];
+// What structured outputs take [Anthropic·structured-outputs]: the basic types, `enum` of plain
+// values, `const`, `anyOf` and `allOf` (not with a `$ref` inside allOf), local `$ref` into `$defs`
+// or `definitions` (never recursive, never another document), `default`, `required`,
+// `additionalProperties: false` on every object, the string formats below, simple regex patterns
+// and `minItems` of 0 or 1. Titles and descriptions are annotations and stay. Every other keyword
+// is dropped from the copy, which only loosens what the model is held to: the caller validates the
+// answer anyway. Our two schemas use none of the dropped ones today.
+const FORMATS = new Set(['date-time', 'time', 'date', 'duration', 'email', 'hostname', 'uri', 'ipv4', 'ipv6', 'uuid']);
+const KEPT_AS_IS = new Set(['type', 'required', 'const', 'default', 'title', 'description']);
+// Lookarounds, backreferences and word boundaries are not supported in patterns.
+const UNSUPPORTED_PATTERN = /\(\?<?[=!]|\\[1-9bB]/;
+const isPlainValue = (value) => value === null || ['string', 'number', 'boolean'].includes(typeof value);
+const isMap = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const schemaError = (path, problem) => new Error(`Anthropic structured outputs cannot take this JSON Schema: ${problem} at ${path}`);
 
 /**
- * A copy of `schema` that structured outputs accept: the unsupported keywords dropped, and every
- * object closed with `additionalProperties: false`, the only value allowed. Only schema positions
- * are walked, so a property that happens to be named `minimum` is kept. The answer is still
- * validated by the caller (parseSegmentationResponse, sanitizeDualTheme).
+ * A copy of `schema` that structured outputs accept, built by keeping only what they support (see
+ * above); only schema positions are walked, so a property that happens to be named `minimum` is
+ * kept. An object whose properties are listed but which does not say `additionalProperties` is
+ * closed with `false`, the only value allowed. What cannot be loosened into something supported
+ * throws, rather than being rewritten into a schema that means something else: an open object
+ * (`additionalProperties` true or a schema, or an object with no properties listed, which closed
+ * could only ever be `{}`), and a recursive, external or unresolved `$ref`.
  */
 export const structuredOutputSchema = (schema) => {
-    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    if (!isMap(schema)) {
         return schema;
     }
-    const copy = {};
-    for (const [key, value] of Object.entries(schema)) {
-        if (UNSUPPORTED_KEYWORDS.has(key)) {
-            continue;
+    const followed = new Set();
+
+    // Checks what a $ref points at (walking it once), so a cycle through the definitions is caught.
+    const follow = (ref, path, visiting) => {
+        const match = /^#\/(\$defs|definitions)\/([^/]+)$/.exec(ref);
+        if (!match) {
+            throw schemaError(path, ref === '#' ? 'a recursive $ref' : `the $ref ${JSON.stringify(ref)}, which is not into #/$defs or #/definitions`);
         }
-        if (SCHEMA_MAPS.includes(key) && value && typeof value === 'object') {
-            copy[key] = Object.fromEntries(Object.entries(value).map(([name, child]) => [name, structuredOutputSchema(child)]));
-        } else if (SCHEMA_LISTS.includes(key) && Array.isArray(value)) {
-            copy[key] = value.map(structuredOutputSchema);
-        } else if (key === 'items' || key === 'not') {
-            copy[key] = Array.isArray(value) ? value.map(structuredOutputSchema) : structuredOutputSchema(value);
-        } else {
-            copy[key] = value;
+        const id = `${match[1]}/${match[2]}`;
+        if (visiting.includes(id)) {
+            throw schemaError(path, `a recursive $ref to #/${id}`);
         }
-    }
-    const isObject = schema.type === 'object' || (Array.isArray(schema.type) && schema.type.includes('object')) || 'properties' in schema;
-    if (isObject) {
-        copy.additionalProperties = false;
-    }
-    return copy;
+        if (followed.has(id)) {
+            return;
+        }
+        const target = schema[match[1]]?.[match[2]];
+        if (!isMap(target)) {
+            throw schemaError(path, `the unresolved $ref ${JSON.stringify(ref)}`);
+        }
+        copy(target, `#/${id}`, [...visiting, id]);
+        followed.add(id);
+    };
+
+    const copy = (node, path, visiting) => {
+        if (!isMap(node)) {
+            return node;
+        }
+        const out = {};
+        for (const [key, value] of Object.entries(node)) {
+            const at = `${path}/${key}`;
+            if (KEPT_AS_IS.has(key)) {
+                out[key] = value;
+            } else if ((key === 'properties' || key === '$defs' || key === 'definitions') && isMap(value)) {
+                // A definition is walked as itself, so a $ref back to it is seen as recursive.
+                const defines = key !== 'properties' && path === '#';
+                out[key] = Object.fromEntries(Object.entries(value).map(([name, child]) => [
+                    name,
+                    copy(child, `${at}/${name}`, defines ? [...visiting, `${key}/${name}`] : visiting),
+                ]));
+            } else if ((key === 'anyOf' || key === 'allOf') && Array.isArray(value)) {
+                if (key === 'allOf' && value.some((child) => isMap(child) && '$ref' in child)) {
+                    throw schemaError(at, 'allOf with a $ref');
+                }
+                out[key] = value.map((child, index) => copy(child, `${at}/${index}`, visiting));
+            } else if (key === 'oneOf' && Array.isArray(value) && !('anyOf' in node)) {
+                // Not supported; "any of the alternatives" is the closest supported reading.
+                out.anyOf = value.map((child, index) => copy(child, `${at}/${index}`, visiting));
+            } else if (key === 'items' && isMap(value)) {
+                // A tuple (an array of schemas) is not supported, and is dropped.
+                out.items = copy(value, at, visiting);
+            } else if (key === '$ref' && typeof value === 'string') {
+                follow(value, path, visiting);
+                out.$ref = value;
+            } else if (key === 'enum' && Array.isArray(value) && value.every(isPlainValue)) {
+                out.enum = value;
+            } else if (key === 'format' && FORMATS.has(value)) {
+                out.format = value;
+            } else if (key === 'pattern' && typeof value === 'string' && !UNSUPPORTED_PATTERN.test(value)) {
+                out.pattern = value;
+            } else if (key === 'minItems' && (value === 0 || value === 1)) {
+                out.minItems = value;
+            }
+            // Anything else (numerical and string-length constraints, other array and object
+            // constraints, not, if/then/else, patternProperties, unevaluatedProperties...) is
+            // dropped; additionalProperties is decided below.
+        }
+        const isObject = node.type === 'object' || (Array.isArray(node.type) && node.type.includes('object')) || 'properties' in node;
+        if (node.additionalProperties === false || (isObject && node.additionalProperties === undefined && isMap(node.properties))) {
+            out.additionalProperties = false;
+        } else if (isObject || node.additionalProperties !== undefined) {
+            throw schemaError(path, 'an object that is not closed (every object needs its properties listed and additionalProperties: false)');
+        }
+        return out;
+    };
+
+    return copy(schema, '#', []);
 };
 
 /** `{ type, message }` from an Anthropic error body (`{ type: 'error', error: { type, message } }`), or the raw text as the message. */

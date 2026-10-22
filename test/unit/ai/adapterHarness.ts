@@ -29,11 +29,13 @@ export const ANSWER_TOKENS: Record<AiTask, number> = {
     test: 512,
 };
 
-// main.cjs's theme schema cannot be imported (main.cjs starts the app); this stands in for it.
+// main.cjs's theme schema cannot be imported (main.cjs starts the app); this stands in for it. Like
+// the real one, every object is closed (Anthropic's structured outputs refuse an open one).
+const THEME_SIDE_SCHEMA = { type: 'object', additionalProperties: false, properties: { name: { type: 'string' } }, required: ['name'] };
 const THEME_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    properties: { light: { type: 'object' }, dark: { type: 'object' } },
+    properties: { light: THEME_SIDE_SCHEMA, dark: THEME_SIDE_SCHEMA },
     required: ['light', 'dark'],
 };
 const THEME_GEMINI_SCHEMA = { type: 'OBJECT', properties: { light: { type: 'OBJECT' }, dark: { type: 'OBJECT' } } };
