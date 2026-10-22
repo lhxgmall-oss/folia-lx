@@ -46,6 +46,11 @@ const MODEL_DEFAULT = attempt('thinking=default', false, {});
  * lower-cased model name; the first match wins.
  */
 const FAMILIES = Object.freeze([
+    // Aliases follow whichever model Google points them at, so each keeps one more step to fall
+    // back on (it costs a request only when the first is rejected): today 3.5-flash takes minimal
+    // and 3.7-flash only low [Gemini·3.6-flash][Gemini·latest-model].
+    { pattern: /^gemini-3\.5-flash$/, quiet: [LEVEL_MINIMAL, LEVEL_LOW], theme: [LEVEL_LOW, MODEL_DEFAULT] },
+    { pattern: /^gemini-3\.7-flash$/, quiet: [LEVEL_LOW, MODEL_DEFAULT], theme: [LEVEL_LOW, MODEL_DEFAULT] },
     // The default model. Theme: thinkingLevel low (Gemini 3 speaks levels) [Gemini·thinking].
     { pattern: /^gemini-3-flash-preview/, quiet: [BUDGET_OFF], theme: [LEVEL_LOW] },
     // 3.5-flash is an alias; 3.1-flash-lite-preview is retired but still matched here [Gemini·3.6-flash][Gemini·3.5-flash-lite].

@@ -8,7 +8,8 @@ import { COMPATIBLE_MODEL_CATALOGUE, rejectsCompatibleParameter } from './compat
 // Thinking: the hybrid models (Qwen3.5 and later, qwen-plus, qwen-flash) take a top-level
 // `enable_thinking: false` on every ask; the few thinking-only models are turned down instead of
 // off. The token cap is `max_tokens`, which on Qwen bounds the answer only [Qwen·openai-chat].
-// Anything not named below starts with `enable_thinking: false` and falls back to sending nothing.
+// Every other model, the hybrid ones included, starts with `enable_thinking: false` and falls back
+// to sending nothing.
 
 /** One request shape whose knobs are exactly the parameters it sends. */
 const attempt = (label, params, reasoningOff) => Object.freeze({
@@ -34,20 +35,16 @@ const NO_THINKING = attempt('plain', {}, true);
 const EFFORT_ONLY = Object.freeze([EFFORT_LOW]);
 const BUDGET_ONLY = Object.freeze([THINKING_BUDGET]);
 const DEFAULT_ONLY = Object.freeze([THINKING_DEFAULT]);
-const OFF_ONLY = Object.freeze([THINKING_OFF]);
 const PLAIN_ONLY = Object.freeze([NO_THINKING]);
-const UNKNOWN = Object.freeze([THINKING_OFF, THINKING_DEFAULT]);
+// The hybrid models take `enable_thinking: false` [Qwen·deep-thinking], yet the error-code page
+// gives qwen3.7-plus, hybrid by the deep-thinking page, as its example of a model that answers it
+// with "The value of the enable_thinking parameter is restricted to True" [Qwen·error-code]. So the
+// switch is followed by sending nothing, which only costs a request when the switch is refused.
+const SWITCH_THEN_DEFAULT = Object.freeze([THINKING_OFF, THINKING_DEFAULT]);
 
 // Thinking-only models [Qwen·deep-thinking]: enable_thinking:false is refused ("restricted to True").
 const isEffortThinker = (model) => /^qwen3\.8-2\.4t-a95b(?:$|-)/.test(model);
 const BUDGET_THINKERS = new Set(['qwen3.7-max-preview', 'qwen3.7-max-2026-05-17']);
-
-// Hybrid models: every Qwen3.5 and later model that is not thinking-only, plus qwen-plus and
-// qwen-flash with their snapshots [Qwen·deep-thinking].
-const isHybrid = (model) => {
-    const minor = /^qwen3\.(\d+)(?:$|-)/.exec(model);
-    return (minor !== null && Number(minor[1]) >= 5) || /^qwen-(?:plus|flash)(?:$|-)/.test(model);
-};
 
 // qwen-max (and its snapshots) does not think at all.
 const isNonThinking = (model) => /^qwen-max(?:$|-)/.test(model);
@@ -111,7 +108,9 @@ export const qwenAdapter = {
         if (isNonThinking(name)) {
             return PLAIN_ONLY;
         }
-        return isHybrid(name) ? OFF_ONLY : UNKNOWN;
+        // Hybrid (every Qwen3.5 and later model that is not thinking-only, qwen-plus, qwen-flash and
+        // their snapshots [Qwen·deep-thinking]) or not named here: the switch, then nothing.
+        return SWITCH_THEN_DEFAULT;
     },
     responseFormat: (model, schema, schemaName) => (schema && schemaName && takesJsonSchema(String(model ?? '').toLowerCase())
         ? { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } }

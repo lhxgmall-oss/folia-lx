@@ -37,12 +37,12 @@ describe('requests per model family', () => {
         ['gemini-3.6-flash', 'segmentation', quiet(MINIMAL, false)('segmentation')],
         ['gemini-3.6-flash', 'test', quiet(MINIMAL, false)('test')],
         ['gemini-3.6-flash', 'theme', [[LOW, CAP.theme.on]]],
-        ['gemini-3.5-flash', 'segmentation', quiet(MINIMAL, false)('segmentation')],
+        ['gemini-3.5-flash-001', 'segmentation', quiet(MINIMAL, false)('segmentation')],
         ['gemini-3.5-flash-lite', 'test', quiet(MINIMAL, false)('test')],
         ['gemini-3.1-flash-lite', 'segmentation', quiet(MINIMAL, false)('segmentation')],
         // Models for which 'minimal' is an error: low for every ask.
         ['gemini-3.8-flash', 'segmentation', quiet(LOW, false)('segmentation')],
-        ['gemini-3.7-flash', 'test', quiet(LOW, false)('test')],
+        ['gemini-3.8-flash-001', 'test', quiet(LOW, false)('test')],
         ['gemini-3.1-pro-preview', 'segmentation', quiet(LOW, false)('segmentation')],
         ['gemini-4-flash', 'theme', [[LOW, CAP.theme.on]]],
         // Gemini 2.5 speaks budgets; the theme keeps its default thinking.
@@ -51,6 +51,11 @@ describe('requests per model family', () => {
         ['gemini-2.5-flash', 'theme', [[undefined, CAP.theme.on]]],
         ['gemini-2.5-pro', 'segmentation', [[{ thinkingBudget: 128 }, CAP.segmentation.on]]],
         ['gemini-2.5-pro', 'theme', [[undefined, CAP.theme.on]]],
+        // The aliases keep a step to fall back on, should they come to point elsewhere.
+        ['gemini-3.5-flash', 'segmentation', [[MINIMAL, CAP.segmentation.on], [LOW, CAP.segmentation.on]]],
+        ['gemini-3.5-flash', 'theme', [[LOW, CAP.theme.on], [undefined, CAP.theme.on]]],
+        ['gemini-3.7-flash', 'test', [[LOW, CAP.test.on], [undefined, CAP.test.on]]],
+        ['gemini-3.7-flash', 'theme', [[LOW, CAP.theme.on], [undefined, CAP.theme.on]]],
         // Anything else walks down from the lowest level to nothing.
         ['gemini-flash-latest', 'segmentation', [[MINIMAL, CAP.segmentation.on], [LOW, CAP.segmentation.on], [undefined, CAP.segmentation.on]]],
         ['gemini-flash-latest', 'test', [[MINIMAL, CAP.test.on], [LOW, CAP.test.on], [undefined, CAP.test.on]]],

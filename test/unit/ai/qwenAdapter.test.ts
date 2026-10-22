@@ -27,12 +27,14 @@ describe('thinking switches by model', () => {
     it.each([
         'qwen3.8-flash', 'qwen3.8-max', 'qwen3.7-plus', 'qwen3.7-max', 'qwen3.7-max-2026-05-20', 'qwen3.6-flash',
         'qwen3.5-plus', 'qwen3.5-flash-2026-02-23', 'qwen-plus', 'qwen-plus-2025-04-28', 'qwen-flash', 'QWEN3.8-FLASH',
-    ])('%s (hybrid): enable_thinking false at the top level on every ask, budget for the answer only', model => {
+    ])('%s (hybrid): enable_thinking false at the top level on every ask, budget for the answer only; nothing if that is refused', model => {
         for (const task of TASKS) {
-            const requests = requestsFor('qwen', task, model);
-            expect(requests).toHaveLength(1);
-            expect(reasoningOf(requests[0].body)).toEqual({ enable_thinking: false, reasoning_effort: undefined, thinking_budget: undefined });
-            expect(requests[0].body.max_tokens).toBe(ANSWER_TOKENS[task]);
+            const [off, fallback, ...rest] = requestsFor('qwen', task, model);
+            expect(rest).toEqual([]);
+            expect(reasoningOf(off.body)).toEqual({ enable_thinking: false, reasoning_effort: undefined, thinking_budget: undefined });
+            expect(off.body.max_tokens).toBe(ANSWER_TOKENS[task]);
+            expect(reasoningOf(fallback.body)).toEqual({ enable_thinking: undefined, reasoning_effort: undefined, thinking_budget: undefined });
+            expect(fallback.body.max_tokens).toBe(ANSWER_TOKENS[task] + REASONING_ALLOWANCE[task]);
         }
     });
 
