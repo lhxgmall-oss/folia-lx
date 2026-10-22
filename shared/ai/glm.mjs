@@ -5,8 +5,7 @@ import { rejectsCompatibleParameter } from './compatibleBody.mjs';
 // typed into the custom URL is still recognised by its host. Reasoning is set per model family,
 // the temperature is clamped to 0..1, the cap is max_tokens, the answer comes in plain JSON mode,
 // and GLM's own error codes count as rejected parameters. There is no documented model listing,
-// so the form offers suggested models. Sources in brackets are the entries of
-// plan/ai-provider-adapters-spec.md's source index.
+// so the form offers suggested models. Sources in brackets are listed in shared/ai/SOURCES.md.
 
 // On both sites, and `none` switches its thinking off. [Z.ai·chat-completion]
 const DEFAULT_GLM_MODEL = 'glm-5.2';
@@ -48,7 +47,7 @@ const THINKING_SWITCH = /^glm-(?:5(?:\.1)?(?:-|$)|4\.[567])/;
 const NO_THINKING = /^glm-4(?:-|$)/;
 
 /**
- * Reasoning per model family, the same for every ask (spec §3.1: off where it can be, else the
+ * Reasoning per model family, the same for every ask (off where it can be, else the
  * lowest level). Any other model starts with the `thinking` switch, moves to the low level when
  * that is rejected (or does not stop the reasoning), and finally sends nothing.
  */
@@ -129,7 +128,7 @@ export const glmAdapter = {
     ],
     defaultModel: DEFAULT_GLM_MODEL,
     recommendedModel: DEFAULT_GLM_MODEL,
-    // Offered instead of a listing (spec §4.6, Q10); glm-4.7-flash is free on open.bigmodel.cn.
+    // Offered instead of a listing (see `models` below); glm-4.7-flash is free on open.bigmodel.cn.
     suggestedModels: ['glm-5.3-flash', 'glm-5.3', 'glm-5.2', 'glm-4.7-flash'],
     // Within [0, 1]; a higher setting is clamped rather than sent. [Z.ai·concept-param][Z.ai·chat-completion]
     temperature: { min: 0, max: 1 },

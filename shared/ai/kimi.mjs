@@ -2,8 +2,8 @@
 // Moonshot's Kimi: the China site (api.moonshot.cn) and the international one (api.moonshot.ai),
 // whose keys do not work on each other. Thinking is set per model (kimi-k2.6 is the only model on
 // sale that can switch it off), the temperature is never sent (sampling is fixed), the cap is
-// max_completion_tokens and the answer comes in plain JSON mode. Sources in brackets are the
-// entries of plan/ai-provider-adapters-spec.md's source index.
+// max_completion_tokens and the answer comes in plain JSON mode. Sources in brackets are listed in
+// shared/ai/SOURCES.md.
 
 // The only model on sale whose thinking can be switched off. [Kimi·models]
 const DEFAULT_KIMI_MODEL = 'kimi-k2.6';
@@ -31,7 +31,7 @@ const LEVELS_ONLY = /^kimi-k3(?:-|$)/;
 const ALWAYS_ON = /^kimi-k2\.7-code(?:-|$)/;
 
 /**
- * Thinking per model, the same for every ask (spec §3.1: off where it can be, else the lowest
+ * Thinking per model, the same for every ask (off where it can be, else the lowest
  * level). Any other model starts with the switch, moves to the low level when the switch is
  * rejected by name (or does not stop the reasoning), and finally sends nothing. Neither k3 nor
  * k2.6 is sent the other's parameter, since what they do with it is not documented.

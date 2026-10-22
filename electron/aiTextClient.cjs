@@ -652,7 +652,7 @@ async function runGeminiCompletion({ ai, store, task, systemPrompt, sourcePrompt
  * The theme ask on Gemini, already parsed. It keeps what it did while the 'generate-theme' handler
  * in main.cjs wrote this request itself (no log lines, its own message for an empty answer), but
  * it now sends the adapter's theme thinking level, caps the output at `answerTokens` plus room for
- * thinking, and runs under the same deadline as the other asks; it had none [spec §4.3].
+ * thinking, and runs under the same deadline as the other asks; it had none.
  */
 async function runGeminiThemeCompletion({ store, systemPrompt, sourcePrompt, responseSchema, answerTokens, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS }) {
   const ai = await loadAiModules();

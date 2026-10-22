@@ -14,7 +14,8 @@ import { tencentcloudAdapter } from './tencentcloud.mjs';
 // and the settings form (through src/services/aiText.ts). Each provider is one pure adapter file
 // named after its id; this file lists them, infers which one a URL belongs to, and resolves the
 // stored settings into one connection. Adding a provider: its adapter file, one line in ADAPTERS,
-// and `options.aiProvider_<id>` in the three locale files.
+// and `options.aiProvider_<id>` in the three locale files. The adapters cite their sources as
+// `[Provider·page]`; shared/ai/SOURCES.md lists where each one points.
 //
 // Stored settings keep their published names. AI_PROVIDER is 'gemini' or 'openai', and 'openai'
 // now means "any connection other than Gemini": which provider that is comes from the host of

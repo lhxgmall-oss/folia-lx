@@ -1,8 +1,7 @@
 // shared/ai/deepseek.mjs
 // DeepSeek (api.deepseek.com and its other subdomains). Every ask switches thinking off with both
 // switches the current docs list, which also makes the temperature take effect again; plain JSON
-// mode only, the cap in max_tokens. Sources in brackets are the entries of
-// plan/ai-provider-adapters-spec.md's source index.
+// mode only, the cap in max_tokens. Sources in brackets are listed in shared/ai/SOURCES.md.
 
 // deepseek-v4-flash is a legacy name DeepSeek only says it still accepts "for now". [DeepSeek·news261017][DeepSeek·pricing]
 export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-flash';
@@ -45,9 +44,9 @@ export const deepseekAdapter = {
     stream: true,
     // Up to 393216. [DeepSeek·chat]
     tokenField: 'max_tokens',
-    // The theme follows segmentation (spec §3.1, Q1): thinking off is faster, lets the temperature
-    // work, and keeps JSON mode reliable; the connection test sends the same switches so a pass
-    // means the real asks' switches are accepted.
+    // The theme follows segmentation (thinking as low as it goes, which on an on/off switch is off):
+    // thinking off is faster, lets the temperature work, and keeps JSON mode reliable; the
+    // connection test sends the same switches so a pass means the real asks' switches are accepted.
     attempts() {
         return ATTEMPTS;
     },

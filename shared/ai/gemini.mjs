@@ -98,7 +98,8 @@ export const geminiAdapter = {
     protocol: 'gemini',
     hosts: [],
     endpoints: [{ id: 'default', baseUrl: API_BASE }],
-    // A preview without a published shutdown date; kept as the default (spec Q3) [Gemini·3-flash-preview].
+    // A preview without a published shutdown date; kept as the default (the stable 3.6-flash costs
+    // three times as much) [Gemini·3-flash-preview][Gemini·3.6-flash].
     defaultModel: DEFAULT_GEMINI_MODEL,
     recommendedModel: DEFAULT_GEMINI_MODEL,
     // Never sent: ignored from 3.6 on, and later generations reject it [Gemini·3.6].

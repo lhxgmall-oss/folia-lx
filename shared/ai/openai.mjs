@@ -3,7 +3,7 @@
 // is set per model family with the top-level `reasoning_effort` (never 'minimal'), temperature is
 // never sent, the cap is `max_completion_tokens`, the schema goes as a strict json_schema, and a
 // streamed request asks for the usage chunk so "reasoning ate the budget" can still be recognised.
-// Sources in brackets are the entries of plan/ai-provider-adapters-spec.md's source index.
+// Sources in brackets are listed in shared/ai/SOURCES.md.
 
 export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
 
@@ -38,11 +38,11 @@ const familyOf = (model) => String(model ?? '').trim().toLowerCase().replace(/^f
 
 /**
  * Reasoning per model family. Segmentation and the connection test switch reasoning off where the
- * model can ('none'), and otherwise ask for the lowest level; the theme always asks for 'low'
- * (spec §3.1). An unknown model, other gpt-5/gpt-6 and the o-series included, starts with what is
- * likely to work and moves down when the endpoint names reasoning_effort as rejected; its last
- * attempt sends nothing and leaves room to reason, for models that take no reasoning_effort at
- * all (the `-chat-latest` aliases, for one). [OpenAI·reasoning]
+ * model can ('none'), and otherwise ask for the lowest level; the theme always asks for 'low' (as
+ * little thinking as still thinks). An unknown model, other gpt-5/gpt-6 and the o-series included,
+ * starts with what is likely to work and moves down when the endpoint names reasoning_effort as
+ * rejected; its last attempt sends nothing and leaves room to reason, for models that take no
+ * reasoning_effort at all (the `-chat-latest` aliases, for one). [OpenAI·reasoning]
  */
 const attemptsFor = (task, model) => {
     const family = familyOf(model);
