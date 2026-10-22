@@ -8,11 +8,12 @@ import { useThemeSettingsStore } from '../../../../stores/useThemeSettingsStore'
 import { useVisualizerSettingsStore } from '../../../../stores/useVisualizerSettingsStore';
 import { VISUALIZER_FRAME_RATE_OPTIONS } from '../../../../utils/frameRateLimiter';
 import { Group, Link, Reveal, Row, Segmented, Toggle, option, useSettingsKitTheme, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
+import { GpuPreferenceRow } from './graphics/GpuPreferenceRow';
 
 // src/components/modal/settings/pages/GraphicsPage.tsx
 // The 性能与动效 page: what trades picture for smoothness or works around a renderer problem
-// (static mode, the home background, native blur, the frame-rate cap, the Linux glow fix), and
-// which parts of the interface play reduced motion.
+// (static mode, the home background, native blur, the frame-rate cap, the Linux glow fix, the
+// Windows render GPU), and which parts of the interface play reduced motion.
 
 /** Docs page behind the "Fix lyric animation freeze on Linux" switch. */
 const CHROMIUM_FD_EXHAUSTION_DOCS_URL = 'https://folia-site.cielaniska.top/guide/chromium-fd-exhaustion';
@@ -22,6 +23,9 @@ const FRAME_RATE_WHEN_SWITCHED_ON = 120;
 
 /** Native blur is not offered on Linux. */
 const IS_LINUX = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('linux');
+
+/** The render GPU choice only does something in the Windows desktop app (electron/gpuPreference.cjs). */
+const IS_WINDOWS_DESKTOP = typeof window !== 'undefined' && window.electron?.platform === 'win32';
 
 const PERFORMANCE: SettingsGroupDef = { id: 'graphicsPerformance', titleKey: 'options.labPerformanceSection' };
 const MOTION: SettingsGroupDef = { id: 'graphicsMotion', titleKey: 'options.reduceMotionSection' };
@@ -33,6 +37,7 @@ const O = {
     frameRate: option(PERFORMANCE, 'visualizerFrameRate', 'options.visualizerFrameRate'),
     frameRateValue: option(PERFORMANCE, 'visualizerFrameRateValue', 'options.visualizerFrameRateValue'),
     glowFix: option(PERFORMANCE, 'glowBlurQuantize', 'options.glowBlurQuantize'),
+    gpuPreference: option(PERFORMANCE, 'gpuPreference', 'options.gpuPreference', { electronOnly: true, available: () => IS_WINDOWS_DESKTOP }),
     followSystem: option(MOTION, 'reduceMotionFollowSystem', 'options.reduceMotionFollowSystem'),
 };
 
@@ -124,6 +129,7 @@ const GraphicsPage: React.FC = () => {
                 >
                     <Toggle checked={visualizer.glowFix} onChange={visualizer.setGlowFix} />
                 </Row>
+                {IS_WINDOWS_DESKTOP && <GpuPreferenceRow option={O.gpuPreference} />}
             </Group>
 
             <Group def={MOTION} foot={t('options.reduceMotionSectionDesc')}>
