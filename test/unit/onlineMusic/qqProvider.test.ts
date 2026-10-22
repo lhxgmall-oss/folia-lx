@@ -15,6 +15,7 @@ vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
     getQqTransportAvailability: () => ({ configured: true }),
     getQqRemoteApiBase: () => 'https://qq.example.test',
     hasQqSession: () => transportState.hasSession,
+    hasUsableQqSession: () => transportState.hasSession,
     isQqSessionParked: async () => transportState.parked,
     clearQqSession: clearSessionMock,
     requestQq: requestMock,
