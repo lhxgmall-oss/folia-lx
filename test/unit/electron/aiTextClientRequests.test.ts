@@ -79,15 +79,17 @@ describe('the theme ask', () => {
     const GEMINI_SCHEMA = { type: 'OBJECT', properties: { light: { type: 'OBJECT' }, dark: { type: 'OBJECT' } } };
     const MESSAGES = [{ role: 'system', content: SYSTEM }, { role: 'user', content: SOURCE }];
 
-    // The 'generate-theme' handler gives 4096 tokens on OpenAI itself and 8192 on any other host.
-    const askOpenAi = (store: unknown, maxTokens: number, customFetch: unknown) => client.runAiJsonCompletion({
-        store, systemPrompt: SYSTEM, sourcePrompt: SOURCE, schema: SCHEMA, schemaName: 'dual_theme', customFetch, maxTokens,
+    // The 'generate-theme' handler asks for 8192 answer tokens; the OpenAI adapter still caps
+    // OpenAI itself at the 4096 the handler used to give it.
+    const askOpenAi = (store: unknown, customFetch: unknown) => client.runAiJsonCompletion({
+        store, task: 'theme', systemPrompt: SYSTEM, sourcePrompt: SOURCE, schema: SCHEMA, schemaName: 'dual_theme', customFetch,
+        answerTokens: 8192,
     });
 
     it('to OpenAI itself: its address, the default model, the schema as a structured output', async () => {
         const { requests, customFetch } = record(openAiAnswer('{"light":{},"dark":{}}'));
 
-        const answer = await askOpenAi(OPENAI_STORE, 4096, customFetch);
+        const answer = await askOpenAi(OPENAI_STORE, customFetch);
 
         expect(sent(requests)).toEqual([{
             url: OPENAI_ADDRESS,
@@ -108,7 +110,7 @@ describe('the theme ask', () => {
     it('to another OpenAI-compatible host: the user\'s address, model and temperature, plain JSON mode', async () => {
         const { requests, customFetch } = record(openAiAnswer('{}'));
 
-        await askOpenAi(RELAY_STORE, 8192, customFetch);
+        await askOpenAi(RELAY_STORE, customFetch);
 
         expect(sent(requests)).toEqual([{
             url: 'https://relay.example.com/v1/chat/completions',
@@ -127,7 +129,7 @@ describe('the theme ask', () => {
     it('to DeepSeek: its own default model', async () => {
         const { requests, customFetch } = record(openAiAnswer('{}'));
 
-        await askOpenAi(DEEPSEEK_STORE, 8192, customFetch);
+        await askOpenAi(DEEPSEEK_STORE, customFetch);
 
         expect(sent(requests)).toEqual([{
             url: 'https://api.deepseek.com/v1/chat/completions',
@@ -196,7 +198,7 @@ describe('the theme ask', () => {
         const { requests, customFetch } = record(geminiAnswer('{}'));
 
         await client.runAiJsonCompletion({
-            store: GEMINI_STORE, systemPrompt: SYSTEM, sourcePrompt: SOURCE, geminiResponseSchema: GEMINI_SCHEMA, customFetch,
+            store: GEMINI_STORE, task: 'theme', systemPrompt: SYSTEM, sourcePrompt: SOURCE, geminiSchema: GEMINI_SCHEMA, customFetch,
         });
 
         expect(sent(requests)).toEqual([GEMINI_THEME_REQUEST]);
@@ -212,14 +214,14 @@ describe('the segmentation ask', () => {
     // As the 'segment-lyrics' handler asks.
     const ask = (store: unknown, customFetch: unknown) => client.runAiJsonCompletion({
         store,
+        task: 'segmentation',
         systemPrompt: SYSTEM,
         sourcePrompt: SOURCE,
         schema: segmentation.SEGMENTATION_JSON_SCHEMA,
         schemaName: segmentation.SEGMENTATION_SCHEMA_NAME,
-        geminiGenerationConfig: segmentation.SEGMENTATION_GEMINI_GENERATION_CONFIG,
+        geminiSchema: segmentation.SEGMENTATION_GEMINI_SCHEMA,
         customFetch,
-        maxTokens: segmentation.SEGMENTATION_MAX_OUTPUT_TOKENS,
-        disableReasoning: true,
+        answerTokens: segmentation.SEGMENTATION_MAX_OUTPUT_TOKENS,
     });
 
     it('to Gemini: the tuned generation config with thinking off, under a deadline', async () => {
@@ -351,7 +353,7 @@ describe('the connection test', () => {
 
 describe('the two asks of Gemini, which share one sender', () => {
     const gemini = (customFetch: unknown) => client.runAiJsonCompletion({
-        store: GEMINI_STORE, systemPrompt: 'system', sourcePrompt: 'source', customFetch, timeoutMs: 20_000,
+        store: GEMINI_STORE, task: 'theme', systemPrompt: 'system', sourcePrompt: 'source', customFetch, timeoutMs: 20_000,
     });
     const theme = (customFetch: unknown) => client.runGeminiThemeCompletion({
         store: GEMINI_STORE, systemPrompt: 'system', sourcePrompt: 'source', responseSchema: { type: 'OBJECT' }, customFetch,
@@ -389,7 +391,7 @@ describe('an OpenAI-compatible address that does not answer in time', () => {
         OPENAI_API_URL: 'https://someone:hidden@relay.example.com/v1/chat/completions?token=hidden',
     });
     const ask = (customFetch: unknown) => client.runAiJsonCompletion({
-        store, systemPrompt: 'system', sourcePrompt: 'source', customFetch, timeoutMs: 20_000,
+        store, task: 'theme', systemPrompt: 'system', sourcePrompt: 'source', customFetch, timeoutMs: 20_000,
     });
     const timedOut = () => new DOMException('The operation timed out', 'TimeoutError');
 

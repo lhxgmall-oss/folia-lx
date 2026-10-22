@@ -1,39 +1,27 @@
-import { REASONING_SUPPRESSION_ATTEMPTS } from '../lyricSegmentationPrompt.mjs';
+import { COMPATIBLE_MODEL_CATALOGUE, GENERIC_REASONING_LADDER, PLAIN_ATTEMPTS } from './compatibleBody.mjs';
+import { DEFAULT_OPENAI_MODEL } from './openai.mjs';
 
 // shared/ai/custom.mjs
 // Any other OpenAI-compatible endpoint (a relay, a local server, a provider without an adapter).
-// Nothing is known about it, so segmentation walks the generic ladder in REASONING_SUPPRESSION_ATTEMPTS
-// and the other asks send no reasoning parameter at all.
+// It claims no host: inference falls back to it. Nothing is known about the endpoint, so
+// segmentation walks the generic ladder in REASONING_SUPPRESSION_ATTEMPTS and the other asks send
+// no reasoning parameter at all.
 
-export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
-
-const labelOf = (params) => Object.keys(params).join('+') || 'plain';
-
-/** The bare request: nothing reasoning-related, budget for the answer only (as before adapters). */
-const PLAIN_ATTEMPTS = Object.freeze([{ label: 'plain', reasoningOff: true, params: {}, knobs: [] }]);
-
-const SEGMENTATION_ATTEMPTS = Object.freeze(REASONING_SUPPRESSION_ATTEMPTS.map(({ params }, index, all) => ({
-    label: labelOf(params),
-    // The last rung sends nothing, for models whose reasoning cannot be switched off, so it needs room
-    // for the reasoning and the answer; the earlier rungs expect no reasoning at all.
-    reasoningOff: index < all.length - 1,
-    params,
-    knobs: Object.keys(params),
-})));
-
+/** @type {import('./providerRegistry.mjs').AiAdapter} */
 export const customAdapter = {
     id: 'custom',
     label: '',
     protocol: 'openai',
     hosts: [],
     endpoints: [{ id: 'default', baseUrl: '' }],
+    // Some relays forward OpenAI's own models, so a blank model means OpenAI's default here too.
     defaultModel: DEFAULT_OPENAI_MODEL,
     temperature: { min: 0, max: 2 },
     stream: true,
     tokenField: 'max_tokens',
     attempts(task) {
-        return task === 'segmentation' ? SEGMENTATION_ATTEMPTS : PLAIN_ATTEMPTS;
+        return task === 'segmentation' ? GENERIC_REASONING_LADDER : PLAIN_ATTEMPTS;
     },
     responseFormat: () => ({ type: 'json_object' }),
-    models: null,
+    models: COMPATIBLE_MODEL_CATALOGUE,
 };

@@ -2,6 +2,13 @@ import { DualTheme } from "../types";
 import { applyStoredAnimationIntensityToDualTheme } from "./themePreferences";
 import { sanitizeDualTheme } from "./themeSanitizer";
 import { getWebAiProvider, type WebAiProvider } from "./runtimeConfig";
+export {
+  AI_PROVIDER_PRESETS,
+  DEFAULT_GEMINI_MODEL,
+  modelAlwaysThinks,
+  resolveAiProviderPreset,
+  retiredModelHint,
+} from '../../shared/ai/providerRegistry.mjs';
 
 // src/services/aiText.ts
 
@@ -23,6 +30,9 @@ import { getWebAiProvider, type WebAiProvider } from "./runtimeConfig";
  *
  * It lives in src/services/ because the theme controller, the OBS overlay, the lyric segmentation
  * and the settings form all use it, and none of them owns it.
+ *
+ * The settings form also reads the provider registry through here (presets, sites, default and
+ * retired models: shared/ai/providerRegistry.mjs), so no component imports shared/ai/ itself.
  */
 
 /** Our web route for the theme ask, one per service. */

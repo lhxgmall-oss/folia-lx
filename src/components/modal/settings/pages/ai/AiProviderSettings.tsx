@@ -1,7 +1,7 @@
 import React from 'react';
 import { Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { AI_PROVIDER_PRESETS, DEFAULT_GEMINI_MODEL, getAiProviderPreset } from '../../../../../../shared/aiProviderPresets.mjs';
+import { AI_PROVIDER_PRESETS, DEFAULT_GEMINI_MODEL, resolveAiProviderPreset } from '../../../../../services/aiText';
 import { openAIEndpointOf } from '../../../../../utils/openAIEndpoint';
 import { Button, FoldedGroup, NumberField, Reveal, Row, Select, TextField, Toggle, Value, option, parseNumberText, type SettingsGroupDef, type SettingsOptionDef } from '../../kit';
 import { AiConnectionTestReply, AiConnectionTestStatus, useAiConnectionTest } from '../AiConnectionTest';
@@ -37,7 +37,7 @@ const AiKeyField: React.FC<{ value: string; saved: boolean; onChange: (key: stri
 const AiProviderSettings: React.FC = () => {
     const { t } = useTranslation();
     const { electronSettings: settings, setElectronSettings, onSaveElectronSettings, electronSaveStatus, savedAiApiKeys, savedOpenAIKeyEndpoint, onClearAiApiKey } = useSettingsPage().viewProps.desktop.model;
-    const preset = getAiProviderPreset(settings);
+    const preset = resolveAiProviderPreset(settings);
     const gemini = preset.protocol === 'gemini';
     const keyName: AiApiKeyName = gemini ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY';
     const key = settings[keyName] || '';

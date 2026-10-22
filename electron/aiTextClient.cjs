@@ -11,22 +11,22 @@
 // The one behavioural rule worth restating: only `openai` itself accepts
 // `response_format: json_schema`. DeepSeek and the long tail of OpenAI-compatible endpoints reject
 // it, so they get `{ type: 'json_object' }` and the caller validates the shape instead.
+//
+// Which provider a connection is, and what each ask sends it, is decided by the adapters in
+// shared/ai/ (providerRegistry.mjs resolves the settings, each adapter gives the request shapes,
+// attemptRunner.mjs walks them). This file is the facade: it sends OpenAI-compatible and Gemini
+// requests and runs the connection test; Anthropic is sent by ai/anthropicClient.cjs.
 
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions';
-const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
-const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
-const { sendAnthropic } = require('./ai/anthropicClient.cjs');
-const GEMINI_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
+const { runAnthropicCompletion, runAnthropicConnectionTest } = require('./ai/anthropicClient.cjs');
 
-const DEFAULT_GEMINI_MODEL = 'gemini-3-flash-preview';
-const resolveGeminiModel = (raw) => {
-  const model = typeof raw === 'string' && raw.trim() ? raw.trim().replace(/^models\//, '') : DEFAULT_GEMINI_MODEL;
+/** A Gemini model from settings: `models/` dropped, `defaultModel` when blank, anything else refused. */
+const resolveGeminiModel = (raw, defaultModel) => {
+  const model = typeof raw === 'string' && raw.trim() ? raw.trim().replace(/^models\//, '') : defaultModel;
   if (!/^[\w.-]{1,256}$/.test(model)) throw new Error('Select a valid Gemini model in settings');
   return model;
 };
-const geminiEndpointFor = (model) => GEMINI_ENDPOINT.replace('/models/' + DEFAULT_GEMINI_MODEL + ':', '/models/' + model + ':');
 
 // Nothing on this path had a deadline before. A base URL pointing at something unreachable — a
 // local server that is not running, a proxy that black-holes the connection — left the renderer
@@ -79,55 +79,47 @@ function normalizeOpenAIChatCompletionsUrl(rawUrl) {
   }
 }
 
-function resolveOpenAICompatibleModel(apiUrl, configuredModel) {
-  const trimmedModel = typeof configuredModel === 'string' ? configuredModel.trim() : '';
-  if (trimmedModel) {
-    return trimmedModel;
-  }
-
-  try {
-    const hostname = new URL(apiUrl).hostname.toLowerCase();
-    if (hostname === 'api.deepseek.com' || hostname.endsWith('.deepseek.com')) {
-      return DEEPSEEK_DEFAULT_MODEL;
-    }
-  } catch {
-    // Fall back to the generic OpenAI default when URL parsing fails.
-  }
-
-  return DEFAULT_OPENAI_MODEL;
-}
-
-function detectOpenAICompatibleProvider(apiUrl) {
-  try {
-    const hostname = new URL(apiUrl).hostname.toLowerCase();
-    if (hostname === 'api.deepseek.com' || hostname.endsWith('.deepseek.com')) {
-      return 'deepseek';
-    }
-    if (hostname === 'api.openai.com' || hostname.endsWith('.openai.com')) {
-      return 'openai';
-    }
-  } catch {
-    // Fall through to generic provider handling.
-  }
-  return 'generic';
-}
-
-function providerSupportsStructuredOutputs(provider) {
-  return provider === 'openai';
-}
-
-// The shared AI modules (adapters, the attempt runner) are ESM; they are loaded once, on first use.
-// Which rung of an adapter's attempts worked for an endpoint+model is remembered by the runner, so
-// the probing is paid once per process rather than on every batch.
+// The shared AI modules (the provider registry and adapters, the attempt runner) are ESM; they are
+// loaded once, on first use. Which of an adapter's attempts worked for an endpoint+model is
+// remembered by the runner, so the probing is paid once per process rather than on every batch.
 let aiModules = null;
 const loadAiModules = () => {
   aiModules ??= Promise.all([
+    import('../shared/ai/providerRegistry.mjs'),
     import('../shared/ai/attemptRunner.mjs'),
     import('../shared/ai/aiTasks.mjs'),
-    import('../shared/ai/custom.mjs'),
-  ]).then(([runner, tasks, custom]) => ({ ...runner, ...tasks, ...custom }));
+    import('../shared/ai/compatibleBody.mjs'),
+    import('../shared/ai/gemini.mjs'),
+  ]).then(([registry, runner, tasks, compatible, gemini]) => ({
+    ...registry, ...runner, ...tasks, ...compatible, generateContentUrl: gemini.generateContentUrl,
+  }));
   return aiModules;
 };
+
+/** The stored settings resolveAiConnection reads, from the store or the credential store's view. */
+const connectionSettingsOf = (store) => ({
+  AI_PROVIDER: store.get('AI_PROVIDER'),
+  AI_PROVIDER_PRESET: store.get('AI_PROVIDER_PRESET'),
+  OPENAI_API_URL: store.get('OPENAI_API_URL'),
+  OPENAI_API_MODEL: store.get('OPENAI_API_MODEL'),
+  GEMINI_API_MODEL: store.get('GEMINI_API_MODEL'),
+});
+
+/** The configured connection (see resolveAiConnection) and its adapter. */
+async function resolveStoredConnection(store) {
+  const ai = await loadAiModules();
+  const connection = ai.resolveAiConnection(connectionSettingsOf(store));
+  return { ai, connection, adapter: ai.getAiAdapter(connection.adapterId) };
+}
+
+/** Who made a generated theme, for its `provider` field: names the protocol, never the host. */
+async function aiProviderLabel(store) {
+  const { connection } = await resolveStoredConnection(store);
+  if (connection.protocol === 'gemini') {
+    return 'Google Gemini (Local)';
+  }
+  return connection.protocol === 'anthropic' ? 'Anthropic (Local)' : 'OpenAI Compatible (Local)';
+}
 
 /**
  * True when the model answered nothing because reasoning consumed the whole budget. This is the
@@ -244,55 +236,6 @@ function extractResponseContentText(message) {
   }
 
   return null;
-}
-
-/**
- * Chat-completions body for any OpenAI-compatible endpoint. `schema` and `schemaName` are only
- * used on providers that support structured outputs; everywhere else they are ignored and the
- * request falls back to plain JSON mode.
- */
-function buildOpenAICompatibleRequestBody(model, provider, systemPrompt, sourcePrompt, temperature, schema, schemaName, maxTokens, extraParams, stream) {
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: sourcePrompt },
-  ];
-
-  // Bounds the worst case. In plain JSON mode some providers (DeepSeek notably) can emit a long
-  // run of whitespace before any content and keep going until the cap; with no cap set that is an
-  // unbounded body read, which presents as a request that never finishes. A caller that knows how
-  // big its answer should be passes a ceiling; truncation then fails as a JSON parse error with
-  // the raw response logged, which is diagnosable, unlike a hang.
-  const limit = maxTokens
-    ? { [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: maxTokens }
-    : {};
-  const reasoning = extraParams || {};
-  // Only the bare flag; no stream_options, to keep the surface other providers must accept minimal.
-  const streaming = stream === true ? { stream: true } : {};
-
-  if (schema && schemaName && providerSupportsStructuredOutputs(provider)) {
-    return {
-      model,
-      messages,
-      temperature,
-      ...limit,
-      ...reasoning,
-      ...streaming,
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: schemaName, strict: true, schema },
-      },
-    };
-  }
-
-  return {
-    model,
-    messages,
-    temperature,
-    ...limit,
-    ...reasoning,
-    ...streaming,
-    response_format: { type: 'json_object' },
-  };
 }
 
 /**
@@ -460,14 +403,15 @@ async function readOpenAIStreamResponse(response) {
   }
 }
 
-/** One request. Returns the outcome instead of throwing, so the ladder above can decide. */
-async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs }) {
+/** One request. Returns the outcome instead of throwing, so the attempt runner can decide. */
+async function sendOpenAICompatible({ apiUrl, apiKey, provider, body, customFetch, timeoutMs }) {
   let response;
   try {
     const { sendOpenAICompatibleRequest } = await import('../shared/openAICompatibleRequest.mjs');
     response = await sendOpenAICompatibleRequest({
       apiUrl,
-      provider: detectOpenAICompatibleProvider(apiUrl),
+      // Only 'openai' changes anything there: OpenAI itself is never renegotiated.
+      provider,
       body,
       init: {
         method: 'POST',
@@ -523,41 +467,15 @@ async function sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeout
 /**
  * Raw JSON text from an OpenAI-compatible endpoint, using the user's configured connection.
  *
- * When `disableReasoning` is set this walks the custom adapter's segmentation attempts
- * (REASONING_SUPPRESSION_ATTEMPTS) through shared/ai/attemptRunner.mjs rather than assuming
- * anything about the provider, advancing on the two failures that mean "that rung does not apply
- * here": the server rejecting the parameter, and the model answering nothing because reasoning ate
- * the budget. Any other error is real and is reported immediately, so a bad key or a wrong model
- * name still fails on the first request instead of being retried three times.
+ * This walks the adapter's attempts for `task` through shared/ai/attemptRunner.mjs rather than
+ * assuming anything about the provider, advancing on the two failures that mean "that rung does
+ * not apply here": the server rejecting the parameter, and the model answering nothing because
+ * reasoning ate the budget. Any other error is real and is reported immediately, so a bad key or a
+ * wrong model name still fails on the first request instead of being retried three times.
  */
-async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS, maxTokens, disableReasoning }) {
-  if (store.get('AI_PROVIDER_PRESET') === 'custom' && !String(store.get('OPENAI_API_URL') || '').trim()) {
-    throw new Error('API URL is required for a custom AI provider');
-  }
-  const { getAiProviderPreset } = await import('../shared/aiProviderPresets.mjs');
-  if (getAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: store.get('AI_PROVIDER_PRESET'), OPENAI_API_URL: store.get('OPENAI_API_URL') }).protocol === 'anthropic') {
-    const apiKey = store.get('OPENAI_API_KEY');
-    if (!apiKey) throw new Error('OPENAI_API_KEY is not configured in settings');
-    return (await sendAnthropic({
-      apiUrl: store.get('OPENAI_API_URL'), apiKey, model: store.get('OPENAI_API_MODEL'),
-      systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs, maxTokens,
-      temperature: resolveOpenAICompatibleTemperature(store.get('OPENAI_API_TEMPERATURE')),
-    })).content;
-  }
-  const apiKey = store.get('OPENAI_API_KEY');
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured in settings');
-  }
-
-  const apiUrl = normalizeOpenAIChatCompletionsUrl(store.get('OPENAI_API_URL'));
-  const model = resolveOpenAICompatibleModel(apiUrl, store.get('OPENAI_API_MODEL'));
-  const temperature = resolveOpenAICompatibleTemperature(store.get('OPENAI_API_TEMPERATURE'));
-  const provider = detectOpenAICompatibleProvider(apiUrl);
-  const stream = store.get('OPENAI_API_STREAM') === true;
-
-  const ai = await loadAiModules();
-  const task = disableReasoning ? 'segmentation' : 'theme';
-  const adapter = ai.customAdapter;
+async function runOpenAICompatibleCompletion({ ai, adapter, connection, apiKey, task, systemPrompt, sourcePrompt, schema, schemaName, answerTokens, temperature, stream, customFetch, timeoutMs }) {
+  const apiUrl = normalizeOpenAIChatCompletionsUrl(connection.apiUrl);
+  const { model } = connection;
 
   return ai.runAttempts({
     adapter,
@@ -568,17 +486,17 @@ async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt
     log: (line) => console.log(line),
     describeEmpty: (result) => describeEmptyCompletion(result.choice, result.usage, model),
     send: async (attempt) => {
-      const reasoningParams = disableReasoning && provider === 'deepseek'
-        ? { thinking: { type: 'disabled' }, ...attempt.params }
-        : attempt.params;
-      const body = buildOpenAICompatibleRequestBody(
-        model, provider, systemPrompt, sourcePrompt, temperature, schema, schemaName,
-        ai.budgetFor(task, maxTokens, attempt), reasoningParams, stream,
-      );
+      const body = ai.buildCompatibleBody(adapter, {
+        task, model, attempt, systemPrompt, sourcePrompt, schema, schemaName,
+        budget: ai.budgetFor(task, answerTokens, attempt), temperature, stream,
+      });
+      if (body.temperature !== undefined && body.temperature !== temperature) {
+        console.log(`[ai] temperature ${temperature} is outside ${adapter.id}'s range, sending ${body.temperature}`);
+      }
 
-      console.log(`[ai] POST ${redactUrl(apiUrl)} model=${model} provider=${provider} reasoning=${attempt.label}${stream ? ' stream=on' : ''}`);
+      console.log(`[ai] POST ${redactUrl(apiUrl)} model=${model} provider=${adapter.id} reasoning=${attempt.label}${stream ? ' stream=on' : ''}`);
       const startedAt = Date.now();
-      const result = await sendOpenAICompatible({ apiUrl, apiKey, body, customFetch, timeoutMs });
+      const result = await sendOpenAICompatible({ apiUrl, apiKey, provider: adapter.id, body, customFetch, timeoutMs });
       if (!result.ok) {
         return result;
       }
@@ -588,25 +506,24 @@ async function runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt
   });
 }
 
-/**
- * One request to Gemini, using the selected model or the existing default for older settings.
- *
- * With `timeoutMs` the request runs under that deadline, and a failure to send or to read says
- * what timed out; without it there is no deadline and a failure is handed on as it came. `log`
- * prints how long each step took. `emptyMessage` is what an answer with no text fails with.
- */
-async function sendGemini({ store, systemPrompt, sourcePrompt, generationConfig, customFetch, timeoutMs, log = false, emptyMessage }) {
+/** The saved Gemini key, or the error the window takes for a missing one. */
+const requireGeminiKey = (store) => {
   const apiKey = store.get('GEMINI_API_KEY');
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not configured in settings');
   }
+  return apiKey;
+};
 
-  const model = resolveGeminiModel(store.get('GEMINI_API_MODEL'));
-  // The old thinking budget was tuned for the fixed default model; other models choose their own.
-  if (model !== DEFAULT_GEMINI_MODEL && generationConfig?.thinkingConfig) {
-    const { thinkingConfig, ...rest } = generationConfig;
-    generationConfig = rest;
-  }
+/**
+ * One request to Gemini for one attempt, as the attempt runner expects it: an HTTP failure comes
+ * back as `{ ok: false, status, errorText, errorBody }`, a failure to send or to read is thrown.
+ *
+ * With `timeoutMs` the request runs under that deadline, and a failure to send or to read says
+ * what timed out; without it there is no deadline and a failure is handed on as it came. `log`
+ * prints how long each step took.
+ */
+async function sendGemini({ apiKey, url, model, body, customFetch, timeoutMs, log = false }) {
   const timed = typeof timeoutMs === 'number';
   const failure = (error, label) => (timed ? describeFetchFailure(error, timeoutMs, label) : error);
   if (log) {
@@ -616,17 +533,13 @@ async function sendGemini({ store, systemPrompt, sourcePrompt, generationConfig,
 
   let response;
   try {
-    response = await customFetch(geminiEndpointFor(model), {
+    response = await customFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-goog-api-key': apiKey,
       },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ parts: [{ text: sourcePrompt }] }],
-        generationConfig,
-      }),
+      body: JSON.stringify(body),
       ...(timed ? { signal: timeoutSignal(timeoutMs) } : {}),
     });
   } catch (error) {
@@ -638,7 +551,12 @@ async function sendGemini({ store, systemPrompt, sourcePrompt, generationConfig,
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Gemini API error: ${response.status} ${response.statusText}${errText ? ` - ${errText}` : ''}`);
+    return {
+      ok: false,
+      status: response.status,
+      errorText: `Gemini API error: ${response.status} ${response.statusText}${errText ? ` - ${errText}` : ''}`,
+      errorBody: errText.slice(0, MAX_ERROR_BODY_CHARS),
+    };
   }
 
   let data;
@@ -651,36 +569,49 @@ async function sendGemini({ store, systemPrompt, sourcePrompt, generationConfig,
     console.log(`[ai] gemini body complete in ${Date.now() - startedAt}ms total`);
   }
 
-  const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content
-    ? data.candidates[0].content.parts
-    : null;
-  const jsonText = Array.isArray(parts)
-    ? (parts.find((part) => part && typeof part.text === 'string') || {}).text
-    : null;
-  if (!jsonText) {
-    throw new Error(emptyMessage);
-  }
-
-  return jsonText;
+  const candidate = data && data.candidates && data.candidates[0];
+  const parts = candidate && candidate.content ? candidate.content.parts : null;
+  return {
+    ok: true,
+    status: response.status,
+    content: Array.isArray(parts) ? (parts.find((part) => part && typeof part.text === 'string') || {}).text : null,
+    exhausted: false,
+    candidate,
+    data,
+  };
 }
 
-/** Raw JSON text from Gemini, under a deadline and with its steps logged. */
-async function runGeminiCompletion({ store, systemPrompt, sourcePrompt, responseSchema, generationConfig, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS, maxTokens }) {
-  return sendGemini({
-    store,
-    systemPrompt,
-    sourcePrompt,
-    // A caller with tuned settings (a thinking budget, a schema) passes the whole config;
-    // otherwise it is assembled from the individual options.
-    generationConfig: generationConfig ?? {
-      responseMimeType: 'application/json',
-      ...(responseSchema ? { responseSchema } : {}),
-      ...(maxTokens ? { maxOutputTokens: maxTokens } : {}),
-    },
-    customFetch,
-    timeoutMs,
-    log: true,
-    emptyMessage: 'Model returned an empty response',
+/**
+ * Raw JSON text from Gemini for one ask, using the selected model or the existing default for
+ * older settings. `emptyMessage` is what an answer with no text fails with; `timeoutMs` and `log`
+ * are as in sendGemini.
+ */
+async function runGeminiCompletion({ ai, store, task, systemPrompt, sourcePrompt, geminiSchema, answerTokens, customFetch, timeoutMs, log = false, emptyMessage }) {
+  const apiKey = requireGeminiKey(store);
+  const adapter = ai.getAiAdapter('gemini');
+  const model = resolveGeminiModel(store.get('GEMINI_API_MODEL'), adapter.defaultModel);
+  const url = ai.generateContentUrl(model);
+
+  return ai.runAttempts({
+    adapter,
+    task,
+    url,
+    model,
+    attempts: adapter.attempts(task, model),
+    ...(log ? { log: (line) => console.log(line) } : {}),
+    describeEmpty: () => emptyMessage,
+    send: (attempt) => sendGemini({
+      apiKey,
+      url,
+      model,
+      body: adapter.buildBody({
+        task, model, attempt, systemPrompt, sourcePrompt, geminiSchema,
+        budget: ai.budgetFor(task, answerTokens, attempt),
+      }),
+      customFetch,
+      timeoutMs,
+      log,
+    }),
   });
 }
 
@@ -690,26 +621,64 @@ async function runGeminiCompletion({ store, systemPrompt, sourcePrompt, response
  * answer.
  */
 async function runGeminiThemeCompletion({ store, systemPrompt, sourcePrompt, responseSchema, customFetch }) {
-  return JSON.parse(await sendGemini({
+  const ai = await loadAiModules();
+  return JSON.parse(await runGeminiCompletion({
+    ai,
     store,
+    task: 'theme',
     systemPrompt,
     sourcePrompt,
-    generationConfig: { responseMimeType: 'application/json', responseSchema },
+    geminiSchema: responseSchema,
     customFetch,
     emptyMessage: 'Failed to generate theme JSON',
   }));
 }
 
+const JSON_TASKS = new Set(['segmentation', 'theme']);
+
 /**
  * Runs one prompt through whichever provider the user configured and returns the raw JSON text.
  * Parsing is left to the caller so each feature can validate against its own contract.
+ *
+ * `task` ('segmentation' or 'theme') picks the adapter's request shapes; `answerTokens` is what the
+ * answer itself needs, and attempts that cannot switch reasoning off get room for it on top
+ * (shared/ai/aiTasks.mjs). `schema` is JSON Schema, `geminiSchema` the same in Gemini's dialect.
  */
-async function runAiJsonCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, geminiResponseSchema, geminiGenerationConfig, customFetch, timeoutMs, maxTokens, disableReasoning }) {
-  const provider = store.get('AI_PROVIDER') || 'gemini';
+async function runAiJsonCompletion({ store, task, systemPrompt, sourcePrompt, schema, schemaName, geminiSchema, answerTokens, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS }) {
+  if (!JSON_TASKS.has(task)) {
+    throw new Error(`Unknown AI task: ${task}`);
+  }
+  const { ai, connection, adapter } = await resolveStoredConnection(store);
 
-  return provider === 'openai'
-    ? runOpenAICompatibleCompletion({ store, systemPrompt, sourcePrompt, schema, schemaName, customFetch, timeoutMs, maxTokens, disableReasoning })
-    : runGeminiCompletion({ store, systemPrompt, sourcePrompt, responseSchema: geminiResponseSchema, generationConfig: geminiGenerationConfig, customFetch, timeoutMs, maxTokens });
+  if (connection.protocol === 'gemini') {
+    return runGeminiCompletion({
+      ai, store, task, systemPrompt, sourcePrompt, geminiSchema, answerTokens, customFetch, timeoutMs,
+      log: true,
+      emptyMessage: 'Model returned an empty response',
+    });
+  }
+
+  if (connection.presetId === 'custom' && !connection.apiUrl) {
+    throw new Error('API URL is required for a custom AI provider');
+  }
+  const apiKey = store.get('OPENAI_API_KEY');
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not configured in settings');
+  }
+  const temperature = resolveOpenAICompatibleTemperature(store.get('OPENAI_API_TEMPERATURE'));
+
+  if (connection.protocol === 'anthropic') {
+    return runAnthropicCompletion({
+      adapter, task, apiUrl: connection.apiUrl, apiKey, model: connection.model,
+      systemPrompt, sourcePrompt, schema, schemaName, answerTokens, temperature, customFetch, timeoutMs,
+    });
+  }
+  return runOpenAICompatibleCompletion({
+    ai, adapter, connection, apiKey, task, systemPrompt, sourcePrompt, schema, schemaName, answerTokens, temperature,
+    stream: adapter.stream && store.get('OPENAI_API_STREAM') === true,
+    customFetch,
+    timeoutMs,
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -803,16 +772,28 @@ function validateAiConnectionTestInput(raw) {
 }
 
 /**
- * Minimal chat body for the test: one user message, no system prompt, no JSON mode or schema.
- * The token cap key follows the same openai-vs-others rule as buildOpenAICompatibleRequestBody.
+ * The connection the unsaved form values describe, resolved the same way as the saved settings.
+ * Until the form sends its preset id, an explicit Anthropic protocol also covers a relay that
+ * speaks the Messages API under another host.
  */
-function buildOpenAICompatibleTestBody(model, provider, stream) {
-  return {
-    model,
-    messages: [{ role: 'user', content: AI_TEST_PROMPT }],
-    [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: AI_TEST_MAX_TOKENS,
-    ...(stream ? { stream: true } : {}),
-  };
+function resolveFormConnection(ai, config) {
+  const connection = ai.resolveAiConnection({
+    AI_PROVIDER: config.provider,
+    OPENAI_API_URL: config.apiUrl,
+    OPENAI_API_MODEL: config.model,
+    GEMINI_API_MODEL: config.model,
+  });
+  if (config.provider === 'openai' && config.apiProtocol === 'anthropic' && connection.protocol !== 'anthropic') {
+    return { ...connection, adapterId: 'anthropic', protocol: 'anthropic', model: config.model };
+  }
+  return connection;
+}
+
+/** The adapter the unsaved form values would use (model discovery shares this with the test). */
+async function resolveFormAdapter(config) {
+  const ai = await loadAiModules();
+  const connection = resolveFormConnection(ai, config);
+  return { ai, connection, adapter: ai.getAiAdapter(connection.adapterId) };
 }
 
 /**
@@ -822,13 +803,16 @@ function buildOpenAICompatibleTestBody(model, provider, stream) {
  * does not throw: a failed connection is the expected output of this function. `emptyReason` marks
  * a connection that worked but produced no text ('reasoning' = the budget went on reasoning,
  * 'empty' = anything else), so the UI can report it as a success with a caveat, not a failure.
+ *
+ * Each protocol walks its adapter's 'test' attempts with nothing remembered, so a pass means the
+ * reasoning switches the real asks send are accepted too.
  */
 async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_TIMEOUT_MS, now = Date.now } = {}) {
   const validated = validateAiConnectionTestInput(rawInput);
   if (validated.error) {
     return { ok: false, durationMs: 0, errorKind: 'invalid', error: validated.error };
   }
-  const { provider, apiKey, apiUrl: rawApiUrl, model: rawModel, apiProtocol, stream } = validated.config;
+  const { provider, apiKey, apiUrl: rawApiUrl, model: rawModel, stream } = validated.config;
   const startedAt = now();
   const finish = (result) => ({ durationMs: now() - startedAt, ...result });
   const redact = (message) => {
@@ -848,6 +832,7 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
     error: scrub(error instanceof Error ? error.message : error),
     ...extra,
   });
+  const reply = (text) => truncateText(redact(text), AI_TEST_MAX_REPLY_CHARS);
 
   if (!apiKey) {
     return finish({
@@ -857,89 +842,109 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
     });
   }
 
-  if (provider === 'openai' && apiProtocol === 'anthropic') {
-    try {
-      const reply = await sendAnthropic({ apiUrl: rawApiUrl, apiKey, model: rawModel, sourcePrompt: AI_TEST_PROMPT,
-        maxTokens: AI_TEST_MAX_TOKENS, customFetch, timeoutMs });
-      return finish({ ok: true, status: reply.status, model: reply.model, text: truncateText(redact(reply.content), AI_TEST_MAX_REPLY_CHARS) });
-    } catch (error) {
-      return failure(error, { ...(error.status ? { status: error.status } : {}),
-        errorKind: error.status ? 'http' : /Timeout|Abort/.test(error.name) ? 'timeout' : 'network' });
+  const { ai, connection, adapter } = await resolveFormAdapter(validated.config);
+
+  if (connection.protocol === 'anthropic') {
+    const outcome = await runAnthropicConnectionTest({
+      adapter, apiUrl: rawApiUrl, apiKey, model: connection.model, prompt: AI_TEST_PROMPT,
+      answerTokens: AI_TEST_MAX_TOKENS, customFetch, timeoutMs,
+    });
+    if (!outcome.ok) {
+      return failure(outcome.error, { ...(outcome.status ? { status: outcome.status } : {}), errorKind: outcome.errorKind });
     }
+    return finish({
+      ok: true,
+      status: outcome.status,
+      model: outcome.model,
+      text: outcome.text ? reply(outcome.text) : '',
+      ...(outcome.emptyReason ? { emptyReason: outcome.emptyReason } : {}),
+    });
   }
 
-  if (provider === 'gemini') {
-    const model = resolveGeminiModel(rawModel);
+  if (connection.protocol === 'gemini') {
+    const model = resolveGeminiModel(rawModel, adapter.defaultModel);
+    const url = ai.generateContentUrl(model);
     console.log('[ai-test] POST ' + model);
-    let response;
+    let outcome;
     try {
-      response = await customFetch(geminiEndpointFor(model), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: AI_TEST_PROMPT }] }],
-          // thinkingBudget 0 as in SEGMENTATION_GEMINI_GENERATION_CONFIG: gemini-3-flash-preview
-          // thinks by default and would spend the budget before answering "hello".
-          generationConfig: { maxOutputTokens: AI_TEST_MAX_TOKENS, ...(model === DEFAULT_GEMINI_MODEL ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
+      outcome = await ai.walkAttempts({
+        adapter,
+        task: 'test',
+        url,
+        model,
+        attempts: adapter.attempts('test', model),
+        cache: null,
+        send: (attempt) => sendGemini({
+          apiKey,
+          url,
+          model,
+          body: adapter.buildBody({
+            task: 'test', model, attempt, sourcePrompt: AI_TEST_PROMPT,
+            budget: ai.budgetFor('test', AI_TEST_MAX_TOKENS, attempt),
+          }),
+          customFetch,
+          timeoutMs,
         }),
-        signal: timeoutSignal(timeoutMs),
       });
     } catch (error) {
-      const failed = describeFetchFailure(error, timeoutMs, 'Request to Gemini');
-      return failure(failed, { errorKind: /timed out/.test(failed.message) ? 'timeout' : 'network' });
-    }
-    if (!response.ok) {
-      let errText = '';
-      try {
-        errText = await response.text();
-      } catch {
-        // Status alone is still informative.
-      }
-      return failure(`Gemini API error: ${response.status} ${response.statusText}${errText ? ` - ${errText}` : ''}`, {
-        status: response.status,
-        errorKind: 'http',
+      return failure(error, {
+        ...(error && error.status ? { status: error.status } : {}),
+        errorKind: /timed out/.test(error && error.message) ? 'timeout' : 'network',
       });
     }
-    let data;
-    try {
-      data = await response.json();
-    } catch (error) {
-      const failed = describeFetchFailure(error, timeoutMs, 'Reading the response from Gemini');
-      return failure(failed, { status: response.status, errorKind: /timed out/.test(failed.message) ? 'timeout' : 'network' });
+    const { result } = outcome;
+    if (!result.ok) {
+      return failure(result.errorText, { status: result.status, errorKind: 'http' });
     }
-    const candidate = data && data.candidates && data.candidates[0];
-    const parts = candidate && candidate.content ? candidate.content.parts : null;
+    const parts = result.candidate && result.candidate.content ? result.candidate.content.parts : null;
     const text = Array.isArray(parts)
       ? parts.filter((part) => part && typeof part.text === 'string').map((part) => part.text).join('')
       : '';
-    const modelName = data && typeof data.modelVersion === 'string' ? data.modelVersion : model;
+    const modelName = result.data && typeof result.data.modelVersion === 'string' ? result.data.modelVersion : model;
     if (!text.trim()) {
-      const reason = candidate && candidate.finishReason === 'MAX_TOKENS' ? 'reasoning' : 'empty';
-      return finish({ ok: true, status: response.status, model: modelName, text: '', emptyReason: reason });
+      const reason = result.candidate && result.candidate.finishReason === 'MAX_TOKENS' ? 'reasoning' : 'empty';
+      return finish({ ok: true, status: result.status, model: modelName, text: '', emptyReason: reason });
     }
-    return finish({ ok: true, status: response.status, model: modelName, text: truncateText(redact(text), AI_TEST_MAX_REPLY_CHARS) });
+    return finish({ ok: true, status: result.status, model: modelName, text: reply(text) });
   }
 
   const apiUrl = normalizeOpenAIChatCompletionsUrl(rawApiUrl);
-  const model = resolveOpenAICompatibleModel(apiUrl, rawModel);
-  const compatProvider = detectOpenAICompatibleProvider(apiUrl);
-  console.log(`[ai-test] POST ${redactUrl(apiUrl)} model=${model} provider=${compatProvider}${stream ? ' stream=on' : ''}`);
+  const { model } = connection;
+  console.log(`[ai-test] POST ${redactUrl(apiUrl)} model=${model} provider=${adapter.id}${stream ? ' stream=on' : ''}`);
 
-  // Connectivity does not require reasoning suppression: always-thinking models reject it.
-  // A successful response with no answer is still reported below with an emptyReason.
-  let result;
+  // Each attempt is one "hello" with the adapter's test switches; a model that rejects them by name
+  // moves to the next attempt, and a successful response with no answer is still reported below
+  // with an emptyReason.
+  let outcome;
   try {
-    result = await sendOpenAICompatible({
-      apiUrl,
-      apiKey,
-      body: buildOpenAICompatibleTestBody(model, compatProvider, stream),
-      customFetch,
-      timeoutMs,
+    outcome = await ai.walkAttempts({
+      adapter,
+      task: 'test',
+      url: apiUrl,
+      model,
+      attempts: adapter.attempts('test', model),
+      cache: null,
+      log: (line) => console.log(line.replace(/^\[ai\]/, '[ai-test]')),
+      send: async (attempt) => {
+        const result = await sendOpenAICompatible({
+          apiUrl,
+          apiKey,
+          provider: adapter.id,
+          body: ai.buildCompatibleBody(adapter, {
+            task: 'test', model, attempt, sourcePrompt: AI_TEST_PROMPT,
+            budget: ai.budgetFor('test', AI_TEST_MAX_TOKENS, attempt), stream: adapter.stream && stream,
+          }),
+          customFetch,
+          timeoutMs,
+        });
+        return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : result;
+      },
     });
   } catch (error) {
     const message = (error instanceof Error ? error.message : String(error)).split(apiUrl).join(redactUrl(apiUrl));
     return failure(message, { errorKind: /timed out/.test(message) ? 'timeout' : 'network' });
   }
+  const { result } = outcome;
   if (!result.ok) {
     return failure(result.errorText.split(apiUrl).join(redactUrl(apiUrl)), { status: result.status, errorKind: 'http' });
   }
@@ -952,27 +957,24 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
       status: result.status,
       model: shownModel,
       text: '',
-      emptyReason: exhaustedByReasoning(result.choice, result.usage) ? 'reasoning' : 'empty',
+      emptyReason: result.exhausted ? 'reasoning' : 'empty',
     });
   }
-  return finish({ ok: true, status: result.status, model: shownModel, text: truncateText(redact(text), AI_TEST_MAX_REPLY_CHARS) });
+  return finish({ ok: true, status: result.status, model: shownModel, text: reply(text) });
 }
 
 module.exports = {
   DEFAULT_AI_TIMEOUT_MS,
-  DEEPSEEK_DEFAULT_MODEL,
   DEFAULT_OPENAI_CHAT_COMPLETIONS_URL,
-  DEFAULT_OPENAI_MODEL,
   DEFAULT_OPENAI_TEMPERATURE,
-  buildOpenAICompatibleRequestBody,
+  aiProviderLabel,
   createOpenAIStreamAccumulator,
   describeEmptyCompletion,
-  detectOpenAICompatibleProvider,
   extractResponseContentText,
   formatOpenAICompatibleError,
+  loadAiModules,
   normalizeOpenAIChatCompletionsUrl,
-  providerSupportsStructuredOutputs,
-  resolveOpenAICompatibleModel,
+  resolveFormAdapter,
   resolveOpenAICompatibleTemperature,
   runAiConnectionTest,
   runAiJsonCompletion,

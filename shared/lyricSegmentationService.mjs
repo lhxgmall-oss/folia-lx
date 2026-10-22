@@ -1,11 +1,8 @@
-import {
-  detectOpenAICompatibleProvider,
-  sendOpenAICompatibleRequest,
-} from './openAICompatibleRequest.mjs';
+import { sendOpenAICompatibleRequest } from './openAICompatibleRequest.mjs';
 import { budgetFor } from './ai/aiTasks.mjs';
 import { runAttempts } from './ai/attemptRunner.mjs';
-import { exhaustedByReasoning } from './ai/compatibleBody.mjs';
-import { customAdapter } from './ai/custom.mjs';
+import { buildCompatibleBody, exhaustedByReasoning } from './ai/compatibleBody.mjs';
+import { getAiAdapter, resolveAiConnection } from './ai/providerRegistry.mjs';
 
 // shared/lyricSegmentationService.mjs
 // Server-side lyric word segmentation, shared by the Vercel edge handler and the Cloudflare
@@ -27,8 +24,6 @@ import {
 } from './lyricSegmentationPrompt.mjs';
 
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions';
-const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
-const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
 const GEMINI_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
@@ -90,14 +85,6 @@ const normalizeOpenAIChatCompletionsUrl = (rawUrl) => {
   }
 };
 
-const resolveOpenAICompatibleModel = (apiUrl, configuredModel) => {
-  const trimmedModel = typeof configuredModel === 'string' ? configuredModel.trim() : '';
-  if (trimmedModel) {
-    return trimmedModel;
-  }
-  return detectOpenAICompatibleProvider(apiUrl) === 'deepseek' ? DEEPSEEK_DEFAULT_MODEL : DEFAULT_OPENAI_MODEL;
-};
-
 const resolveTemperature = (value) => {
   const temperature = Number.parseFloat(String(value ?? '').trim());
   return Number.isFinite(temperature) && temperature >= 0 && temperature <= 2
@@ -154,12 +141,12 @@ const describeEmpty = (choice, usage, model) => {
  * Sends one request, returning the outcome rather than throwing, so the ladder can decide.
  * Mirrors sendOpenAICompatible in electron/aiTextClient.cjs.
  */
-const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
+const sendOpenAICompatible = async (apiUrl, apiKey, provider, body, fetchImpl) => {
   let response;
   try {
     response = await sendOpenAICompatibleRequest({
       apiUrl,
-      provider: detectOpenAICompatibleProvider(apiUrl),
+      provider,
       body,
       init: {
         method: 'POST',
@@ -193,30 +180,21 @@ const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
 };
 
 /**
- * Walks the custom adapter's segmentation attempts (REASONING_SUPPRESSION_ATTEMPTS) instead of
- * assuming what the deployment configured. The base URL and model are env, so they can name
- * anything; the working shape is discovered and then remembered by the shared runner. See the
- * ladder's definition for the measurements behind it.
+ * Walks the provider adapter's segmentation attempts instead of assuming what the deployment
+ * configured. The base URL and model are env, so they can name anything: the provider is inferred
+ * from the URL's host (only OpenAI-compatible ones here; anything else is the custom adapter, whose
+ * attempts are the generic REASONING_SUPPRESSION_ATTEMPTS ladder), and the working shape is
+ * discovered and then remembered by the shared runner. See the ladder's definition for the
+ * measurements behind it.
  */
 const runOpenAICompatible = async (lines, env, fetchImpl) => {
-  const apiUrl = normalizeOpenAIChatCompletionsUrl(env.OPENAI_API_URL);
-  const model = resolveOpenAICompatibleModel(apiUrl, env.OPENAI_API_MODEL);
-  const provider = detectOpenAICompatibleProvider(apiUrl);
+  const connection = resolveAiConnection({ ...env, AI_PROVIDER: 'openai' }, { protocols: ['openai'] });
+  const adapter = getAiAdapter(connection.adapterId);
+  const apiUrl = normalizeOpenAIChatCompletionsUrl(connection.apiUrl);
+  const { model } = connection;
   const temperature = resolveTemperature(env.OPENAI_API_TEMPERATURE);
-  const adapter = customAdapter;
-
-  const messages = [
-    { role: 'system', content: buildSegmentationSystemPrompt() },
-    { role: 'user', content: buildSegmentationSourcePrompt(lines) },
-  ];
-
-  // Only OpenAI itself accepts json_schema; everyone else rejects it and gets plain JSON mode.
-  const responseFormat = provider === 'openai'
-    ? {
-      type: 'json_schema',
-      json_schema: { name: SEGMENTATION_SCHEMA_NAME, strict: true, schema: SEGMENTATION_JSON_SCHEMA },
-    }
-    : { type: 'json_object' };
+  const systemPrompt = buildSegmentationSystemPrompt();
+  const sourcePrompt = buildSegmentationSourcePrompt(lines);
 
   return runAttempts({
     adapter,
@@ -227,20 +205,18 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
     describeEmpty: (result) => describeEmpty(result.choice, result.usage, model),
     fail: (message) => new SegmentationRequestError(message, 502),
     send: async (attempt) => {
-      // DeepSeek's official switch belongs to segmentation policy, not the generic HTTP transport.
-      const reasoningParams = provider === 'deepseek'
-        ? { thinking: { type: 'disabled' }, ...attempt.params }
-        : attempt.params;
-
-      const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, {
+      const body = buildCompatibleBody(adapter, {
+        task: 'segmentation',
         model,
-        messages,
+        attempt,
+        systemPrompt,
+        sourcePrompt,
+        schema: SEGMENTATION_JSON_SCHEMA,
+        schemaName: SEGMENTATION_SCHEMA_NAME,
+        budget: budgetFor('segmentation', SEGMENTATION_MAX_OUTPUT_TOKENS, attempt),
         temperature,
-        [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']:
-          budgetFor('segmentation', SEGMENTATION_MAX_OUTPUT_TOKENS, attempt),
-        ...reasoningParams,
-        response_format: responseFormat,
-      }, fetchImpl);
+      });
+      const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, adapter.id, body, fetchImpl);
       return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : result;
     },
   });

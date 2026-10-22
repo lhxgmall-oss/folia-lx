@@ -173,7 +173,7 @@ describe('budgets', () => {
     });
 
     it('keeps the custom ladder\'s old x4 last rung for segmentation', () => {
-        const budgets = customAdapter.attempts('segmentation').map((attempt: Attempt) => budgetFor('segmentation', 8192, attempt));
+        const budgets = customAdapter.attempts('segmentation', 'm').map((attempt: Attempt) => budgetFor('segmentation', 8192, attempt));
         expect(budgets).toEqual([8192, 8192, 8192 * 4]);
     });
 });

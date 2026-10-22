@@ -1,4 +1,5 @@
-// Shared OpenAI-compatible endpoint detection and bounded request-shape negotiation.
+// Shared OpenAI-compatible bounded request-shape negotiation. Which provider an endpoint is comes
+// from shared/ai/providerRegistry.mjs (inferAiProviderFromUrl); callers pass its id as `provider`.
 
 const capabilityCache = new Map();
 
@@ -13,17 +14,6 @@ const getCapabilities = (apiUrl, model) => {
 };
 
 export const resetOpenAICompatibleCapabilities = () => capabilityCache.clear();
-
-export const detectOpenAICompatibleProvider = (apiUrl) => {
-  try {
-    const hostname = new URL(apiUrl).hostname.toLowerCase();
-    if (hostname === 'api.deepseek.com' || hostname.endsWith('.deepseek.com')) return 'deepseek';
-    if (hostname === 'api.openai.com' || hostname.endsWith('.openai.com')) return 'openai';
-  } catch {
-    // Invalid and relative URLs use the conservative generic request shape.
-  }
-  return 'generic';
-};
 
 const parseErrorPayload = (text) => {
   try {

@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
-import { AI_PROVIDER_PRESETS, getAiProviderPreset } from '../../../shared/aiProviderPresets.mjs';
+import { AI_PROVIDER_PRESETS, resolveAiProviderPreset } from '../../../shared/ai/providerRegistry.mjs';
 
 // Provider catalogues, native protocols and legacy settings are tested without network access.
 const require = createRequire(import.meta.url);
@@ -15,13 +15,18 @@ describe('provider presets and migration', () => {
     it('includes the requested providers and keeps custom last', () => {
         expect(AI_PROVIDER_PRESETS.map(p => p.id)).toEqual(['qwen', 'anthropic', 'deepseek', 'gemini', 'kimi', 'openai', 'tencentcloud', 'mimo', 'glm', 'custom']);
     });
-    it('preserves old compatible connections and never guesses a native Anthropic migration', () => {
-        expect(getAiProviderPreset({}).id).toBe('gemini');
-        expect(getAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'deepseek', OPENAI_API_URL: 'https://custom.example/v1' }).id).toBe('custom');
-        expect(getAiProviderPreset({ AI_PROVIDER: 'openai', OPENAI_API_URL: 'https://api.deepseek.com/v1/chat/completions/' }).id).toBe('deepseek');
-        expect(getAiProviderPreset({ AI_PROVIDER: 'openai', OPENAI_API_URL: 'https://api.anthropic.com/v1' }).id).toBe('custom');
-        expect(getAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic' }).protocol).toBe('anthropic');
-        expect(getAiProviderPreset({ AI_PROVIDER: 'gemini', AI_PROVIDER_PRESET: 'anthropic' }).id).toBe('gemini');
+    it('preserves old compatible connections and infers the provider from the host', () => {
+        expect(resolveAiProviderPreset({}).id).toBe('gemini');
+        expect(resolveAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'deepseek', OPENAI_API_URL: 'https://custom.example/v1' }).id).toBe('custom');
+        expect(resolveAiProviderPreset({ AI_PROVIDER: 'openai', OPENAI_API_URL: 'https://api.deepseek.com/v1/chat/completions/' }).id).toBe('deepseek');
+        // DeepSeek's own spelling of its address, without /v1, was custom while presets matched by text.
+        expect(resolveAiProviderPreset({ AI_PROVIDER: 'openai', OPENAI_API_URL: 'https://api.deepseek.com' }).id).toBe('deepseek');
+        // An old compatible-layer setting on Anthropic's host now uses the native Messages API.
+        expect(resolveAiProviderPreset({ AI_PROVIDER: 'openai', OPENAI_API_URL: 'https://api.anthropic.com/v1' }).id).toBe('anthropic');
+        expect(resolveAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic', OPENAI_API_URL: 'https://api.anthropic.com/v1' }).protocol).toBe('anthropic');
+        // Requests go where the URL says (the saved key is bound to it), so a preset alone does not move them.
+        expect(resolveAiProviderPreset({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic' }).id).toBe('openai');
+        expect(resolveAiProviderPreset({ AI_PROVIDER: 'gemini', AI_PROVIDER_PRESET: 'anthropic' }).id).toBe('gemini');
     });
 });
 
@@ -179,7 +184,7 @@ describe('custom provider URL requirements', () => {
         expect(await listAiModels(input, { customFetch })).toEqual({ ok: false, errorKind: 'invalid' });
         const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'custom',
             OPENAI_API_URL: apiUrl, OPENAI_API_KEY: 'test-secret', OPENAI_API_MODEL: 'custom-model' });
-        await expect(client.runAiJsonCompletion({ store, systemPrompt: 'system', sourcePrompt: 'source', customFetch }))
+        await expect(client.runAiJsonCompletion({ store, task: 'theme', systemPrompt: 'system', sourcePrompt: 'source', customFetch }))
             .rejects.toThrow('API URL is required');
         expect(customFetch).not.toHaveBeenCalled();
     });
@@ -196,14 +201,15 @@ describe('selected model completion', () => {
         const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic',
             OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_KEY: 'test-secret', OPENAI_API_MODEL: model });
         expect(await client.runAiConnectionTest({ ...payload, apiProtocol: 'anthropic', model }, { customFetch })).toMatchObject({ ok: true });
-        await client.runAiJsonCompletion({ store, systemPrompt: 'theme', sourcePrompt: 'source', customFetch });
-        await client.runAiJsonCompletion({ store, systemPrompt: 'segmentation', sourcePrompt: 'source', customFetch });
+        await client.runAiJsonCompletion({ store, task: 'theme', systemPrompt: 'theme', sourcePrompt: 'source', customFetch });
+        await client.runAiJsonCompletion({ store, task: 'segmentation', systemPrompt: 'segmentation', sourcePrompt: 'source', customFetch });
         expect(models).toEqual(['claude-selected', 'claude-selected', 'claude-selected']);
     });
     it.each([undefined, null, 12, '', '   ', 'a'.repeat(257), 'claude bad', 'claude\ninvalid'])('rejects invalid Anthropic model %j before fetch', async model => {
         const { sendAnthropic } = require('../../../electron/ai/anthropicClient.cjs');
         const customFetch = vi.fn();
-        await expect(sendAnthropic({ apiKey: 'test-secret', model, sourcePrompt: 'hello', customFetch })).rejects.toThrow('valid Anthropic model');
+        await expect(sendAnthropic({ apiKey: 'test-secret', body: { model, max_tokens: 512, messages: [{ role: 'user', content: 'hello' }] }, customFetch }))
+            .rejects.toThrow('valid Anthropic model');
         expect(customFetch).not.toHaveBeenCalled();
     });
     it('retries native Claude once without temperature only when that parameter is rejected', async () => {
@@ -215,12 +221,13 @@ describe('selected model completion', () => {
                 ? json({ error: { type: 'invalid_request_error', message: 'temperature: non-default values are not supported' } }, 400)
                 : json({ content: [{ type: 'text', text: 'ok' }] });
         });
-        await sendAnthropic({ apiKey: 'test-secret', model: 'claude-selected', sourcePrompt: 'hello', temperature: 0.7, customFetch });
+        const body = { model: 'claude-selected', max_tokens: 512, messages: [{ role: 'user', content: 'hello' }], temperature: 0.7 };
+        await sendAnthropic({ apiKey: 'test-secret', body, customFetch });
         expect(bodies[0].temperature).toBe(0.7);
         expect(bodies[1].temperature).toBeUndefined();
         expect(customFetch).toHaveBeenCalledTimes(2);
         const denied = vi.fn().mockImplementation(async () => json({ error: { type: 'authentication_error', message: 'test-secret' } }, 401));
-        await expect(sendAnthropic({ apiKey: 'test-secret', model: 'claude-selected', sourcePrompt: 'hello', temperature: 0.7, customFetch: denied })).rejects.toThrow('HTTP 401');
+        await expect(sendAnthropic({ apiKey: 'test-secret', body, customFetch: denied })).rejects.toThrow('HTTP 401');
         expect(denied).toHaveBeenCalledTimes(1);
     });
     it('uses the selected Gemini model for both real theme and segmentation requests', async () => {
@@ -231,8 +238,8 @@ describe('selected model completion', () => {
         };
         const store = storeWith({ GEMINI_API_KEY: 'test-secret', GEMINI_API_MODEL: 'models/gemini-selected' });
         await client.runGeminiThemeCompletion({ store, systemPrompt: 'system', sourcePrompt: 'source', responseSchema: {}, customFetch });
-        await client.runAiJsonCompletion({ store, systemPrompt: 'system', sourcePrompt: 'source', customFetch,
-            geminiGenerationConfig: { responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } } });
+        await client.runAiJsonCompletion({ store, task: 'segmentation', systemPrompt: 'system', sourcePrompt: 'source', customFetch,
+            geminiSchema: { type: 'OBJECT' }, answerTokens: 8192 });
         expect(calls.map(call => call.url)).toEqual(Array(2).fill('https://generativelanguage.googleapis.com/v1beta/models/gemini-selected:generateContent'));
         expect(calls[1].body.generationConfig.thinkingConfig).toBeUndefined();
     });
@@ -244,7 +251,7 @@ describe('selected model completion', () => {
         };
         const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic', OPENAI_API_KEY: 'test-secret',
             OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_MODEL: 'claude-selected', OPENAI_API_STREAM: true });
-        expect(await client.runAiJsonCompletion({ store, systemPrompt: 'system', sourcePrompt: 'source',
+        expect(await client.runAiJsonCompletion({ store, task: 'theme', systemPrompt: 'system', sourcePrompt: 'source',
             schema: { type: 'object' }, schemaName: 'result', customFetch })).toBe('{"lines":[]}');
         expect(calls[0].url).toBe('https://api.anthropic.com/v1/messages');
         expect(calls[0].body).toMatchObject({ model: 'claude-selected', system: 'system',

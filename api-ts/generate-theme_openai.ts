@@ -1,7 +1,5 @@
-import {
-    detectOpenAICompatibleProvider,
-    sendOpenAICompatibleRequest,
-} from '../shared/openAICompatibleRequest.mjs';
+import { sendOpenAICompatibleRequest } from '../shared/openAICompatibleRequest.mjs';
+import { resolveAiConnection } from '../shared/ai/providerRegistry.mjs';
 import { sanitizeDualTheme } from "../shared/themeSanitizer.mjs";
 
 // 当前文件：Vercel OpenAI 兼容主题生成函数的 TypeScript 源文件。
@@ -10,9 +8,7 @@ export const config = {
 };
 
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions';
-const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
-const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
 const THEME_JSON_SCHEMA_NAME = 'dual_theme';
 const THEME_MAX_OUTPUT_TOKENS = 4096;
 
@@ -88,7 +84,8 @@ const THEME_JSON_SCHEMA = {
     required: ['light', 'dark']
 } as const;
 
-type OpenAICompatibleProvider = 'openai' | 'deepseek' | 'generic';
+// A provider id from shared/ai/providerRegistry.mjs (only OpenAI-compatible ones reach this route).
+type OpenAICompatibleProvider = string;
 
 const normalizeOpenAIChatCompletionsUrl = (rawUrl?: string) => {
     const trimmedUrl = rawUrl?.trim();
@@ -115,15 +112,6 @@ const normalizeOpenAIChatCompletionsUrl = (rawUrl?: string) => {
     } catch {
         return trimmedUrl.replace(/\/+$/, '');
     }
-};
-
-const resolveOpenAICompatibleModel = (apiUrl: string, configuredModel?: string) => {
-    const trimmedModel = configuredModel?.trim();
-    if (trimmedModel) {
-        return trimmedModel;
-    }
-
-    return detectOpenAICompatibleProvider(apiUrl) === 'deepseek' ? DEEPSEEK_DEFAULT_MODEL : DEFAULT_OPENAI_MODEL;
 };
 
 const providerSupportsStructuredOutputs = (provider: OpenAICompatibleProvider) => provider === 'openai';
@@ -312,13 +300,20 @@ export default async function handler(req: Request) {
         }
 
         const apiKey = process.env.OPENAI_API_KEY;
+        // The provider comes from the address's host, the same registry the desktop uses; this
+        // route speaks only the OpenAI-compatible protocol, so anything else is the custom adapter.
+        const connection = resolveAiConnection({
+            AI_PROVIDER: 'openai',
+            OPENAI_API_URL: process.env.OPENAI_API_URL,
+            OPENAI_API_MODEL: process.env.OPENAI_API_MODEL,
+        }, { protocols: ['openai'] });
         const apiUrl = normalizeOpenAIChatCompletionsUrl(process.env.OPENAI_API_URL);
-        const model = resolveOpenAICompatibleModel(apiUrl, process.env.OPENAI_API_MODEL);
+        const model = connection.model;
         const configuredTemperature = Number.parseFloat(process.env.OPENAI_API_TEMPERATURE?.trim() || '');
         const temperature = Number.isFinite(configuredTemperature) && configuredTemperature >= 0 && configuredTemperature <= 2
             ? configuredTemperature
             : DEFAULT_OPENAI_TEMPERATURE;
-        const provider = detectOpenAICompatibleProvider(apiUrl) as OpenAICompatibleProvider;
+        const provider: OpenAICompatibleProvider = connection.adapterId;
 
         if (!apiKey) {
             console.error("OpenAI API Key is missing in server environment.");

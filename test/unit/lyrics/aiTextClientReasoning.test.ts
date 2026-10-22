@@ -1,5 +1,8 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
+import { buildCompatibleBody } from '../../../shared/ai/compatibleBody.mjs';
+import { deepseekAdapter } from '../../../shared/ai/deepseek.mjs';
+import { getAiAdapter, inferAiProviderFromUrl } from '../../../shared/ai/providerRegistry.mjs';
 import { REASONING_SUPPRESSION_ATTEMPTS } from '../../../shared/lyricSegmentationPrompt.mjs';
 
 // test/unit/lyrics/aiTextClientReasoning.test.ts
@@ -51,8 +54,8 @@ const run = (fetchImpl: unknown, url = 'http://endpoint.test/v1') => client.runA
     systemPrompt: 'sys',
     sourcePrompt: 'src',
     customFetch: fetchImpl,
-    maxTokens: 4096,
-    disableReasoning: true,
+    task: 'segmentation',
+    answerTokens: 4096,
 });
 
 describe('reasoning suppression ladder', () => {
@@ -133,11 +136,11 @@ describe('reasoning suppression ladder', () => {
         expect(attempts).toHaveLength(1);
     });
 
-    it('sends nothing extra when the caller has not asked to disable reasoning', async () => {
+    it('sends nothing extra for the theme, which does not ask to disable reasoning', async () => {
         const { attempts, fetchImpl } = makeFetch(() => answered('{}'));
         await client.runAiJsonCompletion({
             store: { get: (k: string) => ({ AI_PROVIDER: 'openai', OPENAI_API_KEY: 'k', OPENAI_API_URL: 'https://api.deepseek.com/v1' }[k]) },
-            systemPrompt: 'sys', sourcePrompt: 'src', customFetch: fetchImpl, maxTokens: 4096,
+            task: 'theme', systemPrompt: 'sys', sourcePrompt: 'src', customFetch: fetchImpl, answerTokens: 4096,
         });
 
         expect(attempts).toHaveLength(1);
@@ -161,9 +164,10 @@ describe('empty completion diagnostics', () => {
 
 describe('request body', () => {
     it('keeps the rest of the body intact alongside the suppression parameters', () => {
-        const body = client.buildOpenAICompatibleRequestBody(
-            'm', 'deepseek', 'sys', 'user', 0.7, { type: 'object' }, 'name', 4096, { reasoning_effort: 'none' },
-        );
+        const body = buildCompatibleBody(deepseekAdapter, {
+            task: 'segmentation', model: 'm', attempt: deepseekAdapter.attempts('segmentation', 'm')[0],
+            systemPrompt: 'sys', sourcePrompt: 'user', temperature: 0.7, schema: { type: 'object' }, schemaName: 'name', budget: 4096,
+        });
         expect(body).toMatchObject({
             model: 'm',
             max_tokens: 4096,
@@ -174,12 +178,16 @@ describe('request body', () => {
     });
 
     it('uses the official OpenAI token field only for the official hostname', async () => {
-        const official = client.buildOpenAICompatibleRequestBody(
-            'gpt-5-mini', 'openai', 'sys', 'user', 0.7, null, null, 4096, {},
-        );
-        const compatible = client.buildOpenAICompatibleRequestBody(
-            'gpt-5-mini', 'generic', 'sys', 'user', 0.7, null, null, 4096, {},
-        );
+        const ask = (url: string) => {
+            const adapter = getAiAdapter(inferAiProviderFromUrl(url));
+            if (!adapter) throw new Error('no adapter for ' + url);
+            return buildCompatibleBody(adapter, {
+                task: 'theme', model: 'gpt-5-mini', attempt: adapter.attempts('segmentation', 'gpt-5-mini')[2],
+                systemPrompt: 'sys', sourcePrompt: 'user', temperature: 0.7, budget: 4096,
+            }) as Record<string, unknown>;
+        };
+        const official = ask('https://api.openai.com/v1');
+        const compatible = ask('https://relay.example.com/v1');
 
         expect(official.max_completion_tokens).toBe(4096);
         expect(official.max_tokens).toBeUndefined();

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-    detectOpenAICompatibleProvider,
     rejectsOpenAICompatibleParameter,
     resetOpenAICompatibleCapabilities,
     sendOpenAICompatibleRequest,
@@ -22,14 +21,6 @@ const send = (body: Record<string, unknown>, fetchImpl: typeof fetch, provider =
 
 beforeEach(() => resetOpenAICompatibleCapabilities());
 afterEach(() => vi.unstubAllGlobals());
-
-describe('provider detection', () => {
-    it('uses the endpoint hostname rather than the configured model name', () => {
-        expect(detectOpenAICompatibleProvider('https://proxy.example.test/v1')).toBe('generic');
-        expect(detectOpenAICompatibleProvider('https://api.openai.com/v1')).toBe('openai');
-        expect(detectOpenAICompatibleProvider('https://api.deepseek.com/v1')).toBe('deepseek');
-    });
-});
 
 describe('parameter rejection evidence', () => {
     it('accepts structured OpenAI and Pydantic parameter locations', () => {
