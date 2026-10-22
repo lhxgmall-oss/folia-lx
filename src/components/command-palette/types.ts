@@ -26,6 +26,7 @@ import type { PlaybackEntryView } from '../../stores/usePlaybackEntryViewStore';
 import type { PonderHintVisibility } from '../../types/ponder';
 import type { LibraryWallLook } from '../../utils/libraryWallLook';
 import type { LibraryWallSeamStyle } from '../../utils/libraryWallSeamStyle';
+import type { LibraryWallSeamDirection } from '../../utils/libraryWallSeamDirection';
 
 // src/components/command-palette/types.ts
 // Shared command palette contracts used by the registry, hook, and UI shell.
@@ -186,6 +187,17 @@ export type CommandPalettePlaybackContext = {
     canAddCurrentSongToPlaylist: boolean;
     openAudioEqualizer: () => void;
     applyAudioSoundPreset: (modeId: AudioEqualizerModeId) => void;
+    /**
+     * Whether a mod's equalizer curve is kept, playing or on hold (Folium 1.7 `folium.equalizer`).
+     *
+     * A function rather than a value because a mod puts a curve in place or takes it off with nothing
+     * re-rendering the app to say so: this context is memoised on the values it subscribes to, and the
+     * audio ones are only volume and mute. `isAvailable` is asked each time the palette opens, so a getter
+     * is read fresh.
+     */
+    hasModEqualizerCurve: () => boolean;
+    /** Takes a mod's equalizer curve off (or discards one on hold), back to the listener's own sound. */
+    releaseModEqualizerCurve: () => void;
     runAutoMatchBestLyric: () => Promise<boolean>;
     /** Marks or unmarks the current local song as instrumental (no automatic lyric matching). */
     toggleCurrentSongPureMusicMark: () => Promise<boolean>;
@@ -269,6 +281,9 @@ export type CommandPaletteSettingsContext = {
     /** Lyrics / blur on the visualizer that shows through the bravais wall: flip the stored values. */
     toggleLibraryWallBackdropLyrics: () => void;
     toggleLibraryWallBackdropBlur: () => void;
+    /** Which way the bravais info strip opens (useLibraryWallLookStore.seamDirection: auto / vertical / horizontal); read live. */
+    libraryWallSeamDirection: () => LibraryWallSeamDirection;
+    setLibraryWallSeamDirection: (direction: LibraryWallSeamDirection) => void;
     ponderHintVisibility: PonderHintVisibility;
     setPonderHintVisibility: (visibility: PonderHintVisibility) => void;
     /** 触屏上那颗思索按钮显不显示。它是触屏唯一的入口，所以关掉是一个明确的选择。 */
