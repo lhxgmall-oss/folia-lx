@@ -2,7 +2,7 @@ import { expect, test } from './fixtures';
 
 // test/component/pixiVisualizerResize.spec.ts
 // Use the existing real-Pixi probe to catch shared texture-pool regressions across the Pixi modes.
-for (const mode of ['sonnet', 'tempera', 'lumiere']) {
+for (const mode of ['sonnet', 'tempera', 'lumiere', 'hanabi']) {
     for (const paused of [false, true]) {
         test(`${mode} resizes without destroyed shader bindings (${paused ? 'paused' : 'playing'})`, async ({ page }) => {
             const bindingWarnings: string[] = [];
