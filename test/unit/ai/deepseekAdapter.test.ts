@@ -42,7 +42,7 @@ describe('thinking', () => {
         expect(outcome.index).toBe(2);
     });
 
-    it('keeps the reasoning switch when the transport drops a rejected thinking field', async () => {
+    it('walks down the attempts when the endpoint rejects the thinking switch: the transport no longer drops it', async () => {
         vi.spyOn(console, 'log').mockImplementation(() => {});
         vi.spyOn(console, 'info').mockImplementation(() => {});
         const bodies: Record<string, unknown>[] = [];
@@ -59,7 +59,11 @@ describe('thinking', () => {
 
         await client.runAiJsonCompletion({ store, task: 'theme', systemPrompt: 's', sourcePrompt: 'u', customFetch, answerTokens: 8192 });
 
-        expect(bodies.map(body => [body.thinking, body.reasoning_effort])).toEqual([[{ type: 'disabled' }, 'none'], [undefined, 'none']]);
+        expect(bodies.map(body => [body.thinking, body.reasoning_effort, body.max_tokens])).toEqual([
+            [{ type: 'disabled' }, 'none', 8192],
+            [{ type: 'disabled' }, undefined, 8192],
+            [undefined, undefined, 8192 + 16384],
+        ]);
         vi.restoreAllMocks();
     });
 });

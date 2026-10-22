@@ -389,15 +389,20 @@ async function readOpenAIStreamResponse(response) {
   }
 }
 
-/** One request. Returns the outcome instead of throwing, so the attempt runner can decide. */
-async function sendOpenAICompatible({ apiUrl, apiKey, provider, body, customFetch, timeoutMs }) {
+/**
+ * One request. Returns the outcome instead of throwing, so the attempt runner can decide.
+ * `adapter` is the provider's: its id says whether the transport may renegotiate the request
+ * (OpenAI itself never is), and its rejected-parameter check reads its provider's errors about
+ * response_format.
+ */
+async function sendOpenAICompatible({ apiUrl, apiKey, adapter, body, customFetch, timeoutMs }) {
   let response;
   try {
     const { sendOpenAICompatibleRequest } = await import('../shared/openAICompatibleRequest.mjs');
     response = await sendOpenAICompatibleRequest({
       apiUrl,
-      // Only 'openai' changes anything there: OpenAI itself is never renegotiated.
-      provider,
+      provider: adapter.id,
+      rejectsFormat: adapter.rejectedParameter,
       body,
       init: {
         method: 'POST',
@@ -482,7 +487,7 @@ async function runOpenAICompatibleCompletion({ ai, adapter, connection, apiKey, 
 
       console.log(`[ai] POST ${redactUrl(apiUrl)} model=${model} provider=${adapter.id} reasoning=${attempt.label}${stream ? ' stream=on' : ''}`);
       const startedAt = Date.now();
-      const result = await sendOpenAICompatible({ apiUrl, apiKey, provider: adapter.id, body, customFetch, timeoutMs });
+      const result = await sendOpenAICompatible({ apiUrl, apiKey, adapter, body, customFetch, timeoutMs });
       if (!result.ok) {
         return ai.withErrorHint(adapter, result);
       }
@@ -966,7 +971,7 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
         const result = await sendOpenAICompatible({
           apiUrl,
           apiKey,
-          provider: adapter.id,
+          adapter,
           body: ai.buildCompatibleBody(adapter, {
             task: 'test', model, attempt, sourcePrompt: AI_TEST_PROMPT,
             budget: ai.budgetFor('test', AI_TEST_MAX_TOKENS, attempt), stream: adapter.stream && stream,

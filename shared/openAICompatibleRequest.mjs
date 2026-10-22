@@ -80,7 +80,16 @@ export const rejectsOpenAICompatibleParameter = (status, text, parameter) => {
 
 /**
  * Sends one OpenAI-compatible request and retries only explicit request-field rejections.
- * Feature policy stays in `body`: this layer never adds reasoning or thinking controls itself.
+ * Feature policy stays in `body`: this layer never adds reasoning or thinking controls itself, and
+ * never takes them away either. Reasoning fields (`thinking`, `reasoning_effort` and the like) are
+ * the knobs of the adapter's attempts, and only the attempt runner (shared/ai/attemptRunner.mjs)
+ * moves past a rejected one, to the next attempt the adapter wrote for that case.
+ *
+ * `rejectsFormat(status, text, field)` decides whether an error rejects `response_format`. It
+ * defaults to the shared check, which needs the field named; an adapter passes its own when its
+ * provider can reject it without naming anything (GLM's 1210). Since such an error may as well be
+ * about another field, the format is only remembered as unsupported once a request without it
+ * succeeds.
  */
 export const sendOpenAICompatibleRequest = async ({
   apiUrl,
@@ -88,12 +97,13 @@ export const sendOpenAICompatibleRequest = async ({
   body,
   init,
   fetchImpl = fetch,
+  rejectsFormat = rejectsOpenAICompatibleParameter,
 }) => {
   const requestBody = { ...body };
   const capabilities = getCapabilities(apiUrl, requestBody.model);
+  let droppedFormat = false;
 
   if (provider !== 'openai' && capabilities.responseFormat === false) delete requestBody.response_format;
-  if (capabilities.thinking === false) delete requestBody.thinking;
   if (capabilities.tokenField === 'max_completion_tokens' && requestBody.max_tokens !== undefined) {
     requestBody.max_completion_tokens = requestBody.max_tokens;
     delete requestBody.max_tokens;
@@ -103,6 +113,7 @@ export const sendOpenAICompatibleRequest = async ({
     const response = await fetchImpl(apiUrl, { ...init, body: JSON.stringify(requestBody) });
     if (response.ok) {
       if (provider !== 'openai') {
+        if (droppedFormat) capabilities.responseFormat = false;
         if (requestBody.max_completion_tokens !== undefined) capabilities.tokenField = 'max_completion_tokens';
         else if (requestBody.max_tokens !== undefined) capabilities.tokenField = 'max_tokens';
       }
@@ -112,18 +123,11 @@ export const sendOpenAICompatibleRequest = async ({
 
     const text = await response.clone().text();
     if (requestBody.response_format
-      && (rejectsOpenAICompatibleParameter(response.status, text, 'response_format')
-        || rejectsOpenAICompatibleParameter(response.status, text, 'json_schema'))) {
+      && (rejectsFormat(response.status, text, 'response_format')
+        || rejectsFormat(response.status, text, 'json_schema'))) {
       delete requestBody.response_format;
-      capabilities.responseFormat = false;
+      droppedFormat = true;
       console.info('[ai] endpoint rejected response_format; retrying without it');
-      continue;
-    }
-    if (requestBody.thinking
-      && rejectsOpenAICompatibleParameter(response.status, text, 'thinking')) {
-      delete requestBody.thinking;
-      capabilities.thinking = false;
-      console.info('[ai] endpoint rejected thinking; retrying without it');
       continue;
     }
     if (requestBody.max_tokens !== undefined

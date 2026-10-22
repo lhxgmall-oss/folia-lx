@@ -197,6 +197,76 @@ describe('end to end', () => {
         }]);
     });
 
+    // GLM's 1210 names no field, so it may be about JSON mode as much as the reasoning switch
+    // (response_format is documented for text models only, and glm-5.3-flash is a vision one).
+    const unnamed = () => Response.json({ error: { code: '1210', message: 'Invalid API parameter, please check the documentation.' } }, { status: 400 });
+    const storeFor = (url: string, model: string) => ({ get: (key: string) => ({
+        AI_PROVIDER: 'openai', OPENAI_API_KEY: 'k', OPENAI_API_URL: url, OPENAI_API_MODEL: model,
+    } as Record<string, unknown>)[key] });
+    const segment = (store: { get: (key: string) => unknown }, customFetch: unknown) => client.runAiJsonCompletion({
+        store, task: 'segmentation', systemPrompt: 's', sourcePrompt: 'u', customFetch, answerTokens: 8192,
+    });
+
+    it('retries a 1210 without JSON mode first, and keeps it off once that works', async () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+        const bodies: Record<string, unknown>[] = [];
+        const customFetch = async (_url: string, init: { body: string }) => {
+            const body = JSON.parse(init.body);
+            bodies.push(body);
+            return body.response_format ? unnamed() : answer('{"lines":[]}');
+        };
+        const store = storeFor('https://open.bigmodel.cn/api/paas/v4', 'glm-5.3-flash');
+
+        await segment(store, customFetch);
+        await segment(store, customFetch);
+
+        expect(bodies.map(body => [body.reasoning_effort, body.response_format])).toEqual([
+            ['low', { type: 'json_object' }],
+            ['low', undefined],
+            ['low', undefined],
+        ]);
+    });
+
+    it('takes a 1210 that is not about JSON mode as the reasoning switch, and keeps JSON mode', async () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+        const bodies: Record<string, unknown>[] = [];
+        const customFetch = async (_url: string, init: { body: string }) => {
+            const body = JSON.parse(init.body);
+            bodies.push(body);
+            return body.thinking ? unnamed() : answer('{"lines":[]}');
+        };
+        const store = storeFor('https://open.bigmodel.cn/api/paas/v4', 'glm-6-preview');
+
+        await segment(store, customFetch);
+        await segment(store, customFetch);
+
+        expect(bodies.map(body => [body.thinking, body.reasoning_effort, body.response_format])).toEqual([
+            [{ type: 'disabled' }, undefined, { type: 'json_object' }],
+            [{ type: 'disabled' }, undefined, undefined],
+            [undefined, 'low', { type: 'json_object' }],
+            // Learned: the low level, still in JSON mode.
+            [undefined, 'low', { type: 'json_object' }],
+        ]);
+    });
+
+    it('moves an unknown model past a rejected switch on Z.ai to the low level', async () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        const bodies: Record<string, unknown>[] = [];
+        const customFetch = async (_url: string, init: { body: string }) => {
+            const body = JSON.parse(init.body);
+            bodies.push(body);
+            return body.thinking
+                ? Response.json({ error: { code: '1214', message: 'Parameter `thinking` is invalid' } }, { status: 400 })
+                : answer('{"lines":[]}');
+        };
+
+        await segment(storeFor('https://api.z.ai/api/paas/v4', 'glm-6-zai'), customFetch);
+
+        expect(bodies.map(body => [body.thinking, body.reasoning_effort])).toEqual([[{ type: 'disabled' }, undefined], [undefined, 'low']]);
+    });
+
     it('the web segmentation service: the default model with its thinking off', async () => {
         const bodies: Record<string, unknown>[] = [];
         const fetchImpl = (async (_url: string, init: { body: string }) => {

@@ -98,7 +98,8 @@ const namesInBackticks = (message, knob) => {
  * The shared check first (error.param and the English wordings, GLM 1214 on Z.ai included), then
  * GLM's codes: a 1214 that names the knob in either language, and a 1210, which names nothing, is
  * taken as a rejection of this attempt's knobs so the next attempt is tried; the runner logs the
- * move. A 1210 caused by something else then fails on the last attempt as it came.
+ * move. A 1210 caused by something else then fails on the last attempt as it came. The transport
+ * asks the same question about response_format, so a 1210 is first retried without JSON mode.
  */
 const rejectedParameter = (status, errorBody, knob) => {
     if (rejectsCompatibleParameter(status, errorBody, knob)) {
@@ -138,7 +139,10 @@ export const glmAdapter = {
     tokenField: 'max_tokens',
     attempts: attemptsFor,
     // Plain JSON mode. Whether glm-5.3-flash takes it is contradictory in the docs; if it is
-    // rejected, the transport drops response_format and retries. [Z.ai·struct-output]
+    // rejected, the transport drops response_format and retries. It reads the rejection with
+    // rejectedParameter below, so a 1210 that names nothing gets that retry first; only when the
+    // request still fails without the format does the runner take the 1210 as this attempt's
+    // reasoning switch and move on. [Z.ai·struct-output][Z.ai·api-code]
     responseFormat: () => ({ type: 'json_object' }),
     rejectedParameter,
     // The model-centre list the settings PR read is not in either site's open API documentation,

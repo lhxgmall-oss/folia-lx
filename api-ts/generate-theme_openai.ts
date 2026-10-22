@@ -270,6 +270,7 @@ const requestThemeContent = async (
             const response = await sendOpenAICompatibleRequest({
                 apiUrl,
                 provider: adapter.id,
+                rejectsFormat: adapter.rejectedParameter,
                 body: buildCompatibleBody(adapter, {
                     task: 'theme',
                     model,

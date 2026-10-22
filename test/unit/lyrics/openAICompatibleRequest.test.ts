@@ -109,6 +109,51 @@ describe('bounded capability negotiation', () => {
         expect(response.status).toBe(429);
         expect(limited).toHaveBeenCalledTimes(1);
     });
+
+    it('leaves a rejected thinking field to the attempt runner instead of dropping it', async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+        const fetchImpl = vi.fn(async () => Response.json(
+            { error: { message: 'Invalid value', param: 'thinking', type: 'invalid_request_error' } }, { status: 400 },
+        ));
+        const response = await send({ model: 'model', thinking: { type: 'disabled' } }, fetchImpl as typeof fetch);
+        expect(response.status).toBe(400);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        vi.restoreAllMocks();
+    });
+
+    it('reads response-format rejections with the given check, and remembers one only once a request without it works', async () => {
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+        // GLM's 1210 names no field: an adapter's own check may still take it as one.
+        const unnamed = () => Response.json({ error: { code: '1210', message: 'Invalid API parameter, please check the documentation.' } }, { status: 400 });
+        const rejectsFormat = (status: number, text: string) => status === 400 && text.includes('"1210"');
+        const sendWith = (fetchImpl: typeof fetch) => sendOpenAICompatibleRequest({
+            apiUrl: 'https://endpoint.example.test/v1', provider: 'glm', body: { model: 'model', response_format: { type: 'json_object' } },
+            init: { method: 'POST' }, fetchImpl, rejectsFormat,
+        });
+
+        // The format was the problem: dropped, and once that works, not sent again.
+        const formats: boolean[] = [];
+        const formatRejected = vi.fn(async (_url, init) => {
+            const body = JSON.parse(String(init?.body));
+            formats.push(Boolean(body.response_format));
+            return body.response_format ? unnamed() : Response.json({ choices: [] });
+        });
+        expect((await sendWith(formatRejected as typeof fetch)).ok).toBe(true);
+        expect((await sendWith(formatRejected as typeof fetch)).ok).toBe(true);
+        expect(formats).toEqual([true, false, false]);
+
+        // Something else was: the request fails without the format too, and the format is kept.
+        resetOpenAICompatibleCapabilities();
+        formats.length = 0;
+        const alwaysRejected = vi.fn(async (_url, init) => {
+            formats.push(Boolean(JSON.parse(String(init?.body)).response_format));
+            return unnamed();
+        });
+        expect((await sendWith(alwaysRejected as typeof fetch)).status).toBe(400);
+        expect((await sendWith(alwaysRejected as typeof fetch)).status).toBe(400);
+        expect(formats).toEqual([true, false, true, false]);
+        vi.restoreAllMocks();
+    });
 });
 
 describe('feature reasoning policy', () => {

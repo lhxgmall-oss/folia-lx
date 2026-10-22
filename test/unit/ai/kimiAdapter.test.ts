@@ -193,6 +193,37 @@ describe('end to end', () => {
         }]);
     });
 
+    it('a model whose switch the endpoint rejects gets the low level next, on the desktop and the web', async () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+        const bodies: Record<string, unknown>[] = [];
+        const fetchImpl = async (_url: string, init: { body: string }) => {
+            const body = JSON.parse(init.body);
+            bodies.push(body);
+            return body.thinking
+                ? Response.json({ error: { message: 'Invalid request: thinking is not supported for this model', type: 'invalid_request_error' } }, { status: 400 })
+                : answer('{"lines":[["la ","la"]]}');
+        };
+        const store = { get: (key: string) => ({
+            AI_PROVIDER: 'openai', OPENAI_API_KEY: 'k', OPENAI_API_URL: 'https://api.moonshot.cn/v1', OPENAI_API_MODEL: 'kimi-k4-desktop',
+        } as Record<string, unknown>)[key] };
+
+        await client.runAiJsonCompletion({ store, task: 'segmentation', systemPrompt: 's', sourcePrompt: 'u', customFetch: fetchImpl, answerTokens: 8192 });
+        await segmentLyricLines(['la la'], {
+            OPENAI_API_KEY: 'k', OPENAI_API_URL: 'https://api.moonshot.cn/v1', OPENAI_API_MODEL: 'kimi-k4-web',
+        }, fetchImpl as unknown as typeof fetch);
+
+        // The rejection reaches the runner, which moves to the next attempt the adapter wrote: the
+        // low level, budgeted for reasoning. Nothing is sent with neither parameter.
+        const shapes = bodies.map(body => [body.model, body.thinking, body.reasoning_effort, body.max_completion_tokens]);
+        expect(shapes).toEqual([
+            ['kimi-k4-desktop', { type: 'disabled' }, undefined, 8192],
+            ['kimi-k4-desktop', undefined, 'low', 8192 + 24576],
+            ['kimi-k4-web', { type: 'disabled' }, undefined, 8192],
+            ['kimi-k4-web', undefined, 'low', 8192 + 24576],
+        ]);
+    });
+
     it('the web segmentation service sends the same request shape', async () => {
         const bodies: Record<string, unknown>[] = [];
         const fetchImpl = (async (_url: string, init: { body: string }) => {

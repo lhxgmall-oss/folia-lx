@@ -91,7 +91,7 @@ import { tencentcloudAdapter } from './tencentcloud.mjs';
  *   attempts(task: AiTask, model: string): AiAttempt[],
  *   responseFormat?(model: string, schema?: object, schemaName?: string): object | undefined,   // OpenAI-compatible only; default json_object
  *   buildBody?(request: AiBodyRequest): object,     // required for 'anthropic' and 'gemini'; 'openai' uses compatibleBody.buildCompatibleBody
- *   rejectedParameter?(status: number, errorBody: string, knob: string): boolean,   // default compatibleBody.rejectsCompatibleParameter
+ *   rejectedParameter?(status: number, errorBody: string, knob: string): boolean,   // default compatibleBody.rejectsCompatibleParameter; the OpenAI-compatible transport also asks it about response_format
  *   errorHints?: Record<number, string>,            // OpenAI-compatible only: a sentence added to the error line for these HTTP statuses
  *   truncationReasons?: string[],                   // OpenAI-compatible only: finish_reason values besides 'length' that mean the answer was cut off
  *   models: AiModelCatalogue | null,                // null: no listing request at all

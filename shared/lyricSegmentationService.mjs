@@ -141,12 +141,13 @@ const describeEmpty = (choice, usage, model) => {
  * Sends one request, returning the outcome rather than throwing, so the ladder can decide.
  * Mirrors sendOpenAICompatible in electron/aiTextClient.cjs.
  */
-const sendOpenAICompatible = async (apiUrl, apiKey, provider, body, fetchImpl) => {
+const sendOpenAICompatible = async (apiUrl, apiKey, adapter, body, fetchImpl) => {
   let response;
   try {
     response = await sendOpenAICompatibleRequest({
       apiUrl,
-      provider,
+      provider: adapter.id,
+      rejectsFormat: adapter.rejectedParameter,
       body,
       init: {
         method: 'POST',
@@ -216,7 +217,7 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
         budget: budgetFor('segmentation', SEGMENTATION_MAX_OUTPUT_TOKENS, attempt),
         temperature,
       });
-      const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, adapter.id, body, fetchImpl);
+      const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, adapter, body, fetchImpl);
       return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage, adapter) } : withErrorHint(adapter, result);
     },
   });

@@ -9,9 +9,8 @@ export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-flash';
 
 // Both switches are documented: `thinking: disabled` [DeepSeek·thinking_mode] and
 // `reasoning_effort: 'none'` ("none disables thinking mode") [DeepSeek·chat]. Segmentation has
-// sent both since before adapters (measured: 52 s down to 1 s), so neither is dropped. When
-// DeepSeek names `thinking` as rejected, the transport drops it and retries
-// (sendOpenAICompatibleRequest); a rejected reasoning_effort moves to the thinking switch alone,
+// sent both since before adapters (measured: 52 s down to 1 s), so neither is dropped. Either one
+// rejected by name moves to the thinking switch alone (the runner, not the transport, decides),
 // and the last attempt sends neither and leaves room to reason.
 const ATTEMPTS = Object.freeze([
     Object.freeze({
