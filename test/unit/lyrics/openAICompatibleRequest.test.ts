@@ -117,7 +117,7 @@ describe('feature reasoning policy', () => {
         accentColor: '#ff0000', secondaryColor: '#555555', wordColors: [], lyricsIcons: [],
     };
 
-    it('leaves DeepSeek theme reasoning at its default', async () => {
+    it('switches DeepSeek theme reasoning off, as the desktop does', async () => {
         const bodies: any[] = [];
         const fetchImpl = vi.fn(async (_url, init) => {
             bodies.push(JSON.parse(String(init?.body)));
@@ -131,7 +131,8 @@ describe('feature reasoning policy', () => {
             OPENAI_API_MODEL: 'deepseek-v4-flash',
         });
         expect(response.status).toBe(200);
-        expect(bodies[0].thinking).toBeUndefined();
+        // Only on/off switches: the theme switches thinking off (shared/ai/deepseek.mjs).
+        expect(bodies[0]).toMatchObject({ thinking: { type: 'disabled' }, reasoning_effort: 'none' });
     });
 
     it('asks DeepSeek to disable reasoning for lyric segmentation', async () => {
