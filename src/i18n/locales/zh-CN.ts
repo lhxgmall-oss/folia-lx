@@ -1776,7 +1776,7 @@ export default {
     "aiProvider_deepseek": "DeepSeek",
     "aiProvider_mimo": "小米 MiMo",
     "aiProvider_qwen": "阿里云 Qwen",
-    "aiProvider_tencentcloud": "腾讯云",
+    "aiProvider_tencentcloud": "腾讯云 TokenHub",
     "aiProvider_openai": "OpenAI",
     "aiProvider_anthropic": "Anthropic",
     "aiProvider_kimi": "Kimi",

@@ -27,7 +27,8 @@ export const GENERIC_REASONING_LADDER = Object.freeze(REASONING_SUPPRESSION_ATTE
 /**
  * The temperature this attempt sends, clamped to the adapter's range, or undefined when it sends
  * none: the adapter has no range (`temperature: null`), the attempt or the adapter's
- * `sendsTemperature` says no, or there is no usable value.
+ * `sendsTemperature` says no, or there is no usable value. An adapter's `temperatureRange(model)`
+ * narrows the range for some of its models.
  */
 export const temperatureFor = (adapter, model, attempt, value) => {
     const range = adapter.temperature;
@@ -36,7 +37,8 @@ export const temperatureFor = (adapter, model, attempt, value) => {
     }
     const sends = attempt.sendTemperature
         ?? (typeof adapter.sendsTemperature === 'function' ? adapter.sendsTemperature(model, attempt) : true);
-    return sends ? Math.min(range.max, Math.max(range.min, value)) : undefined;
+    const { min, max } = (typeof adapter.temperatureRange === 'function' && adapter.temperatureRange(model)) || range;
+    return sends ? Math.min(max, Math.max(min, value)) : undefined;
 };
 
 /**
@@ -113,6 +115,16 @@ export const exhaustedByReasoning = (choice, usage) => {
 export const rejectsCompatibleParameter = (status, errorBody, knob) => (
     rejectsOpenAICompatibleParameter(status, String(errorBody ?? ''), knob)
 );
+
+/**
+ * A failed send's outcome with the adapter's hint for that HTTP status (`errorHints`) added to the
+ * displayed error line, for a status whose meaning the provider's own text leaves unclear (TokenHub's
+ * 402). `errorBody` stays the provider's raw text; any other outcome comes back as it was.
+ */
+export const withErrorHint = (adapter, result) => {
+    const hint = result && !result.ok && adapter.errorHints ? adapter.errorHints[result.status] : undefined;
+    return hint && typeof result.errorText === 'string' ? { ...result, errorText: `${result.errorText} (${hint})` } : result;
+};
 
 /**
  * The model catalogue as most OpenAI-compatible servers return it: `data[]` with `id`, cursor

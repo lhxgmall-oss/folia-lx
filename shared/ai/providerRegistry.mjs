@@ -84,6 +84,7 @@ import { tencentcloudAdapter } from './tencentcloud.mjs';
  *   suggestedModels?: string[],                     // offered when `models` is null or listing fails
  *   temperature: null | { min: number, max: number },   // null: never sent, and the form hides it
  *   sendsTemperature?(model: string, attempt: AiAttempt): boolean,
+ *   temperatureRange?(model: string): { min: number, max: number } | undefined,   // narrower than `temperature` for some models
  *   stream: boolean,                                // whether the form offers the streaming switch
  *   streamExtras?: Record<string, unknown>,         // extra fields sent with stream: true
  *   tokenField: 'max_tokens' | 'max_completion_tokens' | 'maxOutputTokens',
@@ -91,6 +92,7 @@ import { tencentcloudAdapter } from './tencentcloud.mjs';
  *   responseFormat?(model: string, schema?: object, schemaName?: string): object | undefined,   // OpenAI-compatible only; default json_object
  *   buildBody?(request: AiBodyRequest): object,     // required for 'anthropic' and 'gemini'; 'openai' uses compatibleBody.buildCompatibleBody
  *   rejectedParameter?(status: number, errorBody: string, knob: string): boolean,   // default compatibleBody.rejectsCompatibleParameter
+ *   errorHints?: Record<number, string>,            // OpenAI-compatible only: a sentence added to the error line for these HTTP statuses
  *   models: AiModelCatalogue | null,                // null: no listing request at all
  *   retired?: { pattern: RegExp, replacement: string }[],
  *   alwaysThinks?(model: string): boolean,

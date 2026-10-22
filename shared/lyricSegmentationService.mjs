@@ -1,7 +1,7 @@
 import { sendOpenAICompatibleRequest } from './openAICompatibleRequest.mjs';
 import { budgetFor } from './ai/aiTasks.mjs';
 import { runAttempts } from './ai/attemptRunner.mjs';
-import { buildCompatibleBody, exhaustedByReasoning } from './ai/compatibleBody.mjs';
+import { buildCompatibleBody, exhaustedByReasoning, withErrorHint } from './ai/compatibleBody.mjs';
 import { getAiAdapter, resolveAiConnection } from './ai/providerRegistry.mjs';
 
 // shared/lyricSegmentationService.mjs
@@ -217,7 +217,7 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
         temperature,
       });
       const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, adapter.id, body, fetchImpl);
-      return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : result;
+      return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : withErrorHint(adapter, result);
     },
   });
 };

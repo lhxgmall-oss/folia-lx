@@ -498,7 +498,7 @@ async function runOpenAICompatibleCompletion({ ai, adapter, connection, apiKey, 
       const startedAt = Date.now();
       const result = await sendOpenAICompatible({ apiUrl, apiKey, provider: adapter.id, body, customFetch, timeoutMs });
       if (!result.ok) {
-        return result;
+        return ai.withErrorHint(adapter, result);
       }
       console.log(`[ai] ${redactUrl(apiUrl)} answered in ${Date.now() - startedAt}ms`);
       return { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) };
@@ -937,7 +937,7 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
           customFetch,
           timeoutMs,
         });
-        return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : result;
+        return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : ai.withErrorHint(adapter, result);
       },
     });
   } catch (error) {
