@@ -1161,14 +1161,17 @@ export function usePlaybackQueueController({
         const indexLoopMode = queueLoopMode(loopMode, isFmMode);
 
         if (isFmMode && fmNeedsTopUpAt(playQueue.length, currentIndex)) {
-            let fmSongs: SongResult[] = [];
-            const providerId = currentSong ? getOnlineProviderIdForSong(currentSong) : undefined;
+            let batch: SongResult[] = [];
+            const stepFrom = heldSong ?? options?.fromSong ?? currentSong;
+            const providerId = stepFrom ? getOnlineProviderIdForSong(stepFrom) : undefined;
             const selection = getPersonalFmSelection(providerId || undefined);
+            // The main player's plays start in playSong and take a new call id there, before any wait of their
+            // own (a mode switch, a home card, a next pressed meanwhile, a search result): one that came while
+            // the batch did has the say over what plays next, even before it shows its song. The stage takes
+            // over without playSong, and ends FM as it does.
+            const playCallAtStart = playSongCallIdRef.current;
             try {
-                // Only songs not in the queue yet: a song twice would make finding the current one by its
-                // key jump back to the earlier place. A batch of nothing new is a top-up that did not come;
-                // the next track tops up again.
-                fmSongs = freshFmSongs(playQueue, await omni.getPersonalFm());
+                batch = await omni.getPersonalFm();
             } catch (error) {
                 console.error('Failed to fetch FM tracks', error);
             }
@@ -1182,19 +1185,34 @@ export function usePlaybackQueueController({
             }
             const live = usePlaybackStore.getState();
             const selectedNow = getPersonalFmSelection(providerId || undefined);
-            // A mode switch or a newly started queue overtakes a top-up already in flight.
-            if (!live.isFmMode || live.playQueue !== playQueue || !isSamePlaybackSong(live.currentSong, currentSong)
+            // A mode switch or a newly started queue overtakes a top-up already in flight. The queue itself
+            // is not asked: an add, a removal, a library refresh or a recovery write it anew in place while
+            // FM stays on air, and those are steps on through, not reasons to stop at the end of this song.
+            if (playSongCallIdRef.current !== playCallAtStart || !live.isFmMode
+                || (currentSong && !isSamePlaybackSong(live.currentSong, currentSong))
                 || selection.mode !== selectedNow.mode || selection.scene !== selectedNow.scene) return;
-            if (fmSongs.length > 0) {
-                const nextQueue = [...playQueue, ...fmSongs];
-                setPlayQueue(nextQueue);
-                void playSong(nextQueue[nextQueueIndex(nextQueue.length, currentIndex, indexLoopMode)], nextQueue, true, {
+            // The queue as the store holds it now, with whatever was added or edited during the wait: this
+            // render's may already be an older copy of it.
+            const base = live.playQueue;
+            // Only songs not in the queue yet: a song twice would make finding the current one by its
+            // key jump back to the earlier place. A batch of nothing new is a top-up that did not come;
+            // the next track tops up again.
+            const fmSongs = freshFmSongs(base, batch);
+            const nextQueue = fmSongs.length > 0 ? [...base, ...fmSongs] : base;
+            if (fmSongs.length > 0) setPlayQueue(nextQueue);
+            // A batch that failed or brought nothing new steps on through the queue there is, and on its last
+            // song stops (Personal FM does not go round).
+            const nextIndex = nextQueueIndex(nextQueue.length, queueIndexOf(base, stepFrom), indexLoopMode);
+            if (nextIndex >= 0) {
+                void playSong(nextQueue[nextIndex], nextQueue, true, {
                     shouldNavigateToPlayer,
                     unavailableSkipCount: options?.unavailableSkipCount,
                     isAutomixAdvance: options?.isAutomixAdvance,
                 });
-                return;
+            } else if (options?.allowStopOnMissing) {
+                stopAtQueueEnd();
             }
+            return;
         }
 
         const nextIndex = nextQueueIndex(playQueue.length, currentIndex, indexLoopMode);
