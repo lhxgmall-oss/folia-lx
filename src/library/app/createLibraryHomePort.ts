@@ -1,13 +1,15 @@
 import i18n from '../../i18n/config';
 import type { LibraryHomePort, LibraryHomeScanProgress } from '../core/home/homeModel.contract';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
+import type { SongResult } from '../../types';
+import type { PersonalFmSelection } from '../../types/personalFm';
 import { translateHomeMessage } from '../core/home/homeSources';
 import { importFolder, resyncAllFolders, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../../services/localMusicService';
 import { getLocalLibraryAvailability } from '../../services/localLibraryAvailability';
 import { importLocalPlaylistFile } from '../../services/localPlaylistFileService';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
-import { usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
-import { toPersonalFmRequestOptions } from '../../services/onlineMusic/fmModes';
+import { selectProviderPersonalFm, usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
+import { isSamePersonalFmSelection, toPersonalFmRequestOptions } from '../../services/onlineMusic/fmModes';
 import { omni } from '../../services/onlineMusic/omni';
 import {
     createLocalGridViewCollection,
@@ -25,6 +27,8 @@ type HomePortSurface = Pick<HomeSurfaceProps, 'localSongs' | 'onRefreshLocalSong
 export const createLibraryHomePort = (getSurface: () => HomePortSurface): LibraryHomePort => {
     // A later card click supersedes both catalogue loading and songs from the earlier click.
     let personalFmRequest = 0;
+    // The selection stored before the cards still on their way: a card that brings nothing puts it back.
+    let selectionBeforePending: { providerId: string; selection: PersonalFmSelection } | null = null;
     return {
         localAvailability: () => getLocalLibraryAvailability(),
         importFolder: async () => (await importFolder()).length,
@@ -52,15 +56,44 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
             const stillCurrent = () => request === personalFmRequest && activeProvider() === providerId;
             if (!stillCurrent()) return [];
             let options;
+            // Put back when the card brings nothing to play, as the mode switch in the command palette does.
+            let putBack = () => {};
             if (selection) {
                 const catalog = await omni.getPersonalFmCatalog(providerId);
                 // A card belongs to the provider that displayed it, even if the listener switches meanwhile.
                 if (!stillCurrent()) return [];
-                usePersonalFmModeStore.getState().setCatalog(providerId, catalog);
-                const applied = usePersonalFmModeStore.getState().setProviderSelection(providerId, selection);
+                const modes = usePersonalFmModeStore.getState();
+                modes.setCatalog(providerId, catalog);
+                // From before the oldest card still on its way: one it overtook never played its scene either.
+                const previous = selectionBeforePending?.providerId === providerId
+                    ? selectionBeforePending.selection
+                    : selectProviderPersonalFm(usePersonalFmModeStore.getState(), providerId);
+                // Stored before the songs come: the radio's later batches are asked for in the mode stored.
+                const applied = modes.setProviderSelection(providerId, selection);
+                selectionBeforePending = { providerId, selection: previous };
                 options = toPersonalFmRequestOptions(applied);
+                // Only this click's own choice is taken back: a newer card, or a mode picked meanwhile in the
+                // command palette, has stored its own, which stands.
+                putBack = () => {
+                    if (!stillCurrent()) return;
+                    if (!isSamePersonalFmSelection(selectProviderPersonalFm(usePersonalFmModeStore.getState(), providerId), applied)) return;
+                    usePersonalFmModeStore.getState().setProviderSelection(providerId, previous);
+                };
             }
-            const songs = await omni.getPersonalFm(options);
+            // The newest click has its answer, whatever it is: nothing is on its way any more.
+            const settle = () => {
+                if (request === personalFmRequest) selectionBeforePending = null;
+            };
+            let songs: SongResult[];
+            try {
+                songs = await omni.getPersonalFm(options);
+            } catch (error) {
+                putBack();
+                settle();
+                throw error;
+            }
+            if (songs.length === 0) putBack();
+            settle();
             return stillCurrent() ? songs : [];
         },
         playPersonalFm: (song, queue) => getSurface().onPlaySong(song, queue, true),

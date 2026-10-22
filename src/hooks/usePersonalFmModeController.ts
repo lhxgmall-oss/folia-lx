@@ -39,6 +39,8 @@ export function usePersonalFmModeController({
     const personalFmSelection = usePersonalFmModeStore(state => selectProviderPersonalFm(state, activeProviderId));
     const setSelection = usePersonalFmModeStore(state => state.setProviderSelection);
     const request = useRef(0);
+    /** The selection stored before the switches still on their way: one that brings nothing puts it back. */
+    const selectionBeforePending = useRef<{ providerId: string; selection: PersonalFmSelection } | null>(null);
 
     const isPersonalFmModeSupported = useMemo(() => {
         try {
@@ -50,7 +52,10 @@ export function usePersonalFmModeController({
     }, [activeProviderId, catalog]);
 
     const setPersonalFmSelection = useCallback(async (selection: PersonalFmSelection) => {
-        const previous = personalFmSelection;
+        // From before the oldest switch still on its way: one this overtakes never played its mode either.
+        const pending = selectionBeforePending.current;
+        const previous = pending?.providerId === activeProviderId ? pending.selection : personalFmSelection;
+        selectionBeforePending.current = null;
         const applied = setSelection(activeProviderId, selection);
         const label = getPersonalFmSelectionLabel(applied, t, catalog);
         const mine = ++request.current;
@@ -77,11 +82,25 @@ export function usePersonalFmModeController({
             return;
         }
 
+        selectionBeforePending.current = { providerId: activeProviderId, selection: previous };
+        // The newest switch has its answer, whatever it is: nothing is on its way any more.
+        const settle = () => {
+            if (mine === request.current) selectionBeforePending.current = null;
+        };
+        // Only this switch's own choice is taken back: a home card clicked meanwhile has stored its own,
+        // which stands.
+        const putBack = () => {
+            if (isSamePersonalFmSelection(selectProviderPersonalFm(usePersonalFmModeStore.getState(), activeProviderId), applied)) {
+                setSelection(activeProviderId, previous);
+            }
+        };
+
         try {
             const songs = await omni.getPersonalFm(toPersonalFmRequestOptions(applied));
+            settle();
             if (!stillCurrent()) return;
             if (songs.length === 0) {
-                setSelection(activeProviderId, previous);
+                putBack();
                 setStatusMsg({ type: 'error', text: t('personalFmMode.statusEmpty', 'This Personal FM mode returned nothing') });
                 return;
             }
@@ -95,11 +114,12 @@ export function usePersonalFmModeController({
         } catch (error) {
             // A newer request or another queue that took over meanwhile has its own outcome, which stands. So
             // does the new mode once playSong took its first song: that play counted as a start of its own.
+            settle();
             if (!stillCurrent()) {
                 console.error('[PersonalFm] Mode request failed after it was overtaken', error);
                 return;
             }
-            setSelection(activeProviderId, previous);
+            putBack();
             console.error('[PersonalFm] Failed to refresh queue for mode', error);
             setStatusMsg({ type: 'error', text: t('personalFmMode.statusFailed', 'Failed to switch the Personal FM mode') });
         }

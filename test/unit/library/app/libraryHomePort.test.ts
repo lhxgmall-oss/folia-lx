@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLibraryHomePort } from '@/library/app/createLibraryHomePort';
 import { createLibraryHomeActions } from '@/library/core/home/libraryHomeActions.service';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
-import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
+import { selectProviderPersonalFm, usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
 import { DEFAULT_PERSONAL_FM_CATALOG } from '@/services/onlineMusic/fmModes';
 import type { HomeSurfaceProps } from '@/components/app/home/homeSurfaceTypes';
 import type { SongResult } from '@/types';
@@ -15,6 +15,9 @@ vi.mock('@/services/localPlaylistFileService', () => ({ importLocalPlaylistFile:
 const selection = { mode: 'SCENE_RCMD' as const, scene: '33' };
 const catalog = { ...DEFAULT_PERSONAL_FM_CATALOG, scenes: [{ id: '33', category: 'activity', labelKey: '', labelFallback: 'Driving', keywords: [] }] };
 const songs = [{ id: 's1' }] as SongResult[];
+const explore = { mode: 'EXPLORE' as const, scene: null };
+const familiar = { mode: 'FAMILIAR' as const, scene: null };
+const selected = () => selectProviderPersonalFm(usePersonalFmModeStore.getState(), 'qishui');
 const deferred = <T>() => {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>(done => { resolve = done; });
@@ -56,12 +59,41 @@ describe('home radio provider binding', () => {
         api.getPersonalFm.mockReturnValueOnce(pending.promise).mockResolvedValueOnce([]);
         const { actions, play } = setup();
         const open = () => actions.openOnlineCard({ id: 'scene-33', name: 'Driving', type: 'radio', raw: { personalFm: selection } }, 'qishui', vi.fn());
+        usePersonalFmModeStore.setState({ providerSelections: { qishui: explore } });
         const earlier = open();
         await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalledTimes(1));
         await open();
         pending.resolve(songs);
         await earlier;
         expect(play).not.toHaveBeenCalled();
+        // Neither card played its scene: the mode from before the first one is back.
+        expect(selected()).toEqual(explore);
+    });
+    it('puts the earlier selection back when the scene returns no songs', async () => {
+        usePersonalFmModeStore.setState({ providerSelections: { qishui: explore } });
+        api.getPersonalFm.mockResolvedValueOnce([]);
+        const { port } = setup();
+        expect(await port.getPersonalFm(selection)).toEqual([]);
+        expect(selected()).toEqual(explore);
+    });
+    it('puts the earlier selection back when the songs fail to come', async () => {
+        usePersonalFmModeStore.setState({ providerSelections: { qishui: explore } });
+        api.getPersonalFm.mockRejectedValueOnce(new Error('network'));
+        const { port } = setup();
+        await expect(port.getPersonalFm(selection)).rejects.toThrow('network');
+        expect(selected()).toEqual(explore);
+    });
+    it('keeps a mode picked elsewhere while the scene was loading, though the scene returns nothing', async () => {
+        usePersonalFmModeStore.setState({ providerSelections: { qishui: explore } });
+        const pending = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValueOnce(pending.promise);
+        const { port } = setup();
+        const result = port.getPersonalFm(selection);
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalled());
+        usePersonalFmModeStore.getState().setProviderSelection('qishui', familiar);
+        pending.resolve([]);
+        expect(await result).toEqual([]);
+        expect(selected()).toEqual(familiar);
     });
     it('discards an earlier catalogue before it can overwrite the newer selection', async () => {
         const pending = deferred<typeof catalog>();
