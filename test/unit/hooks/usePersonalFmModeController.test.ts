@@ -39,6 +39,8 @@ vi.mock('../../../src/stores/usePlaybackStore', () => ({ usePlaybackStore: { get
 
 const { usePersonalFmModeController } = await import('../../../src/hooks/usePersonalFmModeController');
 const { useStatusMessageStore } = await import('../../../src/stores/useStatusMessageStore');
+const { noteQueueStart } = await import('../../../src/components/app/playback/start/queueStarts');
+const { noteWholeQueueWrite } = await import('../../../src/services/wholeQueueWrites');
 
 const SONGS = [
     { id: 1, name: 'First' },
@@ -126,6 +128,36 @@ describe('usePersonalFmModeController', () => {
         playbackMock.playQueue = ['a deliberately selected playlist'];
         release(SONGS);
         await pending;
+        expect(playSong).not.toHaveBeenCalled();
+    });
+
+    /** A mode request held until `release`, with `during` run while it waits. */
+    const switchWhile = async (during: () => void) => {
+        let release!: (songs: typeof SONGS) => void;
+        omniMock.getPersonalFm.mockImplementation(() => new Promise(resolve => { release = resolve; }));
+        const { controller, playSong } = createController();
+        const pending = controller.setPersonalFmSelection({ mode: 'FAMILIAR', scene: null });
+        during();
+        release(SONGS);
+        await pending;
+        return playSong;
+    };
+
+    it('still switches when the next song of the stream lands while the request is in flight', async () => {
+        // Every landing writes the queue anew (the song with its address, a top-up after it).
+        const playSong = await switchWhile(() => {
+            playbackMock.playQueue = ['the same stream, written anew'];
+        });
+        expect(playSong).toHaveBeenCalledWith(SONGS[0], SONGS, true);
+    });
+
+    it('leaves a queue started while the request was in flight on air, even before FM was turned off', async () => {
+        const playSong = await switchWhile(() => noteQueueStart());
+        expect(playSong).not.toHaveBeenCalled();
+    });
+
+    it('leaves a queue replaced whole while the request was in flight as it is', async () => {
+        const playSong = await switchWhile(() => noteWholeQueueWrite());
         expect(playSong).not.toHaveBeenCalled();
     });
 

@@ -12,6 +12,8 @@ import { usePersonalFmCatalog } from './usePersonalFmCatalog';
 import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
+import { wholeQueueWritesSoFar } from '../services/wholeQueueWrites';
+import { queueStartsSoFar } from '../components/app/playback/start/queueStarts';
 import type { SongResult, StatusMessage } from '../types';
 import { setStatusMessage as setStatusMsg } from '../stores/useStatusMessageStore';
 
@@ -52,10 +54,16 @@ export function usePersonalFmModeController({
         const applied = setSelection(activeProviderId, selection);
         const label = getPersonalFmSelectionLabel(applied, t, catalog);
         const mine = ++request.current;
-        const queue = usePlaybackStore.getState().playQueue;
+        // The same FM stream is still on air when the batch comes: nothing started a queue of its own or
+        // replaced the queue whole meanwhile. The queue itself is not asked: the next song landing, an add
+        // or a library refresh write it anew while the same stream plays on, and the switch is still meant.
+        const queueStartsAtStart = queueStartsSoFar();
+        const queueWritesAtStart = wholeQueueWritesSoFar();
         const stillCurrent = () => mine === request.current
             && useOnlineProviderAccountStore.getState().activeProviderId === activeProviderId
-            && usePlaybackStore.getState().isFmMode && usePlaybackStore.getState().playQueue === queue;
+            && usePlaybackStore.getState().isFmMode
+            && queueStartsSoFar() === queueStartsAtStart
+            && wholeQueueWritesSoFar() === queueWritesAtStart;
 
         const source = currentSong ? getPlaybackSourceRef(currentSong) : null;
         if (!isFmMode || !currentSong || source?.kind !== 'online' || source.providerId !== activeProviderId) {
@@ -85,7 +93,12 @@ export function usePersonalFmModeController({
             // stream, so keeping the old one's leftovers around would only muddy it.
             await playSong(songs[0], songs, true);
         } catch (error) {
-            if (!stillCurrent()) return;
+            // A newer request or another queue that took over meanwhile has its own outcome, which stands. So
+            // does the new mode once playSong took its first song: that play counted as a start of its own.
+            if (!stillCurrent()) {
+                console.error('[PersonalFm] Mode request failed after it was overtaken', error);
+                return;
+            }
             setSelection(activeProviderId, previous);
             console.error('[PersonalFm] Failed to refresh queue for mode', error);
             setStatusMsg({ type: 'error', text: t('personalFmMode.statusFailed', 'Failed to switch the Personal FM mode') });
