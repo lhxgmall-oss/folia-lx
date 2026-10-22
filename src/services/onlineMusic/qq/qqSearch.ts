@@ -38,6 +38,11 @@ const forgetAnonymousSearchFallback = (keyword: string): void => {
     anonymousSearchFallbackKeywords.delete(keyword);
 };
 
+/** 测试与重置运行时缓存用：忘掉所有回退过匿名的关键词。 */
+export const resetQqSearchFallbackMemory = (): void => {
+    anonymousSearchFallbackKeywords.clear();
+};
+
 const SEARCH_REJECTED_KEY = 'search.rejected';
 
 const isSearchRejected = (error: unknown): boolean => (

@@ -664,7 +664,8 @@ const normalizeKugouSearchSongs = (rawItems: any[]): UnifiedSong[] => {
 };
 
 // 首页带凭据搜索空、匿名有结果后，后续页仍会走带凭据搜索；记住关键词，别让列表断在第一页。
-// 首页带凭据搜索重新有结果时再忘掉它；上限只防长期运行累积，登出和切号时整组清掉。
+// 首页带凭据搜索重新有结果时再忘掉它；上限只防长期运行累积，登出（含会话失效）时整组清掉。
+// 换号不另清：记录只在翻后续页时查，换号后新搜一个词的第一页照样先走带凭据搜索，记录跟着更新。
 const KUGOU_ANONYMOUS_SEARCH_FALLBACK_LIMIT = 100;
 const kugouAnonymousSearchFallbackKeywords = new Set<string>();
 

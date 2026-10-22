@@ -15,7 +15,7 @@ vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
     searchQQSongs: searchQQSongsMock,
 }));
 
-import { searchQqSongs } from '@/services/onlineMusic/qq/qqSearch';
+import { resetQqSearchFallbackMemory, searchQqSongs } from '@/services/onlineMusic/qq/qqSearch';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 // 后端 `/search` 原样交出的精简版搜索条目（字段按 qq-music-api 3.3.1 文档，标识符取公开曲目）。
@@ -52,6 +52,8 @@ describe('searchQqSongs', () => {
         requestMock.mockReset();
         searchQQSongsMock.mockReset();
         transportState.hasSession = true;
+        // 回退过匿名的关键词记在模块里；不清的话前一条用例的回退会把后一条的后续页送去匿名。
+        resetQqSearchFallbackMemory();
     });
 
     it('searches through the backend with the session and keeps the catalog mids', async () => {
@@ -139,6 +141,21 @@ describe('searchQqSongs', () => {
         await searchQqSongs('恢复会话', 20, 20);
 
         expect(requestMock).toHaveBeenCalledWith('search', { keyword: '恢复会话', type: 'song', page: 2, limit: 20 });
+        expect(searchQQSongsMock).not.toHaveBeenCalled();
+    });
+
+    it('forgets the marked keywords when the runtime memory is reset', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        requestMock.mockResolvedValue({ code: 200, more: false, items: [] });
+        searchQQSongsMock.mockResolvedValue([ANONYMOUS_RESULT]);
+        await searchQqSongs('重置记录', 20, 0);
+
+        resetQqSearchFallbackMemory();
+        requestMock.mockClear();
+        searchQQSongsMock.mockClear();
+        await searchQqSongs('重置记录', 20, 20);
+
+        expect(requestMock).toHaveBeenCalledWith('search', { keyword: '重置记录', type: 'song', page: 2, limit: 20 });
         expect(searchQQSongsMock).not.toHaveBeenCalled();
     });
 
