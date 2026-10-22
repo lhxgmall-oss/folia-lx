@@ -153,6 +153,11 @@ const OWN_ACCESS: Partial<Record<LyricProviderSource, Partial<LyricSourceAccess>
     kugou: {
         songKey: song => String(song.kgHash ?? song.id).toUpperCase(),
     },
+    // Its track ids are 1-30 digits, past what a number holds exactly: kept as text, never made a number.
+    qishui: {
+        knownById: songId => (typeof songId === 'string' ? /^\d{1,30}$/.test(songId) ? songId : null
+            : Number.isSafeInteger(songId) && songId >= 0 ? String(songId) : null),
+    },
 };
 
 const accessBySource = new Map<LyricProviderSource, LyricSourceAccess>(
