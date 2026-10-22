@@ -115,9 +115,9 @@ contextBridge.exposeInMainWorld('electron', {
     },
     setWallpaperHitRegions: (rects) => ipcRenderer.send('wallpaper-hit-regions', rects),
     setPlaybackDisplaySleepBlockingActive: (active) => ipcRenderer.invoke('playback-display-sleep-set-active', active),
-    getBackgroundThrottlingActive: () => ipcRenderer.invoke('background-throttling-get'),
+    getBackgroundThrottlingState: () => ipcRenderer.invoke('background-throttling-get'),
     onBackgroundThrottlingChanged: (callback) => {
-        const listener = (_event, active) => callback(active === true);
+        const listener = (_event, state) => callback(state);
         ipcRenderer.on('background-throttling-changed', listener);
         return () => ipcRenderer.removeListener('background-throttling-changed', listener);
     },
