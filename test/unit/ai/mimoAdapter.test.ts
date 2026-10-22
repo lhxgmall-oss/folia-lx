@@ -148,7 +148,8 @@ describe('end to end', () => {
             [undefined, 8192 + REASONING_ALLOWANCE.segmentation],
         ]);
 
-        await expect(ask('mimo-v2.6-flash', record([LOOPED]).customFetch)).rejects.toThrow(/finish_reason: repetition_truncation/);
+        // Reported the way the runner read it: reasoning that did not finish, not an empty answer.
+        await expect(ask('mimo-v2.6-flash', record([LOOPED]).customFetch)).rejects.toThrow(/stopped while still reasoning \(finish_reason: repetition_truncation\)/);
     });
 
     it('desktop connection test: the reply cut off while reasoning is reported as reasoning', async () => {
@@ -165,5 +166,8 @@ describe('end to end', () => {
             [DISABLED, 8192],
             [undefined, 8192 + REASONING_ALLOWANCE.segmentation],
         ]);
+
+        await expect(segmentLyricLines(['ab'], { AI_PROVIDER: 'openai', OPENAI_API_KEY: KEY, OPENAI_API_URL: BASE, OPENAI_API_MODEL: 'mimo-v2.6-flash' }, record([LOOPED]).customFetch))
+            .rejects.toThrow(/stopped while still reasoning \(finish_reason: repetition_truncation\)/);
     });
 });

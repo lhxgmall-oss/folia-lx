@@ -1,7 +1,7 @@
 import { sendOpenAICompatibleRequest } from '../shared/openAICompatibleRequest.mjs';
 import { budgetFor } from '../shared/ai/aiTasks.mjs';
 import { runAttempts } from '../shared/ai/attemptRunner.mjs';
-import { buildCompatibleBody, exhaustedByReasoning, withErrorHint } from '../shared/ai/compatibleBody.mjs';
+import { MAX_ERROR_BODY_CHARS, buildCompatibleBody, exhaustedByReasoning, withErrorHint } from '../shared/ai/compatibleBody.mjs';
 import { getAiAdapter, resolveAiConnection } from '../shared/ai/providerRegistry.mjs';
 import { sanitizeDualTheme } from "../shared/themeSanitizer.mjs";
 
@@ -16,8 +16,6 @@ const THEME_JSON_SCHEMA_NAME = 'dual_theme';
 // What the theme answer itself needs. Attempts that leave the model thinking get room for that on
 // top (shared/ai/aiTasks.mjs), so this is the same 8192 the desktop asks with.
 const THEME_MAX_OUTPUT_TOKENS = 8192;
-// The raw error body kept for deciding whether a parameter was rejected, bounded like the desktop's.
-const MAX_ERROR_BODY_CHARS = 16 * 1024;
 
 const THEME_JSON_SCHEMA = {
     type: 'object',
@@ -296,7 +294,9 @@ const requestThemeContent = async (
                 // errorText is for people; errorBody keeps error.param and error.code for the runner.
                 const rawText = await response.text();
                 const errorText = formatOpenAICompatibleErrorText(response, rawText);
-                console.error('OpenAI API Error:', errorText);
+                // A warning, not an error: the runner may still move on to the next attempt. A final
+                // failure is logged by the handler ("Error generating theme").
+                console.warn(`[ai] theme ${attempt.label} failed: ${errorText}`);
                 return withErrorHint(adapter, {
                     ok: false,
                     status: response.status,

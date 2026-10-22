@@ -7,6 +7,11 @@ import { rejectsOpenAICompatibleParameter } from '../openAICompatibleRequest.mjs
 // rejected" check, the generic reasoning ladder and the generic model catalogue. Every adapter
 // whose protocol is 'openai' uses these unless it says otherwise.
 
+// The raw error body kept for deciding whether a parameter was rejected. Bounded, because a
+// misconfigured URL can answer with a whole HTML page. The web routes use this one; the main
+// process has its own copy in electron/ai/requestText.cjs, on the CommonJS side.
+export const MAX_ERROR_BODY_CHARS = 16 * 1024;
+
 /** The bare request: no reasoning parameter, budget for the answer only. */
 export const PLAIN_ATTEMPTS = Object.freeze([
     Object.freeze({ label: 'plain', reasoningOff: true, params: Object.freeze({}), knobs: Object.freeze([]) }),

@@ -3,6 +3,8 @@
 // Native Messages API transport. The existing settings and credential slot still own this connection.
 // Request bodies come from shared/ai/anthropic.mjs; this file only sends them, reads the reply and
 // classifies failures, so a change to what Claude is asked lives in the adapter.
+const { MAX_ERROR_BODY_CHARS, describeFetchFailure, redactSecrets, redactUrl } = require('./requestText.cjs');
+
 const normalizeAnthropicMessagesUrl = (rawUrl) => {
     const url = new URL(rawUrl || 'https://api.anthropic.com/v1');
     let path = url.pathname.replace(/\/+$/, '').replace(/\/(?:messages|chat\/completions|models)$/, '');
@@ -25,33 +27,6 @@ const loadShared = () => Promise.all([
     import('../../shared/ai/aiTasks.mjs'),
 ]).then(([runner, tasks]) => ({ ...runner, ...tasks }));
 
-// The raw error body kept for the rejected-parameter check, bounded like the compatible transport's.
-const MAX_ERROR_BODY_CHARS = 16 * 1024;
-
-/** Address with credentials and query dropped, safe for a log line or a message. */
-const redactUrl = (rawUrl) => {
-    try {
-        const parsed = new URL(rawUrl);
-        return `${parsed.origin}${parsed.pathname}`;
-    } catch {
-        return '[invalid url]';
-    }
-};
-
-/**
- * `text` with the key and anything that looks like an echoed credential replaced. Provider error
- * bodies may echo the request, headers included, and this text reaches messages and logs.
- */
-const redactSecrets = (text, apiKey) => {
-    let redacted = String(text);
-    if (apiKey) {
-        redacted = redacted.split(apiKey).join('***');
-    }
-    return redacted
-        .replace(/(bearer\s+)[^\s"',;]+/gi, '$1***')
-        .replace(/(x-api-key["']?\s*[:=]\s*["']?)[^\s"',;]+/gi, '$1***');
-};
-
 /** The displayable line for a failed response: `error.type: error.message`, or the raw text [Anthropic·errors]. */
 const describeAnthropicError = (status, rawText) => {
     let detail = rawText.trim();
@@ -64,17 +39,6 @@ const describeAnthropicError = (status, rawText) => {
         // Not JSON: show the text as it came.
     }
     return `Anthropic API error (${status})${detail ? `: ${detail}` : ''}`;
-};
-
-/** Turns an abort into a message that names the deadline rather than a bare "aborted". */
-const describeFetchFailure = (error, timeoutMs, label) => {
-    const name = error && error.name;
-    if (name === 'TimeoutError' || name === 'AbortError') {
-        const timedOut = new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`);
-        timedOut.name = 'TimeoutError';
-        return timedOut;
-    }
-    return error instanceof Error ? error : new Error(String(error));
 };
 
 /**
@@ -106,7 +70,8 @@ async function sendAnthropic({ apiUrl, apiKey, body, customFetch, timeoutMs = 12
 
     if (!response.ok) {
         // errorText is for people; errorBody keeps the error type and message for the runner.
-        // Provider bodies may echo credentials, so both are redacted before they go anywhere.
+        // Provider bodies may echo the request, headers included, and this text reaches messages
+        // and logs, so both are redacted before they go anywhere.
         const rawText = redactSecrets(await response.text().catch(() => ''), apiKey);
         return {
             ok: false,

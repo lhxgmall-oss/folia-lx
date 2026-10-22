@@ -20,6 +20,7 @@
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
 const { runAnthropicCompletion, runAnthropicConnectionTest } = require('./ai/anthropicClient.cjs');
+const { MAX_ERROR_BODY_CHARS, describeFetchFailure, redactSecrets, redactUrl } = require('./ai/requestText.cjs');
 
 /** A Gemini model from settings: `models/` dropped, `defaultModel` when blank, anything else refused. */
 const resolveGeminiModel = (raw, defaultModel) => {
@@ -41,15 +42,6 @@ const timeoutSignal = (timeoutMs) => {
   const controller = new AbortController();
   setTimeout(() => controller.abort(), timeoutMs).unref?.();
   return controller.signal;
-};
-
-/** Turns an abort into a message that names the deadline rather than a bare "aborted". */
-const describeFetchFailure = (error, timeoutMs, label) => {
-  const name = error && error.name;
-  if (name === 'TimeoutError' || name === 'AbortError') {
-    return new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`);
-  }
-  return error instanceof Error ? error : new Error(String(error));
 };
 
 function normalizeOpenAIChatCompletionsUrl(rawUrl) {
@@ -146,14 +138,6 @@ function extractProviderErrorMessage(payload) {
   return typeof payload.message === 'string' ? payload.message : null;
 }
 
-// The raw error body kept for deciding whether a parameter was rejected. Bounded, because a
-// misconfigured URL can answer with a whole HTML page.
-const MAX_ERROR_BODY_CHARS = 16 * 1024;
-
-async function formatOpenAICompatibleError(response) {
-  return formatOpenAICompatibleErrorText(response, await response.text());
-}
-
 /** The displayable error line for a failed response whose body has already been read. */
 function formatOpenAICompatibleErrorText(response, rawText) {
   let detail = rawText.trim();
@@ -176,8 +160,12 @@ function formatOpenAICompatibleErrorText(response, rawText) {
  * "Model returned an empty response" is true and useless. The case that actually happens is a
  * reasoning model spending its whole output budget on `reasoning_content` and never reaching the
  * answer, which looks identical from the outside — so say so, and name the parameter that fixes it.
+ *
+ * `exhausted` is the attempt runner's verdict (compatibleBody.exhaustedByReasoning with the
+ * adapter, which also knows a provider's own words for a cut-off answer, such as MiMo's
+ * repetition_truncation); without it, reasoning plus finish_reason 'length' is the test.
  */
-function describeEmptyCompletion(choice, usage, model) {
+function describeEmptyCompletion(choice, usage, model, exhausted) {
   const reasoningTokens = usage
     && usage.completion_tokens_details
     && usage.completion_tokens_details.reasoning_tokens;
@@ -186,11 +174,14 @@ function describeEmptyCompletion(choice, usage, model) {
     reasoningTokens || (choice && choice.message && choice.message.reasoning_content),
   );
 
-  if (hasReasoning && finishReason === 'length') {
-    return `Model "${model}" used its entire output budget on reasoning`
-      + `${reasoningTokens ? ` (${reasoningTokens} reasoning tokens)` : ''} and returned no answer.`
-      + ' This is a reasoning model doing a mechanical task. Point the app at a non-reasoning model,'
+  if (exhausted ?? (hasReasoning && finishReason === 'length')) {
+    const tokens = reasoningTokens ? ` (${reasoningTokens} reasoning tokens)` : '';
+    const advice = ' This is a reasoning model doing a mechanical task. Point the app at a non-reasoning model,'
       + ' or raise the token limit if the provider ignores reasoning_effort.';
+    if (finishReason && finishReason !== 'length') {
+      return `Model "${model}" stopped while still reasoning${tokens} (finish_reason: ${finishReason}) and returned no answer.${advice}`;
+    }
+    return `Model "${model}" used its entire output budget on reasoning${tokens} and returned no answer.${advice}`;
   }
   if (finishReason === 'length') {
     return `Model "${model}" hit the output token limit before finishing its answer.`;
@@ -475,7 +466,7 @@ async function runOpenAICompatibleCompletion({ ai, adapter, connection, apiKey, 
     model,
     attempts: adapter.attempts(task, model),
     log: (line) => console.log(line),
-    describeEmpty: (result) => describeEmptyCompletion(result.choice, result.usage, model),
+    describeEmpty: (result) => describeEmptyCompletion(result.choice, result.usage, model, result.exhausted),
     send: async (attempt) => {
       const body = ai.buildCompatibleBody(adapter, {
         task, model, attempt, systemPrompt, sourcePrompt, schema, schemaName,
@@ -746,16 +737,6 @@ const AI_TEST_MAX_PRESET_ID_CHARS = 64;
 
 const truncateText = (text, limit) => (text.length > limit ? `${text.slice(0, limit)}…` : text);
 
-/** URL with credentials and query dropped, safe to put in a message even if the user pasted a key into it. */
-const redactUrl = (rawUrl) => {
-  try {
-    const parsed = new URL(rawUrl);
-    return `${parsed.origin}${parsed.pathname}`;
-  } catch {
-    return '[invalid url]';
-  }
-};
-
 /**
  * Validates and normalises the renderer-supplied payload. Returns `{ config }` or `{ error }`; it
  * never throws, since the IPC handler must hand a displayable result back either way.
@@ -859,17 +840,8 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
   const { provider, apiKey, apiUrl: rawApiUrl, model: rawModel, stream } = validated.config;
   const startedAt = now();
   const finish = (result) => ({ durationMs: now() - startedAt, ...result });
-  const redact = (message) => {
-    let text = String(message);
-    if (apiKey) {
-      text = text.split(apiKey).join('***');
-    }
-    // Servers sometimes echo the request back: Authorization header, Gemini key header, ?key=.
-    return text
-      .replace(/(bearer\s+)[^\s"',;]+/gi, '$1***')
-      .replace(/(x-goog-api-key["']?\s*[:=]\s*["']?)[^\s"',;]+/gi, '$1***')
-      .replace(/([?&](?:key|api[_-]?key|token|access_token)=)[^&\s"']+/gi, '$1***');
-  };
+  // Servers sometimes echo the request back: Authorization header, key headers, ?key=.
+  const redact = (message) => redactSecrets(message, apiKey);
   const scrub = (message) => truncateText(redact(message), AI_TEST_MAX_ERROR_CHARS);
   const failure = (error, extra = {}) => finish({
     ok: false,
@@ -1013,8 +985,6 @@ module.exports = {
   createOpenAIStreamAccumulator,
   describeEmptyCompletion,
   extractResponseContentText,
-  formatOpenAICompatibleError,
-  loadAiModules,
   normalizeOpenAIChatCompletionsUrl,
   resolveFormAdapter,
   resolveOpenAICompatibleTemperature,

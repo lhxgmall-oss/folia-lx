@@ -1,7 +1,7 @@
 import { sendOpenAICompatibleRequest } from './openAICompatibleRequest.mjs';
 import { budgetFor } from './ai/aiTasks.mjs';
 import { runAttempts } from './ai/attemptRunner.mjs';
-import { buildCompatibleBody, exhaustedByReasoning, withErrorHint } from './ai/compatibleBody.mjs';
+import { MAX_ERROR_BODY_CHARS, buildCompatibleBody, exhaustedByReasoning, withErrorHint } from './ai/compatibleBody.mjs';
 import { getAiAdapter, resolveAiConnection } from './ai/providerRegistry.mjs';
 
 // shared/lyricSegmentationService.mjs
@@ -92,9 +92,6 @@ const resolveTemperature = (value) => {
     : DEFAULT_OPENAI_TEMPERATURE;
 };
 
-// The raw error body kept for deciding whether a parameter was rejected, bounded like the desktop's.
-const MAX_ERROR_BODY_CHARS = 16 * 1024;
-
 /** The provider's own message out of a raw error body, or the body itself when it is not JSON. */
 const errorDetailOf = (rawText) => {
   try {
@@ -127,11 +124,17 @@ const extractContentText = (message) => {
   return null;
 };
 
-const describeEmpty = (choice, usage, model) => {
+// `exhausted` is the runner's verdict (exhaustedByReasoning with the adapter, so a provider's own
+// words for a cut-off answer count too), the same one it moved down on.
+const describeEmpty = (choice, usage, model, exhausted) => {
   const reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens;
-  if (exhaustedByReasoning(choice, usage)) {
-    return `Model "${model}" used its entire output budget on reasoning (${reasoningTokens} tokens)`
-      + ' and returned no answer. Configure a non-reasoning model for this deployment.';
+  if (exhausted) {
+    const tokens = typeof reasoningTokens === 'number' ? ` (${reasoningTokens} tokens)` : '';
+    const finishReason = choice?.finish_reason;
+    const how = finishReason && finishReason !== 'length'
+      ? `stopped while still reasoning${tokens} (finish_reason: ${finishReason})`
+      : `used its entire output budget on reasoning${tokens}`;
+    return `Model "${model}" ${how} and returned no answer. Configure a non-reasoning model for this deployment.`;
   }
   return `Model "${model}" returned an empty response`
     + `${choice?.finish_reason ? ` (finish_reason: ${choice.finish_reason})` : ''}.`;
@@ -203,7 +206,7 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
     url: apiUrl,
     model,
     attempts: adapter.attempts('segmentation', model),
-    describeEmpty: (result) => describeEmpty(result.choice, result.usage, model),
+    describeEmpty: (result) => describeEmpty(result.choice, result.usage, model, result.exhausted),
     fail: (message) => new SegmentationRequestError(message, 502),
     send: async (attempt) => {
       const body = buildCompatibleBody(adapter, {
