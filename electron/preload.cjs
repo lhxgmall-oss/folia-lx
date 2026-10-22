@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('electron', {
     separateStems: (request) => ipcRenderer.invoke('automix-htdemucs', request),
     // Whether automix is switched on. While it is, the analysis worker keeps htdemucs loaded; switching
     // it off releases it. See electron/analysis/host.cjs.
+    // (From the PR #750 re-review, 2026-10-19: not kept while it is on any more - the worker releases
+    // htdemucs a minute after each run - and switching it off still releases it at once.)
     setAutomixEnabled: (enabled) => ipcRenderer.send('automix-enabled', enabled === true),
     // Which weights exist, answered without loading them. See the handler for why the settings page
     // is not allowed to infer this from "am I running in Electron".
@@ -98,6 +100,11 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('wallpaper-input-monitor-requested', listener);
         return () => ipcRenderer.removeListener('wallpaper-input-monitor-requested', listener);
     },
+    onWallpaperAccessibilitySuggested: (callback) => {
+        const listener = () => callback();
+        ipcRenderer.on('wallpaper-accessibility-suggested', listener);
+        return () => ipcRenderer.removeListener('wallpaper-accessibility-suggested', listener);
+    },
     getWallpaperDisplays: () => ipcRenderer.invoke('wallpaper-displays-get'),
     setWallpaperDisplay: (displayId) => ipcRenderer.invoke('wallpaper-display-set', displayId),
     onWallpaperDisplaysChanged: (callback) => {
@@ -105,6 +112,7 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('wallpaper-displays-changed', listener);
         return () => ipcRenderer.removeListener('wallpaper-displays-changed', listener);
     },
+    setWallpaperHitRegions: (rects) => ipcRenderer.send('wallpaper-hit-regions', rects),
     setPlaybackDisplaySleepBlockingActive: (active) => ipcRenderer.invoke('playback-display-sleep-set-active', active),
     setAppLocale: (localeKey) => ipcRenderer.invoke('set-app-locale', localeKey),
     getCacheDirectory: () => ipcRenderer.invoke('get-cache-directory'),
@@ -208,7 +216,7 @@ contextBridge.exposeInMainWorld('electron', {
     publishObsBrowserSourceAudio: (audio) => ipcRenderer.invoke('obs-browser-source-publish-audio', audio),
     getLyricApiStatus: () => ipcRenderer.invoke('lyric-api-get-status'),
     setLyricApiEnabled: (enabled) => ipcRenderer.invoke('lyric-api-set-enabled', enabled),
-    publishLyricApiData: (lyrics, offset) => ipcRenderer.invoke('lyric-api-publish', lyrics, offset),
+    publishLyricApiData: (lyrics, offset, clipStartMs) => ipcRenderer.invoke('lyric-api-publish', lyrics, offset, clipStartMs),
     onLyricApiStatusChanged: (callback) => {
         const listener = (_event, status) => callback(status);
         ipcRenderer.on('lyric-api-status-changed', listener);
@@ -329,6 +337,7 @@ contextBridge.exposeInMainWorld('electron', {
         reloadMods: () => ipcRenderer.invoke('folia-mods:reload'),
         invokeModRpc: (modId, name, args) => ipcRenderer.invoke('folia-mods:rpc', modId, name, args),
         invokeModStorage: (modId, operation, key, value) => ipcRenderer.invoke('folia-mods:storage', modId, operation, key, value),
+        invokeModSecrets: (modId, operation, key, value) => ipcRenderer.invoke('folia-mods:secrets', modId, operation, key, value),
         invokeModNetFetch: (modId, url, init) => ipcRenderer.invoke('folia-mods:net-fetch', modId, url, init),
         invokeModPickFile: (modId, accept, persist) => ipcRenderer.invoke('folia-mods:pick-file', modId, accept, persist),
         invokeModRestoreFile: (modId, grantId) => ipcRenderer.invoke('folia-mods:restore-file', modId, grantId),
@@ -357,6 +366,16 @@ contextBridge.exposeInMainWorld('electron', {
             const listener = (_event, entry) => callback(entry);
             ipcRenderer.on('folia-mods:log', listener);
             return () => ipcRenderer.removeListener('folia-mods:log', listener);
+        },
+        onModRpcMessage: (callback) => {
+            const listener = (_event, message) => callback(message);
+            ipcRenderer.on('folia-mods:rpc-message', listener);
+            return () => ipcRenderer.removeListener('folia-mods:rpc-message', listener);
+        },
+        onModSecretChanged: (callback) => {
+            const listener = (_event, change) => callback(change);
+            ipcRenderer.on('folia-mods:secret-changed', listener);
+            return () => ipcRenderer.removeListener('folia-mods:secret-changed', listener);
         },
     },
 });

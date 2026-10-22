@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ModClearCacheResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRuntimeInfo, ModRuntimeSnapshot, ModStorageUsageResult } from './mods/types';
+import type { ModClearCacheResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModStorageUsageResult } from './mods/types';
 
 declare global {
   const __COMMIT_HASH__: string;
@@ -782,6 +782,8 @@ declare global {
       /**
        * Automix switched on or off. While on, the analysis worker keeps htdemucs loaded across tracks;
        * off releases it in that process. One-way.
+       * (From the PR #750 re-review, 2026-10-19: nothing is kept while on any more - the worker releases
+       * htdemucs a minute after each run - and off still releases it at once.)
        */
       setAutomixEnabled?: (enabled: boolean) => void;
       /**
@@ -790,13 +792,22 @@ declare global {
        * `{ declined }` carries the worker's reason when it ran nothing.
        */
       separateStems?: (
-        request: { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> },
-      ) => Promise<Record<
+        /**
+         * `threads`: the CPU threads to run with (analysis/scheduler.ts cpuThreads); four when absent.
+         * `resident: false`: a fallback for a GPU machine, released after a minute idle (phase 4).
+         * (From the PR #750 re-review, 2026-10-19: `resident` is gone - every run's model is released
+         * after a minute idle, on every machine, and the worker ignores the field.)
+         */
+        request: { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer>; threads?: number },
+      ) => Promise<(Record<
         'drums' | 'bass' | 'vocals',
         // Never shared memory: this crosses the IPC boundary by structured clone, which always
         // reconstitutes a plain ArrayBuffer on this side.
         { left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> }
-      > | { declined: string } | null>;
+      > & {
+        /** How long the worker spent building the model for this request (ms), 0 when it was built: automix's CPU estimate learns from the rest of the wait. */
+        buildMs?: number;
+      }) | { declined: string } | null>;
       /**
        * Which model files are on disk, answered without loading them.
        *
@@ -835,12 +846,16 @@ declare global {
       /** The tray asked to enter wallpaper mode; the renderer shows the confirmation before entering. */
       onWallpaperEntryRequested?: (callback: () => void) => () => void;
       onWallpaperInputMonitorRequested?: (callback: () => void) => () => void;
+      /** macOS wallpaper mode with Stage Manager on and the desktop icons shown, without the Accessibility grant the click guard needs (issue #698). */
+      onWallpaperAccessibilitySuggested?: (callback: () => void) => () => void;
       /** The connected displays and the display chosen for wallpaper mode. null when the asking page is not the main window. */
       getWallpaperDisplays?: () => Promise<ElectronWallpaperDisplaysState | null>;
       /** Chooses a connected display by id, or automatic with null; a running wallpaper moves at once. Answers the new state. */
       setWallpaperDisplay?: (displayId: number | null) => Promise<ElectronWallpaperDisplaysState | null>;
       /** A display was connected, removed or changed, or the choice changed. */
       onWallpaperDisplaysChanged?: (callback: (state: ElectronWallpaperDisplaysState) => void) => () => void;
+      /** macOS wallpaper mode: the on-screen controls' rects (viewport CSS px), covered by click catchers so Finder and Stage Manager never see those clicks. */
+      setWallpaperHitRegions?: (rects: Array<{ left: number; top: number; width: number; height: number }>) => void;
       setPlaybackDisplaySleepBlockingActive: (active: boolean) => Promise<boolean>;
       setAppLocale: (localeKey: 'en' | 'zh-CN' | 'zh-TW' | 'in') => Promise<string>;
       getCacheDirectory: () => Promise<ElectronCacheDirectoryResult>;
@@ -953,7 +968,7 @@ declare global {
       publishObsBrowserSourceAudio: (audio: ElectronObsBrowserSourceAudio) => Promise<boolean>;
       getLyricApiStatus: () => Promise<import('./types/lyricApi').LyricApiStatus>;
       setLyricApiEnabled: (enabled: boolean) => Promise<import('./types/lyricApi').LyricApiStatus>;
-      publishLyricApiData: (lyrics: import('./types').LyricData | null, offset: number) => Promise<boolean>;
+      publishLyricApiData: (lyrics: import('./types').LyricData | null, offset: number, clipStartMs?: number) => Promise<boolean>;
       onLyricApiStatusChanged: (callback: (status: import('./types/lyricApi').LyricApiStatus) => void) => () => void;
       getDiscordPresenceStatus: () => Promise<ElectronDiscordPresenceStatus>;
       publishDiscordPresenceSnapshot: (snapshot: ElectronDiscordPresenceSnapshot) => Promise<ElectronDiscordPresenceStatus>;
@@ -1021,6 +1036,7 @@ declare global {
         cancelExport: () => Promise<{ ok: boolean }>;
         invokeModRpc: (modId: string, name: string, args: unknown[]) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
         invokeModStorage: (modId: string, operation: string, key?: string, value?: unknown) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
+        invokeModSecrets: (modId: string, operation: string, key?: unknown, value?: unknown) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
         invokeModNetFetch: (modId: string, url: string, init: unknown) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
         invokeModPickFile: (modId: string, accept: string, persist?: boolean) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
         invokeModRestoreFile: (modId: string, grantId: string) => Promise<{ ok: boolean; result?: unknown; error?: string }>;
@@ -1037,6 +1053,8 @@ declare global {
         onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
         onExportProgress: (callback: (progress: ModExportProgress) => void) => () => void;
         onModLog: (callback: (entry: ModLogEntry) => void) => () => void;
+        onModRpcMessage: (callback: (message: ModRpcMessage) => void) => () => void;
+        onModSecretChanged: (callback: (change: ModSecretChange) => void) => () => void;
       };
     };
   }
