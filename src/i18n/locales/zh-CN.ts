@@ -1455,7 +1455,7 @@ export default {
     "loginTitleYtm": "登录 YouTube Music",
     "loginNoteYtmBrowser": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，关掉那个窗口。",
     "loginNoteYtmBrowserMac": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，退出那个浏览器（⌘Q）。",
-    "loginNoBrowserYtm": "登录 YouTube Music 需要安装 Chrome、Edge、Chromium 或 Brave。",
+    "loginNoBrowserYtm": "登录 YouTube Music 需要安装 Chrome（Beta、Dev、Canary 版也可以）、Edge、Chromium、Brave 或 Helium。",
     "loginCodeWaiting": "等待在浏览器中确认",
     "loginTitleSpotify": "登录 Spotify",
     "loginNoteSpotify": "在浏览器打开的 Spotify 页面上点“同意”",
