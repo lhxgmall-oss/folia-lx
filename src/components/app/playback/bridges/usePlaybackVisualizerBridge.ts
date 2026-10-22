@@ -19,8 +19,16 @@ import { omni } from '../../../../services/onlineMusic/omni';
 import { tickBeatFx } from '../../../../services/beatFx/beatFxLive';
 import { useBeatFxTrack } from '../../../../hooks/useBeatFxTrack';
 import { readIncomingLyricClock } from './incomingLyricClock';
+import { isBackgroundLyricHeld, setHeldLyricTime, useBackgroundLyricHoldStore } from '../../backgroundThrottling/backgroundLyricHoldStore';
 
 // src/components/app/playback/bridges/usePlaybackVisualizerBridge.ts
+
+/**
+ * How often the loop runs while 后台节流 holds the lyric animation. Only the clocks are kept then (the
+ * progress bar, stage end, mods' playback time), and a timer keeps them going in a hidden window,
+ * where frames stop.
+ */
+const HELD_TICK_MS = 250;
 
 type UsePlaybackVisualizerBridgeParams = {
 
@@ -164,6 +172,21 @@ export function usePlaybackVisualizerBridge({
     }), [audioRef, lyricClipStartSec]);
 
     const updateLoop = useCallback(() => {
+        // 后台节流 holds the lyric animation while the window is minimised or hidden: the clocks below
+        // keep running, while the lyric read-head, the line and the audio bands stay where they are
+        // until the window is back on screen (the pass that lets go catches them up).
+        const backgroundHold = isBackgroundLyricHeld();
+        setHeldLyricTime(null);
+        const showLyricTime = (seconds: number) => {
+            if (backgroundHold) setHeldLyricTime(seconds);
+            else lyricCurrentTime.set(seconds);
+        };
+        const showLine = (index: number) => {
+            if (backgroundHold || index === currentLineIndexRef.current) return;
+            currentLineIndexRef.current = index;
+            setCurrentLineIndex(index);
+        };
+
         // Normally the active deck; the outgoing one for as long as a blend holds the picture on
         // the track it is finishing, so that clock and picture never describe different songs.
         const audioElement = getDisplayElement?.() ?? audioRef.current;
@@ -173,7 +196,9 @@ export function usePlaybackVisualizerBridge({
         // a visible stutter at exactly the moment meant to be seamless.
         const hasAudibleSignal = isActuallyPlaying || isTransitionAudible();
 
-        if (hasAudibleSignal && analyserRef.current) {
+        if (backgroundHold) {
+            // The bands keep their last values: nothing draws from them while held.
+        } else if (hasAudibleSignal && analyserRef.current) {
             const bufferLength = analyserRef.current.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             analyserRef.current.getByteFrequencyData(dataArray);
@@ -224,14 +249,10 @@ export function usePlaybackVisualizerBridge({
             currentTime.set(time);
 
             const effectiveLyricTime = time + lyricClipStartSec(audioElement) - displayOffsetMsRef.current / 1000;
-            lyricCurrentTime.set(effectiveLyricTime);
+            showLyricTime(effectiveLyricTime);
 
             if (lyrics) {
-                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
-                if (foundIndex !== currentLineIndexRef.current) {
-                    currentLineIndexRef.current = foundIndex;
-                    setCurrentLineIndex(foundIndex);
-                }
+                showLine(findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime));
             }
         } else if (isNowPlayingStageActive) {
             const nextTime = getNowPlayingDisplayTime();
@@ -240,29 +261,15 @@ export function usePlaybackVisualizerBridge({
             currentTime.set(nextTime);
 
             const effectiveLyricTime = nextTime - displayOffsetMsRef.current / 1000;
-            lyricCurrentTime.set(effectiveLyricTime);
-
-            if (lyrics) {
-                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
-                if (foundIndex !== currentLineIndexRef.current) {
-                    currentLineIndexRef.current = foundIndex;
-                    setCurrentLineIndex(foundIndex);
-                }
-            } else if (currentLineIndexRef.current !== -1) {
-                currentLineIndexRef.current = -1;
-                setCurrentLineIndex(-1);
-            }
+            showLyricTime(effectiveLyricTime);
+            showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime) : -1);
 
             if (hasReachedEnd) {
                 if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
                     syncNowPlayingClock(0, duration, false);
                     currentTime.set(0);
                     if (lyrics) {
-                        const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, 0);
-                        if (restartedLineIndex !== currentLineIndexRef.current) {
-                            currentLineIndexRef.current = restartedLineIndex;
-                            setCurrentLineIndex(restartedLineIndex);
-                        }
+                        showLine(findLatestActiveLineIndex(lyrics.lines, 0));
                     }
                 } else {
                     syncNowPlayingClock(duration, duration, true);
@@ -275,18 +282,8 @@ export function usePlaybackVisualizerBridge({
             currentTime.set(nextTime);
 
             const effectiveLyricTime = nextTime - displayOffsetMsRef.current / 1000;
-            lyricCurrentTime.set(effectiveLyricTime);
-
-            if (lyrics) {
-                const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
-                if (foundIndex !== currentLineIndexRef.current) {
-                    currentLineIndexRef.current = foundIndex;
-                    setCurrentLineIndex(foundIndex);
-                }
-            } else if (currentLineIndexRef.current !== -1) {
-                currentLineIndexRef.current = -1;
-                setCurrentLineIndex(-1);
-            }
+            showLyricTime(effectiveLyricTime);
+            showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime) : -1);
         } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession && lyrics) {
             const nextTime = getSyntheticStageLyricsTime();
             const clock = stageLyricsClockRef.current;
@@ -294,21 +291,13 @@ export function usePlaybackVisualizerBridge({
 
             currentTime.set(nextTime);
 
-            const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
-            if (foundIndex !== currentLineIndexRef.current) {
-                currentLineIndexRef.current = foundIndex;
-                setCurrentLineIndex(foundIndex);
-            }
+            showLine(findLatestActiveLineIndex(lyrics.lines, nextTime));
 
             if (hasReachedEnd) {
                 if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
                     syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
                     currentTime.set(clock.startTimeSec);
-                    const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec);
-                    if (restartedLineIndex !== currentLineIndexRef.current) {
-                        currentLineIndexRef.current = restartedLineIndex;
-                        setCurrentLineIndex(restartedLineIndex);
-                    }
+                    showLine(findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec));
                 } else {
                     syncStageLyricsClock(clock.endTimeSec, clock.endTimeSec, PlayerState.PAUSED, clock.startTimeSec);
                     setPlayerState(PlayerState.PAUSED);
@@ -316,7 +305,7 @@ export function usePlaybackVisualizerBridge({
             }
         }
 
-        if (beatFxWantedRef.current) {
+        if (beatFxWantedRef.current && !backgroundHold) {
             tickBeatFx(isActuallyPlaying ? audioElement : null, analyserRef.current?.context);
         }
 
@@ -324,7 +313,7 @@ export function usePlaybackVisualizerBridge({
         // and line for the visualizer, off this same frame rather than a second loop.
         const heldElement = getDisplayElement?.() ?? null;
         const incomingElement = heldElement ? audioRef.current : null;
-        if (incomingElement && incomingElement !== heldElement) {
+        if (!backgroundHold && incomingElement && incomingElement !== heldElement) {
             handoffProgress.set(getTransitionHandoffProgress());
             const incomingClock = readIncomingLyricClock(
                 incomingElement.currentTime + lyricClipStartSec(incomingElement),
@@ -337,12 +326,9 @@ export function usePlaybackVisualizerBridge({
                 setHandoffLineIndex(incomingClock.lineIndex);
             }
         }
-
-        animationFrameRef.current = requestAnimationFrame(updateLoop);
     }, [
         activePlaybackContext,
         analyserRef,
-        animationFrameRef,
         audioBands,
         audioPower,
         audioRef,
@@ -370,12 +356,42 @@ export function usePlaybackVisualizerBridge({
         getDisplayElement,
     ]);
 
+    // Every frame normally; while 后台节流 holds the lyrics, a slow timer that keeps only the clocks. The
+    // moment the hold lets go, one pass runs at once, so the lyrics have caught up before anything reads them.
     useEffect(() => {
-        animationFrameRef.current = requestAnimationFrame(updateLoop);
-        return () => {
+        let heldTimer: number | undefined;
+        const tick = () => {
+            updateLoop();
+            schedule();
+        };
+        const schedule = () => {
+            if (isBackgroundLyricHeld()) {
+                heldTimer = window.setTimeout(tick, HELD_TICK_MS);
+            } else {
+                animationFrameRef.current = requestAnimationFrame(tick);
+            }
+        };
+        const cancel = () => {
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = 0;
             }
+            window.clearTimeout(heldTimer);
+        };
+
+        schedule();
+        const unsubscribeHold = useBackgroundLyricHoldStore.subscribe((state, previous) => {
+            if (state.held === previous.held) return;
+            // A song change while held set the line in the store (-1) behind this loop's back; compare
+            // against that, or a new song's first line that happens to match the held one is never written.
+            if (!state.held) currentLineIndexRef.current = usePlaybackStore.getState().currentLineIndex;
+            cancel();
+            tick();
+        });
+        return () => {
+            unsubscribeHold();
+            cancel();
+            setHeldLyricTime(null);
         };
     }, [animationFrameRef, updateLoop]);
 }
