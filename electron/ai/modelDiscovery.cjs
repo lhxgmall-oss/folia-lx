@@ -53,13 +53,25 @@ const authHeaders = (protocol, apiKey) => (protocol === 'gemini' ? { 'x-goog-api
 
 const failure = (errorKind, status) => ({ ok: false, errorKind, ...(status ? { status } : {}) });
 
-/** Fetches bounded pages, normalises provider model ids, and never follows a server-supplied URL. */
+/**
+ * Fetches bounded pages, normalises provider model ids, and never follows a server-supplied URL.
+ * When the list cannot be had (no listing, an error, nothing usable in it), the adapter's
+ * `suggestedModels` come back with the failure, so the form can still offer them beside manual entry.
+ */
 async function listAiModels(raw, { customFetch, timeoutMs = 30_000 } = {}) {
     const checked = validateAiConnectionTestInput({ ...raw, model: undefined });
     if (checked.error) return failure('invalid');
     const config = checked.config;
     if (!config.apiKey) return failure('config');
     const { adapter } = await resolveFormAdapter(config);
+    const suggested = Array.isArray(adapter.suggestedModels) && adapter.suggestedModels.length
+        ? { suggestedModels: [...adapter.suggestedModels] } : {};
+    const result = await fetchCatalogue(adapter, config, { customFetch, timeoutMs });
+    return result.ok ? result : { ...result, ...suggested };
+}
+
+/** The catalogue pages of one adapter, as listAiModels returns them (without the suggestions). */
+async function fetchCatalogue(adapter, config, { customFetch, timeoutMs }) {
     const catalogue = adapter.models;
     // A provider without a usable listing: the form offers its suggested models instead.
     if (!catalogue) return failure('empty');

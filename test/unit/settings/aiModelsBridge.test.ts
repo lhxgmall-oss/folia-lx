@@ -62,6 +62,19 @@ describe('model list form state', () => {
         expect(latest.canLoad).toBe(false);
         expect(listAiModels).not.toHaveBeenCalled();
     });
+    it('keeps the suggestions of a failed listing until the connection changes', async () => {
+        setBridge(vi.fn().mockResolvedValueOnce({ ok: false, errorKind: 'empty', suggestedModels: ['glm-5.2', '', 7] })
+            .mockResolvedValueOnce({ ok: true, models: [{ id: 'listed', name: 'Listed' }] }));
+        await render(payload);
+        await act(async () => { await latest.load(); });
+        expect(latest.suggested).toEqual(['glm-5.2']);
+        expect(latest.error).toBe('empty');
+        await act(async () => { await latest.load(); });
+        expect(latest.models).toEqual([{ id: 'listed', name: 'Listed' }]);
+        expect(latest.suggested).toEqual([]);
+        await render({ ...payload, apiKey: 'changed-key' });
+        expect(latest.models).toEqual([]);
+    });
     it('keeps a failed fetch retryable and clears errors when connection values change', async () => {
         setBridge(vi.fn().mockRejectedValue(new Error('secret')).mockResolvedValueOnce({ ok: false, errorKind: 'auth' }));
         await render(payload);

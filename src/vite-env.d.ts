@@ -45,6 +45,8 @@ declare global {
     models?: { id: string; name: string }[];
     status?: number;
     errorKind?: 'invalid' | 'config' | 'auth' | 'http' | 'network' | 'timeout' | 'empty';
+    /** On a failure: model ids the provider suggests instead (shared/ai adapters' suggestedModels). */
+    suggestedModels?: string[];
   }
 
   interface AiConnectionTestResult {

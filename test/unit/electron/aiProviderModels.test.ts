@@ -121,12 +121,27 @@ describe('model discovery as described by the adapters', () => {
         expect(modelListUrl(adapter({}, 'anthropic'), 'https://api.anthropic.com/v1/messages').toString()).toBe('https://api.anthropic.com/v1/models');
     });
 
-    it('sends no listing request to either GLM site, whose model centre is undocumented', async () => {
+    it('sends no listing request to either GLM site, whose model centre is undocumented, and suggests models instead', async () => {
         for (const apiUrl of ['https://open.bigmodel.cn/api/paas/v4', 'https://api.z.ai/api/paas/v4']) {
             const customFetch = vi.fn();
-            expect(await listAiModels({ ...payload, apiUrl }, { customFetch })).toEqual({ ok: false, errorKind: 'empty' });
+            expect(await listAiModels({ ...payload, apiUrl }, { customFetch })).toEqual({
+                ok: false, errorKind: 'empty', suggestedModels: ['glm-5.3-flash', 'glm-5.3', 'glm-5.2', 'glm-4.7-flash'],
+            });
             expect(customFetch).not.toHaveBeenCalled();
         }
+    });
+
+    it('returns the adapter\'s suggested models with a failed or empty listing, and only then', async () => {
+        const apiUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+        const suggestedModels = ['qwen3.8-flash', 'qwen3.7-plus', 'qwen3.8-max'];
+        expect(await listAiModels({ ...payload, apiUrl }, { customFetch: async () => new Response('denied', { status: 401 }) }))
+            .toEqual({ ok: false, status: 401, errorKind: 'auth', suggestedModels });
+        expect(await listAiModels({ ...payload, apiUrl }, { customFetch: async () => json({ data: [] }) }))
+            .toEqual({ ok: false, errorKind: 'empty', suggestedModels });
+        expect(await listAiModels({ ...payload, apiUrl }, { customFetch: async () => json({ data: [{ id: 'qwen3.8-flash' }] }) }))
+            .toEqual({ ok: true, models: [{ id: 'qwen3.8-flash', name: 'qwen3.8-flash' }] });
+        // A provider without suggestions fails as before.
+        expect(await listAiModels(payload, { customFetch: async () => json({ data: [] }) })).toEqual({ ok: false, errorKind: 'empty' });
     });
 
     it('follows page-number paging until the reported total', async () => {

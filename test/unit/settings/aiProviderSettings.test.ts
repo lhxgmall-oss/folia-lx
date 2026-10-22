@@ -34,6 +34,17 @@ const render = async (patch: Partial<ElectronSettingsState>) => {
     });
 };
 const button = (key: string) => [...host.querySelectorAll('button')].find(item => item.textContent === key)!;
+/** The pick list of the row labelled `labelKey`. */
+const combobox = (labelKey: string) => {
+    const label = [...host.querySelectorAll('span[id]')].find(item => item.textContent === labelKey)!;
+    return [...host.querySelectorAll<HTMLButtonElement>('[role="combobox"]')]
+        .find(item => (item.getAttribute('aria-labelledby') ?? '').split(' ').includes(label.id))!;
+};
+/** Opens that pick list with a pointer click and reads its options. */
+const optionsOf = async (labelKey: string) => {
+    await act(async () => { combobox(labelKey).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })); });
+    return [...document.querySelectorAll('[role="option"]')].map(item => item.textContent);
+};
 beforeAll(() => { (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true; });
 afterEach(async () => {
     await act(async () => { root?.unmount(); });
@@ -67,5 +78,24 @@ describe('AI provider form connection guards', () => {
         expect(button('options.aiTestConnection').disabled).toBe(false);
         await act(async () => { button('options.aiTestConnection').click(); });
         expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ requireApiUrl: false, apiUrl: 'https://api.openai.com/v1' }));
+    });
+});
+describe('AI model picker', () => {
+    it('offers a provider without a listing its suggested models and manual entry, and never fetches', async () => {
+        const listAiModels = vi.fn();
+        (window as any).electron = { testAiConnection, listAiModels };
+        await render({ AI_PROVIDER_PRESET: 'glm', OPENAI_API_URL: 'https://open.bigmodel.cn/api/paas/v4', OPENAI_API_MODEL: 'glm-5.2' });
+        expect(button('options.aiModelsFetch')).toBeUndefined();
+        expect(await optionsOf('options.aiModel')).toEqual(['glm-5.3-flash', 'glm-5.3', 'glm-5.2', 'glm-4.7-flash', 'options.aiModelManual']);
+        expect(listAiModels).not.toHaveBeenCalled();
+    });
+    it('falls back to the suggestions the main process sends with a failed listing', async () => {
+        const listAiModels = vi.fn().mockResolvedValue({ ok: false, status: 401, errorKind: 'auth', suggestedModels: ['qwen3.8-flash', 'qwen3.7-plus'] });
+        (window as any).electron = { testAiConnection, listAiModels };
+        await render({ AI_PROVIDER_PRESET: 'qwen', OPENAI_API_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', OPENAI_API_MODEL: 'qwen3.8-flash' });
+        await act(async () => { button('options.aiModelsFetch').click(); });
+        expect(listAiModels).toHaveBeenCalledTimes(1);
+        expect(await optionsOf('options.aiModel')).toEqual(['qwen3.8-flash', 'qwen3.7-plus', 'options.aiModelManual']);
+        expect(host.textContent).toContain('options.aiModelsAuthError');
     });
 });

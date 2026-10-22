@@ -87,7 +87,8 @@ const AiProviderSettings: React.FC = () => {
             <Row option={gemini ? O.geminiKey : O.key} hint={keyHint}>
                 <AiKeyField value={key} saved={usableSavedKey} onChange={value => setAi({ [keyName]: value })} onClear={() => void onClearAiApiKey(keyName)} />
             </Row>
-            <AiModelPicker option={gemini ? O.geminiModel : O.model} payload={payload} keySaved={usableSavedKey} presetId={preset.id} onChange={value => setAi({ [gemini ? 'GEMINI_API_MODEL' : 'OPENAI_API_MODEL']: value })} />
+            <AiModelPicker option={gemini ? O.geminiModel : O.model} payload={payload} keySaved={usableSavedKey} presetId={preset.id}
+                suggestedModels={preset.suggestedModels} listsModels={preset.listsModels} onChange={value => setAi({ [gemini ? 'GEMINI_API_MODEL' : 'OPENAI_API_MODEL']: value })} />
             {/* Anthropic is never sent a temperature, so there is nothing to set for it. */}
             <Reveal when={!gemini && preset.protocol !== 'anthropic'}>
                 <Row option={O.temperature} hint={t('options.openaiApiTemperatureDesc')}>

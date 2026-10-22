@@ -4,6 +4,8 @@ import { canListAiModels, fetchAiModels } from '../../../../../services/aiText';
 // The model list belongs to one form connection. Late replies never replace another provider's list.
 export const useAiModels = (payload: AiConnectionTestPayload, keySaved: boolean) => {
     const [models, setModels] = useState<{ id: string; name: string }[]>([]);
+    // What the main process suggested when the list could not be had (the adapter's suggestedModels).
+    const [suggested, setSuggested] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<AiModelListResult['errorKind'] | null>(null);
     const identity = JSON.stringify([payload.provider, payload.apiProtocol, payload.apiUrl, payload.requireApiUrl, payload.apiKey, payload.useSystemProxy, keySaved]);
@@ -18,6 +20,7 @@ export const useAiModels = (payload: AiConnectionTestPayload, keySaved: boolean)
         requestRef.current += 1;
         pendingRef.current = null;
         setModels([]);
+        setSuggested([]);
         setError(null);
         setLoading(false);
     }, [identity]);
@@ -40,11 +43,13 @@ export const useAiModels = (payload: AiConnectionTestPayload, keySaved: boolean)
         setLoading(false);
         if (answer.ok && answer.models?.length) {
             setModels(answer.models);
+            setSuggested([]);
         } else {
             setModels([]);
+            setSuggested(Array.isArray(answer.suggestedModels) ? answer.suggestedModels.filter(id => typeof id === 'string' && id) : []);
             setError(answer.errorKind ?? 'empty');
         }
     };
 
-    return { models, loading, error, canLoad, load };
+    return { models, suggested, loading, error, canLoad, load };
 };

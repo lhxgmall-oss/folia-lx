@@ -198,8 +198,10 @@ describe('model catalogue', () => {
         expect(new URL(customFetch.mock.calls[1][0]).searchParams.get('page_no')).toBe('2');
     });
 
-    it('treats any other shape as malformed', async () => {
-        expect(await listAiModels(payload, { customFetch: async () => json({ output: { text: 'hi' } }) })).toEqual({ ok: false, errorKind: 'invalid' });
+    it('treats any other shape as malformed, and still suggests models', async () => {
+        expect(await listAiModels(payload, { customFetch: async () => json({ output: { text: 'hi' } }) })).toEqual({
+            ok: false, errorKind: 'invalid', suggestedModels: ['qwen3.8-flash', 'qwen3.7-plus', 'qwen3.8-max'],
+        });
     });
 });
 
