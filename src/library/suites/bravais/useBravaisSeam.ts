@@ -22,7 +22,9 @@ import type { BravaisWallShape } from './bravaisWallShape';
 // 淡入）。过渡中内容层挂 data-bravais-seam-flip。首页换页签也整条翻（2026-10-09 起，与原型一致）。
 // 信息条横向：锚点可以是块行边界的世界 y（横的缝，内容绕 X 轴翻）。缝换方向（横的信息条 ↔ 竖的面板 / 海报，或改了设置）
 // 不翻：开口先在原来的方向上合上（内容随之淡出、不可点），合上的那一刻换锚点与内容，再在新方向上张开（axis switch）。
-// 换方向途中来的目标宽度不另起补间，张开时取最新的。
+// 换方向途中来的目标宽度不另起补间，张开时取最新的；沿用的锚点若是按别的宽度排的（面板换成海报），张开前按新宽度重排。
+// 换层要先换墙的形状时（useBravaisDisplay 的 beginShapeChange，出场放完才给锚点），换层编排先 awaitAnchor：合上后只换内容、
+// 开口留在 0，等锚点来了再张开（不先在临时的边界上张开、再跳到真的那条）。换方向途中折叠了：合上时照样换上给的锚点。
 
 export type BravaisRenderedSeam = {
     variant: BravaisSeamContentVariant;
@@ -50,6 +52,7 @@ export const useBravaisSeam = ({
     tweenCamera,
     checkCull,
     getShape,
+    onAxisSettled,
 }: {
     frameRef: MutableRefObject<BravaisFrameState>;
     renderFrame: () => void;
@@ -67,6 +70,8 @@ export const useBravaisSeam = ({
     checkCull: (force?: boolean) => void;
     /** 墙此刻的形状（缝开在它的块边界上）。 */
     getShape: () => BravaisWallShape;
+    /** 缝换完方向、在新方向上开始张开（换层编排据此重算有限态的相机范围）。 */
+    onAxisSettled?: () => void;
 }) => {
     const level = useBravaisSeamStore(state => state.level);
     const [anchor, setAnchorState] = useState<BravaisAnchor>(NO_ANCHOR);
@@ -83,8 +88,15 @@ export const useBravaisSeam = ({
     latestTargetRef.current = { layer, targetVariant, targetAxis };
     /** 换完内容后要不要转进来（翻转的后半段）、焦点还给谁。 */
     const pendingInRef = useRef<{ fromNone: boolean; reduced: boolean; focused: HTMLElement | null; toggleByKeyboard: boolean } | null>(null);
-    /** 换方向途中：开口在原来的方向上合上，合上时换成这个锚点（null = 合上时按新方向另算一个）。 */
-    const switchRef = useRef<{ anchor: BravaisAnchor | null } | null>(null);
+    /**
+     * 换方向途中。closing：开口在原来的方向上合上，合上时换成 anchor（null = 合上时按新方向另算一个；planWidth / poster 是
+     * 排 anchor 时的开口，与张开时的不同就重排）。waiting：已经合上、换好内容，等换层编排给锚点（awaitAnchor）。
+     */
+    const switchRef = useRef<{ anchor: BravaisAnchor | null; planWidth: number; poster: boolean; phase: 'closing' | 'waiting' } | null>(null);
+    /** 换层编排要求：这次换方向合上之后等它给锚点再张开。 */
+    const awaitRef = useRef(false);
+    const onAxisSettledRef = useRef(onAxisSettled);
+    onAxisSettledRef.current = onAxisSettled;
 
     /** 立即换上锚点（帧状态 + React state，墙按它分两半）。 */
     const applyAnchor = useCallback((next: BravaisAnchor) => {
@@ -187,51 +199,114 @@ export const useBravaisSeam = ({
         animateWidth(to, from);
     }, [animateWidth, frameRef]);
 
-    /** 换方向的第二段：开口已经合上——换锚点（没给就按新方向另算一个、相机让位）、换内容，再按最新的目标宽度张开。 */
+    /** 记下换方向途中给的锚点（连同排它时的开口）。 */
+    const keepPendingAnchor = useCallback((next: BravaisAnchor) => {
+        const switching = switchRef.current;
+        if (!switching) return;
+        switching.anchor = next;
+        switching.planWidth = targetWidthRef.current;
+        switching.poster = latestTargetRef.current.targetVariant === 'poster';
+    }, []);
+
+    /** 合上之后换上内容与锚点，按最新的目标宽度张开。 */
+    const openOnNewAxis = useCallback((next: BravaisAnchor | null) => {
+        const latest = latestTargetRef.current;
+        awaitRef.current = false;
+        if (next) applyAnchor(next);
+        pendingInRef.current = null;
+        setRendered({ variant: latest.targetVariant, layer: latest.layer, axis: latest.targetAxis });
+        animateWidth(targetWidthRef.current, 0);
+        onAxisSettledRef.current?.();
+    }, [animateWidth, applyAnchor]);
+
+    /**
+     * 换方向的第二段：开口已经合上——换锚点（没给就按新方向另算一个、相机让位；给了但是按别的开口排的就按新开口重排）、
+     * 换内容，再按最新的目标宽度张开。换层编排要求等它给锚点时，只换内容，开口留在 0。途中折叠了：换上给的锚点，不张开。
+     */
     const finishAxisSwitch = useCallback(() => {
         const pending = switchRef.current;
         switchRef.current = null;
         if (!pending) return;
         const latest = latestTargetRef.current;
         const width = targetWidthRef.current;
+        if (latest.targetAxis === null) {
+            openOnNewAxis(pending.anchor);
+            return;
+        }
+        const poster = latest.targetVariant === 'poster';
         let next = pending.anchor && anchorAxis(pending.anchor) === latest.targetAxis ? pending.anchor : null;
-        if (!next && latest.targetAxis && latest.targetAxis !== anchorAxis(anchorOf(frameRef.current)) && width > 0) {
-            const plan = planOpening(frameRef.current.center, width, null, latest.targetVariant === 'poster', getShape(), latest.targetAxis);
+        if (next && width > 0 && (pending.planWidth !== width || pending.poster !== poster)) {
+            const plan = planOpening(frameRef.current.center, width, next, poster, getShape(), latest.targetAxis);
             next = plan.anchor;
             tweenCameraRef.current(plan.center);
         }
-        if (next) applyAnchor(next);
-        pendingInRef.current = null;
-        setRendered({ variant: latest.targetVariant, layer: latest.layer, axis: latest.targetAxis });
-        animateWidth(width, 0);
-    }, [animateWidth, applyAnchor, frameRef, getShape, planOpening]);
+        if (!next && latest.targetAxis !== anchorAxis(anchorOf(frameRef.current))) {
+            if (awaitRef.current) {
+                pendingInRef.current = null;
+                setRendered({ variant: latest.targetVariant, layer: latest.layer, axis: latest.targetAxis });
+                switchRef.current = { anchor: null, planWidth: width, poster, phase: 'waiting' };
+                return;
+            }
+            if (width > 0) {
+                const plan = planOpening(frameRef.current.center, width, null, poster, getShape(), latest.targetAxis);
+                next = plan.anchor;
+                tweenCameraRef.current(plan.center);
+            }
+        }
+        openOnNewAxis(next);
+    }, [frameRef, getShape, openOnNewAxis, planOpening]);
 
     /** 换方向的第一段：开口在原来的方向上合上；已经在合了就只换掉合上后要用的锚点。 */
     const beginAxisSwitch = useCallback((next: BravaisAnchor | null) => {
-        if (switchRef.current) {
-            if (next) switchRef.current.anchor = next;
+        const switching = switchRef.current;
+        if (switching && switching.phase === 'closing') {
+            if (next) keepPendingAnchor(next);
             return;
         }
-        switchRef.current = { anchor: next };
+        // 正等着锚点时目标又换了方向：重新走一遍（开口已经是 0，立即合上）。
+        switchRef.current = {
+            anchor: next,
+            planWidth: targetWidthRef.current,
+            poster: latestTargetRef.current.targetVariant === 'poster',
+            phase: 'closing',
+        };
         animateWidth(0, frameRef.current.openWidth, finishAxisSwitch);
-    }, [animateWidth, finishAxisSwitch, frameRef]);
+    }, [animateWidth, finishAxisSwitch, frameRef, keepPendingAnchor]);
+
+    /** 换层编排：这次换方向合上之后，等我给锚点再张开（换层要先换墙的形状，锚点要等出场放完）。 */
+    const awaitAnchor = useCallback(() => {
+        awaitRef.current = true;
+    }, []);
 
     /**
      * 换锚点。与张开着的缝不同方向时不立即换：先合上再换（beginAxisSwitch）。换方向途中给回原来方向的锚点（目标又换回来了）
-     * 就取消这次换方向，直接从此刻的开口补间回去。
+     * 就取消这次换方向，直接从此刻的开口补间回去；正等着锚点时给了新方向的锚点，换上并张开；途中折叠了，记下留到合上时换。
      */
     const setAnchor = useCallback((next: BravaisAnchor) => {
         const nextAxis = anchorAxis(next);
         const currentAxis = anchorAxis(anchorOf(frameRef.current));
+        const wanted = latestTargetRef.current.targetAxis;
         const switching = switchRef.current;
+        if (switching?.phase === 'waiting') {
+            if (wanted === null || (nextAxis !== null && nextAxis === wanted)) {
+                switchRef.current = null;
+                if (wanted === null) {
+                    awaitRef.current = false;
+                    applyAnchor(next);
+                } else {
+                    openOnNewAxis(next);
+                }
+            }
+            return;
+        }
         if (switching) {
-            const wanted = latestTargetRef.current.targetAxis;
-            if (nextAxis !== null && nextAxis === wanted && nextAxis !== currentAxis) {
-                switching.anchor = next;
+            if (wanted === null || (nextAxis !== null && nextAxis === wanted && nextAxis !== currentAxis)) {
+                keepPendingAnchor(next);
                 return;
             }
-            if (wanted !== null && wanted === currentAxis) {
+            if (wanted === currentAxis) {
                 switchRef.current = null;
+                awaitRef.current = false;
                 applyAnchor(next);
                 animateWidth(targetWidthRef.current, frameRef.current.openWidth);
             }
@@ -241,8 +316,9 @@ export const useBravaisSeam = ({
             beginAxisSwitch(next);
             return;
         }
+        awaitRef.current = false;
         applyAnchor(next);
-    }, [animateWidth, applyAnchor, beginAxisSwitch, frameRef]);
+    }, [animateWidth, applyAnchor, beginAxisSwitch, frameRef, keepPendingAnchor, openOnNewAxis]);
 
     // 目标宽度变了（换层、换等级）就补间过去；折叠等级也写进帧状态（悬浮按钮常驻）。
     const hasLayer = Boolean(layer);
@@ -358,11 +434,21 @@ export const useBravaisSeam = ({
         outAnimationRef.current?.cancel();
     }, []);
 
-    // 换方向途中目标又回到了缝此刻的方向（或折叠了）：取消这次换方向，从此刻的开口补间到目标。
+    // 换方向途中目标又回到了缝此刻的方向：取消这次换方向，从此刻的开口补间到目标。折叠了：合上的照样合上（合上时换上给的
+    // 锚点）；正等着锚点的不用再等。
     useLayoutEffect(() => {
-        if (axisChange || !switchRef.current) return;
-        if (targetAxis !== null && targetAxis !== anchorAxis(anchorOf(frameRef.current))) return;
+        const switching = switchRef.current;
+        if (axisChange || !switching) return;
+        if (targetAxis === null) {
+            if (switching.phase === 'waiting') {
+                switchRef.current = null;
+                awaitRef.current = false;
+            }
+            return;
+        }
+        if (targetAxis !== anchorAxis(anchorOf(frameRef.current))) return;
         switchRef.current = null;
+        awaitRef.current = false;
         animateWidth(targetWidthRef.current, frameRef.current.openWidth);
     }, [animateWidth, axisChange, frameRef, targetAxis]);
 
@@ -409,6 +495,7 @@ export const useBravaisSeam = ({
         leaving: flipMode === 'flip' || flipMode.startsWith('axis|'),
         planOpening,
         isAnchorOnScreen,
+        awaitAnchor,
         reopenHere,
         isCollapsed,
     };

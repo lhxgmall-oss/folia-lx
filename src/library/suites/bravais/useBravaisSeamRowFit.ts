@@ -1,9 +1,6 @@
 import { useLayoutEffect, useState, type RefObject } from 'react';
 import type { BravaisSeamTabsFit } from './useBravaisSeamTabsFit';
 
-/** 横条的退让结果：竖的窄缝那三项，加上账户入口是否只留头像。 */
-export type BravaisSeamRowFit = BravaisSeamTabsFit & { accountCompact: boolean };
-
 // src/library/suites/bravais/useBravaisSeamRowFit.ts
 // 信息条横向时首页横条（BravaisSeamHomeRow）放不放得下：与竖的窄缝（useBravaisSeamTabsFit）同一套退让顺序，量的是宽度。
 // 横条里只有「导航段」（「书库」、页签、扫描进度、二级切换、直达入口、管理隐藏、状态）与账户入口会随级别变宽变窄；
@@ -12,6 +9,9 @@ export type BravaisSeamRowFit = BravaisSeamTabsFit & { accountCompact: boolean }
 // 头像的 title / aria-label 里仍在。
 // 各级要多宽量的是看不见的测量副本（与导航段同一身样式，width: max-content）；扫描进度、管理隐藏、状态不随级别变，量
 // 此刻的（data-bravais-row-extra）。可用宽度 = 横条内容宽 − 其余各段 − 段间距，与此刻是哪一级无关，所以不会来回跳。
+
+/** 横条的退让结果：竖的窄缝那三项，加上账户入口是否只留头像。 */
+export type BravaisSeamRowFit = BravaisSeamTabsFit & { accountCompact: boolean };
 
 /** 各级导航段测量副本的宽度（不含扫描进度、管理隐藏、状态）。 */
 export type BravaisSeamRowWidths = {

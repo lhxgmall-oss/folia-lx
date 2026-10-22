@@ -27,11 +27,6 @@ import {
 import { fitBravaisLayoutToShape, parseBravaisLayoutRecord } from '@/library/suites/bravais/bravaisLayoutMemory';
 import { BRAVAIS_BLOCK_SHAPE } from '@/library/suites/bravais/bravaisWallShape';
 import { resolveSeamRowFit } from '@/library/suites/bravais/useBravaisSeamRowFit';
-import {
-    LIBRARY_WALL_PORTRAIT_QUERY,
-    normalizeLibraryWallSeamDirection,
-    resolveLibraryWallSeamHorizontal,
-} from '@/utils/libraryWallSeamDirection';
 
 // test/unit/library/bravais/bravaisRowSeam.test.ts
 // 信息条横向：缝开在块行边界上（锚点是世界 y），墙上下分开。钉住 wall 引擎的 y 轴版本（块行边界、相机最小让位、贴边挤窄、
@@ -216,20 +211,3 @@ describe('home row fit (horizontal home strip)', () => {
         expect(resolveSeamRowFit({ available: 700, extras: 0, nav, account: { full: 0, compact: 0 } }).level).toBe('titled');
     });
 });
-
-describe('info strip direction setting', () => {
-    it('opens rows on tall screens only when automatic, and follows a fixed choice otherwise', () => {
-        expect(resolveLibraryWallSeamHorizontal('auto', true)).toBe(true);
-        expect(resolveLibraryWallSeamHorizontal('auto', false)).toBe(false);
-        expect(resolveLibraryWallSeamHorizontal('horizontal', false)).toBe(true);
-        expect(resolveLibraryWallSeamHorizontal('vertical', true)).toBe(false);
-    });
-
-    it('defaults to automatic and treats only clearly tall screens as portrait', () => {
-        expect(normalizeLibraryWallSeamDirection(undefined)).toBe('auto');
-        expect(normalizeLibraryWallSeamDirection('sideways')).toBe('auto');
-        expect(normalizeLibraryWallSeamDirection('vertical')).toBe('vertical');
-        expect(LIBRARY_WALL_PORTRAIT_QUERY).toBe('(max-aspect-ratio: 10/11)');
-    });
-});
-

@@ -79,17 +79,20 @@ export const resolveFiniteCameraRange = ({
     itemCount,
     view,
     seamWidth,
+    seam,
 }: {
     finite: BravaisFiniteState;
     itemCount: number;
     view: WallView;
     seamWidth: number;
+    /** 规划之后缝换了方向（同一层沿用规划）：按此刻的方向与缝的世界点算；缺省按规划时的。 */
+    seam?: { axis: 'x' | 'y'; anchor: { x: number; y: number } };
 }): WallCameraRange => getFiniteCameraRange({
     contentBounds: getRankedContentBounds(finite.order as WallSlot[], itemCount),
-    anchor: finite.origin,
+    anchor: seam?.anchor ?? finite.origin,
     view,
     seamWidth,
-    seamAxis: finite.axis,
+    seamAxis: seam?.axis ?? finite.axis,
 });
 
 /** 拖动时的弹性：超出范围的部分按阻尼缩短（绝对位置的映射，不累积误差）。 */

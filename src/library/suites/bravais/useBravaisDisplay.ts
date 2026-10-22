@@ -96,6 +96,8 @@ export type BravaisDisplayControls = {
     setAnchor: (anchor: BravaisAnchor) => void;
     /** prefer：想沿用的锚点（同方向才算数）；shape：缝开在哪种形状的块边界上（缺省是显示着的那一层的形状）。 */
     planOpening: (center: WallViewCenter, width: number, prefer: BravaisAnchor | null, poster?: boolean, shape?: BravaisWallShape, axis?: SeamAxis) => BravaisOpeningPlan;
+    /** 换层要先换墙的形状、且缝要换方向：让缝合上后等 finishShapeChange 给锚点再张开（useBravaisSeam 的 awaitAnchor）。 */
+    awaitAnchor?: () => void;
     /** 锚点（缺省是墙上此刻的）在不在屏内。 */
     isAnchorOnScreen: (anchor?: BravaisAnchor) => boolean;
     moveTo: (center: WallViewCenter, forceRecull?: boolean) => void;
@@ -299,24 +301,41 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
      * 有限态（过滤）：沿用上一次的规划或以缝为中心重新规划；无限态为 null。相机范围随之更新。规划跳过部分透明的结构窗
      * （与显示同一个 k），换窗数时不沿用旧规划。
      */
-    const resolveFinite = useCallback((next: BravaisLayer, previous: BravaisFiniteState | null | undefined, planned?: { anchor: BravaisAnchor; center: WallViewCenter }) => {
+    const resolveFinite = useCallback((next: BravaisLayer, previous: BravaisFiniteState | null | undefined, planned?: BravaisAnchor) => {
         const { frameRef, setCameraRange, openWidthFor, wallLook } = latestControls.current;
-        const { view } = frameRef.current;
-        // 换层时按这次排好的锚点与相机规划（缝换方向时帧状态里的锚点要等缝合上才换）。
-        const anchor = planned?.anchor ?? anchorOf(frameRef.current);
-        const center = planned?.center ?? frameRef.current.center;
+        const { view, center } = frameRef.current;
+        // 平常按帧状态里的锚点规划；这次换层要换方向时帧状态里的锚点要等缝合上才换，按排好的锚点（planned）规划。
+        const shown = anchorOf(frameRef.current);
+        const anchor = planned && anchorAxis(planned) !== null && anchorAxis(planned) !== anchorAxis(shown) ? planned : shown;
         if (next.mode !== 'finite' || !view) {
             setCameraRange(null);
             return null;
         }
         const count = Math.max(next.items.length, next.wall?.planCount ?? 0);
         const reservedPerBlock = resolveReservedPerBlock(wallLook);
-        const finite = canReuseFinitePlan(previous, { anchorX: anchor.x, anchorY: anchor.y, count, reservedPerBlock })
+        const axis = anchorAxis(anchor) ?? 'x';
+        // 同一层换了方向（横的信息条 ↔ 竖的面板）：沿用原来的规划（不整面重排），相机范围按此刻的方向算。
+        const keepAcrossAxis = Boolean(previous && previous.axis !== axis && previous.reservedPerBlock === reservedPerBlock && count <= previous.capacity);
+        const finite = previous && (keepAcrossAxis || canReuseFinitePlan(previous, { anchorX: anchor.x, anchorY: anchor.y, count, reservedPerBlock }))
             ? previous
             : planBravaisFinite({ count, anchorX: anchor.x, anchorY: anchor.y, center, view, reservedPerBlock });
-        setCameraRange(resolveFiniteCameraRange({ finite, itemCount: next.items.length, view, seamWidth: openWidthFor(next) }), true);
+        setCameraRange(resolveFiniteCameraRange({
+            finite,
+            itemCount: next.items.length,
+            view,
+            seamWidth: openWidthFor(next),
+            seam: finite.axis === axis ? undefined : { axis, anchor: seamPointOf({ anchorX: anchor.x, anchorY: anchor.y, center }) },
+        }), true);
         return finite;
     }, []);
+
+    /** 缝换完方向（useBravaisSeam 合上再张开之后）：有限态的相机范围按新的方向与锚点重算（规划沿用）。 */
+    const refreshFiniteRange = useCallback(() => {
+        const current = displayRef.current;
+        if (!current?.finite) return;
+        resolveFinite(current.layer, current.finite);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayRef 是稳定的 ref
+    }, [resolveFinite]);
 
     /** 用会话记着的焦点条目摆键盘焦点（离缝最近的那一份）。 */
     const focusSessionEntry = useCallback((next: BravaisDisplay) => {
@@ -365,25 +384,29 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         const controlsNow = latestControls.current;
         const { frameRef, wallLook } = controlsNow;
         const draft = createBravaisDisplay(layer, change.startSlotKey, undefined, wallLook);
+        const axis = controlsNow.axisFor(layer);
         let center = change.center;
         let anchor = change.anchor;
+        // 锚点挪到新形状的块边界、相机跟着平移（缝在屏幕上不动）；新层的缝换了方向时这条缝不用了，相机不跟着平移。
+        const followsAnchor = anchorAxis(change.anchor) === axis;
         if (change.anchor.x !== null) {
             const anchorX = nearestShapeBoundaryX(draft.shape, change.anchor.x);
-            center = { ...center, x: center.x + anchorX - change.anchor.x };
+            if (followsAnchor) center = { ...center, x: center.x + anchorX - change.anchor.x };
             anchor = columnAnchor(anchorX);
         } else if (change.anchor.y !== null) {
             const anchorY = nearestShapeBoundaryY(draft.shape, change.anchor.y);
-            center = { ...center, y: center.y + anchorY - change.anchor.y };
+            if (followsAnchor) center = { ...center, y: center.y + anchorY - change.anchor.y };
             anchor = rowAnchor(anchorY);
         }
         // 换层：与平常的换层同一套开口规划（缝不在屏内时另开一道、歌手海报带到最左边、开口变宽时相机让位）。
         const width = change.preferAnchor === undefined ? 0 : controlsNow.openWidthFor(layer);
         if (width > 0) {
-            const plan = controlsNow.planOpening(center, width, change.preferAnchor ? anchor : null, controlsNow.posterFor(layer), draft.shape, controlsNow.axisFor(layer));
+            const plan = controlsNow.planOpening(center, width, change.preferAnchor ? anchor : null, controlsNow.posterFor(layer), draft.shape, axis);
             anchor = plan.anchor;
             center = plan.center;
         }
-        const finite = resolveFinite(layer, null, { anchor, center });
+        // 与改动前同一个时刻规划（锚点、相机都还是出场时的样子），只有换方向时用排好的锚点。
+        const finite = resolveFinite(layer, null, anchor);
         if (anchorAxis(change.anchor) !== null || width > 0) controlsNow.setAnchor(anchor);
         if (change.tween) controlsNow.tweenTo(center);
         else controlsNow.moveTo(center, true);
@@ -559,6 +582,9 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         let center = frameRef.current.center;
         // 这次换层要用的锚点（先放在本地，最后交给 setAnchor；墙上此刻按帧状态里的锚点分两半）。
         let anchor = anchorOf(frameRef.current);
+        // 「缝在哪」按这次要用的锚点（返回 / 入场时是记忆里的），相机还是此刻的（与改动前先把记忆锚点写进帧状态再量一样）。
+        const plannedSeamPoint = () => seamPointOf({ anchorX: anchor.x, anchorY: anchor.y, center: frameRef.current.center });
+        const nearestToPlannedSeam = () => findNearestSlot(slotsRef.current, plannedSeamPoint())?.key ?? null;
         let startSlotKey: string | null;
         let origin: FlipOrigin;
         let focusKey: string | null = null;
@@ -569,8 +595,8 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             anchor = memoryAnchor(memory) ?? anchor;
             // B8：记忆里的起点是 null（这一层第一次画时没有起点，循环偏移按 0 算）也照记忆恢复，墙回到离开时的样子；
             // 只有没有记忆时才取离缝最近的 slot（以前一律取最近的，返回到这种层时整面墙换了一种排法）。
-            startSlotKey = memory ? memory.startSlotKey : nearestToSeam();
-            origin = pointOrigin(seamPoint());
+            startSlotKey = memory ? memory.startSlotKey : nearestToPlannedSeam();
+            origin = pointOrigin(plannedSeamPoint());
             focusKey = memory?.focusSlotKey ?? null;
             focusFromSession = !focusKey;
         } else {
@@ -584,12 +610,12 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             // 不再搬第二次。翻牌从它开始。
             const remembered = pending ? null : memory?.startSlotKey ?? null;
             const start = resolveShiftStart(
-                remembered === null ? { onPrevious: pending?.slotKey ?? nearestToSeam() } : { remembered },
+                remembered === null ? { onPrevious: pending?.slotKey ?? nearestToPlannedSeam() } : { remembered },
                 previous.shape,
                 layer.shape,
             );
             startSlotKey = start.key;
-            origin = pointOrigin(start.slot ? { x: start.slot.centerX, y: start.slot.centerY } : seamPoint());
+            origin = pointOrigin(start.slot ? { x: start.slot.centerX, y: start.slot.centerY } : plannedSeamPoint());
             if (hadKeyboardFocus) focusKey = startSlotKey;
             // 不是从一张磁贴打开的（从别处、换 suite 时正开着）：焦点落在会话记着的那一项上。
             focusFromSession = !pending && !hadKeyboardFocus;
@@ -598,6 +624,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         if (resolveLayerShape(layer.shape, startSlotKey).id !== previous.shape.id) {
             // 与下面平常的换层同一个判断（此刻的锚点在不在屏内），落定时据此排开口。
             const preferAnchor = leaving || controlsNow.isAnchorOnScreen(anchor);
+            if (width > 0 && controlsNow.axisFor(layer) !== anchorAxis(anchorOf(frameRef.current))) controlsNow.awaitAnchor?.();
             beginShapeChange(previous, layer, depth, {
                 startSlotKey,
                 center,
@@ -617,11 +644,10 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             anchor = plan.anchor;
             center = plan.center;
         }
-        const finite = resolveFinite(layer, null, { anchor, center });
         controlsNow.setAnchor(anchor);
         // 整墙入场：相机直接就位（被点的不在墙上，没有可以跟着走的东西），波次从就位后的视口左上角量。
         if (kind === 'enter') controlsNow.moveTo(center, true);
-        const draft = { ...createBravaisDisplay(layer, startSlotKey, undefined, wallLook), finite };
+        const draft = { ...createBravaisDisplay(layer, startSlotKey, undefined, wallLook), finite: resolveFinite(layer, null, anchor) };
         const isHomeTabSwitch = kind === 'replace' && layer.surface === 'home' && previous.layer.surface === 'home';
         // 整墙波次：换首页页签（出场 → 入场）、歌手页 ↔ 专辑页与回到来源（出场；首页层在遮盖之下落回）。降低动效时换成
         // 普通翻牌（磁贴淡入淡出）。
@@ -647,5 +673,5 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         if (displayRef.current) remember(displayRef.current);
     }, [remember]);
 
-    return { display, displayRef, isSettling };
+    return { display, displayRef, isSettling, refreshFiniteRange };
 };

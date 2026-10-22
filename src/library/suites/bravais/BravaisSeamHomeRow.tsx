@@ -203,8 +203,8 @@ const BravaisSeamHomeRow: React.FC<{
                 {measureNav('short', { title: false, jumps: false, abbreviated: true })}
                 {home?.account && (
                     <>
-                        <div data-bravais-row-measure="account-full"><BravaisSeamAccountSwitcher account={home.account} compact={compact} /></div>
-                        <div data-bravais-row-measure="account-compact"><BravaisSeamAccountSwitcher account={home.account} compact /></div>
+                        <div data-bravais-row-measure="account-full"><BravaisSeamAccountSwitcher account={home.account} compact={compact} measure /></div>
+                        <div data-bravais-row-measure="account-compact"><BravaisSeamAccountSwitcher account={home.account} compact measure /></div>
                     </>
                 )}
             </div>

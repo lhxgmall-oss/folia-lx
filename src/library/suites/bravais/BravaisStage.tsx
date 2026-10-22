@@ -221,8 +221,12 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     // 墙此刻的显示（useBravaisDisplay 提交时就写进它）：形状从它读，换形状的同一次提交里各处就按新形状找 slot。
     const displayBridgeRef = useRef<BravaisDisplay | null>(null);
     const getShape = useCallback(() => displayBridgeRef.current?.shape ?? BRAVAIS_BLOCK_SHAPE, []);
+    // 缝换完方向时让换层编排重算有限态的相机范围（编排的 hook 在下面，经 ref 接上）。
+    const refreshFiniteRangeRef = useRef<(() => void) | null>(null);
+    const onAxisSettled = useCallback(() => refreshFiniteRangeRef.current?.(), []);
     const seam = useBravaisSeam({
         getShape,
+        onAxisSettled,
         frameRef,
         renderFrame,
         layer,
@@ -264,7 +268,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     }, []);
     const focus = useBravaisFocus({ frameRef, tweenTo: camera.tweenTo, getBottomInset, onFocusEntry, getShape });
 
-    const { display, displayRef, isSettling } = useBravaisDisplay(layer, {
+    const { display, displayRef, isSettling, refreshFiniteRange } = useBravaisDisplay(layer, {
         frameRef,
         view,
         wallLook,
@@ -278,6 +282,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         setAnchor: seam.setAnchor,
         planOpening: seam.planOpening,
         isAnchorOnScreen: seam.isAnchorOnScreen,
+        awaitAnchor: seam.awaitAnchor,
         moveTo: camera.moveTo,
         tweenTo: camera.tweenTo,
         collapseFocusCard: focus.collapse,
@@ -287,6 +292,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         suppressEntrance: () => resolveBravaisWallHandoffState(useWallHandoffStore.getState().session).role === 'in',
         displayRef: displayBridgeRef,
     });
+    refreshFiniteRangeRef.current = refreshFiniteRange;
     const shape = display?.shape ?? BRAVAIS_BLOCK_SHAPE;
     const slots = useMemo<readonly WallSlot[]>(() => (
         camera.bounds ? collectShapeSlots(shape, expandBounds(camera.bounds, BRAVAIS_OVERSCAN), FLIP_MAX_TILES) : []
