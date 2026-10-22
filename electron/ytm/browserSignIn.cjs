@@ -278,9 +278,11 @@ function createBrowserSignIn({
   // The path of an installed browser: Chrome, then Edge, Chromium, Brave, then Chrome Beta, Dev,
   // Canary and Helium. null when there is none. The log names the browser: on Windows Chrome's
   // channels, Chromium and Helium are all chrome.exe.
+  // A file name is cut from its path by the rules of `platform`, not of the computer this runs on.
+  const fileName = file => (platform === 'win32' ? path.win32 : path.posix).basename(file);
   const findBrowser = () => {
     const found = browserPlaces({ platform, env }).find(place => exists(place.file)) ?? null;
-    if (found) log(`[Ytm] Sign-in can use ${found.name} (${path.basename(found.file)})`);
+    if (found) log(`[Ytm] Sign-in can use ${found.name} (${fileName(found.file)})`);
     else warn('[Ytm] No Chrome (of any channel), Edge, Chromium, Brave or Helium was found for the sign-in');
     return found?.file ?? null;
   };
@@ -332,7 +334,7 @@ function createBrowserSignIn({
       finish('at-once');
       return { closed, stop() {} };
     }
-    log(`[Ytm] The sign-in window was opened with ${path.basename(browserPath)}`);
+    log(`[Ytm] The sign-in window was opened with ${fileName(browserPath)}`);
     child.on('error', error => {
       warn(`[Ytm] The sign-in browser reported an error (${error?.code ?? 'unknown'})`);
       // Without a process id the browser never started; with one, the process is still there
