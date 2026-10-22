@@ -27,7 +27,12 @@ function createSessionRepository({ store, safeStorage, warn = console.warn }) {
                         if (value.version === 1 && isAccountId(value.userId) && value.ticket && value.guardKey
                             && value.guardCert && value.guardTsSign && value.accessCode && Number.isFinite(value.expiresAt)) current = value;
                     }
-                } catch { warn('[Qishui] Account could not be restored'); }
+                } catch (error) {
+                    // JSON.parse quotes the text it could not read, and that text is the decrypted account:
+                    // only its kind is logged. Other errors (the store, safeStorage) carry no account text.
+                    if (error instanceof SyntaxError) warn('[Qishui] Account could not be restored: the saved account is not readable');
+                    else warn('[Qishui] Account could not be restored', error);
+                }
             }
             return current;
         },

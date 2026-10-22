@@ -17,7 +17,7 @@ function createQishuiMediaPolicy({ now = Date.now } = {}) {
         issued.delete(url.href);
         return ['image', 'xhr'].includes(details.resourceType)
             && /(?:^|\.)(?:byteimg\.com|douyinpic\.com|douyinstatic\.com|pstatp\.com)$/.test(url.hostname)
-            && (details.resourceType === 'image' || /image\//i.test(String(Object.entries(details.responseHeaders || {}).find(([key]) => key.toLowerCase() === 'content-type')?.[1] || '')));
+            && (details.resourceType === 'image' || /^image\//i.test(String(Object.entries(details.responseHeaders || {}).find(([key]) => key.toLowerCase() === 'content-type')?.[1] || '')));
     };
     return { register, allows, followRedirect(details) { if (allows(details)) register(details.redirectURL); } };
 }
