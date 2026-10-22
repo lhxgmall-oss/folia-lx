@@ -140,7 +140,8 @@ export const AI_ADAPTERS = ADAPTERS;
 /**
  * What the settings form lists: one preset per adapter, sorted by English name, custom last.
  * `baseUrl` is the default site's; `listsModels` is false for a provider with no listing request,
- * whose model picker offers `suggestedModels` and manual entry only.
+ * whose model picker offers `suggestedModels` and manual entry only; `temperaturePerModel` is true
+ * when some of the provider's models are not sent the temperature, or only a narrower range of it.
  */
 export const AI_PROVIDER_PRESETS = Object.freeze(ADAPTERS.map((adapter) => Object.freeze({
     id: adapter.id,
@@ -153,6 +154,7 @@ export const AI_PROVIDER_PRESETS = Object.freeze(ADAPTERS.map((adapter) => Objec
     suggestedModels: adapter.suggestedModels,
     listsModels: adapter.models !== null,
     temperature: adapter.temperature,
+    temperaturePerModel: typeof adapter.sendsTemperature === 'function' || typeof adapter.temperatureRange === 'function',
     stream: adapter.stream,
 })).sort((left, right) => (left.id === 'custom' ? 1 : right.id === 'custom' ? -1 : left.label.localeCompare(right.label, 'en'))));
 

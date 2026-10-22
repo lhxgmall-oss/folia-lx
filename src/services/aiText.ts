@@ -6,6 +6,7 @@ export {
   AI_PROVIDER_PRESETS,
   DEFAULT_GEMINI_MODEL,
   modelAlwaysThinks,
+  resolveAiConnection,
   resolveAiProviderPreset,
   retiredModelHint,
 } from '../../shared/ai/providerRegistry.mjs';

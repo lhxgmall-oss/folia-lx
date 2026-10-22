@@ -18,9 +18,15 @@ const base: ElectronSettingsState = {
     ENABLE_UPDATE_CHECK: true, ENABLE_AUTO_UPDATE: false, UPDATE_CHANNEL: 'realeco',
     STAGE_MODE_SOURCE: '', DISCORD_RICH_PRESENCE_ENABLED: false,
 };
+const setElectronSettings = vi.fn();
+/** The settings after the form's last change (setElectronSettings takes an updater). */
+const changed = (patch: Partial<ElectronSettingsState>) => {
+    const update = setElectronSettings.mock.calls.at(-1)![0] as (previous: ElectronSettingsState) => ElectronSettingsState;
+    return update({ ...base, ...patch });
+};
 const render = async (patch: Partial<ElectronSettingsState>) => {
     const value = { viewProps: { desktop: { model: {
-        electronSettings: { ...base, ...patch }, setElectronSettings: vi.fn(), onSaveElectronSettings: save,
+        electronSettings: { ...base, ...patch }, setElectronSettings, onSaveElectronSettings: save,
         electronSaveStatus: 'idle', savedAiApiKeys: { GEMINI_API_KEY: false, OPENAI_API_KEY: false },
         savedOpenAIKeyEndpoint: null, onClearAiApiKey: vi.fn(),
     } } } } as unknown as SettingsPageContextValue;
@@ -69,7 +75,9 @@ describe('AI provider form connection guards', () => {
         expect(button('options.aiTestConnection').disabled).toBe(false);
         expect(button('options.save').disabled).toBe(false);
         await act(async () => { button('options.aiTestConnection').click(); button('options.save').click(); });
-        expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ requireApiUrl: true, apiUrl: 'https://custom.example/v1' }));
+        expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ presetId: 'custom', apiUrl: 'https://custom.example/v1' }));
+        expect(testAiConnection.mock.calls[0][0]).not.toHaveProperty('apiProtocol');
+        expect(testAiConnection.mock.calls[0][0]).not.toHaveProperty('requireApiUrl');
         expect(save).toHaveBeenCalledTimes(1);
     });
     it('keeps built-in provider defaults usable without a custom URL', async () => {
@@ -77,7 +85,91 @@ describe('AI provider form connection guards', () => {
         await render({ AI_PROVIDER_PRESET: 'openai' });
         expect(button('options.aiTestConnection').disabled).toBe(false);
         await act(async () => { button('options.aiTestConnection').click(); });
-        expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ requireApiUrl: false, apiUrl: 'https://api.openai.com/v1' }));
+        expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ presetId: 'openai', apiUrl: 'https://api.openai.com/v1' }));
+    });
+    it('keeps test and save usable for a blank model where the provider has a default, and shows that default', async () => {
+        (window as any).electron = { testAiConnection };
+        // An old OpenAI setting: no preset, no address, no model; requests use DEFAULT_OPENAI_MODEL.
+        await render({ AI_PROVIDER_PRESET: '', OPENAI_API_MODEL: '' });
+        expect(button('options.aiTestConnection').disabled).toBe(false);
+        expect(button('options.save').disabled).toBe(false);
+        expect(combobox('options.aiModel').textContent).toBe('options.aiModelDefault');
+        await act(async () => { button('options.aiTestConnection').click(); });
+        expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ presetId: 'openai', model: '' }));
+    });
+    it('still needs a model where the provider has no default', async () => {
+        (window as any).electron = { testAiConnection };
+        await render({ AI_PROVIDER_PRESET: 'anthropic', OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_MODEL: '' });
+        expect(button('options.aiTestConnection').disabled).toBe(true);
+        expect(button('options.save').disabled).toBe(true);
+        expect(combobox('options.aiModel').textContent).toBe('options.aiModelChoose');
+    });
+});
+describe('AI provider form per provider', () => {
+    const temperatureInput = () => host.querySelector<HTMLInputElement>('input[aria-valuemax]');
+    const pick = async (index: number) => {
+        await act(async () => {
+            [...document.querySelectorAll<HTMLElement>('[role="option"]')][index]
+                .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+        });
+    };
+    it.each([
+        ['openai', 'https://api.openai.com/v1', null],
+        ['anthropic', 'https://api.anthropic.com/v1', null],
+        ['kimi', 'https://api.moonshot.cn/v1', null],
+        ['glm', 'https://open.bigmodel.cn/api/paas/v4', ['1', 'options.aiTemperatureRangeDesc']],
+        ['mimo', 'https://api.xiaomimimo.com/v1', ['1.5', 'options.aiTemperatureRangeDesc']],
+        ['tencentcloud', 'https://tokenhub.tencentmaas.com/v1', ['2', 'options.aiTemperaturePerModelDesc']],
+        ['custom', 'https://custom.example/v1', ['2', 'options.aiTemperatureRangeDesc']],
+    ] as const)('shows the temperature for %s only when it is sent, with its range', async (presetId, apiUrl, expected) => {
+        await render({ AI_PROVIDER_PRESET: presetId, OPENAI_API_URL: apiUrl });
+        if (!expected) {
+            expect(temperatureInput()).toBeNull();
+            expect(host.textContent).not.toContain('options.openaiApiTemperature');
+            return;
+        }
+        expect(temperatureInput()!.getAttribute('aria-valuemax')).toBe(expected[0]);
+        expect(host.textContent).toContain(expected[1]);
+    });
+    it('offers the sites of a provider that has more than one, and writes the picked site’s address', async () => {
+        (window as any).electron = { testAiConnection };
+        await render({ AI_PROVIDER_PRESET: 'kimi', OPENAI_API_URL: 'https://api.moonshot.cn/v1', OPENAI_API_MODEL: 'kimi-k2.6' });
+        expect(combobox('options.aiEndpoint').textContent).toBe('options.aiEndpoint_cn');
+        expect(await optionsOf('options.aiEndpoint')).toEqual(['options.aiEndpoint_cn', 'options.aiEndpoint_global']);
+        await pick(1);
+        expect(changed({}).OPENAI_API_URL).toBe('https://api.moonshot.ai/v1');
+    });
+    it('tests the stored site rather than the default one, and shows an unlisted host as it is', async () => {
+        (window as any).electron = { testAiConnection };
+        await render({ AI_PROVIDER_PRESET: 'kimi', OPENAI_API_URL: 'https://api.moonshot.ai/v1', OPENAI_API_MODEL: 'kimi-k2.6' });
+        expect(combobox('options.aiEndpoint').textContent).toBe('options.aiEndpoint_global');
+        await act(async () => { button('options.aiTestConnection').click(); });
+        expect(testAiConnection).toHaveBeenCalledWith(expect.objectContaining({ presetId: 'kimi', apiUrl: 'https://api.moonshot.ai/v1' }));
+        await render({ AI_PROVIDER_PRESET: 'qwen', OPENAI_API_URL: 'https://ws-1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1', OPENAI_API_MODEL: 'qwen3.8-flash' });
+        expect(combobox('options.aiEndpoint').textContent).toBe('ws-1.cn-beijing.maas.aliyuncs.com');
+    });
+    it('has no site picker for a provider with one site, nor for a custom address', async () => {
+        await render({ AI_PROVIDER_PRESET: 'deepseek', OPENAI_API_URL: 'https://api.deepseek.com' });
+        expect(host.textContent).not.toContain('options.aiEndpoint');
+        await render({ OPENAI_API_URL: 'https://api.moonshot.cn/v1' });
+        expect(host.textContent).not.toContain('options.aiEndpoint');
+    });
+    it('prefills the recommended model and the default site when switching provider', async () => {
+        await render({ AI_PROVIDER_PRESET: 'openai', OPENAI_API_MODEL: 'gpt-5.6-luna' });
+        const options = await optionsOf('options.aiProvider');
+        await pick(options.indexOf('options.aiProvider_deepseek'));
+        expect(changed({ OPENAI_API_KEY: 'typed' })).toMatchObject({
+            AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'deepseek', OPENAI_API_URL: 'https://api.deepseek.com',
+            OPENAI_API_MODEL: 'deepseek-flash', OPENAI_API_KEY: '',
+        });
+    });
+    it('warns about a retired model and about one that cannot stop thinking', async () => {
+        await render({ AI_PROVIDER_PRESET: 'deepseek', OPENAI_API_URL: 'https://api.deepseek.com', OPENAI_API_MODEL: 'deepseek-chat' });
+        expect(host.textContent).toContain('options.aiModelRetired');
+        expect(host.textContent).not.toContain('options.aiModelAlwaysThinks');
+        await render({ AI_PROVIDER_PRESET: 'glm', OPENAI_API_URL: 'https://open.bigmodel.cn/api/paas/v4', OPENAI_API_MODEL: 'glm-5.3-flash' });
+        expect(host.textContent).toContain('options.aiModelAlwaysThinks');
+        expect(host.textContent).not.toContain('options.aiModelRetired');
     });
 });
 describe('AI model picker', () => {

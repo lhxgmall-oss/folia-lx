@@ -16,8 +16,10 @@ export const AiModelPicker: React.FC<{
     suggestedModels?: readonly string[];
     /** False for a provider with no listing request: suggestions and manual entry only, no fetch. */
     listsModels: boolean;
+    /** The model a blank field stands for (the provider's default), shown in place of "select a model". */
+    defaultModel?: string;
     onChange: (model: string) => void;
-}> = ({ option, payload, keySaved, presetId, suggestedModels, listsModels, onChange }) => {
+}> = ({ option, payload, keySaved, presetId, suggestedModels, listsModels, defaultModel, onChange }) => {
     const { t } = useTranslation();
     const list = useAiModels(payload, keySaved);
     const [manual, setManual] = useState(false);
@@ -33,7 +35,7 @@ export const AiModelPicker: React.FC<{
         if (!options.some(option => option.value === id)) options.push({ value: id, label: id });
     }
     if (model && !options.some(option => option.value === model)) options.unshift({ value: model, label: model });
-    if (!model) options.unshift({ value: '', label: t('options.aiModelChoose') });
+    if (!model) options.unshift({ value: '', label: defaultModel ? t('options.aiModelDefault', { model: defaultModel }) : t('options.aiModelChoose') });
     options.push({ value: MANUAL, label: t('options.aiModelManual') });
     const errorKey = list.error === 'auth' ? 'aiModelsAuthError'
         : list.error === 'timeout' ? 'aiModelsTimeout'
@@ -60,7 +62,7 @@ export const AiModelPicker: React.FC<{
             </Row>
             {manual && (
                 <Row sub label={t('options.aiModelManual')}>
-                    <TextField value={model} onChange={onChange} placeholder={t('options.aiModelPlaceholder')} />
+                    <TextField value={model} onChange={onChange} placeholder={defaultModel || t('options.aiModelPlaceholder')} />
                 </Row>
             )}
             {list.error && <Row notice={t('options.' + errorKey)} />}

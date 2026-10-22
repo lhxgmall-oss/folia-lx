@@ -29,12 +29,14 @@ declare global {
   /** Unsaved AI settings sent by the "test connection" button. */
   interface AiConnectionTestPayload {
     provider: 'gemini' | 'openai';
-    apiProtocol?: 'openai' | 'anthropic';
+    /**
+     * The form's preset (shared/ai/providerRegistry.mjs). 'custom' requires apiUrl: a custom
+     * connection must never fall back to a built-in endpoint. Requests follow apiUrl's host.
+     */
+    presetId?: string;
     /** Typed key; empty means "use the saved key", which only the main process can read. */
     apiKey: string;
     apiUrl?: string;
-    /** Custom connections must never fall back to a built-in endpoint. */
-    requireApiUrl?: boolean;
     model?: string;
     stream?: boolean;
     useSystemProxy?: boolean;

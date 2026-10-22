@@ -1,7 +1,7 @@
 import React from 'react';
 import { Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { AI_PROVIDER_PRESETS, DEFAULT_GEMINI_MODEL, resolveAiProviderPreset } from '../../../../../services/aiText';
+import { AI_PROVIDER_PRESETS, DEFAULT_GEMINI_MODEL, modelAlwaysThinks, resolveAiConnection, resolveAiProviderPreset, retiredModelHint } from '../../../../../services/aiText';
 import { openAIEndpointOf } from '../../../../../utils/openAIEndpoint';
 import { Button, FoldedGroup, NumberField, Reveal, Row, Select, TextField, Toggle, Value, option, parseNumberText, type SettingsGroupDef, type SettingsOptionDef } from '../../kit';
 import { AiConnectionTestReply, AiConnectionTestStatus, useAiConnectionTest } from '../AiConnectionTest';
@@ -12,6 +12,7 @@ import { AiModelPicker } from './AiModelPicker';
 const AI: SettingsGroupDef = { id: 'electronSettings', titleKey: 'options.electronSettings', electronOnly: true };
 const O = {
     provider: option(AI, 'aiProvider', 'options.aiProvider'),
+    endpoint: option(AI, 'aiEndpoint', 'options.aiEndpoint'),
     geminiKey: option(AI, 'geminiApiKey', 'options.geminiApiKey'),
     key: option(AI, 'openaiApiKey', 'options.aiApiKey'),
     url: option(AI, 'openaiApiUrl', 'options.aiApiUrl'),
@@ -22,6 +23,15 @@ const O = {
     proxy: option(AI, 'useSystemProxyAI', 'options.useSystemProxyAI'),
 };
 export const AI_SETTINGS_OPTIONS: SettingsOptionDef[] = Object.values(O);
+
+/** Host name of an address, lower case; empty when it is not a URL. */
+const hostOf = (url: string) => {
+    try {
+        return new URL(url).hostname.toLowerCase();
+    } catch {
+        return '';
+    }
+};
 
 /** Saved keys remain in the main process; this field contains only a typed replacement. */
 const AiKeyField: React.FC<{ value: string; saved: boolean; onChange: (key: string) => void; onClear: () => void }> = ({ value, saved, onChange, onClear }) => {
@@ -41,21 +51,27 @@ const AiProviderSettings: React.FC = () => {
     const gemini = preset.protocol === 'gemini';
     const keyName: AiApiKeyName = gemini ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY';
     const key = settings[keyName] || '';
-    const apiUrl = preset.id === 'custom' ? settings.OPENAI_API_URL : preset.baseUrl;
+    // The stored address decides the provider and the site (a built-in preset is only shown while
+    // the address is one of its hosts); nothing stored is the preset's default site.
+    const storedUrl = settings.OPENAI_API_URL || '';
+    const apiUrl = preset.id === 'custom' ? storedUrl : storedUrl.trim() || preset.baseUrl;
+    // What the requests would use: the adapter the address's host picks, and the model with its default.
+    const resolved = resolveAiConnection({ ...settings, OPENAI_API_URL: gemini ? storedUrl : apiUrl });
+    const adapter = AI_PROVIDER_PRESETS.find(value => value.id === resolved.adapterId) ?? preset;
     const mismatchedEndpoint = !gemini && savedOpenAIKeyEndpoint && savedOpenAIKeyEndpoint !== openAIEndpointOf(apiUrl)
         ? savedOpenAIKeyEndpoint : null;
     const usableSavedKey = savedAiApiKeys[keyName] && !mismatchedEndpoint;
     const setAi = (patch: Partial<ElectronSettingsState>) => setElectronSettings(previous => ({ ...previous, ...patch }));
     const model = gemini ? settings.GEMINI_API_MODEL || DEFAULT_GEMINI_MODEL : settings.OPENAI_API_MODEL || '';
-    const connectionReady = Boolean(model.trim()) && (preset.id !== 'custom' || Boolean(apiUrl?.trim()));
+    // A blank model is fine where the provider has a default one (old settings rely on it).
+    const connectionReady = Boolean(resolved.model) && (preset.id !== 'custom' || Boolean(apiUrl.trim()));
     const payload: AiConnectionTestPayload = {
         provider: gemini ? 'gemini' : 'openai',
-        apiProtocol: preset.protocol === 'anthropic' ? 'anthropic' : 'openai',
+        presetId: preset.id,
         apiKey: key,
         apiUrl: gemini ? undefined : apiUrl,
-        requireApiUrl: preset.id === 'custom',
         model,
-        stream: preset.protocol === 'openai' && settings.OPENAI_API_STREAM,
+        stream: adapter.stream && settings.OPENAI_API_STREAM,
         useSystemProxy: settings.USE_SYSTEM_PROXY_FOR_AI,
     };
     const connection = useAiConnectionTest(payload, usableSavedKey);
@@ -67,18 +83,41 @@ const AiProviderSettings: React.FC = () => {
             AI_PROVIDER: next.protocol === 'gemini' ? 'gemini' : 'openai',
             GEMINI_API_KEY: '',
             OPENAI_API_KEY: '',
-            ...(next.protocol !== 'gemini' ? { OPENAI_API_URL: next.baseUrl, OPENAI_API_MODEL: '' } : {}),
+            // Prefilled with the provider's recommended model, so a typed key can be tested right away.
+            ...(next.protocol !== 'gemini' ? { OPENAI_API_URL: next.baseUrl, OPENAI_API_MODEL: next.recommendedModel ?? '' } : {}),
         });
     };
     const keyHint = mismatchedEndpoint && !key.trim()
         ? t('options.aiApiKeyEndpointMismatchDesc', { endpoint: mismatchedEndpoint })
         : usableSavedKey ? t('options.aiApiKeySavedDesc') : undefined;
 
+    // Sites: the one whose host the address uses; an address on none of them (a workspace domain,
+    // a site we do not list) is shown by its host until another site is picked.
+    const sites = gemini || preset.id === 'custom' ? [] : preset.endpoints;
+    const siteHost = hostOf(apiUrl);
+    const site = sites.find(endpoint => hostOf(endpoint.baseUrl) === siteHost);
+    const siteOptions = [
+        ...(site ? [] : [{ value: '', label: siteHost || apiUrl }]),
+        ...sites.map(endpoint => ({ value: endpoint.id, label: t('options.aiEndpoint_' + endpoint.id) })),
+    ];
+
+    const retired = retiredModelHint(resolved.adapterId, resolved.model);
+    const alwaysThinks = modelAlwaysThinks(resolved.adapterId, resolved.model);
+    const temperature = adapter.temperature;
+
     return (
         <FoldedGroup def={AI} summary={t('options.aiProvider_' + preset.id)}>
             <Row option={O.provider}>
                 <Select value={preset.id} options={AI_PROVIDER_PRESETS.map(value => ({ value: value.id, label: t('options.aiProvider_' + value.id) }))} onChange={selectProvider} />
             </Row>
+            {sites.length > 1 && (
+                <Row option={O.endpoint}>
+                    <Select value={site?.id ?? ''} options={siteOptions} onChange={id => {
+                        const next = sites.find(endpoint => endpoint.id === id);
+                        if (next) setAi({ OPENAI_API_URL: next.baseUrl });
+                    }} />
+                </Row>
+            )}
             {preset.id === 'custom' && (
                 <Row option={O.url}>
                     <TextField value={settings.OPENAI_API_URL} onChange={value => setAi({ OPENAI_API_URL: value })} placeholder={preset.baseUrl} />
@@ -88,16 +127,20 @@ const AiProviderSettings: React.FC = () => {
                 <AiKeyField value={key} saved={usableSavedKey} onChange={value => setAi({ [keyName]: value })} onClear={() => void onClearAiApiKey(keyName)} />
             </Row>
             <AiModelPicker option={gemini ? O.geminiModel : O.model} payload={payload} keySaved={usableSavedKey} presetId={preset.id}
-                suggestedModels={preset.suggestedModels} listsModels={preset.listsModels} onChange={value => setAi({ [gemini ? 'GEMINI_API_MODEL' : 'OPENAI_API_MODEL']: value })} />
-            {/* Anthropic is never sent a temperature, so there is nothing to set for it. */}
-            <Reveal when={!gemini && preset.protocol !== 'anthropic'}>
-                <Row option={O.temperature} hint={t('options.openaiApiTemperatureDesc')}>
+                suggestedModels={preset.suggestedModels} listsModels={preset.listsModels}
+                defaultModel={model ? undefined : resolved.model || undefined}
+                onChange={value => setAi({ [gemini ? 'GEMINI_API_MODEL' : 'OPENAI_API_MODEL']: value })} />
+            {retired && <Row notice={t('options.aiModelRetired', { model: retired.model, replacement: retired.replacement })} />}
+            {alwaysThinks && <Row notice={t('options.aiModelAlwaysThinks')} />}
+            {/* Shown only for providers that are sent a temperature, with their own range. */}
+            <Reveal when={!gemini && Boolean(temperature)}>
+                <Row option={O.temperature} hint={temperature ? t(adapter.temperaturePerModel ? 'options.aiTemperaturePerModelDesc' : 'options.aiTemperatureRangeDesc', temperature) : undefined}>
                     <NumberField value={parseNumberText(settings.OPENAI_API_TEMPERATURE)}
                         onChange={value => setAi({ OPENAI_API_TEMPERATURE: value === null ? '' : String(value) })}
-                        min={0} max={2} step={0.1} placeholder="0.7" />
+                        min={temperature?.min ?? 0} max={temperature?.max ?? 2} step={0.1} placeholder="0.7" />
                 </Row>
             </Reveal>
-            <Reveal when={preset.protocol === 'openai'}>
+            <Reveal when={!gemini && adapter.stream}>
                 <Row option={O.stream} note={t('options.openaiApiStreamDesc')}>
                     <Toggle checked={settings.OPENAI_API_STREAM} onChange={enabled => setAi({ OPENAI_API_STREAM: enabled })} />
                 </Row>

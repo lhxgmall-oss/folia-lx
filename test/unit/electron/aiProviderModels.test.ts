@@ -64,7 +64,7 @@ describe('model discovery', () => {
         const customFetch = vi.fn()
             .mockResolvedValueOnce(json({ data: [{ id: 'claude-one', display_name: 'Claude One' }], has_more: true, last_id: 'claude-one' }))
             .mockResolvedValueOnce(json({ data: [{ id: 'claude-two' }], has_more: false }));
-        const result = await listAiModels({ ...payload, apiProtocol: 'anthropic', apiUrl: 'https://api.anthropic.com/v1/messages' }, { customFetch });
+        const result = await listAiModels({ ...payload, presetId: 'anthropic', apiUrl: 'https://api.anthropic.com/v1/messages' }, { customFetch });
         expect(result.models).toHaveLength(2);
         expect(customFetch.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models?limit=1000');
         expect(customFetch.mock.calls[1][0]).toContain('after_id=claude-one');
@@ -180,7 +180,7 @@ describe('discovery IPC credential boundary', () => {
             { id: 'Bearer saved-secret' },
             { id: 'one', display_name: 'Authorization: Bearer saved-secret; saved-secret' },
         ] } },
-        { provider: 'openai', apiProtocol: 'anthropic', catalogue: { data: [
+        { provider: 'openai', presetId: 'anthropic', apiUrl: 'https://api.anthropic.com/v1', catalogue: { data: [
             { id: 'saved-secret' },
             { id: 'one', display_name: 'x-api-key: saved-secret' },
         ] } },
@@ -230,7 +230,7 @@ describe('discovery IPC credential boundary', () => {
 describe('custom provider URL requirements', () => {
     it.each(['', '   '])('blocks connection tests, discovery and saved completions before fetch for URL %j', async apiUrl => {
         const customFetch = vi.fn();
-        const input = { ...payload, apiUrl, model: 'custom-model', requireApiUrl: true };
+        const input = { ...payload, apiUrl, model: 'custom-model', presetId: 'custom' };
         expect(await client.runAiConnectionTest(input, { customFetch })).toMatchObject({ ok: false, errorKind: 'invalid' });
         expect(await listAiModels(input, { customFetch })).toEqual({ ok: false, errorKind: 'invalid' });
         const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'custom',
@@ -251,7 +251,7 @@ describe('selected model completion', () => {
         const model = '  claude-selected\t';
         const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic',
             OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_KEY: 'test-secret', OPENAI_API_MODEL: model });
-        expect(await client.runAiConnectionTest({ ...payload, apiProtocol: 'anthropic', model }, { customFetch })).toMatchObject({ ok: true });
+        expect(await client.runAiConnectionTest({ ...payload, presetId: 'anthropic', apiUrl: 'https://api.anthropic.com/v1', model }, { customFetch })).toMatchObject({ ok: true });
         await client.runAiJsonCompletion({ store, task: 'theme', systemPrompt: 'theme', sourcePrompt: 'source', customFetch });
         await client.runAiJsonCompletion({ store, task: 'segmentation', systemPrompt: 'segmentation', sourcePrompt: 'source', customFetch });
         expect(models).toEqual(['claude-selected', 'claude-selected', 'claude-selected']);
@@ -321,10 +321,23 @@ describe('selected model completion', () => {
                 : json({ content: [{ type: 'text', text: 'Hi test-secret' }] });
         };
         await client.runAiConnectionTest({ provider: 'gemini', apiKey: 'test-secret', model: 'gemini-selected' }, { customFetch });
-        const result = await client.runAiConnectionTest({ ...payload, apiProtocol: 'anthropic', model: 'claude-selected' }, { customFetch });
+        const result = await client.runAiConnectionTest({ ...payload, presetId: 'anthropic', apiUrl: 'https://api.anthropic.com/v1', model: 'claude-selected' }, { customFetch });
         expect(calls[0].url).toContain('/gemini-selected:generateContent');
         expect(calls[0].body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'minimal' });
-        expect(calls[1].url).toBe('https://relay.example/v1/messages');
+        expect(calls[1].url).toBe('https://api.anthropic.com/v1/messages');
         expect(result).toMatchObject({ ok: true, model: 'claude-selected', text: 'Hi ***' });
+    });
+    it('follows the address\'s host, not the form\'s preset, as the saved settings do', async () => {
+        const urls: string[] = [];
+        const customFetch = async (url: string) => {
+            urls.push(url);
+            return json({ choices: [{ finish_reason: 'stop', message: { content: 'Hi' } }] });
+        };
+        // A preset that does not match the address is only what the form shows; the relay is a custom endpoint.
+        expect(await client.runAiConnectionTest({ ...payload, presetId: 'anthropic', model: 'claude-selected' }, { customFetch })).toMatchObject({ ok: true });
+        expect(urls).toEqual(['https://relay.example/v1/chat/completions']);
+        expect(client.validateAiConnectionTestInput({ ...payload, presetId: 12 })).toEqual({ error: 'Unknown AI provider preset.' });
+        expect(client.validateAiConnectionTestInput({ ...payload, apiUrl: '', presetId: 'custom' })).toEqual({ error: 'API URL is required for a custom AI provider.' });
+        expect(client.validateAiConnectionTestInput({ ...payload, apiUrl: '', presetId: 'openai' }).config).toMatchObject({ presetId: 'openai', apiUrl: '' });
     });
 });

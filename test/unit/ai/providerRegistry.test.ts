@@ -172,6 +172,10 @@ describe('the presets the settings form lists', () => {
         const options = (messages as { options: Record<string, string> }).options;
         for (const preset of AI_PROVIDER_PRESETS) {
             expect(options[`aiProvider_${preset.id}`], preset.id).toBeTruthy();
+            // The site picker shows only for more than one site, and names each by its id.
+            for (const endpoint of preset.endpoints.length > 1 ? preset.endpoints : []) {
+                expect(options[`aiEndpoint_${endpoint.id}`], `${preset.id} ${endpoint.id}`).toBeTruthy();
+            }
         }
     });
 

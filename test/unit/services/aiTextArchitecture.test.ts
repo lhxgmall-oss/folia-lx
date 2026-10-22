@@ -19,7 +19,7 @@ const DOOR = 'src/services/aiText.ts';
 const NAMES = {
     route: /\/api\/(?:generate-theme|segment-lyrics)/,
     bridge: /\b(?:generateTheme|segmentLyrics|testAiConnection|listAiModels)\b/,
-    address: /generativelanguage\.googleapis\.com|api\.openai\.com|api\.deepseek\.com|api\.anthropic\.com|moonshot\.(?:cn|ai)|bigmodel\.cn|api\.z\.ai|dashscope|tencentmaas|xiaomimimo/,
+    address: /generativelanguage\.googleapis\.com|api\.openai\.com|api\.deepseek\.com|api\.anthropic\.com|moonshot\.(?:cn|ai)|bigmodel\.cn|api\.z\.ai|dashscope|tencent(?:cloud)?maas|xiaomimimo/,
     setting: /\b(?:GEMINI|OPENAI)_API_\w+|\b(?:VITE_)?AI_PROVIDER\b/i,
 };
 type Kind = keyof typeof NAMES;

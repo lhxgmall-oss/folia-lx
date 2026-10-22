@@ -8,6 +8,7 @@ function registerAiModelDiscovery({ ipcMain, aiCredentials, store, isTrustedMain
         if (!isTrustedMainWindowContents(event.sender)) return { ok: false, errorKind: 'invalid' };
         if (!payload || typeof payload !== 'object'
             || !['gemini', 'openai'].includes(payload.provider)
+            || (payload.presetId != null && typeof payload.presetId !== 'string')
             || (payload.apiKey != null && typeof payload.apiKey !== 'string')) {
             return { ok: false, errorKind: 'invalid' };
         }

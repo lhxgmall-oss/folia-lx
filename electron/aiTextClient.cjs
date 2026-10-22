@@ -737,6 +737,7 @@ const AI_TEST_PROMPT = 'hello';
 const AI_TEST_MAX_REPLY_CHARS = 500;
 const AI_TEST_MAX_ERROR_CHARS = 500;
 const AI_TEST_MAX_FIELD_CHARS = { apiKey: 1024, apiUrl: 2048, model: 256 };
+const AI_TEST_MAX_PRESET_ID_CHARS = 64;
 
 const truncateText = (text, limit) => (text.length > limit ? `${text.slice(0, limit)}…` : text);
 
@@ -775,9 +776,11 @@ function validateAiConnectionTestInput(raw) {
   const apiKey = readString('apiKey');
   const apiUrl = provider === 'openai' ? readString('apiUrl') : '';
   const model = readString('model');
-  const apiProtocol = raw.apiProtocol ?? 'openai';
-  if (apiProtocol !== 'openai' && apiProtocol !== 'anthropic') {
-    return { error: 'Unknown API protocol.' };
+  // The form's preset only says what it shows (the URL's host still picks the adapter); a custom
+  // one must name its own address.
+  const presetId = raw.presetId ?? '';
+  if (typeof presetId !== 'string' || presetId.length > AI_TEST_MAX_PRESET_ID_CHARS) {
+    return { error: 'Unknown AI provider preset.' };
   }
   if (provider === 'gemini' && model && !/^(?:models\/)?[\w.-]{1,256}$/.test(model)) {
     return { error: 'Invalid Gemini model.' };
@@ -785,7 +788,7 @@ function validateAiConnectionTestInput(raw) {
   if (apiKey === null || apiUrl === null || model === null) {
     return { error: 'A setting value is too long or has the wrong type.' };
   }
-  if (provider === 'openai' && raw.requireApiUrl === true && !apiUrl) {
+  if (provider === 'openai' && presetId === 'custom' && !apiUrl) {
     return { error: 'API URL is required for a custom AI provider.' };
   }
   if (apiUrl) {
@@ -802,9 +805,9 @@ function validateAiConnectionTestInput(raw) {
   return {
     config: {
       provider,
+      presetId,
       apiKey,
       apiUrl,
-      apiProtocol,
       model,
       stream: provider === 'openai' && raw.stream === true,
     },
@@ -812,21 +815,17 @@ function validateAiConnectionTestInput(raw) {
 }
 
 /**
- * The connection the unsaved form values describe, resolved the same way as the saved settings.
- * Until the form sends its preset id, an explicit Anthropic protocol also covers a relay that
- * speaks the Messages API under another host.
+ * The connection the unsaved form values describe, resolved exactly as the saved settings are
+ * (resolveAiConnection), so the test, model discovery and the real requests agree on the adapter.
  */
 function resolveFormConnection(ai, config) {
-  const connection = ai.resolveAiConnection({
+  return ai.resolveAiConnection({
     AI_PROVIDER: config.provider,
+    AI_PROVIDER_PRESET: config.presetId,
     OPENAI_API_URL: config.apiUrl,
     OPENAI_API_MODEL: config.model,
     GEMINI_API_MODEL: config.model,
   });
-  if (config.provider === 'openai' && config.apiProtocol === 'anthropic' && connection.protocol !== 'anthropic') {
-    return { ...connection, adapterId: 'anthropic', protocol: 'anthropic', model: config.model };
-  }
-  return connection;
 }
 
 /** The adapter the unsaved form values would use (model discovery shares this with the test). */
