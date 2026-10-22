@@ -7,11 +7,16 @@ export function createQishuiSceneCover(id: string, iconUrl: string): Promise<str
     const key = `${id}:${iconUrl}`;
     const kept = covers.get(key);
     if (kept) return kept;
+    // Set when the icon could not be read: that artwork is shown this time only, and a later card asks again.
+    let withoutIcon = false;
     const task = (async () => {
         let icon = '';
         if (iconUrl) {
             try { icon = await readQishuiSceneIcon(iconUrl); }
-            catch (error) { console.warn('[Qishui] Scene artwork uses its vector background', error); }
+            catch (error) {
+                console.warn('[Qishui] Scene artwork uses its vector background', error);
+                withoutIcon = true;
+            }
         }
         const seed = [...id].reduce((value, char) => (value * 31 + char.charCodeAt(0)) >>> 0, 7);
         const [a, b] = PALETTES[seed % PALETTES.length];
@@ -38,5 +43,6 @@ ${icon ? `<image href="${icon}" x="256" y="256" width="128" height="128" opacity
     })();
     covers.set(key, task);
     while (covers.size > 64) covers.delete(covers.keys().next().value!);
+    void task.then(() => { if (withoutIcon && covers.get(key) === task) covers.delete(key); });
     return task;
 }

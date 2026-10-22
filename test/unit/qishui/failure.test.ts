@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
 import { describeQishuiFailure } from '@/services/onlineMusic/qishui/qishuiFailure';
 import { clearQishuiPlayback } from '@/services/onlineMusic/qishui/qishuiPlayback';
-import { requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
+import { readQishuiSceneIcon, requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { omni } from '@/services/onlineMusic/omni';
 import { track } from './fixtures';
@@ -105,3 +105,31 @@ describe('Qishui song look-up by id', () => {
     });
 });
 
+describe('Qishui scene icons', () => {
+    const icon = (bytes: number[], type: string | null) => {
+        const fetch = vi.fn(async () => new Response(new Uint8Array(bytes), { headers: type ? { 'content-type': type } : {} }));
+        vi.stubGlobal('fetch', fetch);
+        return fetch;
+    };
+    const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    const JPEG = [0xff, 0xd8, 0xff, 0xe0];
+    const WEBP = [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50];
+    const url = 'https://p3-luna.douyinpic.com/img/scene.png~tplv-test-image.image';
+    it('labels the data URL with the image\'s own type', async () => {
+        icon(WEBP, 'image/png');
+        expect(await readQishuiSceneIcon(url)).toMatch(/^data:image\/webp;base64,/);
+        icon(JPEG, 'image/jpeg');
+        expect(await readQishuiSceneIcon(url)).toMatch(/^data:image\/jpeg;base64,/);
+        const fetch = icon(PNG, 'image/png; charset=binary');
+        expect(await readQishuiSceneIcon(url)).toMatch(/^data:image\/png;base64,/);
+        expect(fetch).toHaveBeenCalledWith(url, expect.objectContaining({ credentials: 'omit', redirect: 'error' }));
+    });
+    it('falls back to the declared raster type, and refuses what is not one', async () => {
+        icon([1, 2, 3, 4], 'image/avif');
+        expect(await readQishuiSceneIcon(url)).toMatch(/^data:image\/avif;base64,/);
+        icon([0x3c, 0x73, 0x76, 0x67], 'image/svg+xml');
+        await expect(readQishuiSceneIcon(url)).rejects.toThrow('not a raster image');
+        icon(PNG, 'text/html');
+        await expect(readQishuiSceneIcon(url)).rejects.toThrow('unavailable');
+    });
+});

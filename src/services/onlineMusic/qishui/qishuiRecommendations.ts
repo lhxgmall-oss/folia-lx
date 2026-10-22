@@ -11,21 +11,26 @@ type Scene = { id: string; name: string; group: string; coverUrl?: unknown };
 let catalogTask: Promise<PersonalFmCatalog> | null = null;
 let catalogAt = 0;
 let scenes: Scene[] = [];
-export function clearQishuiRecommendations() { catalogTask = null; scenes = []; catalogAt = 0; }
+// Counts the clears, so that a catalogue read under the account before does not refill the list.
+let generation = 0;
+export function clearQishuiRecommendations() { generation++; catalogTask = null; scenes = []; catalogAt = 0; }
 export async function getQishuiFmCatalog(): Promise<PersonalFmCatalog> {
     if (!catalogTask || Date.now() - catalogAt > 10 * 60_000) {
         catalogAt = Date.now();
-        catalogTask = requestQishui<Scene[]>('feed_modes').then(rows => {
+        const mine = generation;
+        const task: Promise<PersonalFmCatalog> = requestQishui<Scene[]>('feed_modes').then(rows => {
             const seen = new Set<string>();
-            scenes = rows.filter(row => /^\d+$/.test(row.id) && row.name && !seen.has(row.id) && Boolean(seen.add(row.id)));
-            const groups = [...new Set(scenes.map(scene => scene.group))];
+            const read = rows.filter(row => /^\d+$/.test(row.id) && row.name && !seen.has(row.id) && Boolean(seen.add(row.id)));
+            if (mine === generation) scenes = read;
+            const groups = [...new Set(read.map(scene => scene.group))];
             return {
                 modes: DEFAULT_PERSONAL_FM_CATALOG.modes.filter(entry => entry.id !== 'PUZZLE_MODE_RCMD'),
                 categories: groups.map((group, index) => ({ id: `group-${index}`, labelKey: '', labelFallback: group })),
-                scenes: scenes.map(scene => ({ id: scene.id, category: `group-${groups.indexOf(scene.group)}`,
+                scenes: read.map(scene => ({ id: scene.id, category: `group-${groups.indexOf(scene.group)}`,
                     labelKey: '', labelFallback: scene.name, keywords: [scene.name, scene.id] })),
             };
-        }).catch(error => { catalogTask = null; throw error; });
+        }).catch(error => { if (catalogTask === task) catalogTask = null; throw error; });
+        catalogTask = task;
     }
     return catalogTask;
 }

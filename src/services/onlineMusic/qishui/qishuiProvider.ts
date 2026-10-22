@@ -13,6 +13,9 @@ import { qishuiPlayback, clearQishuiPlayback, readQishuiSongs } from './qishuiPl
 import { describeQishuiFailure } from './qishuiFailure';
 
 // Car platform adapter; account and catalogue operations share the existing Omni entry points.
+// What belongs to one sign-in: the explore stream's memory, the scene catalogue and the playability checks.
+// Dropped together whenever the account changes: confirmed, signed out, or the sign-in ran out.
+function clearAccountState() { clearQishuiExplore(); clearQishuiRecommendations(); clearQishuiPlayback(); }
 export const qishuiProvider: OnlineMusicProvider = {
     id: 'qishui', displayName: '汽水音乐', shortName: '汽水', mark: { letter: '汽', color: '#19a58c' },
     getAvailability: getQishuiAvailability,
@@ -44,14 +47,14 @@ export const qishuiProvider: OnlineMusicProvider = {
             return failure ? [diagnosticLine`stage=${failure.stage} code=${failure.code} upstreamCode=${failure.upstreamCode}`] : [];
         },
         getLoginTexts: () => ({ title: 'home.loginTitleQishui', note: 'home.loginNoteQishui' }),
-        signInRanOut: clearQishuiPlayback,
+        signInRanOut: clearAccountState,
         async getLoginStatus() { const user = await requestQishui('login_status'); return user ? normalizeQishuiUser(user) : null; },
         async startLogin() { return (await requestQishui<{ key: string }>('login_qr_key')).key; },
         async createQr(key) { return (await requestQishui<{ imageUrl: string }>('login_qr_create', { key })).imageUrl; },
         async checkLogin(key) {
             try {
                 const result = await requestQishui<LoginState>('login_qr_check', { key });
-                if (result.state === 'confirmed') { clearQishuiExplore(); clearQishuiRecommendations(); clearQishuiPlayback(); }
+                if (result.state === 'confirmed') clearAccountState();
                 return result;
             } catch (error) {
                 if (error instanceof OnlineProviderError && error.code === 'network') return { state: 'error', transient: true, failure: { case: 'unreachable' } };
@@ -60,7 +63,7 @@ export const qishuiProvider: OnlineMusicProvider = {
         },
         async cancelLogin(key) { await requestQishui('login_qr_cancel', { key }); },
         getLoginTtlMs: () => 300000,
-        async logout() { clearQishuiExplore(); clearQishuiRecommendations(); clearQishuiPlayback(); await requestQishui('logout'); },
+        async logout() { clearAccountState(); await requestQishui('logout'); },
     },
     catalog: qishuiCatalog, library: qishuiLibrary, explore: qishuiExplore,
     recommendations: qishuiRecommendations,
