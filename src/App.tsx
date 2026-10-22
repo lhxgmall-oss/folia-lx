@@ -87,6 +87,7 @@ import { resolveActiveProviderSummary } from './library/core/account/accountRule
 import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './components/app/playback/bridges/useElectronPlaybackBridge';
 import { useElectronDisplaySleepBlocker } from './hooks/useElectronDisplaySleepBlocker';
+import { useBackgroundLyricHold } from './components/app/backgroundThrottling/useBackgroundLyricHold';
 import { useSleepTimer } from './hooks/useSleepTimer';
 import { useProviderNotices } from './components/app/useProviderNotices';
 import { useLocalLibraryAutoScan } from './hooks/useLocalLibraryAutoScan';
@@ -490,6 +491,7 @@ export default function App() {
         preventDisplaySleepDuringPlayback,
         playerState === PlayerState.PLAYING,
     );
+    useBackgroundLyricHold();
 
     const visualizerTunings = useVisualizerTunings();
 
