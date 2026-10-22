@@ -11,6 +11,8 @@ import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAcc
 import { selectProviderPersonalFm, usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
 import { isSamePersonalFmSelection, toPersonalFmRequestOptions } from '../../services/onlineMusic/fmModes';
 import { omni } from '../../services/onlineMusic/omni';
+import { wholeQueueWritesSoFar } from '../../services/wholeQueueWrites';
+import { queueStartsSoFar } from '../../components/app/playback/start/queueStarts';
 import {
     createLocalGridViewCollection,
     createNavidromeGridViewCollection,
@@ -53,7 +55,12 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
             const request = ++personalFmRequest;
             const activeProvider = () => useOnlineProviderAccountStore.getState().activeProviderId;
             const providerId = cardProviderId ?? activeProvider();
-            const stillCurrent = () => request === personalFmRequest && activeProvider() === providerId;
+            // Nor do its songs cut off what the listener started after the click: another queue (a mode switch
+            // in the command palette that played first, a playlist), or one replaced whole.
+            const queueStartsAtClick = queueStartsSoFar();
+            const queueWritesAtClick = wholeQueueWritesSoFar();
+            const stillCurrent = () => request === personalFmRequest && activeProvider() === providerId
+                && queueStartsSoFar() === queueStartsAtClick && wholeQueueWritesSoFar() === queueWritesAtClick;
             if (!stillCurrent()) return [];
             let options;
             // Put back when the card brings nothing to play, as the mode switch in the command palette does.

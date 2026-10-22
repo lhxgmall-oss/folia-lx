@@ -6,6 +6,8 @@ import { selectProviderPersonalFm, usePersonalFmModeStore } from '@/stores/usePe
 import { DEFAULT_PERSONAL_FM_CATALOG } from '@/services/onlineMusic/fmModes';
 import type { HomeSurfaceProps } from '@/components/app/home/homeSurfaceTypes';
 import type { SongResult } from '@/types';
+import { noteQueueStart } from '@/components/app/playback/start/queueStarts';
+import { noteWholeQueueWrite } from '@/services/wholeQueueWrites';
 
 // Card requests that lose their provider during either await must never request or play the new provider's stream.
 const api = vi.hoisted(() => ({ getPersonalFm: vi.fn(), getPersonalFmCatalog: vi.fn() }));
@@ -129,6 +131,20 @@ describe('home radio provider binding', () => {
         const result = actions.openOnlineCard({ id: 'scene-33', name: 'Driving', type: 'radio', raw: { personalFm: selection } }, 'qishui', vi.fn());
         await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalled());
         useOnlineProviderAccountStore.setState({ activeProviderId: 'netease' });
+        pending.resolve(songs);
+        await result;
+        expect(play).not.toHaveBeenCalled();
+    });
+    it.each([
+        ['another queue started (a mode switch that played first, a playlist)', () => noteQueueStart()],
+        ['the queue was replaced whole', () => noteWholeQueueWrite()],
+    ])('does not play a scene whose songs return after %s', async (_what, during) => {
+        const pending = deferred<SongResult[]>();
+        api.getPersonalFm.mockReturnValue(pending.promise);
+        const { actions, play } = setup();
+        const result = actions.openOnlineCard({ id: 'scene-33', name: 'Driving', type: 'radio', raw: { personalFm: selection } }, 'qishui', vi.fn());
+        await vi.waitFor(() => expect(api.getPersonalFm).toHaveBeenCalled());
+        during();
         pending.resolve(songs);
         await result;
         expect(play).not.toHaveBeenCalled();
