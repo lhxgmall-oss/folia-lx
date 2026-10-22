@@ -40,7 +40,9 @@ describe('model discovery', () => {
         const result = await listAiModels({ ...payload, apiUrl: preset.baseUrl }, { customFetch });
         const url = new URL(customFetch.mock.calls[0][0]);
         expect(url.origin).toBe(new URL(preset.baseUrl).origin);
-        expect(url.pathname).toBe(preset.id === 'glm' ? '/api/fine-tuning/model_center/list' : new URL(preset.baseUrl).pathname + '/models');
+        // <API base>/models, the base as requests normalise it (DeepSeek's bare origin gains /v1).
+        const base = new URL(client.normalizeOpenAIChatCompletionsUrl(preset.baseUrl)).pathname.replace(/\/chat\/completions$/, '');
+        expect(url.pathname).toBe(preset.id === 'glm' ? '/api/fine-tuning/model_center/list' : base + '/models');
         expect(customFetch.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: 'Bearer test-secret' }, redirect: 'error' });
         expect(result).toMatchObject({ ok: true, models: [{ id: modelId }] });
     });

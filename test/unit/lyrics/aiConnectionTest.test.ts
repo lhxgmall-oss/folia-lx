@@ -107,12 +107,14 @@ describe('runAiConnectionTest (OpenAI compatible)', () => {
         expect(result).toMatchObject({ ok: true, text: 'hi' });
     });
 
-    it('leaves DeepSeek thinking at the provider default', async () => {
+    it('switches DeepSeek thinking off, as segmentation does', async () => {
         const { calls, customFetch } = makeFetch(() => json({ choices: [{ message: { content: 'hi' } }] }));
         await client.runAiConnectionTest(openai({ apiUrl: 'https://api.deepseek.com/v1' }), { customFetch });
-        expect(calls[0].body.thinking).toBeUndefined();
-        expect(calls[0].body.reasoning_effort).toBeUndefined();
+        expect(calls).toHaveLength(1);
+        expect(calls[0].body.thinking).toEqual({ type: 'disabled' });
+        expect(calls[0].body.reasoning_effort).toBe('none');
         expect(calls[0].body.chat_template_kwargs).toBeUndefined();
+        expect(calls[0].body.max_tokens).toBe(512);
     });
 
     it('scrubs echoed Authorization, x-goog-api-key and key= values from errors', async () => {

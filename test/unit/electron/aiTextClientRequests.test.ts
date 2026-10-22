@@ -126,7 +126,7 @@ describe('the theme ask', () => {
         }]);
     });
 
-    it('to DeepSeek: its own default model', async () => {
+    it('to DeepSeek: its own default model, thinking off as for segmentation', async () => {
         const { requests, customFetch } = record(openAiAnswer('{}'));
 
         await askOpenAi(DEEPSEEK_STORE, customFetch);
@@ -136,10 +136,12 @@ describe('the theme ask', () => {
             method: 'POST',
             headers: OPENAI_HEADERS,
             body: {
-                model: 'deepseek-v4-flash',
+                model: 'deepseek-flash',
                 messages: MESSAGES,
                 temperature: 0.7,
                 max_tokens: 8192,
+                thinking: { type: 'disabled' },
+                reasoning_effort: 'none',
                 response_format: { type: 'json_object' },
             },
         }]);
@@ -281,7 +283,7 @@ describe('the segmentation ask', () => {
             method: 'POST',
             headers: OPENAI_HEADERS,
             body: {
-                model: 'deepseek-v4-flash',
+                model: 'deepseek-flash',
                 messages: MESSAGES,
                 temperature: 0.7,
                 max_tokens: 8192,

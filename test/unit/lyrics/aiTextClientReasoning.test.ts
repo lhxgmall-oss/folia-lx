@@ -136,10 +136,10 @@ describe('reasoning suppression ladder', () => {
         expect(attempts).toHaveLength(1);
     });
 
-    it('sends nothing extra for the theme, which does not ask to disable reasoning', async () => {
+    it('sends nothing extra for the theme to an unknown endpoint, which does not ask to disable reasoning', async () => {
         const { attempts, fetchImpl } = makeFetch(() => answered('{}'));
         await client.runAiJsonCompletion({
-            store: { get: (k: string) => ({ AI_PROVIDER: 'openai', OPENAI_API_KEY: 'k', OPENAI_API_URL: 'https://api.deepseek.com/v1' }[k]) },
+            store: { get: (k: string) => ({ AI_PROVIDER: 'openai', OPENAI_API_KEY: 'k', OPENAI_API_URL: 'https://theme.example.test/v1' }[k]) },
             task: 'theme', systemPrompt: 'sys', sourcePrompt: 'src', customFetch: fetchImpl, answerTokens: 4096,
         });
 

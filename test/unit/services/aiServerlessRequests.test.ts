@@ -49,9 +49,9 @@ const recordOpenAi = (content: string) => {
 const DEPLOYMENTS: Array<[string, Deployment, { url: string; model: string; temperature: number; official: boolean; deepseek?: boolean }]> = [
     ['only a key', {}, { url: OPENAI_ADDRESS, model: 'gpt-5.6-luna', temperature: 0.7, official: true }],
     ['DeepSeek\'s address', { OPENAI_API_URL: 'https://api.deepseek.com' },
-        { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-v4-flash', temperature: 0.7, official: false, deepseek: true }],
+        { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-flash', temperature: 0.7, official: false, deepseek: true }],
     ['another DeepSeek host', { OPENAI_API_URL: 'https://eu.deepseek.com/v1/' },
-        { url: 'https://eu.deepseek.com/v1/chat/completions', model: 'deepseek-v4-flash', temperature: 0.7, official: false, deepseek: true }],
+        { url: 'https://eu.deepseek.com/v1/chat/completions', model: 'deepseek-flash', temperature: 0.7, official: false, deepseek: true }],
     ['DeepSeek\'s address and a model', { OPENAI_API_URL: 'https://api.deepseek.com/v1', OPENAI_API_MODEL: ' my-model ' },
         { url: 'https://api.deepseek.com/v1/chat/completions', model: 'my-model', temperature: 0.7, official: false, deepseek: true }],
     ['another host and a temperature', { OPENAI_API_URL: 'https://relay.example.com/v1', OPENAI_API_TEMPERATURE: '0.2' },
