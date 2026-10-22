@@ -1,9 +1,12 @@
 'use strict';
 
-const { normalizeOpenAIChatCompletionsUrl, validateAiConnectionTestInput } = require('../aiTextClient.cjs');
+const { normalizeOpenAIChatCompletionsUrl, resolveFormAdapter, validateAiConnectionTestInput } = require('../aiTextClient.cjs');
 const { normalizeAnthropicMessagesUrl, anthropicHeaders } = require('./anthropicClient.cjs');
 
 // Model discovery uses the same main-process credentials and proxy as completion requests.
+// This is the generic shell (bounded pages and body size, no redirects, key redaction); where each
+// provider lists its models, which rows count and how pages continue is the adapter's `models`
+// description in shared/ai/.
 const MAX_PAGES = 20;
 const MAX_MODELS = 2000;
 const MAX_BODY_BYTES = 2_000_000;
@@ -33,18 +36,20 @@ async function readCatalogue(response) {
     return JSON.parse(text);
 }
 
-const modelListUrl = ({ provider, apiUrl, apiProtocol }) => {
-    if (provider === 'gemini') return new URL('https://generativelanguage.googleapis.com/v1beta/models');
-    const url = new URL(apiProtocol === 'anthropic' ? normalizeAnthropicMessagesUrl(apiUrl) : normalizeOpenAIChatCompletionsUrl(apiUrl));
-    url.pathname = url.pathname.replace(/\/(?:chat\/completions|messages|models)\/?$/, '') + '/models';
-    // GLM uses its model catalogue rather than a standard /models route (as in LobeHub's ZhiPu runtime).
-    if (url.hostname === 'open.bigmodel.cn' && /^\/api\/paas\/v4\/models$/.test(url.pathname)) {
-        url.pathname = '/api/fine-tuning/model_center/list';
-        url.searchParams.set('pageSize', '100');
-        url.searchParams.set('pageNum', '1');
-    }
+/** The first catalogue page: `<API base>/models`, or the adapter's own path, plus its query. */
+const modelListUrl = (adapter, apiUrl) => {
+    const url = new URL(adapter.protocol === 'gemini' ? adapter.endpoints[0].baseUrl
+        : adapter.protocol === 'anthropic' ? normalizeAnthropicMessagesUrl(apiUrl)
+            : normalizeOpenAIChatCompletionsUrl(apiUrl));
+    const { path, query } = adapter.models;
+    url.pathname = path ?? url.pathname.replace(/\/(?:chat\/completions|messages|models)\/?$/, '') + '/models';
+    for (const [name, value] of Object.entries(query ?? {})) url.searchParams.set(name, value);
     return url;
 };
+
+const authHeaders = (protocol, apiKey) => (protocol === 'gemini' ? { 'x-goog-api-key': apiKey }
+    : protocol === 'anthropic' ? anthropicHeaders(apiKey)
+        : { Authorization: 'Bearer ' + apiKey });
 
 const failure = (errorKind, status) => ({ ok: false, errorKind, ...(status ? { status } : {}) });
 
@@ -54,11 +59,13 @@ async function listAiModels(raw, { customFetch, timeoutMs = 30_000 } = {}) {
     if (checked.error) return failure('invalid');
     const config = checked.config;
     if (!config.apiKey) return failure('config');
-    const url = modelListUrl(config);
+    const { adapter } = await resolveFormAdapter(config);
+    const catalogue = adapter.models;
+    // A provider without a usable listing: the form offers its suggested models instead.
+    if (!catalogue) return failure('empty');
+    const url = modelListUrl(adapter, config.apiUrl);
     const signal = AbortSignal.timeout(timeoutMs);
-    const headers = config.provider === 'gemini' ? { 'x-goog-api-key': config.apiKey }
-        : config.apiProtocol === 'anthropic' ? anthropicHeaders(config.apiKey)
-            : { Authorization: 'Bearer ' + config.apiKey };
+    const headers = authHeaders(adapter.protocol, config.apiKey);
     const models = new Map();
     const cursors = new Set();
     try {
@@ -67,38 +74,28 @@ async function listAiModels(raw, { customFetch, timeoutMs = 30_000 } = {}) {
             if (!response.ok) return failure(response.status === 401 || response.status === 403 ? 'auth' : 'http', response.status);
             const data = await readCatalogue(response);
             if (!data || typeof data !== 'object') return failure('invalid');
-            const rows = config.provider === 'gemini' ? data.models : data.data ?? data.rows;
+            const rows = catalogue.rows(data);
             if (!Array.isArray(rows)) return failure('invalid');
             for (const row of rows) {
                 if (!row || typeof row !== 'object') continue;
-                if (config.provider === 'gemini' && (!Array.isArray(row.supportedGenerationMethods) || !row.supportedGenerationMethods.includes('generateContent'))) continue;
-                const rawId = config.provider === 'gemini' ? row.name : row.id ?? row.modelCode;
+                const rawId = catalogue.id(row);
                 const id = typeof rawId === 'string' ? rawId.replace(/^models\//, '').trim() : '';
                 if (!id || id.length > 256 || /[\u0000-\u001f]/.test(id)) continue;
-                if (config.provider === 'gemini' && !/^[\w.-]+$/.test(id)) continue;
+                if (!catalogue.keep(row, id)) continue;
                 // A reflected key must not cross IPC, and redacted ids would no longer identify a model.
                 if (id.includes(config.apiKey)) continue;
-                const name = row.display_name ?? row.displayName ?? row.modelName ?? id;
+                const name = catalogue.name(row) ?? id;
                 models.set(id, { id, name: typeof name === 'string' ? name.split(config.apiKey).join('***').slice(0, 256) : id });
                 if (models.size > MAX_MODELS) return failure('invalid');
             }
-            let cursor = null;
-            if (config.provider === 'gemini' && data.nextPageToken) {
-                cursor = String(data.nextPageToken);
-                url.searchParams.set('pageToken', cursor);
-            } else if (data.has_more === true) {
-                cursor = data.last_id ?? rows.at(-1)?.id;
-                if (typeof cursor !== 'string' || !cursor) return failure('invalid');
-                url.searchParams.set(config.apiProtocol === 'anthropic' ? 'after_id' : 'after', cursor);
-            } else if (Array.isArray(data.rows) && Number.isFinite(data.total) && (page + 1) * 100 < data.total) {
-                cursor = String(page + 2);
-                url.searchParams.set('pageNum', cursor);
-            }
-            if (cursor === null) {
+            const cursor = catalogue.next ? catalogue.next(data, rows, page) : null;
+            if (!cursor) {
                 return models.size ? { ok: true, models: [...models.values()] } : failure('empty');
             }
-            if (cursors.has(cursor) || page === MAX_PAGES - 1) return failure('invalid');
-            cursors.add(cursor);
+            if (typeof cursor.value !== 'string' || !cursor.value) return failure('invalid');
+            url.searchParams.set(cursor.param, cursor.value);
+            if (cursors.has(cursor.value) || page === MAX_PAGES - 1) return failure('invalid');
+            cursors.add(cursor.value);
         }
     } catch (error) {
         return failure(signal.aborted ? 'timeout' : error instanceof SyntaxError || error instanceof RangeError ? 'invalid' : 'network');

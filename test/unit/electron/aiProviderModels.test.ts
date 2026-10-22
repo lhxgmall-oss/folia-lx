@@ -104,6 +104,40 @@ describe('model discovery', () => {
     });
 });
 
+describe('model discovery as described by the adapters', () => {
+    const { modelListUrl } = require('../../../electron/ai/modelDiscovery.cjs');
+    const adapter = (models: Record<string, unknown>, protocol = 'openai') => ({
+        protocol, endpoints: [{ id: 'default', baseUrl: 'https://catalogue.example/v9' }], models,
+    });
+
+    it('lists <API base>/models unless the adapter names its own path and query', () => {
+        expect(modelListUrl(adapter({}), 'https://relay.example/v1/chat/completions').toString()).toBe('https://relay.example/v1/models');
+        expect(modelListUrl(adapter({ path: '/api/list', query: { pageSize: '50' } }), 'https://relay.example/v1').toString())
+            .toBe('https://relay.example/api/list?pageSize=50');
+        expect(modelListUrl(adapter({}, 'gemini'), undefined).toString()).toBe('https://catalogue.example/v9/models');
+        expect(modelListUrl(adapter({}, 'anthropic'), 'https://api.anthropic.com/v1/messages').toString()).toBe('https://api.anthropic.com/v1/models');
+    });
+
+    it('keeps reading the GLM model centre on both GLM sites', async () => {
+        for (const apiUrl of ['https://open.bigmodel.cn/api/paas/v4', 'https://api.z.ai/api/paas/v4']) {
+            const customFetch = vi.fn().mockResolvedValue(json({ rows: [{ modelCode: 'glm-one', modelName: 'One' }], total: 1 }));
+            expect(await listAiModels({ ...payload, apiUrl }, { customFetch })).toEqual({ ok: true, models: [{ id: 'glm-one', name: 'One' }] });
+            const url = new URL(customFetch.mock.calls[0][0]);
+            expect([url.origin, url.pathname, url.search]).toEqual([new URL(apiUrl).origin, '/api/fine-tuning/model_center/list', '?pageSize=100&pageNum=1']);
+        }
+    });
+
+    it('follows page-number paging until the reported total', async () => {
+        const page = (ids: string[]) => json({ rows: ids.map(modelCode => ({ modelCode })), total: 150 });
+        const customFetch = vi.fn()
+            .mockResolvedValueOnce(page(Array.from({ length: 100 }, (_, index) => `m${index}`)))
+            .mockResolvedValueOnce(page(['last']));
+        const result = await listAiModels({ ...payload, apiUrl: 'https://open.bigmodel.cn/api/paas/v4' }, { customFetch });
+        expect(result.models).toHaveLength(101);
+        expect(new URL(customFetch.mock.calls[1][0]).searchParams.get('pageNum')).toBe('2');
+    });
+});
+
 describe('discovery IPC credential boundary', () => {
     const setup = (resolved: unknown = { apiKey: 'saved-secret' }) => {
         let handler: any;
