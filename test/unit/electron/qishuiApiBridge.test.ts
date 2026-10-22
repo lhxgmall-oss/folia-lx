@@ -113,6 +113,28 @@ describe('Qishui desktop bridge', () => {
         expect(sessions.deviceId).toMatch(/^\d{19}$/);
         expect(saved.get('QISHUI_DEVICE_ID')).toBe(sessions.deviceId);
     });
+    it.each(['video-model', 'player-info'])('registers zjcdn audio resolved by the real package through %s', async format => {
+        const policy = createQishuiMediaPolicy(), url = 'https://v3-dy-o.zjcdn.com/audio?fixture=1';
+        const playerInfoUrl = 'https://v3-dy-o.zjcdn.com/player-info';
+        const fetch = vi.fn(async (raw: string) => {
+            const path = new URL(raw).pathname;
+            if (path.endsWith('/client/token/get/')) return Response.json({ client_token: 'fixture-client-token' });
+            if (raw === playerInfoUrl) return Response.json({ PlayInfoList: [{ MainPlayUrl: url }] });
+            expect(path.endsWith('/media/mget/')).toBe(true);
+            const video_model_info = format === 'video-model'
+                ? { video_model: { video_list: [{ main_url: url }] } }
+                : { url_player_info: playerInfoUrl };
+            return Response.json({ data: { media_list: [{ media_id: '123', track_entity: {
+                player_info: { full: { video_model_info } },
+            } }] } });
+        });
+        const bridge = createQishuiApiBridge({ store: store(), fetch, log: vi.fn(), onAudioSource: policy.register });
+        const media = { url, resourceType: 'media', method: 'GET' };
+        expect(policy.allows(media)).toBe(false);
+        expect(await bridge.request('audio', { id: '123', quality: 'standard' })).toMatchObject({ ok: true, data: { url } });
+        expect(policy.allows(media)).toBe(true);
+        expect(policy.allows({ ...media, url: 'https://v3-dy-o.zjcdn.com/unissued' })).toBe(false);
+    });
     it('registers only successful audio responses with the media policy', async () => {
         const policy = createQishuiMediaPolicy(), url = 'https://v26-default.365yg.com/audio';
         const request = vi.fn().mockResolvedValueOnce({ ok: true, data: { url } }).mockResolvedValueOnce({ ok: false, error: { code: 'network' } });
