@@ -2,8 +2,9 @@ import type { QishuiTrackCheck } from 'qishui-music-api';
 import type { OnlinePlaybackProvider, ProviderAudioSource, ProviderSongAvailability } from '../../../types/onlineMusic';
 import { normalizeQishuiSong } from './qishuiNormalize';
 import { qishuiSongId } from './qishuiMutations';
-import { requestQishui } from './qishuiTransport';
+import { QishuiRequestError, requestQishui } from './qishuiTransport';
 
+// Qishui's playback side: one song's detail by id, its plaintext audio address, and its playability checks.
 // Explicit playability checks are short-lived account facts; playback failures never change them.
 const checks = new Map<string, { at: number; availability: ProviderSongAvailability }>();
 let revision = 0;
@@ -29,9 +30,22 @@ export async function readQishuiSongs(raw: unknown[]) {
     }
     return songs;
 }
+// The package's sentence when the service answered a look-up without the track (qishui-music-api@0.2.1,
+// src/catalog.cjs `track`). For song_detail it is the only not-playable there is: the other failures of
+// that operation are network, auth-required, unavailable or invalid-response.
+const TRACK_NOT_RETURNED = 'Qishui did not return the track';
 export const qishuiPlayback: OnlinePlaybackProvider = {
     audioQualityLevels: ['standard'],
-    async getSongDetail(id) { return (await readQishuiSongs([await requestQishui('song_detail', { id: String(id) })]))[0]; },
+    async getSongDetail(id) {
+        let raw: unknown;
+        try { raw = await requestQishui('song_detail', { id: String(id) }); }
+        catch (error) {
+            // Qishui answered and has no such track: the song is missing, the request did not fail.
+            if (error instanceof QishuiRequestError && error.code === 'not-playable' && error.message === TRACK_NOT_RETURNED) return null;
+            throw error;
+        }
+        return (await readQishuiSongs([raw]))[0];
+    },
     getAudioSource: (song, quality) => requestQishui<ProviderAudioSource>('audio', { id: qishuiSongId(song), quality }),
     getAvailability(song) {
         const check = checks.get(qishuiSongId(song));

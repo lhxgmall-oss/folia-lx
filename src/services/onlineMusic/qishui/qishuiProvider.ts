@@ -10,6 +10,7 @@ import { qishuiExplore, clearQishuiExplore } from './qishuiExplore';
 import { qishuiRecommendations, clearQishuiRecommendations } from './qishuiRecommendations';
 import { qishuiMutations, qishuiSongId as songId } from './qishuiMutations';
 import { qishuiPlayback, clearQishuiPlayback, readQishuiSongs } from './qishuiPlayback';
+import { describeQishuiFailure } from './qishuiFailure';
 
 // Car platform adapter; account and catalogue operations share the existing Omni entry points.
 export const qishuiProvider: OnlineMusicProvider = {
@@ -20,6 +21,7 @@ export const qishuiProvider: OnlineMusicProvider = {
         mutations: true, likes: true, playlistTrackMutations: true, explore: true, personalFmModes: true },
     normalizeSong: normalizeQishuiSong, normalizeUser: normalizeQishuiUser, normalizeCollection: normalizeQishuiCollection,
     songMetadata: { getSongMetadata: createProviderSongMetadata },
+    describeFailure: describeQishuiFailure,
     getSongPageUrl: song => `https://music.douyin.com/qishui/share/track?track_id=${encodeURIComponent(songId(song))}`,
     search: {
         async searchSongs(query, limit, offset) {
