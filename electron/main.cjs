@@ -7489,6 +7489,7 @@ ipcMain.handle('generate-theme', async (event, lyricsText, options = {}) => {
         systemPrompt,
         sourcePrompt,
         responseSchema: getGeminiResponseSchema(),
+        answerTokens: THEME_MAX_OUTPUT_TOKENS,
         customFetch
       }));
 

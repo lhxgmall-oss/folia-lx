@@ -277,7 +277,8 @@ describe('selected model completion', () => {
         await client.runAiJsonCompletion({ store, task: 'segmentation', systemPrompt: 'system', sourcePrompt: 'source', customFetch,
             geminiSchema: { type: 'OBJECT' }, answerTokens: 8192 });
         expect(calls.map(call => call.url)).toEqual(Array(2).fill('https://generativelanguage.googleapis.com/v1beta/models/gemini-selected:generateContent'));
-        expect(calls[1].body.generationConfig.thinkingConfig).toBeUndefined();
+        // A model the adapter does not list starts from the lowest thinking level for each ask.
+        expect(calls.map(call => call.body.generationConfig.thinkingConfig)).toEqual([{ thinkingLevel: 'low' }, { thinkingLevel: 'minimal' }]);
     });
     it('routes native Anthropic schemas through forced tool output and keeps the selected model', async () => {
         const calls: any[] = [];
@@ -305,7 +306,7 @@ describe('selected model completion', () => {
         await client.runAiConnectionTest({ provider: 'gemini', apiKey: 'test-secret', model: 'gemini-selected' }, { customFetch });
         const result = await client.runAiConnectionTest({ ...payload, apiProtocol: 'anthropic', model: 'claude-selected' }, { customFetch });
         expect(calls[0].url).toContain('/gemini-selected:generateContent');
-        expect(calls[0].body.generationConfig.thinkingConfig).toBeUndefined();
+        expect(calls[0].body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'minimal' });
         expect(calls[1].url).toBe('https://relay.example/v1/messages');
         expect(result).toMatchObject({ ok: true, model: 'claude-selected', text: 'Hi ***' });
     });

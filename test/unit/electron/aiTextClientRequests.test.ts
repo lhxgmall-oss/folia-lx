@@ -150,10 +150,11 @@ describe('the theme ask', () => {
     // The Gemini side of the theme ask: runGeminiThemeCompletion, as the handler calls it. It was
     // written in electron/main.cjs (generateGeminiTheme) until it moved into the client; the three
     // tests below were first run against that function, taken out of main.cjs's text.
+    // The handler asks for 8192 answer tokens, as it does of the other providers.
     const sendGeminiTheme = ({ apiKey, systemPrompt, sourcePrompt, responseSchema, customFetch }: {
         apiKey: string; systemPrompt: string; sourcePrompt: string; responseSchema: unknown; customFetch: unknown;
     }): Promise<unknown> => client.runGeminiThemeCompletion({
-        store: storeWith({ GEMINI_API_KEY: apiKey }), systemPrompt, sourcePrompt, responseSchema, customFetch,
+        store: storeWith({ GEMINI_API_KEY: apiKey }), systemPrompt, sourcePrompt, responseSchema, customFetch, answerTokens: 8192,
     });
     const askGemini = (customFetch: unknown) => sendGeminiTheme({
         apiKey: KEY, systemPrompt: SYSTEM, sourcePrompt: SOURCE, responseSchema: GEMINI_SCHEMA, customFetch,
@@ -165,17 +166,23 @@ describe('the theme ask', () => {
         body: {
             systemInstruction: { parts: [{ text: SYSTEM }] },
             contents: [{ parts: [{ text: SOURCE }] }],
-            generationConfig: { responseMimeType: 'application/json', responseSchema: GEMINI_SCHEMA },
+            // Thinking turned down to low, and the cap leaves room for it: 8192 + 16384.
+            generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema: GEMINI_SCHEMA,
+                maxOutputTokens: 24576,
+                thinkingConfig: { thinkingLevel: 'low' },
+            },
         },
     };
 
-    it('to Gemini: its address with the model in it, the key in a header, no deadline; the answer comes back parsed', async () => {
+    it('to Gemini: its address with the model in it, the key in a header, under a deadline; the answer comes back parsed', async () => {
         const { requests, customFetch } = record(geminiAnswer('{"light":{"name":"Dawn"},"dark":{"name":"Night"}}'));
 
         const answer = await askGemini(customFetch);
 
         expect(sent(requests)).toEqual([GEMINI_THEME_REQUEST]);
-        expect(requests[0].signal).toBeUndefined();
+        expect(requests[0].signal).toBeInstanceOf(AbortSignal);
         expect(answer).toEqual({ light: { name: 'Dawn' }, dark: { name: 'Night' } });
     });
 
@@ -201,6 +208,7 @@ describe('the theme ask', () => {
 
         await client.runAiJsonCompletion({
             store: GEMINI_STORE, task: 'theme', systemPrompt: SYSTEM, sourcePrompt: SOURCE, geminiSchema: GEMINI_SCHEMA, customFetch,
+            answerTokens: 8192,
         });
 
         expect(sent(requests)).toEqual([GEMINI_THEME_REQUEST]);
@@ -364,7 +372,7 @@ describe('the two asks of Gemini, which share one sender', () => {
         throw new DOMException('The operation timed out', 'TimeoutError');
     };
 
-    it('the text ask logs its three steps and names what timed out; the theme ask prints nothing and hands a failure on as it came', async () => {
+    it('the text ask logs its three steps and names what timed out; the theme ask prints nothing and, under the same default deadline, names what timed out too', async () => {
         await gemini(record(geminiAnswer('{}')).customFetch);
         expect(printed.map(line => line.replace(/\d+ms/g, 'Nms'))).toEqual([
             '[ai] POST gemini-3-flash-preview',
@@ -376,7 +384,7 @@ describe('the two asks of Gemini, which share one sender', () => {
         printed = [];
         await theme(record(geminiAnswer('{"light":{},"dark":{}}')).customFetch);
         expect(printed).toEqual([]);
-        await expect(theme(timeout)).rejects.toThrow('The operation timed out');
+        await expect(theme(timeout)).rejects.toThrow('Request to Gemini timed out after 120s');
     });
 
     it('an empty answer: each ask keeps its own words', async () => {

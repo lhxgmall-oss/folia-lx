@@ -560,11 +560,62 @@ async function sendGemini({ apiKey, url, model, body, customFetch, timeoutMs, lo
   return {
     ok: true,
     status: response.status,
-    content: Array.isArray(parts) ? (parts.find((part) => part && typeof part.text === 'string') || {}).text : null,
-    exhausted: false,
+    content: geminiAnswerText(parts),
+    exhausted: geminiThinkingExhausted(candidate, data),
     candidate,
     data,
   };
+}
+
+/**
+ * The answer text of a Gemini candidate: every text part except thought summaries (`thought: true`),
+ * which only come back when asked for and are never part of the answer [Gemini·thinking].
+ */
+function geminiAnswerText(parts) {
+  if (!Array.isArray(parts)) {
+    return null;
+  }
+  const text = parts
+    .filter((part) => part && part.thought !== true && typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('');
+  return text || null;
+}
+
+/** Thinking tokens Gemini reported for the response, if any. */
+function geminiThoughtsTokens(data) {
+  const tokens = data && data.usageMetadata && data.usageMetadata.thoughtsTokenCount;
+  return typeof tokens === 'number' ? tokens : 0;
+}
+
+/**
+ * True when the cap was reached while the model was still thinking. Gemini counts thinking tokens
+ * inside maxOutputTokens, so a MAX_TOKENS finish with thoughts reported means thinking ate the
+ * budget [Gemini·thinking].
+ */
+function geminiThinkingExhausted(candidate, data) {
+  return Boolean(candidate && candidate.finishReason === 'MAX_TOKENS' && geminiThoughtsTokens(data) > 0);
+}
+
+/**
+ * Why a Gemini answer came back without text, in the caller's own words (`fallback`) unless there
+ * is something more specific to say: thinking used the whole budget, the cap was reached, the
+ * response stopped for another reason, or the prompt itself was blocked.
+ */
+function describeEmptyGeminiAnswer(result, model, fallback) {
+  const finishReason = result.candidate && result.candidate.finishReason;
+  if (result.exhausted) {
+    return `Model "${model}" used its entire output budget on thinking`
+      + ` (${geminiThoughtsTokens(result.data)} thinking tokens) and returned no answer.`;
+  }
+  if (finishReason === 'MAX_TOKENS') {
+    return `Model "${model}" hit the output token limit before finishing its answer.`;
+  }
+  if (finishReason && finishReason !== 'STOP') {
+    return `${fallback} (finishReason: ${finishReason})`;
+  }
+  const blockReason = result.data && result.data.promptFeedback && result.data.promptFeedback.blockReason;
+  return blockReason ? `${fallback} (blockReason: ${blockReason})` : fallback;
 }
 
 /**
@@ -585,7 +636,7 @@ async function runGeminiCompletion({ ai, store, task, systemPrompt, sourcePrompt
     model,
     attempts: adapter.attempts(task, model),
     ...(log ? { log: (line) => console.log(line) } : {}),
-    describeEmpty: () => emptyMessage,
+    describeEmpty: (result) => describeEmptyGeminiAnswer(result, model, emptyMessage),
     send: (attempt) => sendGemini({
       apiKey,
       url,
@@ -602,11 +653,12 @@ async function runGeminiCompletion({ ai, store, task, systemPrompt, sourcePrompt
 }
 
 /**
- * The theme ask on Gemini, already parsed. It behaves as it did while the 'generate-theme' handler
- * in main.cjs wrote this request itself: no deadline, no log lines, its own message for an empty
- * answer.
+ * The theme ask on Gemini, already parsed. It keeps what it did while the 'generate-theme' handler
+ * in main.cjs wrote this request itself (no log lines, its own message for an empty answer), but
+ * it now sends the adapter's theme thinking level, caps the output at `answerTokens` plus room for
+ * thinking, and runs under the same deadline as the other asks; it had none [spec §4.3].
  */
-async function runGeminiThemeCompletion({ store, systemPrompt, sourcePrompt, responseSchema, customFetch }) {
+async function runGeminiThemeCompletion({ store, systemPrompt, sourcePrompt, responseSchema, answerTokens, customFetch, timeoutMs = DEFAULT_AI_TIMEOUT_MS }) {
   const ai = await loadAiModules();
   return JSON.parse(await runGeminiCompletion({
     ai,
@@ -615,7 +667,9 @@ async function runGeminiThemeCompletion({ store, systemPrompt, sourcePrompt, res
     systemPrompt,
     sourcePrompt,
     geminiSchema: responseSchema,
+    answerTokens,
     customFetch,
+    timeoutMs,
     emptyMessage: 'Failed to generate theme JSON',
   }));
 }
@@ -860,6 +914,7 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
         model,
         attempts: adapter.attempts('test', model),
         cache: null,
+        log: (line) => console.log(line.replace(/^\[ai\]/, '[ai-test]')),
         send: (attempt) => sendGemini({
           apiKey,
           url,
@@ -882,10 +937,7 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
     if (!result.ok) {
       return failure(result.errorText, { status: result.status, errorKind: 'http' });
     }
-    const parts = result.candidate && result.candidate.content ? result.candidate.content.parts : null;
-    const text = Array.isArray(parts)
-      ? parts.filter((part) => part && typeof part.text === 'string').map((part) => part.text).join('')
-      : '';
+    const text = result.content || '';
     const modelName = result.data && typeof result.data.modelVersion === 'string' ? result.data.modelVersion : model;
     if (!text.trim()) {
       const reason = result.candidate && result.candidate.finishReason === 'MAX_TOKENS' ? 'reasoning' : 'empty';
