@@ -121,20 +121,6 @@ async function aiProviderLabel(store) {
   return connection.protocol === 'anthropic' ? 'Anthropic (Local)' : 'OpenAI Compatible (Local)';
 }
 
-/**
- * True when the model answered nothing because reasoning consumed the whole budget. This is the
- * failure that looks like success: HTTP 200, tokens billed, `content` empty.
- */
-const exhaustedByReasoning = (choice, usage) => {
-  const reasoningTokens = usage
-    && usage.completion_tokens_details
-    && usage.completion_tokens_details.reasoning_tokens;
-  const hasReasoning = Boolean(
-    reasoningTokens || (choice && choice.message && choice.message.reasoning_content),
-  );
-  return hasReasoning && choice && choice.finish_reason === 'length';
-};
-
 
 function resolveOpenAICompatibleTemperature(value) {
   const temperature = typeof value === 'number' ? value : Number.parseFloat(String(value ?? '').trim());
@@ -501,7 +487,7 @@ async function runOpenAICompatibleCompletion({ ai, adapter, connection, apiKey, 
         return ai.withErrorHint(adapter, result);
       }
       console.log(`[ai] ${redactUrl(apiUrl)} answered in ${Date.now() - startedAt}ms`);
-      return { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) };
+      return { ...result, exhausted: ai.exhaustedByReasoning(result.choice, result.usage, adapter) };
     },
   });
 }
@@ -937,7 +923,7 @@ async function runAiConnectionTest(rawInput, { customFetch, timeoutMs = AI_TEST_
           customFetch,
           timeoutMs,
         });
-        return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : ai.withErrorHint(adapter, result);
+        return result.ok ? { ...result, exhausted: ai.exhaustedByReasoning(result.choice, result.usage, adapter) } : ai.withErrorHint(adapter, result);
       },
     });
   } catch (error) {

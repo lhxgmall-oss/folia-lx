@@ -217,7 +217,7 @@ const runOpenAICompatible = async (lines, env, fetchImpl) => {
         temperature,
       });
       const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, adapter.id, body, fetchImpl);
-      return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage) } : withErrorHint(adapter, result);
+      return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage, adapter) } : withErrorHint(adapter, result);
     },
   });
 };

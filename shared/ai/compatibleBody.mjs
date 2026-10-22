@@ -94,14 +94,22 @@ export const reasoningTokensOf = (usage) => {
 };
 
 /**
- * True when the model answered nothing because reasoning consumed the whole budget. This is the
- * failure that looks like success: HTTP 200, tokens billed, `content` empty.
+ * True when the answer was cut off: finish_reason 'length', or one of the adapter's own
+ * `truncationReasons` (MiMo stops a repeating answer with 'repetition_truncation').
  */
-export const exhaustedByReasoning = (choice, usage) => {
+export const cutOff = (choice, adapter) => Boolean(choice) && (choice.finish_reason === 'length'
+    || Boolean(adapter && adapter.truncationReasons && adapter.truncationReasons.includes(choice.finish_reason)));
+
+/**
+ * True when the model answered nothing because reasoning consumed the whole budget. This is the
+ * failure that looks like success: HTTP 200, tokens billed, `content` empty. `adapter` adds its
+ * own words for a cut-off answer (cutOff).
+ */
+export const exhaustedByReasoning = (choice, usage, adapter) => {
     const hasReasoning = Boolean(
         reasoningTokensOf(usage) || (choice && choice.message && choice.message.reasoning_content),
     );
-    return hasReasoning && Boolean(choice) && choice.finish_reason === 'length';
+    return hasReasoning && cutOff(choice, adapter);
 };
 
 /**
