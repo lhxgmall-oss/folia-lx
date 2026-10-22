@@ -1784,7 +1784,6 @@ export default {
     "aiProvider_custom": "自定义兼容接口",
     "aiApiKey": "API 密钥",
     "aiModel": "模型",
-    "aiTemperatureAnthropicDesc": "范围：0–1。留空时使用 0.7。",
     "aiApiUrl": "接口地址",
     "aiModelsFetch": "获取模型",
     "aiModelsLoading": "获取中…",

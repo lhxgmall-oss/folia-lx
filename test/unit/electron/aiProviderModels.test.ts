@@ -66,7 +66,7 @@ describe('model discovery', () => {
             .mockResolvedValueOnce(json({ data: [{ id: 'claude-two' }], has_more: false }));
         const result = await listAiModels({ ...payload, apiProtocol: 'anthropic', apiUrl: 'https://api.anthropic.com/v1/messages' }, { customFetch });
         expect(result.models).toHaveLength(2);
-        expect(customFetch.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models');
+        expect(customFetch.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models?limit=1000');
         expect(customFetch.mock.calls[1][0]).toContain('after_id=claude-one');
         expect(customFetch.mock.calls[0][1].headers).toMatchObject({ 'x-api-key': 'test-secret', 'anthropic-version': '2023-06-01' });
         expect(customFetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
@@ -248,22 +248,22 @@ describe('selected model completion', () => {
             .rejects.toThrow('valid Anthropic model');
         expect(customFetch).not.toHaveBeenCalled();
     });
-    it('retries native Claude once without temperature only when that parameter is rejected', async () => {
-        const { sendAnthropic } = require('../../../electron/ai/anthropicClient.cjs');
+    it('never sends Claude a temperature, and fails once with the provider\'s redacted error', async () => {
         const bodies: any[] = [];
         const customFetch = vi.fn().mockImplementation(async (_url: string, init: any) => {
             bodies.push(JSON.parse(init.body));
-            return bodies.length === 1
-                ? json({ error: { type: 'invalid_request_error', message: 'temperature: non-default values are not supported' } }, 400)
-                : json({ content: [{ type: 'text', text: 'ok' }] });
+            return json({ content: [{ type: 'text', text: '{}' }] });
         });
-        const body = { model: 'claude-selected', max_tokens: 512, messages: [{ role: 'user', content: 'hello' }], temperature: 0.7 };
-        await sendAnthropic({ apiKey: 'test-secret', body, customFetch });
-        expect(bodies[0].temperature).toBe(0.7);
-        expect(bodies[1].temperature).toBeUndefined();
-        expect(customFetch).toHaveBeenCalledTimes(2);
-        const denied = vi.fn().mockImplementation(async () => json({ error: { type: 'authentication_error', message: 'test-secret' } }, 401));
-        await expect(sendAnthropic({ apiKey: 'test-secret', body, customFetch: denied })).rejects.toThrow('HTTP 401');
+        const store = storeWith({ AI_PROVIDER: 'openai', OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_KEY: 'test-secret',
+            OPENAI_API_MODEL: 'claude-opus-4-6', OPENAI_API_TEMPERATURE: '0.7' });
+        await client.runAiJsonCompletion({ store, task: 'theme', systemPrompt: 'theme', sourcePrompt: 'source', customFetch, answerTokens: 8192 });
+        await client.runAiJsonCompletion({ store, task: 'segmentation', systemPrompt: 'segmentation', sourcePrompt: 'source', customFetch, answerTokens: 8192 });
+        expect(bodies.map(body => 'temperature' in body)).toEqual([false, false]);
+
+        const denied = vi.fn().mockImplementation(async () => json({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key test-secret' } }, 401));
+        const failure = await client.runAiJsonCompletion({ store, task: 'theme', systemPrompt: 'theme', sourcePrompt: 'source', customFetch: denied, answerTokens: 8192 })
+            .catch((error: Error) => error.message);
+        expect(failure).toBe('Anthropic API error (401): authentication_error: invalid x-api-key ***');
         expect(denied).toHaveBeenCalledTimes(1);
     });
     it('uses the selected Gemini model for both real theme and segmentation requests', async () => {
@@ -280,11 +280,11 @@ describe('selected model completion', () => {
         // A model the adapter does not list starts from the lowest thinking level for each ask.
         expect(calls.map(call => call.body.generationConfig.thinkingConfig)).toEqual([{ thinkingLevel: 'low' }, { thinkingLevel: 'minimal' }]);
     });
-    it('routes native Anthropic schemas through forced tool output and keeps the selected model', async () => {
+    it('asks native Anthropic for the schema through output_config.format, reads the text block and keeps the selected model', async () => {
         const calls: any[] = [];
         const customFetch = async (url: string, init: any) => {
             calls.push({ url, init, body: JSON.parse(init.body) });
-            return json({ model: 'claude-selected', content: [{ type: 'tool_use', name: 'result', input: { lines: [] } }] });
+            return json({ model: 'claude-selected', stop_reason: 'end_turn', content: [{ type: 'text', text: '{"lines":[]}' }] });
         };
         const store = storeWith({ AI_PROVIDER: 'openai', AI_PROVIDER_PRESET: 'anthropic', OPENAI_API_KEY: 'test-secret',
             OPENAI_API_URL: 'https://api.anthropic.com/v1', OPENAI_API_MODEL: 'claude-selected', OPENAI_API_STREAM: true });
@@ -292,7 +292,9 @@ describe('selected model completion', () => {
             schema: { type: 'object' }, schemaName: 'result', customFetch })).toBe('{"lines":[]}');
         expect(calls[0].url).toBe('https://api.anthropic.com/v1/messages');
         expect(calls[0].body).toMatchObject({ model: 'claude-selected', system: 'system',
-            tool_choice: { type: 'tool', name: 'result' }, tools: [{ name: 'result', input_schema: { type: 'object' } }] });
+            output_config: { effort: 'low', format: { type: 'json_schema', schema: { type: 'object', additionalProperties: false } } } });
+        expect(calls[0].body.tools).toBeUndefined();
+        expect(calls[0].body.tool_choice).toBeUndefined();
         expect(calls[0].body.stream).toBeUndefined();
     });
     it('tests the unsaved selected Gemini model and Anthropic protocol', async () => {

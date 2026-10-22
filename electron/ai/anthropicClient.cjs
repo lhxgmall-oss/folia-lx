@@ -11,6 +11,8 @@ const normalizeAnthropicMessagesUrl = (rawUrl) => {
     return url.toString();
 };
 
+// 2023-06-01 stays: the 2026-10-21 version only removes temperature, top_p and top_k, which are
+// never sent, so a later upgrade costs nothing [Anthropic·versioning].
 const anthropicHeaders = (apiKey) => ({
     'Content-Type': 'application/json',
     'x-api-key': apiKey,
@@ -23,95 +25,191 @@ const loadShared = () => Promise.all([
     import('../../shared/ai/aiTasks.mjs'),
 ]).then(([runner, tasks]) => ({ ...runner, ...tasks }));
 
+// The raw error body kept for the rejected-parameter check, bounded like the compatible transport's.
+const MAX_ERROR_BODY_CHARS = 16 * 1024;
+
+/** Address with credentials and query dropped, safe for a log line or a message. */
+const redactUrl = (rawUrl) => {
+    try {
+        const parsed = new URL(rawUrl);
+        return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+        return '[invalid url]';
+    }
+};
+
 /**
- * Sends one Messages body and returns `{ content, model, status }`. When the body forces a tool,
- * that tool's input comes back as the JSON text; otherwise the text blocks, joined.
+ * `text` with the key and anything that looks like an echoed credential replaced. Provider error
+ * bodies may echo the request, headers included, and this text reaches messages and logs.
+ */
+const redactSecrets = (text, apiKey) => {
+    let redacted = String(text);
+    if (apiKey) {
+        redacted = redacted.split(apiKey).join('***');
+    }
+    return redacted
+        .replace(/(bearer\s+)[^\s"',;]+/gi, '$1***')
+        .replace(/(x-api-key["']?\s*[:=]\s*["']?)[^\s"',;]+/gi, '$1***');
+};
+
+/** The displayable line for a failed response: `error.type: error.message`, or the raw text [Anthropic·errors]. */
+const describeAnthropicError = (status, rawText) => {
+    let detail = rawText.trim();
+    try {
+        const error = JSON.parse(rawText)?.error;
+        if (error && typeof error.message === 'string') {
+            detail = typeof error.type === 'string' ? `${error.type}: ${error.message}` : error.message;
+        }
+    } catch {
+        // Not JSON: show the text as it came.
+    }
+    return `Anthropic API error (${status})${detail ? `: ${detail}` : ''}`;
+};
+
+/** Turns an abort into a message that names the deadline rather than a bare "aborted". */
+const describeFetchFailure = (error, timeoutMs, label) => {
+    const name = error && error.name;
+    if (name === 'TimeoutError' || name === 'AbortError') {
+        const timedOut = new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`);
+        timedOut.name = 'TimeoutError';
+        return timedOut;
+    }
+    return error instanceof Error ? error : new Error(String(error));
+};
+
+/**
+ * Sends one Messages body. An HTTP failure comes back as `{ ok: false, status, errorText, errorBody }`
+ * (both redacted; `errorText` names the provider's error type and message); an invalid model, a
+ * failure to send or to read is thrown.
+ *
+ * A response is read by its stop_reason first [Anthropic·messages]: `refusal` carries no usable
+ * answer (`refusal` holds stop_details' category and explanation); `max_tokens` means the answer,
+ * if any, was cut off, so it is not handed on as content, and `exhausted` marks a cut made while
+ * the model was still thinking. `text` is whatever text blocks there were, for the connection test.
  */
 async function sendAnthropic({ apiUrl, apiKey, body, customFetch, timeoutMs = 120_000 }) {
     const model = typeof body?.model === 'string' ? body.model : '';
     if (!model || model.length > 256 || /[\s\u0000-\u001f\u007f]/.test(model)) {
         throw new Error('Select a valid Anthropic model in settings');
     }
-    const request = { ...body };
-    const toolName = request.tool_choice?.type === 'tool' ? request.tool_choice.name : null;
+    const url = normalizeAnthropicMessagesUrl(apiUrl);
     const signal = AbortSignal.timeout(timeoutMs);
-    const send = () => customFetch(normalizeAnthropicMessagesUrl(apiUrl), {
-        method: 'POST', redirect: 'error', headers: anthropicHeaders(apiKey), signal, body: JSON.stringify(request),
-    });
-    let response = await send();
-    // New Claude models reject custom sampling values; keep older models' temperature setting.
-    if (response.status === 400 && request.temperature !== undefined) {
-        const error = await response.json().catch(() => null);
-        if (error?.error?.type === 'invalid_request_error'
-            && /temperature/i.test(error.error.message)
-            && /not.support|does.not.support|non.default|deprecated|only.*1/i.test(error.error.message)) {
-            delete request.temperature;
-            console.info('[ai] Model does not accept temperature; using the provider default');
-            response = await send();
-        }
+
+    let response;
+    try {
+        response = await customFetch(url, {
+            method: 'POST', redirect: 'error', headers: anthropicHeaders(apiKey), signal, body: JSON.stringify(body),
+        });
+    } catch (error) {
+        throw describeFetchFailure(error, timeoutMs, `Request to ${redactUrl(url)}`);
     }
+
     if (!response.ok) {
-        // Provider bodies may echo credentials. Status is enough here, including the real caller's logs.
-        const error = new Error('Anthropic request failed (HTTP ' + response.status + ')');
-        error.status = response.status;
-        throw error;
+        // errorText is for people; errorBody keeps the error type and message for the runner.
+        // Provider bodies may echo credentials, so both are redacted before they go anywhere.
+        const rawText = redactSecrets(await response.text().catch(() => ''), apiKey);
+        return {
+            ok: false,
+            status: response.status,
+            errorText: describeAnthropicError(response.status, rawText),
+            errorBody: rawText.slice(0, MAX_ERROR_BODY_CHARS),
+        };
     }
-    const data = await response.json();
+
+    let data;
+    try {
+        data = await response.json();
+    } catch (error) {
+        throw describeFetchFailure(error, timeoutMs, `Reading the response from ${redactUrl(url)}`);
+    }
     const blocks = Array.isArray(data?.content) ? data.content : [];
-    const tool = toolName && blocks.find(block => block?.type === 'tool_use' && block.name === toolName);
-    const text = tool
-        ? JSON.stringify(tool.input)
-        : blocks.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('');
-    if (!text?.trim()) throw new Error('Model returned an empty response');
-    return { content: text, model: typeof data.model === 'string' ? data.model : model, status: response.status };
+    const text = blocks.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('');
+    const thought = blocks.some(block => block?.type === 'thinking' || block?.type === 'redacted_thinking');
+    const stopReason = typeof data?.stop_reason === 'string' ? data.stop_reason : null;
+    const cut = stopReason === 'max_tokens';
+    const refused = stopReason === 'refusal';
+    return {
+        ok: true,
+        status: response.status,
+        model: typeof data?.model === 'string' ? data.model : model,
+        stopReason,
+        text,
+        content: cut || refused ? null : text || null,
+        exhausted: cut && thought,
+        truncated: cut,
+        ...(refused ? { refusal: data.stop_details && typeof data.stop_details === 'object' ? data.stop_details : {} } : {}),
+    };
 }
 
-/** One attempt as the shared runner expects it: HTTP failures come back, anything else is thrown. */
-const sendAttempt = async (options) => {
-    try {
-        return { ok: true, ...(await sendAnthropic(options)) };
-    } catch (error) {
-        if (error && error.status) {
-            return { ok: false, status: error.status, errorText: error.message };
-        }
-        throw error;
+/** "Model refused request", with the category and explanation stop_details gave, if any. */
+const describeRefusal = (refusal) => {
+    const category = typeof refusal.category === 'string' && refusal.category ? ` (${refusal.category})` : '';
+    const explanation = typeof refusal.explanation === 'string' && refusal.explanation ? `: ${refusal.explanation}` : '';
+    return `Model refused request${category}${explanation}`;
+};
+
+/** Why an answer came back with nothing usable in it: refused, thinking ate the budget, cut off, or empty. */
+const describeEmptyAnswer = (result, model) => {
+    if (result.refusal) {
+        return describeRefusal(result.refusal);
     }
+    if (result.exhausted) {
+        return `Model "${model}" used its entire output budget on thinking and did not finish its answer.`
+            + ' Choose a model that can switch thinking off, or one with a lower default effort.';
+    }
+    if (result.truncated) {
+        return `Model "${model}" hit the output token limit before finishing its answer.`;
+    }
+    return `Model "${model}" returned an empty response${result.stopReason ? ` (stop_reason: ${result.stopReason})` : ''}.`;
 };
 
 /**
- * Raw JSON text for one ask (`task`), walking the adapter's attempts with the shared runner.
- * `temperature` is the user's setting; the adapter decides whether and how it is sent.
+ * Raw JSON text for one ask (`task`), walking the adapter's attempts with the shared runner: a
+ * thinking or effort field the model rejects by name moves to the next attempt, and so does an
+ * answer cut off while the model was still thinking. The adapter decides what is sent; it never
+ * sends temperature.
  */
 async function runAnthropicCompletion({
     adapter, task, apiUrl, apiKey, model, systemPrompt, sourcePrompt, schema, schemaName,
     answerTokens, temperature, customFetch, timeoutMs,
 }) {
     const { runAttempts, budgetFor } = await loadShared();
+    const url = normalizeAnthropicMessagesUrl(apiUrl);
     return runAttempts({
         adapter,
         task,
-        url: normalizeAnthropicMessagesUrl(apiUrl),
+        url,
         model,
         attempts: adapter.attempts(task, model),
         log: (line) => console.log(line),
-        describeEmpty: () => 'Model returned an empty response',
-        send: (attempt) => sendAttempt({
-            apiUrl,
-            apiKey,
-            body: adapter.buildBody({
-                task, model, attempt, systemPrompt, sourcePrompt, schema, schemaName,
-                budget: budgetFor(task, answerTokens, attempt), temperature,
-            }),
-            customFetch,
-            timeoutMs,
-        }),
+        describeEmpty: (result) => describeEmptyAnswer(result, model),
+        send: async (attempt) => {
+            console.log(`[ai] POST ${redactUrl(url)} model=${model} provider=${adapter.id} reasoning=${attempt.label}`);
+            const startedAt = Date.now();
+            const result = await sendAnthropic({
+                apiUrl,
+                apiKey,
+                body: adapter.buildBody({
+                    task, model, attempt, systemPrompt, sourcePrompt, schema, schemaName,
+                    budget: budgetFor(task, answerTokens, attempt), temperature,
+                }),
+                customFetch,
+                timeoutMs,
+            });
+            if (result.ok) {
+                console.log(`[ai] ${redactUrl(url)} answered in ${Date.now() - startedAt}ms stop_reason=${result.stopReason}`);
+            }
+            return result;
+        },
     });
 }
 
 /**
  * The connection test's "hello" over the Messages API. Never throws; resolves to
  * `{ ok: true, status, model, text, emptyReason? }` or `{ ok: false, error, status?, errorKind }`,
- * unredacted (the caller redacts and truncates).
+ * unredacted beyond the key in error bodies (the caller redacts and truncates). A reply with no
+ * text still passes, with `emptyReason` 'reasoning' when the cap cut it off and 'empty' otherwise,
+ * as on the other protocols; a refusal fails with the provider's reason.
  */
 async function runAnthropicConnectionTest({ adapter, apiUrl, apiKey, model, prompt, answerTokens, customFetch, timeoutMs }) {
     try {
@@ -123,7 +221,8 @@ async function runAnthropicConnectionTest({ adapter, apiUrl, apiKey, model, prom
             model,
             attempts: adapter.attempts('test', model),
             cache: null,
-            send: (attempt) => sendAttempt({
+            log: (line) => console.log(line.replace(/^\[ai\]/, '[ai-test]')),
+            send: (attempt) => sendAnthropic({
                 apiUrl,
                 apiKey,
                 body: adapter.buildBody({ task: 'test', model, attempt, sourcePrompt: prompt, budget: budgetFor('test', answerTokens, attempt) }),
@@ -134,7 +233,13 @@ async function runAnthropicConnectionTest({ adapter, apiUrl, apiKey, model, prom
         if (!result.ok) {
             return { ok: false, error: result.errorText, status: result.status, errorKind: 'http' };
         }
-        return { ok: true, status: result.status, model: result.model, text: result.content };
+        if (result.refusal) {
+            return { ok: false, error: describeRefusal(result.refusal), status: result.status, errorKind: 'http' };
+        }
+        if (!result.text.trim()) {
+            return { ok: true, status: result.status, model: result.model, text: '', emptyReason: result.truncated ? 'reasoning' : 'empty' };
+        }
+        return { ok: true, status: result.status, model: result.model, text: result.text };
     } catch (error) {
         return { ok: false, error, errorKind: /Timeout|Abort/.test(error?.name) ? 'timeout' : 'network' };
     }

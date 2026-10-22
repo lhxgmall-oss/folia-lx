@@ -1784,7 +1784,6 @@ export default {
     "aiProvider_custom": "Custom compatible endpoint",
     "aiApiKey": "API Key",
     "aiModel": "Model",
-    "aiTemperatureAnthropicDesc": "Range: 0–1. Defaults to 0.7 when left blank.",
     "aiApiUrl": "API URL",
     "aiModelsFetch": "Fetch models",
     "aiModelsLoading": "Fetching…",
