@@ -1459,6 +1459,8 @@ export default {
     "loginTitleKugou": "Scan with KuGou Music",
     "loginNoteKugou": "Open KuGou Music and scan this QR code",
     "loginTitleQq": "Scan to sign in to QQ Music",
+    "loginTitleQishui": "Sign in to Qishui Music with Douyin",
+    "loginNoteQishui": "Scan with the Douyin app and confirm authorization",
     "loginTitleBodian": "Scan with Bodian Music",
     "loginNoteBodian": "Scan this code with the Bodian Music app and confirm sign-in",
     "loginTitleYtm": "Sign in to YouTube Music",
@@ -1701,7 +1703,9 @@ export default {
     "ponderDescription": "Learn Folia's basic controls and operating model",
     "version": "Version"
   },
+  "qishui": { "recentPlayed": "Recently played on Qishui", "recommended": "Recommended for you" },
   "lyricProvider": {
+    "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",

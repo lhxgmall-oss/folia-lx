@@ -1459,6 +1459,8 @@ export default {
     "loginTitleKugou": "Pindai dengan KuGou Music",
     "loginNoteKugou": "Buka KuGou Music dan pindai kode QR ini",
     "loginTitleQq": "Pindai untuk masuk ke QQ Music",
+    "loginTitleQishui": "Masuk ke Qishui Music dengan Douyin",
+    "loginNoteQishui": "Pindai dengan aplikasi Douyin dan konfirmasi otorisasi",
     "loginTitleBodian": "Pindai dengan Bodian Music",
     "loginNoteBodian": "Pindai kode ini dengan aplikasi Bodian Music dan konfirmasi masuk",
     "loginTitleYtm": "Masuk ke YouTube Music",
@@ -1701,7 +1703,9 @@ export default {
     "ponderDescription": "Pelajari kontrol dasar dan cara kerja Folia",
     "version": "Versi"
   },
+  "qishui": { "recentPlayed": "Terakhir diputar di Qishui", "recommended": "Rekomendasi untuk Anda" },
   "lyricProvider": {
+    "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
