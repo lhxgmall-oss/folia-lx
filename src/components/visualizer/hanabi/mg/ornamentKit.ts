@@ -81,7 +81,9 @@ export interface Kit {
 
 export const createKit = (spec: OrnamentSpec, ctx: OrnamentContext): Kit => {
     const { pixi } = ctx;
-    const view = new pixi.Container();
+    // 一个装饰件一个渲染组：波浪线、锯齿线每帧 clear 再重画，粒子类的逐个显隐，Pixi 都会把所在渲染组的绘制指令
+    // 整组重排；单独成组后只重排这一件。
+    const view = new pixi.Container({ isRenderGroup: true });
     const rng = createRng(`${ctx.seed}:ornament:${spec.kind}:${spec.placement}`);
     const start = ctx.enterAt + spec.delay;
     const end = ctx.exitAt + Math.max(0, ctx.exitDuration);

@@ -149,9 +149,14 @@ describe('hanabi 烟花的闭式解', () => {
 // ─── 用最小的假 Pixi 跑一遍图层：池不超上限、乱序 seek 的画面一致 ─────────
 
 class FakeContainer {
-    children: FakeSprite[] = [];
+    children: Array<FakeSprite | FakeContainer> = [];
     visible = true;
-    addChild(...items: FakeSprite[]) {
+    blendMode = 'normal';
+    isRenderGroup: boolean;
+    constructor(options: { isRenderGroup?: boolean } = {}) {
+        this.isRenderGroup = options.isRenderGroup === true;
+    }
+    addChild(...items: Array<FakeSprite | FakeContainer>) {
         this.children.push(...items);
     }
     destroy() {
@@ -176,9 +181,11 @@ class FakeSprite {
 const fakePixi = { Container: FakeContainer, Sprite: FakeSprite } as unknown as PixiModule;
 const fakeTextures = Object.fromEntries(['dot', 'glow', 'star4', 'streak', 'ring', 'square', 'triangle', 'petal'].map(name => [name, { name }])) as unknown as HanabiTextures;
 
-const snapshot = (view: FakeContainer) => view.children
-    .filter(s => s.visible)
-    .map(s => [(s.texture as { name: string }).name, s.position.x, s.position.y, s.width, s.height, s.alpha, s.tint]);
+/** 烟花层下面是普通 / 叠加两个池（各一层），精灵按层的混合模式画。 */
+const spritesOf = (view: FakeContainer) => view.children.flatMap(layer => (layer as FakeContainer).children.map(sprite => ({ sprite: sprite as FakeSprite, blend: (layer as FakeContainer).blendMode })));
+const snapshot = (view: FakeContainer) => spritesOf(view)
+    .filter(({ sprite }) => sprite.visible)
+    .map(({ sprite: s, blend }) => [(s.texture as { name: string }).name, blend, s.position.x, s.position.y, s.width, s.height, s.alpha, s.tint]);
 
 describe('hanabi 烟花层', () => {
     const bursts = KINDS.map((kind, i) => event(kind, 3 + i * 0.4));
@@ -189,11 +196,17 @@ describe('hanabi 烟花层', () => {
         const layer = createFireworks(fakePixi, fakeTextures, { width: 1920, height: 1080, palette, amount: 1.5, maxParticles });
         const view = layer.view as unknown as FakeContainer;
         const times = Array.from({ length: 40 }, (_, i) => 1.5 + i * 0.25);
+        // 烟花层自己是渲染组：每帧的显隐只重排这一池，不牵动整个舞台。
+        expect(view.isRenderGroup).toBe(true);
         const forward = times.map(t => {
             layer.update(t, bursts, launches);
-            expect(view.children.length).toBeLessThanOrEqual(maxParticles);
+            expect(spritesOf(view).length).toBeLessThanOrEqual(maxParticles);
             return snapshot(view);
         });
+        // 闪光（叠加）与其余的分在两个池里，精灵不用来回换混合模式。
+        const blends = new Set(forward.flat().map(row => `${row[0]}:${row[1]}`));
+        expect([...blends].some(key => key.endsWith(':add'))).toBe(true);
+        expect(spritesOf(view).every(({ sprite }) => sprite.blendMode === 'normal')).toBe(true);
         const order = [...times.keys()].reverse();
         for (const index of order) {
             layer.update(times[index]!, bursts, launches);

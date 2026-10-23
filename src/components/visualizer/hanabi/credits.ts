@@ -8,6 +8,7 @@ import { createCollageTextureCache } from './collage/collagePainters';
 import { CANDY, HANABI_FALLBACK_ICON, ICON_INKS, type CollageItem } from './collage/collagePlan';
 import { createShotCollage, type ShotCollageView } from './collage/collageViews';
 import { resolveHanabiPalette } from './color';
+import { resolveHanabiGlowQuality } from './hanabiTuning';
 import { createFireworks } from './mg/fireworks';
 import { createHanabiGlow } from './mg/glow';
 import { createHanabiText } from './text/lyricText';
@@ -108,7 +109,9 @@ export const createHanabiCredits = (pixi: PixiModule, options: {
         width, height, palette, amount: Math.max(0, tuning.sparkAmount), maxParticles: 1400,
     });
     sky.addChild(fireworks.view);
-    const glow = tuning.glow > 0 ? createHanabiGlow(pixi, Math.min(2, tuning.glow)) : null;
+    const glow = tuning.glow > 0
+        ? createHanabiGlow(pixi, Math.min(2, tuning.glow), resolveHanabiGlowQuality(width, height, options.resolution, tuning.renderQuality))
+        : null;
     if (glow) sky.filters = [glow];
     const bursts: BurstEvent[] = [
         { x: width * 0.5, y: height * 0.34, at: BLOOM_AT, spec: { ...burstPreset('kamuro', [0, 1, 3]), count: 150, radius: 0.46, duration: 4.2 }, seed: 'hanabi:credits:crown', scale: 1 },
@@ -223,7 +226,8 @@ export const createHanabiCredits = (pixi: PixiModule, options: {
 
     const update = (elapsed: number) => {
         const time = Math.max(0, elapsed);
-        fireworks.update(time, bursts.filter(burst => time >= burst.at && time <= burst.at + burst.spec.duration + 0.1), launches);
+        // 烟花层自己按时间窗挑还在燃烧的，不用每帧先筛一遍。
+        fireworks.update(time, bursts, launches);
         text?.update(time);
         // 贴纸气球一轮飘完再从头来：片尾卡可能停很久。
         collage?.update(time < 8 ? time : 2.4 + ((time - 2.4) % 5.6));

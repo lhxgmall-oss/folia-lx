@@ -44,7 +44,7 @@ export const hanabiSpinDirection = (programSeed: string) => (hashVisualizerSeed(
 /** 模糊低于这个强度就摘掉 filter：一个挂着不用的 filter 也要多一次整屏离屏渲染。 */
 const BLUR_EPSILON = 0.3;
 
-/** 建一个段落场景（光栅化这一段的全部歌词，整个运行时里最贵的调用）。 */
+/** 建一个段落场景（排版这一段的全部歌词；字形图集到镜头快出场时才画，见 scene.prepare）。 */
 export const buildHanabiSceneEntry = (pixi: PixiModule, context: HanabiSceneBuildContext, index: number): HanabiSceneEntry => {
     const { width, height, program } = context;
     const paragraph = program.paragraphs[index]!;
@@ -112,7 +112,11 @@ export const applyHanabiLayerFrame = (
             entry.blur = new pixi.BlurFilter({ strength: frame.blur, quality: 3, resolution: blurResolution });
         }
         entry.blur.strength = frame.blur;
-        if (!entry.holder.filters?.includes(entry.blur)) entry.holder.filters = [entry.blur];
+        if (!entry.holder.filters?.includes(entry.blur)) {
+            // 固定一块远大于画面的区域（经变换后被视口裁成整个画面）：不给时 Pixi 每帧都要遍历整个场景量包围盒。
+            entry.holder.filterArea ??= new pixi.Rectangle(-size.width, -size.height, size.width * 3, size.height * 3);
+            entry.holder.filters = [entry.blur];
+        }
     } else if (entry.holder.filters?.length) {
         entry.holder.filters = [];
     }

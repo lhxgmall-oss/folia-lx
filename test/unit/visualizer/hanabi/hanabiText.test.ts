@@ -345,6 +345,33 @@ const build = (spec: TextSpec, text = '夜空に咲いた Summer 花火') => {
 };
 
 describe('hanabi lyric text (fake pixi)', () => {
+    it('paints the glyph atlas once, when prepared or on the first update, not while the scene is built', () => {
+        let paints = 0;
+        const lazyAtlas: BuildGlyphAtlas = (pixi, options) => {
+            let painted = false;
+            return { ...fakeAtlas(pixi, options), paint: () => (painted ? false : (painted = true, paints += 1, true)) };
+        };
+        const make = () => buildHanabiText({
+            pixi: fakePixi, width: 1920, height: 1080, resolution: 1, theme, line: makeLine('夜空に咲いた花火', 10, 0.2), regionWidth: 1100, regionHeight: 520,
+            spec: specOf({}), palette, seed: 'lazy', enterAt: 9, exitAt: 14, exitDuration: 0.7, motion: 1, blockOpacity: 1,
+        }, { measure: estimateAdvance, buildAtlas: lazyAtlas });
+        // 建好、算锚点（场景建的时候要用）都不画。
+        const prepared = make();
+        prepared.anchors(9.5);
+        expect(paints).toBe(0);
+        expect(prepared.prepare()).toBe(true);
+        expect(prepared.prepare()).toBe(false);
+        prepared.update(9.5);
+        expect(paints).toBe(1);
+        // 没提前备的，第一次 update 补画。
+        const late = make();
+        late.update(9.5);
+        expect(paints).toBe(2);
+        expect(late.prepare()).toBe(false);
+        prepared.destroy();
+        late.destroy();
+    });
+
     it('runs every enter / exit / block / sing combination and settles on the layout', () => {
         const enters = ENTER_FX;
         enters.forEach((enter, k) => {

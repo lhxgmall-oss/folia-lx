@@ -163,6 +163,8 @@ export interface HanabiTextView {
     blocks: Container;
     glyphs: Container;
     update: (time: number) => void;
+    /** 把字形图集画好（一行字最贵的一步，只做一次）；这次真的画了返回 true。不调用时第一次 update 会补画。 */
+    prepare: () => boolean;
     anchors: (time: number) => GlyphAnchor[];
     /** 静止排好时的包围盒（本地坐标）。 */
     bounds: { x: number; y: number; width: number; height: number };
@@ -388,7 +390,7 @@ export interface HanabiTuning {
     blockOpacity: number;
     /** 上升速度倍率 0..2（0 = 不上升，镜头原地切换）。 */
     riseSpeed: number;
-    /** 旋转倍率 0..2：镜头边界整个世界随上升一起大角度转过去（1 时每次 40°–100°），段落转场也带着转；0 = 不转。 */
+    /** 旋转倍率 0..2：整个世界一直在转，镜头内约 11°/秒，镜头边界随上升再甩 34°–80°（都是 1 时），段落转场也带着转；0 = 不转。 */
     spin: number;
     /** 环境粒子（远处星点、火星、远方小烟花）0..2。 */
     ambient: number;
@@ -408,7 +410,11 @@ export interface HanabiTuning {
     sky: number;
     /** PV 拼贴装饰（跑马灯色带、重复字、贴纸、胶带、拟声字）数量倍率 0..2。 */
     collage: number;
+    /** 画质：均衡 / 省电降低烟花辉光的分辨率（字与全屏辉光仍按满分辨率），省电再少画一些环境粒子。 */
+    renderQuality: HanabiRenderQuality;
 }
+
+export type HanabiRenderQuality = 'full' | 'balanced' | 'low';
 
 export const DEFAULT_HANABI_TUNING: HanabiTuning = {
     colorMode: 'mixed',
@@ -427,6 +433,7 @@ export const DEFAULT_HANABI_TUNING: HanabiTuning = {
     textOnly: false,
     sky: 0.85,
     collage: 1,
+    renderQuality: 'full',
 };
 
 // ─── 模块函数签名（各模块按这些名字导出） ───────────────────────────────

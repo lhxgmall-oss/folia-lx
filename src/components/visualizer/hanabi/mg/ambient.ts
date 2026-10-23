@@ -92,17 +92,24 @@ interface Dot {
 
 const tintedSpark = (palette: HanabiPalette, i: number) => palette.sparks[i % Math.max(1, palette.sparks.length)] ?? WHITE;
 
+/** 薄烟只用 glow 纹理中间这一块（边长比例）。 */
+const SMOKE_CROP = 0.8;
+
 export const createAmbient: CreateAmbient = (options): AmbientLayer => {
     const { pixi, textures, width, height, palette } = options;
     const unit = Math.min(width, height);
     const density = Math.max(0, Math.min(2, options.density));
     const rng = createRng(`${options.seed}:ambient`);
-    const back = new pixi.Container();
-    const front = new pixi.Container();
+    // 两层各是一个渲染组：远方小烟花的精灵池每帧都有显隐，星点、火星出入画面也会显隐（Pixi 改 visible 要整组重排绘制指令），
+    // 重排只排这一层。远方小烟花叠加的闪光另用一层画在上面，精灵不再来回换混合模式。
+    const back = new pixi.Container({ isRenderGroup: true });
+    const front = new pixi.Container({ isRenderGroup: true });
     const smokeLayer = new pixi.Container();
     const starLayer = new pixi.Container();
     const distantLayer = new pixi.Container();
-    back.addChild(smokeLayer, starLayer, distantLayer);
+    const distantFlashLayer = new pixi.Container();
+    distantFlashLayer.blendMode = 'add';
+    back.addChild(smokeLayer, starLayer, distantLayer, distantFlashLayer);
     const emberLayer = new pixi.Container();
     const bokehLayer = new pixi.Container();
     front.addChild(bokehLayer, emberLayer);
@@ -141,12 +148,24 @@ export const createAmbient: CreateAmbient = (options): AmbientLayer => {
             sway: 0,
         };
     });
+    // 薄烟的精灵很大（0.6–1.1 个 unit）又很淡：glow 纹理半径 0.8 以外那圈乘上烟的透明度不到 1/255，
+    // 裁掉那圈、按 0.8 倍画，每团烟少填约 36% 的像素，画面看不出差别。
+    const glowFrame = textures.glow.frame;
+    const smokeTexture = new pixi.Texture({
+        source: textures.glow.source,
+        frame: new pixi.Rectangle(
+            glowFrame.x + glowFrame.width * (1 - SMOKE_CROP) / 2,
+            glowFrame.y + glowFrame.height * (1 - SMOKE_CROP) / 2,
+            glowFrame.width * SMOKE_CROP,
+            glowFrame.height * SMOKE_CROP,
+        ),
+    });
     const smoke = dots(Math.round(5 * Math.min(1.5, density)), smokeLayer, i => ({
-        texture: textures.glow,
+        texture: smokeTexture,
         tint: mixColor(tintedSpark(palette, i), 0x9aa0b4, 0.6),
         x: width * (0.1 + rng() * 0.8),
         y0: rng() * span,
-        size: unit * (0.6 + rng() * 0.5),
+        size: unit * (0.6 + rng() * 0.5) * SMOKE_CROP,
         alpha: 0.035 + rng() * 0.035,
         parallax: AMBIENT_PARALLAX.smoke,
         speed: 0,
@@ -182,11 +201,10 @@ export const createAmbient: CreateAmbient = (options): AmbientLayer => {
         sway: unit * 0.02,
     }));
 
-    // 远方小烟花：固定大小的精灵池。
-    const distantPool: Sprite[] = [];
+    // 远方小烟花：固定大小的精灵池（普通 / 叠加闪光两个池，合起来不超过上限）。
+    const distantPools = [distantLayer, distantFlashLayer].map(layer => ({ layer, sprites: [] as Sprite[], used: 0, shown: 0 }));
     const distantMax = Math.round(240 * Math.min(1.5, density));
     const distantPlans = new Map<number, { burst: DistantBurst; plan: BurstPlan }>();
-    let distantShown = 0;
     let distantUsed = 0;
     let offsetY = 0;
     const distantTexture: Record<SparkTexture, Texture> = {
@@ -198,13 +216,14 @@ export const createAmbient: CreateAmbient = (options): AmbientLayer => {
     };
     const emitDistant: SparkEmit = (texture, x, y, w, h, rotation, alpha, tint) => {
         if (distantUsed >= distantMax) return false;
-        let s = distantPool[distantUsed];
+        const pool = distantPools[texture === 'flash' ? 1 : 0]!;
+        let s = pool.sprites[pool.used];
         if (!s) {
-            s = sprite(textures.glow, distantLayer);
-            distantPool.push(s);
+            s = sprite(textures.glow, pool.layer);
+            pool.sprites.push(s);
         }
+        pool.used += 1;
         s.texture = distantTexture[texture];
-        s.blendMode = texture === 'flash' ? 'add' : 'normal';
         s.visible = true;
         s.position.set(x, y + offsetY);
         s.rotation = rotation;
@@ -271,8 +290,11 @@ export const createAmbient: CreateAmbient = (options): AmbientLayer => {
                 drawBursts(activeDistant, time, distantMax - distantUsed, emitDistant);
             }
         }
-        for (let i = distantUsed; i < distantShown; i += 1) distantPool[i]!.visible = false;
-        distantShown = distantUsed;
+        for (const pool of distantPools) {
+            for (let i = pool.used; i < pool.shown; i += 1) pool.sprites[i]!.visible = false;
+            pool.shown = pool.used;
+            pool.used = 0;
+        }
     };
 
     return {
@@ -283,6 +305,7 @@ export const createAmbient: CreateAmbient = (options): AmbientLayer => {
             distantPlans.clear();
             back.destroy({ children: true });
             front.destroy({ children: true });
+            smokeTexture.destroy(false);
         },
     };
 };

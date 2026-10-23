@@ -162,9 +162,11 @@ export const buildHanabiText = (options: HanabiTextOptions, deps: HanabiTextDeps
     // ─── 容器 ───
     const view = new pixi.Container();
     view.label = 'hanabi-text';
-    const blocksRoot = new pixi.Container();
+    // 色块与字各是一个渲染组：入场 / 退场时字的精灵逐个显隐、色块与擦除遮罩重画，Pixi 会把所在渲染组的绘制指令
+    // 整组重排；单独成组后只重排这一行字，不牵动整个舞台。
+    const blocksRoot = new pixi.Container({ isRenderGroup: true });
     blocksRoot.label = 'hanabi-text-blocks';
-    const glyphsRoot = new pixi.Container();
+    const glyphsRoot = new pixi.Container({ isRenderGroup: true });
     glyphsRoot.label = 'hanabi-text-glyphs';
     view.addChild(blocksRoot, glyphsRoot);
     // 内层：整组震动只动内层，外层留给场景摆放。
@@ -458,6 +460,8 @@ export const buildHanabiText = (options: HanabiTextOptions, deps: HanabiTextDeps
     };
 
     const update = (time: number) => {
+        // 没提前备好时（跳播、第一帧）在这里补画图集。
+        atlas.paint?.();
         evaluateAll(time);
         blocksInner.position.set(shake.x, shake.y);
         glyphsInner.position.set(shake.x, shake.y);
@@ -676,6 +680,7 @@ export const buildHanabiText = (options: HanabiTextOptions, deps: HanabiTextDeps
         blocks: blocksRoot,
         glyphs: glyphsRoot,
         update,
+        prepare: () => atlas.paint?.() ?? false,
         anchors,
         bounds: { ...placement.bounds },
         destroy: () => {

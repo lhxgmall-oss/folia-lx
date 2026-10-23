@@ -25,6 +25,7 @@ const STAGE_GROUP: SettingsGroupDef = { id: 'vis-hanabi-stage', titleKey: 'optio
 const TEXT_GROUP: SettingsGroupDef = { id: 'vis-hanabi-text', titleKey: 'options.hanabiTextSection' };
 const DECOR_GROUP: SettingsGroupDef = { id: 'vis-hanabi-decor', titleKey: 'options.hanabiDecorSection' };
 const COLOR_GROUP: SettingsGroupDef = { id: 'vis-hanabi-color', titleKey: 'options.hanabiColorSection' };
+const PERFORMANCE_GROUP: SettingsGroupDef = { id: 'vis-hanabi-performance', titleKey: 'options.hanabiPerformanceSection' };
 
 const FIREWORKS_CONTROLS: ControlSpec[] = [
     slider('sparkAmount', 'options.hanabiSparkAmount', 0, 2),
@@ -114,6 +115,20 @@ const HanabiSettingsPanel: React.FC<VisualizerSettingsPanelProps<HanabiTuning>> 
                             { value: 'theme', label: t('options.hanabiColorModeTheme') },
                         ]}
                         onChange={colorMode => onTuningChange?.({ colorMode })}
+                    />
+                </Row>
+            </Group>
+
+            <Group def={PERFORMANCE_GROUP}>
+                <Row label={t('options.hanabiRenderQuality')} note={t('options.hanabiRenderQualityHint')}>
+                    <Segmented<HanabiTuning['renderQuality']>
+                        value={tuning.renderQuality}
+                        options={[
+                            { value: 'full', label: t('options.hanabiRenderQualityFull') },
+                            { value: 'balanced', label: t('options.hanabiRenderQualityBalanced') },
+                            { value: 'low', label: t('options.hanabiRenderQualityLow') },
+                        ]}
+                        onChange={renderQuality => onTuningChange?.({ renderQuality })}
                     />
                 </Row>
             </Group>

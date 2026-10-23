@@ -91,6 +91,11 @@ export interface GlyphAtlasOptions {
 export interface GlyphAtlas {
     entry: (char: string) => GlyphEntry;
     scramble: GlyphEntry[];
+    /**
+     * 把字画进图集（描边、光晕的 shadowBlur 都在这里，是建字最贵的一步）；只画一次，这次真的画了返回 true。
+     * 纹理与帧在建图集时就有了，画之前是透明的：镜头快出场时再画，建场景那一帧不用把整段的字都光栅化。
+     */
+    paint?: () => boolean;
     destroy: () => void;
 }
 
@@ -157,36 +162,44 @@ export const buildGlyphAtlas: BuildGlyphAtlas = (pixi, options) => {
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.ceil(width * resolution));
     canvas.height = Math.max(1, Math.ceil(height * resolution));
-    const context = canvas.getContext('2d')!;
-    context.setTransform(resolution, 0, 0, resolution, 0, 0);
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillStyle = '#ffffff';
-    context.strokeStyle = '#ffffff';
-    context.lineJoin = 'round';
-    cells.forEach(cell => {
-        context.font = glyphFont(options.weight, cell.px, options.font);
-        const cx = cell.x + cell.side / 2;
-        const cy = cell.y + cell.side / 2;
-        if (cell.variant === 'fat') {
-            context.lineWidth = options.outline * cell.px * 2;
-            context.strokeText(cell.char, cx, cy);
-            context.fillText(cell.char, cx, cy);
-        } else if (cell.variant === 'glow') {
-            context.save();
-            context.shadowColor = '#ffffff';
-            // shadowBlur 不受变换缩放，要自己乘分辨率。
-            context.shadowBlur = cell.px * 0.22 * resolution;
-            context.globalAlpha = 0.85;
-            context.fillText(cell.char, cx, cy);
-            context.fillText(cell.char, cx, cy);
-            context.restore();
-        } else {
-            context.fillText(cell.char, cx, cy);
-        }
-    });
-
     const source = new pixi.CanvasSource({ resource: canvas, resolution });
+    let painted = false;
+    const paint = () => {
+        if (painted) return false;
+        painted = true;
+        const context = canvas.getContext('2d')!;
+        context.setTransform(resolution, 0, 0, resolution, 0, 0);
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = '#ffffff';
+        context.strokeStyle = '#ffffff';
+        context.lineJoin = 'round';
+        cells.forEach(cell => {
+            context.font = glyphFont(options.weight, cell.px, options.font);
+            const cx = cell.x + cell.side / 2;
+            const cy = cell.y + cell.side / 2;
+            if (cell.variant === 'fat') {
+                context.lineWidth = options.outline * cell.px * 2;
+                context.strokeText(cell.char, cx, cy);
+                context.fillText(cell.char, cx, cy);
+            } else if (cell.variant === 'glow') {
+                context.save();
+                context.shadowColor = '#ffffff';
+                // shadowBlur 不受变换缩放，要自己乘分辨率。
+                context.shadowBlur = cell.px * 0.22 * resolution;
+                context.globalAlpha = 0.85;
+                context.fillText(cell.char, cx, cy);
+                context.fillText(cell.char, cx, cy);
+                context.restore();
+            } else {
+                context.fillText(cell.char, cx, cy);
+            }
+        });
+        // 画之前若已经上传过（透明的），这里让它下一帧重新上传。
+        source.update();
+        return true;
+    };
+
     const textures: Texture[] = [];
     const sub = (fx: number, fy: number, fw: number, fh: number) => {
         const texture = new pixi.Texture({ source, frame: new pixi.Rectangle(fx, fy, fw, fh) });
@@ -218,6 +231,7 @@ export const buildGlyphAtlas: BuildGlyphAtlas = (pixi, options) => {
     return {
         entry: char => entries.get(char) ?? blank,
         scramble: options.scramble?.chars.map(char => scrambleEntries.get(char)!).filter(Boolean) ?? [],
+        paint,
         destroy: () => {
             textures.forEach(texture => texture.destroy(false));
             source.destroy();

@@ -16,12 +16,29 @@ const BASE = {
     tint: [1, 0.96, 0.9] as [number, number, number],
 };
 
+export interface HanabiGlowQuality {
+    /** filter 分辨率：null = 跟渲染分辨率（满画质）；画质档降了时是降过的数值（hanabiTuning.ts）。 */
+    resolution: number | null;
+    /** 相对满画质少降几级（分辨率降了 2^k 倍就少 k 级，辉光宽度不变）。 */
+    levelDrop: number;
+}
+
 /** amount = tuning.glow（0..2）；padding 让光晕能晕出烟花层的包围盒（逻辑像素）。 */
-export const createHanabiGlow = (pixi: PixiModule, amount: number, padding = 48): BloomFilter => {
-    const filter = createBloomFilter(pixi, { ...BASE, strength: BASE.strength * Math.max(0, amount), padding });
-    // 满分辨率：Pixi 的 Filter 默认 resolution 是 1，1.5× / 2× 渲染时烟花层会先画成 1× 再被拉伸（lumisynth 在共享 bloom 里设，
-    // folia 的共享 bloom 由各自的运行时设：绘光在 lumiereGroupFilters，花火在这里）。
-    filter.resolution = 'inherit';
+export const createHanabiGlow = (
+    pixi: PixiModule,
+    amount: number,
+    quality: HanabiGlowQuality = { resolution: null, levelDrop: 0 },
+    padding = 48,
+): BloomFilter => {
+    const filter = createBloomFilter(pixi, {
+        ...BASE,
+        strength: BASE.strength * Math.max(0, amount),
+        levels: Math.max(1, BASE.levels - quality.levelDrop),
+        padding,
+    });
+    // 满画质跟渲染分辨率：Pixi 的 Filter 默认 resolution 是 1，1.5× / 2× 渲染时烟花层会先画成 1× 再被拉伸（lumisynth 在
+    // 共享 bloom 里设，folia 的共享 bloom 由各自的运行时设：绘光在 lumiereGroupFilters，花火在这里）。降档时按画质档的数值。
+    filter.resolution = quality.resolution ?? 'inherit';
     return filter;
 };
 

@@ -1,6 +1,11 @@
 // Copyright (c) 2026 chthollyphile
 import { describe, expect, it } from 'vitest';
-import { normalizeHanabiTuning, requiresHanabiSceneRebuild } from '@/components/visualizer/hanabi/hanabiTuning';
+import {
+    HANABI_QUALITY_PROFILES,
+    normalizeHanabiTuning,
+    requiresHanabiSceneRebuild,
+    resolveHanabiGlowQuality,
+} from '@/components/visualizer/hanabi/hanabiTuning';
 import { DEFAULT_HANABI_TUNING } from '@/components/visualizer/hanabi/types';
 
 // test/unit/visualizer/hanabi/hanabiTuning.test.ts
@@ -59,5 +64,35 @@ describe('花火 tuning 改了要不要重建场景', () => {
         expect(requiresHanabiSceneRebuild(base, { ...base, overlayFrame: !base.overlayFrame })).toBe(false);
         expect(requiresHanabiSceneRebuild(base, { ...base, sparkAmount: 1.7 })).toBe(true);
         expect(requiresHanabiSceneRebuild(base, { ...base, colorMode: 'theme' })).toBe(true);
+    });
+});
+
+describe('花火的画质档', () => {
+    it('默认全分辨率；不认识的档退回默认，改了要重建场景', () => {
+        expect(DEFAULT_HANABI_TUNING.renderQuality).toBe('full');
+        expect(normalizeHanabiTuning({ renderQuality: 'ultra' }).renderQuality).toBe('full');
+        expect(normalizeHanabiTuning({ renderQuality: 'low' }).renderQuality).toBe('low');
+        expect(requiresHanabiSceneRebuild(DEFAULT_HANABI_TUNING, { ...DEFAULT_HANABI_TUNING, renderQuality: 'balanced' })).toBe(true);
+    });
+
+    it('全分辨率时烟花辉光跟渲染分辨率走，画面与没有画质档时一样', () => {
+        expect(resolveHanabiGlowQuality(1920, 1080, 2, 'full')).toEqual({ resolution: null, levelDrop: 0 });
+        expect(resolveHanabiGlowQuality(1280, 720, 1, 'full')).toEqual({ resolution: null, levelDrop: 0 });
+    });
+
+    it('降档时烟花辉光分辨率降下来，少降的级数让辉光宽度不变', () => {
+        for (const [width, height, resolution] of [[1920, 1080, 2], [1280, 720, 1], [2560, 1440, 1.5]] as const) {
+            const balanced = resolveHanabiGlowQuality(width, height, resolution, 'balanced');
+            const low = resolveHanabiGlowQuality(width, height, resolution, 'low');
+            expect(balanced.resolution).not.toBeNull();
+            expect(balanced.resolution!).toBeLessThanOrEqual(resolution * HANABI_QUALITY_PROFILES.balanced.glowScale + 1e-9);
+            expect(low.resolution!).toBeLessThanOrEqual(resolution * HANABI_QUALITY_PROFILES.low.glowScale + 1e-9);
+            expect(low.resolution!).toBeLessThanOrEqual(balanced.resolution!);
+            // 少降的级数 = 分辨率降的倍数取 log2 就近：省电降到一半，正好少一级。
+            expect(low.levelDrop).toBe(Math.round(Math.log2(resolution / low.resolution!)));
+            expect(low.levelDrop).toBeGreaterThanOrEqual(1);
+        }
+        expect(HANABI_QUALITY_PROFILES.low.ambientScale).toBeLessThan(1);
+        expect(HANABI_QUALITY_PROFILES.full.ambientScale).toBe(1);
     });
 });

@@ -36,7 +36,7 @@ import type { HanabiTextures, HanabiTuning, PixiModule } from './types';
 // src/components/visualizer/hanabi/createHanabiPixiRuntime.ts
 // 花火的 Pixi 运行时：建一次，换歌就地交接（pixiRuntimeHost.ts）。每帧只读 currentTime 这个 MotionValue，
 // 按 hanabiSceneFrames 决定画哪几个段落场景，场景缓存当前段 ±1（同绘光），一帧最多做一件贵的事
-// （建一个场景 / 建片尾卡 / 销毁一个被换下的场景）。粒子纹理整个运行时共用（分辨率变了重画）。
+// （建一个场景 / 备一个马上要出场的镜头 / 建片尾卡 / 销毁一个被换下的场景）。粒子纹理整个运行时共用（分辨率变了重画）。
 // 层级：夜空底 → 段落场景 → 片尾卡 → 画框。
 // 智能动感模式（hanabiBeatFx.ts）：节拍表装好、效果开着时，「随拍开花」把节拍表交给在画的场景，「随拍推镜」把拍的包络
 // 套在整个场景层上（以画面中心推近、左右轻摆）。静态模式下两个都不放。
@@ -327,11 +327,13 @@ export class HanabiPixiRuntime {
 
         const creditsFrame = this.credits.resolveFrame(time, program, this.options.metadata);
         if (!builtThisFrame && !this.songSwap.active) {
-            // 一帧只做一件贵的事，按优先级：释放换下的场景 → 预建下一段 → 片尾卡 → 预建上一段。
+            // 一帧只做一件贵的事，按优先级：释放换下的场景 → 备好马上要出场的镜头 → 预建下一段 → 片尾卡 → 预建上一段。
             const next = frames.activeIndex + 1;
             const previous = frames.activeIndex - 1;
             if (this.sceneCache.hasRetired) {
                 this.sceneCache.drainRetired();
+            } else if (this.prepareShots(time)) {
+                // 画了一个镜头的字形图集，或建了它的烟花池、装饰件与拼贴。
             } else if (next < program.paragraphs.length && !this.sceneCache.has(next)) {
                 this.sceneCache.ensure(next);
             } else if (this.credits.needsBuild(time, program, this.options.metadata)) {
@@ -370,6 +372,15 @@ export class HanabiPixiRuntime {
         });
         this.credits.update(time, creditsFrame, this.width, this.height);
     };
+
+    /** 缓存里的场景（当前段与预建好的下一段）谁有马上要出场的镜头就备一个；做了返回 true。 */
+    private prepareShots(time: number) {
+        let done = false;
+        this.sceneCache.forEach(entry => {
+            if (!done) done = entry.scene.prepare(time);
+        });
+        return done;
+    }
 
     /** 「随拍开花」这一帧的输入；节拍表没装好、效果关着、静态模式时为 null。 */
     private readBeatSource(): HanabiBeatSource | null {

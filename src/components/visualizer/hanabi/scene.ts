@@ -11,6 +11,7 @@ import { createCollageTextureCache, type CollageTextureCache } from './collage/c
 import { createShotCollage, type ShotCollageView } from './collage/collageViews';
 import { createUnitCollage, type UnitCollageView } from './collage/unitCollage';
 import { keywordColorOf, resolveHanabiPalette } from './color';
+import { HANABI_QUALITY_PROFILES, resolveHanabiGlowQuality } from './hanabiTuning';
 import { createAmbient } from './mg/ambient';
 import { createFireworks } from './mg/fireworks';
 import { createHanabiGlow } from './mg/glow';
@@ -106,12 +107,16 @@ export interface HanabiScene {
     rest: TransformParams;
     /** beats 不为 null 时按节拍表在夜空里放「随拍开花」的烟花（见 hanabiBeatFx.ts）。 */
     update: (time: number, beats?: HanabiBeatSource | null) => void;
+    /** 提前备好马上要出场的镜头，一次只做一件贵的事；做了返回 true（运行时在空闲的帧里调）。 */
+    prepare: (time: number) => boolean;
     setLayerVisibility: (layers: { graphics: boolean; text: boolean; mid: boolean }) => void;
     destroy: () => void;
 }
 
 /** 一个镜头烟花精灵池的上限（同时可见的镜头一般不超过两个，整单元约 1500）。 */
 const SHOT_PARTICLES = 750;
+/** 镜头出场前多少秒开始备（画字形图集、建烟花池与拼贴），备好的在出场前不放。 */
+const PREPARE_AHEAD = 1.5;
 /** 被唱到的小烟花、碎成火花的退场，一个镜头最多放多少朵。 */
 const MAX_SUNG_BURSTS = 28;
 const MAX_DISSOLVE_BURSTS = 24;
@@ -241,7 +246,7 @@ export const createHanabiScene = (pixi: PixiModule, options: HanabiSceneOptions)
             palette: paletteOf(lead.profile),
             startTime: options.startTime,
             endTime: options.endTime,
-            density: Math.min(2, tuning.ambient),
+            density: Math.min(2, tuning.ambient) * (HANABI_QUALITY_PROFILES[tuning.renderQuality] ?? HANABI_QUALITY_PROFILES.full).ambientScale,
             distantBursts: distantRate,
         })
         : null;
@@ -269,8 +274,10 @@ export const createHanabiScene = (pixi: PixiModule, options: HanabiSceneOptions)
     if (ambient) stage.addChild(ambient.front);
     if (unitCollage) stage.addChild(unitCollage.front);
 
-    // 辉光整单元一个 filter，挂在各镜头的烟花层上。
-    const glow = graphicsOn && tuning.glow > 0 ? createHanabiGlow(pixi, Math.min(2, tuning.glow)) : null;
+    // 辉光整单元一个 filter，挂在各镜头的烟花层上；分辨率与级数按画质档（hanabiTuning.ts）。
+    const glow = graphicsOn && tuning.glow > 0
+        ? createHanabiGlow(pixi, Math.min(2, tuning.glow), resolveHanabiGlowQuality(width, height, options.resolution, tuning.renderQuality))
+        : null;
 
     /** 画面坐标 (sx, sy) 在 time 时刻对应的镜头容器坐标（不计镜头内运镜）。 */
     const screenToShot = (built: { region: HanabiProfile['region']; timing: ShotTiming }, sx: number, sy: number, time: number) => ({
@@ -554,7 +561,8 @@ export const createHanabiScene = (pixi: PixiModule, options: HanabiSceneOptions)
             const visible = time >= item.lifeStart && time <= item.lifeEnd;
             item.container.visible = visible;
             if (!visible) {
-                releaseRig(item);
+                // 提前备好、马上要出场的留着（prepare），其余放掉。
+                if (time < item.lifeStart - PREPARE_AHEAD || time > item.lifeEnd) releaseRig(item);
                 return;
             }
             if (!item.rig) item.rig = buildRig(item);
@@ -580,6 +588,22 @@ export const createHanabiScene = (pixi: PixiModule, options: HanabiSceneOptions)
         });
     };
 
+    /**
+     * 运行时在空闲的帧里调：给 PREPARE_AHEAD 秒内要出场的镜头做一件贵的事——画字形图集，或建烟花池、装饰件与拼贴
+     * （拼贴纹理现画）。做了返回 true。没备好的镜头出场那一帧照样会自己补上，只是那一帧更重。
+     */
+    const prepare = (time: number) => {
+        for (const item of built) {
+            if (time > item.lifeEnd || time < item.lifeStart - PREPARE_AHEAD) continue;
+            if (item.text?.prepare()) return true;
+            if (!item.rig) {
+                item.rig = buildRig(item);
+                return true;
+            }
+        }
+        return false;
+    };
+
     const midLayer = (time: number) => built[timeline.shotAt(time)]?.mid ?? null;
 
     return {
@@ -590,6 +614,7 @@ export const createHanabiScene = (pixi: PixiModule, options: HanabiSceneOptions)
         camera,
         rest,
         update,
+        prepare,
         setLayerVisibility: next => {
             layers = { ...next };
             applyLayers();
