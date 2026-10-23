@@ -48,8 +48,8 @@ export interface Timeline {
     rise: (time: number) => number;
     /**
      * 世界绕画面中心转过的角度（弧度），贯穿整个单元一直在转：镜头内按 spinDrift 匀速慢转，镜头边界的上升窗口里
-     * 用三次 Hermite 曲线从上一个镜头的慢转接到下一个镜头的慢转（两端位置与角速度都接上），中间加速转过一个大角度。
-     * 同一方向时角速度处处不为 0；换向时快转开头顺着原方向带一下再反过来，只在一瞬间过零，没有停住的阶段。
+     * 角速度沿一个圆顶的鼓包加速再减速，跟着上升甩过一个大角度；位置、角速度、角加速度处处连续。
+     * 同一方向时角速度处处不为 0；换向时慢转的方向在窗口里平滑换过去，只在一瞬间过零，没有停住的阶段。
      */
     spin: (time: number) => number;
     /** time 时刻所在的镜头（最后一个已经开始的；开始之前为 0）。 */
@@ -65,18 +65,91 @@ export const RISE_AFTER = 0.6;
 export const LAUNCH_DURATION = 0.45;
 /** 文字入场比第一个字被唱到提前多少秒。 */
 export const ENTER_LEAD = 0.4;
-/** 镜头内上漂：每秒约 2% 画面高度，整个镜头最多 10%。 */
-const DRIFT_PER_SECOND = 0.02;
-const DRIFT_MAX = 0.1;
+/** 镜头内上漂：每秒约 3% 画面高度，整个镜头最多 15%。 */
+const DRIFT_PER_SECOND = 0.03;
+const DRIFT_MAX = 0.15;
+/** 镜头之间的快转、上升的缓急：速度曲线是 (1 − u²)^n 的圆顶鼓包，n 越大两头越缓、中间甩得越快。 */
+const SWING_SHARPNESS = 4;
+/** 入场震动起势的时长（秒）：几帧之内震起来，不在一帧里跳。 */
+const PUNCH_ATTACK = 0.05;
+
+/** 镜头内一直在转的角速度上限（弧度 / 秒，约 11°/秒）与一个镜头里慢转最多转过的角度（约 49°）。 */
+const SPIN_CRUISE = 0.2;
+const SPIN_CRUISE_TOTAL = 0.85;
+/** 边界快转在慢转之外再转过的角度：0.6–1.4 弧度（约 34°–80°）。 */
+const SPIN_SWING_MIN = 0.6;
+const SPIN_SWING_RANGE = 0.8;
+/** 每个边界换向的概率。反着转时每个边界一半概率转回来，单元最后一个镜头一定转回起转的方向。 */
+const SPIN_FLIP = 0.2;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const smooth = (value: number) => {
     const t = clamp(value, 0, 1);
     return t * t * (3 - 2 * t);
 };
-export const easeInOutCubic = (value: number) => {
+/**
+ * 七次 smootherstep：两端速度、加速度、加加速度都为 0，速度曲线是一个圆顶的鼓包（140·t³(1 − t)³），中间没有折点。
+ * 拿它在两段运动之间过渡，接缝处位置、速度、加速度都连续；easeInOutCubic 与三次贝塞尔缓动都做不到这一点
+ * （前者中点处加速度从 +12 跳到 −12，后者两端加速度不为 0）。
+ */
+export const easeSeptic = (value: number) => {
     const t = clamp(value, 0, 1);
-    return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+    return t ** 4 * (35 + t * (-84 + t * (70 - 20 * t)));
+};
+/** easeSeptic 从 0 积到 t（t ∈ [0, 1]），积到 1 是 1/2。 */
+const easeSepticIntegral = (t: number) => t ** 5 * (7 + t * (-14 + t * (10 - 2.5 * t)));
+
+const binomial = (n: number, k: number) => {
+    let result = 1;
+    for (let i = 1; i <= k; i += 1) result = (result * (n - k + i)) / i;
+    return result;
+};
+/** (1 − u²)^n 的原函数：Σ C(n, k)(−1)^k u^(2k+1) / (2k + 1)。 */
+const SWING_TERMS = Array.from({ length: SWING_SHARPNESS + 1 }, (_, k) => (binomial(SWING_SHARPNESS, k) * (-1) ** k) / (2 * k + 1));
+const swingPrimitive = (u: number) => {
+    const u2 = u * u;
+    let power = u;
+    let sum = 0;
+    for (const term of SWING_TERMS) {
+        sum += term * power;
+        power *= u2;
+    }
+    return sum;
+};
+const SWING_HALF = swingPrimitive(1);
+/**
+ * 镜头之间的过渡缓动：速度是 (1 − u²)^SWING_SHARPNESS 的圆顶鼓包——起步与落定又缓又稳（两端速度、加速度都为 0），
+ * 中间一下甩过去，像 MG 里拉满影响度的缓入缓出，但接缝处不会顿一下。
+ */
+export const easeSwing = (value: number) => 0.5 + swingPrimitive(2 * clamp(value, 0, 1) - 1) / (2 * SWING_HALF);
+
+/**
+ * 一个单元的世界旋转安排：每个镜头中点时转到的角度（第一个为 0）与镜头内慢转的角速度，都乘 amount（tuning.spin）。
+ * 镜头内一直按 SPIN_CRUISE 慢转（镜头越长越慢，一个镜头最多转 SPIN_CRUISE_TOTAL）；相邻两个中点之间的角度差
+ * = 两边各半个镜头的慢转 + 边界快转再甩过去的 SPIN_SWING。从 direction 起转，偶尔换向，单元结束前一定转回来，
+ * 所以段落之间接上的总是同一个方向。
+ */
+export const planSpin = (durations: readonly number[], options: { amount: number; direction: number; random: () => number }) => {
+    const angles: number[] = [];
+    const drift: number[] = [];
+    let direction = options.direction;
+    durations.forEach((duration, index) => {
+        if (index > 0) {
+            const last = index === durations.length - 1;
+            const roll = options.random();
+            const reversed = direction !== options.direction;
+            if (reversed ? last || roll < 0.5 : !last && roll < SPIN_FLIP) direction = -direction;
+        }
+        const cruise = direction * options.amount * Math.min(SPIN_CRUISE, SPIN_CRUISE_TOTAL / Math.max(duration, 0.5));
+        drift.push(cruise);
+        if (index === 0) {
+            angles.push(0);
+            return;
+        }
+        const swing = direction * options.amount * (SPIN_SWING_MIN + SPIN_SWING_RANGE * options.random());
+        angles.push(angles[index - 1]! + (drift[index - 1]! * durations[index - 1]! + cruise * duration) / 2 + swing);
+    });
+    return { angles, drift };
 };
 
 export const buildTimeline = (shots: readonly TimelineShot[], options: {
@@ -154,12 +227,15 @@ export const buildTimeline = (shots: readonly TimelineShot[], options: {
         return found;
     };
 
-    /** 按镜头取值：上升窗口里在两个镜头之间缓动过渡，其余时间取所在镜头的值。 */
+    /**
+     * 按镜头取值：上升窗口里用 easeSwing 在两个镜头之间过渡，其余时间取所在镜头的值。
+     * 两边的值在窗口里都按各自的规律接着走（不在边界处钳住），接缝两端的速度、加速度就都是镜头里的。
+     */
     const blended = (time: number, value: (index: number, time: number) => number) => {
         for (let index = 1; index < count; index += 1) {
             const window = timings[index]!.riseIn!;
             if (time >= window.from && time <= window.to) {
-                const k = easeInOutCubic((time - window.from) / Math.max(window.to - window.from, 1e-3));
+                const k = easeSwing((time - window.from) / Math.max(window.to - window.from, 1e-3));
                 return value(index - 1, time) + (value(index, time) - value(index - 1, time)) * k;
             }
         }
@@ -168,32 +244,38 @@ export const buildTimeline = (shots: readonly TimelineShot[], options: {
 
     const target = (index: number, time: number) => {
         const timing = timings[index]!;
-        const mid = (timing.start + timing.end) / 2;
-        return -timing.worldY + timing.drift * (clamp(time, timing.start, timing.end) - mid);
+        return -timing.worldY + timing.drift * (time - (timing.start + timing.end) / 2);
     };
 
     const rise = (time: number) => (count === 0 ? 0 : blended(time, target));
-    /** 镜头 index 自己的慢转：中点时是 timing.spin，按 spinDrift 匀速转。 */
-    const spinSegment = (index: number, time: number) => {
-        const timing = timings[index]!;
-        return timing.spin + timing.spinDrift * (time - (timing.start + timing.end) / 2);
-    };
+
+    // 旋转按角速度来设计：镜头内按 spinDrift 匀速慢转；每个边界的上升窗口里，慢转的角速度用 easeSeptic 换成下一个镜头的，
+    // 同时跟上升一起按 easeSwing 把这一步剩下的角度甩过去（世界边升边转）。两条曲线两端速度、加速度都是 0，
+    // 所以慢转与快转之间没有「一脚油门、一脚刹车」；甩的角度按两个镜头中点的角度解出来，镜头中点时正好转到它自己的角度。
+    const mids = timings.map(timing => (timing.start + timing.end) / 2);
+    const spinSteps = timings.map((timing, index) => {
+        if (index === 0) return null;
+        const previous = timings[index - 1]!;
+        const window = timing.riseIn!;
+        const ramp = Math.max(window.to - window.from, 1e-3);
+        const from = mids[index - 1]!;
+        /** 慢转部分从上一个镜头中点积到 time。 */
+        const drift = (time: number) => {
+            const x = (time - window.from) / ramp;
+            const switched = x <= 0 ? 0 : x >= 1 ? ramp / 2 + (time - window.to) : ramp * easeSepticIntegral(x);
+            return previous.spinDrift * (time - from) + (timing.spinDrift - previous.spinDrift) * switched;
+        };
+        const swing = timing.spin - previous.spin - drift(mids[index]!);
+        return (time: number) => previous.spin + drift(time) + swing * easeSwing((time - window.from) / ramp);
+    });
     const spin = (time: number) => {
         if (count === 0) return 0;
+        if (time <= mids[0]!) return timings[0]!.spin + timings[0]!.spinDrift * (time - mids[0]!);
         for (let index = 1; index < count; index += 1) {
-            const window = timings[index]!.riseIn!;
-            if (time < window.from || time > window.to) continue;
-            const span = Math.max(window.to - window.from, 1e-3);
-            const s = (time - window.from) / span;
-            const s2 = s * s;
-            const s3 = s2 * s;
-            const p0 = spinSegment(index - 1, window.from);
-            const p1 = spinSegment(index, window.to);
-            const m0 = timings[index - 1]!.spinDrift * span;
-            const m1 = timings[index]!.spinDrift * span;
-            return (2 * s3 - 3 * s2 + 1) * p0 + (s3 - 2 * s2 + s) * m0 + (-2 * s3 + 3 * s2) * p1 + (s3 - s2) * m1;
+            if (time < mids[index]!) return spinSteps[index]!(time);
         }
-        return spinSegment(shotAt(time), time);
+        const last = timings[count - 1]!;
+        return last.spin + last.spinDrift * (time - mids[count - 1]!);
     };
 
     const pushOf = (index: number, time: number) => {
@@ -215,7 +297,7 @@ export const buildTimeline = (shots: readonly TimelineShot[], options: {
             const age = time - timings[index]!.punchAt;
             const punch = shots[index]!.camera.punch;
             if (age < 0 || age > 0.9 || punch <= 0 || shots[index]!.isBridge) continue;
-            const amp = punch * motion * Math.exp(-age / 0.16);
+            const amp = punch * motion * Math.exp(-age / 0.16) * smooth(age / PUNCH_ATTACK);
             dx += amp * 0.012 * height * Math.sin(age * 70 + index);
             dy += amp * 0.016 * height * Math.cos(age * 55 + index * 2);
             scale *= 1 + amp * 0.03;

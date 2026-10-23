@@ -17,7 +17,7 @@ import { createHanabiGlow } from './mg/glow';
 import { createOrnament } from './mg/ornaments';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { createHanabiText } from './text/lyricText';
-import { buildTimeline, LAUNCH_DURATION, type ShotTiming, type Timeline, type TimelineShot } from './timeline';
+import { buildTimeline, LAUNCH_DURATION, planSpin, type ShotTiming, type Timeline, type TimelineShot } from './timeline';
 import type {
     AmbientLayer,
     BurstEvent,
@@ -199,18 +199,12 @@ export const createHanabiScene = (pixi: PixiModule, options: HanabiSceneOptions)
             camera: shot.profile.camera,
         };
     });
-    // 世界旋转，贯穿整个单元一直在转：镜头内慢转（约 3–7°/秒，镜头越长越慢），镜头边界加速转过 40°–100°（都乘 tuning.spin），
-    // 像一路旋着往上走。单元从整首歌的方向（options.spinDirection）起转，每个边界约三成换向：那段快转直接朝新方向甩过去，
-    // 开头顺着原方向带一下再反过来，过零只是一瞬间，不会停住。
-    const spinRandom = createRng(`${options.seed}:spin`);
-    const spinAmount = graphicsOn ? Math.max(0, tuning.spin) : 0;
-    let spinDirection = options.spinDirection ?? 1;
-    const spinAngles: number[] = [];
-    const spinDrift: number[] = [];
-    options.shots.forEach((shot, index) => {
-        if (index > 0 && spinRandom() < 0.3) spinDirection = -spinDirection;
-        spinAngles.push(index === 0 ? 0 : spinAngles[index - 1]! + spinDirection * (0.7 + spinRandom()) * spinAmount);
-        spinDrift.push(spinDirection * spinAmount * Math.min(0.12, 0.36 / Math.max(shot.endTime - shot.startTime, 0.5)));
+    // 世界旋转，贯穿整个单元一直在转：镜头内慢转（约 11°/秒，长镜头慢一些），镜头边界跟着上升再甩过 34°–80°（都乘 tuning.spin），
+    // 像一路旋着往上走。单元从整首歌的方向（options.spinDirection）起转，偶尔换向、单元结束前转回来（timeline.ts 的 planSpin）。
+    const { angles: spinAngles, drift: spinDrift } = planSpin(options.shots.map(shot => shot.endTime - shot.startTime), {
+        amount: graphicsOn ? Math.max(0, tuning.spin) : 0,
+        direction: options.spinDirection ?? 1,
+        random: createRng(`${options.seed}:spin`),
     });
     const timeline = buildTimeline(timelineShots, {
         unitStart: options.startTime,

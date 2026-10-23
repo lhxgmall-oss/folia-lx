@@ -89,6 +89,47 @@ describe('花火的段落场景帧', () => {
         expect(kinds.has('ascend')).toBe(true);
     });
 
+    it('上升转场的旧画面过了边界按原速接着滑走、转走，不在边界上停住', () => {
+        // 回归：旧段落原来停在出场终点那一帧淡掉，正往下滑、正在转的画面在边界上一下定住。
+        let checked = 0;
+        for (const program of programs) {
+            for (let index = 1; index < program.paragraphs.length; index += 1) {
+                const out = program.paragraphs[index - 1]!.transitionOut!;
+                if (out.kind !== 'ascend') continue;
+                const { start, duration } = enterWindow(program, index);
+                const dt = 1e-3;
+                const before = (time: number) => resolveHanabiSceneFrames(program, time, true).layers.at(-1)!;
+                const after = (time: number) => resolveHanabiSceneFrames(program, time, true).layers.find(layer => layer.index === index - 1)!;
+                const t0 = start + duration * 0.05;
+                const t1 = start + duration * 0.3;
+                for (const key of ['y', 'rotation'] as const) {
+                    const speedIn = (before(start - dt)[key] - before(start - 2 * dt)[key]) / dt;
+                    const speedOut = (after(t1)[key] - after(t0)[key]) / (t1 - t0);
+                    expect(speedIn, key).toBeGreaterThan(0);
+                    expect(speedOut / speedIn, key).toBeCloseTo(1, 2);
+                }
+                checked += 1;
+            }
+        }
+        expect(checked).toBeGreaterThan(0);
+    });
+
+    it('转场曲线：出场从静止起步，进场减速停稳，两端都不带加速度跳变', () => {
+        for (const kind of ['ascend', 'flash', 'bloom'] as const) {
+            for (const phase of ['exit', 'enter'] as const) {
+                const y = (p: number) => {
+                    const f = HANABI_TRANSITIONS[kind].resolveFrame(phase, p);
+                    return f.rotation + f.y + f.scale;
+                };
+                const h = 1e-3;
+                const accel = (p: number) => (y(p + h) - 2 * y(p) + y(p - h)) / h ** 2;
+                // 出场开头与进场结尾是静止的一端：贴着它的加速度趋于 0。
+                const restEnd = phase === 'exit' ? 2 * h : 1 - 2 * h;
+                expect(Math.abs(accel(restEnd)), `${kind} ${phase}`).toBeLessThan(0.05);
+            }
+        }
+    });
+
     it('静态模式（不放转场）任何时刻都只有当前段一层、不透明', () => {
         for (const program of programs) {
             for (let time = -1; time < program.duration + 1; time += 0.37) {

@@ -6,8 +6,8 @@ import { HANABI_TRANSITIONS, resolveHanabiEnterDuration, type HanabiTransitionFr
 // 某一时刻哪些段落场景在画、各自套什么帧（透明度 / 缩放 / 模糊 / 纵向位移）。纯函数，只由 program 与时间决定。
 // 段落首尾相接，所以任何时刻只有「当前段落」一个场景，外加边界之后的进入窗口里正在退出的上一段（同绘光）：
 //   - 出场窗口（transitionOut.startTime..边界）：当前段套 resolveFrame('exit')；
-//   - 进入窗口（边界之后 resolveHanabiEnterDuration 秒）：新段套 resolveFrame('enter')，同时与停在出场终点帧的
-//     上一段交叉渐变，边界两侧的画面是连续的，没有硬切。
+//   - 进入窗口（边界之后 resolveHanabiEnterDuration 秒）：新段套 resolveFrame('enter')，同时与出场接着往下走的
+//     上一段交叉渐变，边界两侧的画面是连续的，没有硬切，旧画面也不在边界上一下停住。
 
 export interface HanabiLayerFrame extends HanabiTransitionFrame {
     /** 段落序号。 */
@@ -28,11 +28,12 @@ const smooth = (value: number) => {
     return t * t * (3 - 2 * t);
 };
 
-const exitFrameOf = (program: HanabiProgram, index: number, time: number): HanabiTransitionFrame => {
+/** beyondBoundary：边界之后还在淡出的旧段落，出场进度接着走过 1（上升转场的旧画面接着滑走，不在边界上停住）。 */
+const exitFrameOf = (program: HanabiProgram, index: number, time: number, beyondBoundary = false): HanabiTransitionFrame => {
     const out = program.paragraphs[index]?.transitionOut;
     if (!out || time < out.startTime) return IDLE;
     const progress = (time - out.startTime) / Math.max(out.endTime - out.startTime, 1e-3);
-    return HANABI_TRANSITIONS[out.kind].resolveFrame('exit', progress);
+    return HANABI_TRANSITIONS[out.kind].resolveFrame('exit', beyondBoundary ? progress : Math.min(progress, 1));
 };
 
 /** transitionsEnabled 为 false（静态模式）时段落之间硬切。没有段落时 layers 为空。 */
@@ -55,10 +56,10 @@ export const resolveHanabiSceneFrames = (
         if (progress >= 0 && progress < 1) {
             const enter = HANABI_TRANSITIONS[previousOut.kind].resolveFrame('enter', progress);
             const weight = smooth(progress);
-            // 上一段停在出场终点那一帧，随进入进度淡掉。
-            const peak = exitFrameOf(program, activeIndex - 1, previousOut.endTime);
-            if (peak.alpha * (1 - weight) > 0.002) {
-                layers.push({ index: activeIndex - 1, ...peak, alpha: peak.alpha * (1 - weight) });
+            // 上一段的出场接着走（上升按边界上的速度继续滑走、转走），随进入进度淡掉。
+            const leaving = exitFrameOf(program, activeIndex - 1, time, true);
+            if (leaving.alpha * (1 - weight) > 0.002) {
+                layers.push({ index: activeIndex - 1, ...leaving, alpha: leaving.alpha * (1 - weight) });
             }
             layers.push({
                 index: activeIndex,

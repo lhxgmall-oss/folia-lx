@@ -234,7 +234,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 
 - `hanabi/VisualizerHanabi.tsx`：React shell / subtitle；`createHanabiPixiRuntime.ts`：Pixi runtime（WebGL only，建一次、换歌就地交接，scene cache ±1，一帧最多做一件贵的事）
 - `hanabiProgram.ts` + `program.ts`：整首编译（段落首尾相接铺满时间轴；第一句晚于 3 秒时前面单独一个间奏段；段后空隙 ≥ 3 秒时最后一句唱完 0.6 秒收住、剩下的给间奏镜头；长于 10 秒的间奏切成约 7 秒的几段；纯音乐只有间奏镜头）。分段规则与绘光共用 `../paragraphStructure.ts`
-- `scene.ts` + `timeline.ts`：一个段落一个场景，世界上升与旋转在场景内部（tuning `spin`：世界绕画面中心贯穿整个单元一直在转，镜头内慢转、镜头边界随上升加速转过 40°–100°，`timeline.spin` 用三次 Hermite 把两段慢转接起来，位置与角速度都连续；每段从整首歌的方向起转，边界约三成换向，过零只一瞬间。每个镜头的 holder 绕「定格时的画面中心」反向转回自己的角度，镜头中点时构图正好是原样）；运行时只在外面套段落转场帧（`hanabiSceneFrames.ts` + `hanabiTransitions.ts`：上升 ascend / 闪白 flash / 开花 bloom，出场帧 + 边界后的交叉渐变，三种都带一点旋转，乘 `spin`）
+- `scene.ts` + `timeline.ts`：一个段落一个场景，世界上升与旋转在场景内部（tuning `spin`：世界绕画面中心贯穿整个单元一直在转，镜头内约 11°/秒慢转、镜头边界跟着上升再甩过 34°–80°（`timeline.planSpin` 排角度）。`timeline.spin` 按角速度设计：上升窗口里世界与上升一起按 `easeSwing` 甩过去（速度是 (1 − u²)⁴ 的圆顶鼓包，两头缓、中间快，`SWING_SHARPNESS` 调缓急），慢转的速度用七次 smootherstep（`easeSeptic`）换过去，位置、角速度、角加速度都连续，慢转与快转之间不会一下顿住；上升与镜头内运镜在窗口里也用 `easeSwing` 过渡。每段从整首歌的方向起转，边界两成换向、之后一半概率转回，单元最后一个镜头一定转回原方向，段落之间接上的总是同一个方向。每个镜头的 holder 绕「定格时的画面中心」反向转回自己的角度，镜头中点时构图正好是原样）；运行时只在外面套段落转场帧（`hanabiSceneFrames.ts` + `hanabiTransitions.ts`：上升 ascend / 闪白 flash / 开花 bloom，出场帧 + 边界后的交叉渐变，上升的旧画面过了边界按原速继续滑走、转走，三种都带一点旋转，乘 `spin`）
 - `hanabiSky.ts`：夜空底，运行时铺在所有场景之下（tuning `sky`）；`sky` ≥ 0.5 时配色换成深底的调色板（`color.ts`）
 - `hanabiCreditsLayer.ts` + `credits.ts`：片尾卡；`overlay.ts`：画框装饰
 - `text/`（文字引擎：排版、色块、逐字入场 / 强调 / 退场）与 `mg/`（烟花、升空尾迹、装饰件、环境粒子）同 lumisynth；`catalog.ts` 是 50 个镜头预设
