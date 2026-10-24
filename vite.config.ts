@@ -275,7 +275,7 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
       // Folia LX Android draws the WebView edge to edge (MainActivity); viewport-fit=cover lets WebView
       // 140+ report the bar sizes as env(safe-area-inset-*) too. Web and desktop builds keep their meta.
       isAndroidTarget && {
-        name: 'REMOVED-viewport-fit',
+        name: 'folia-lx-viewport-fit',
         transformIndexHtml: (html: string) => html.replace(
           'content="width=device-width, initial-scale=1.0"',
           'content="width=device-width, initial-scale=1.0, viewport-fit=cover"',

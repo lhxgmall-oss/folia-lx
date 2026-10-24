@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: REMOVED-${{ github.ref }}
+  group: folia-lx-apk-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -132,7 +132,7 @@ jobs:
         # Artifact storage can be full or flaky; the APK still goes onto the release below.
         continue-on-error: true
         with:
-          name: REMOVED
+          name: folia-lx-apk
           path: release-android/*.apk
           if-no-files-found: error
           retention-days: 14
