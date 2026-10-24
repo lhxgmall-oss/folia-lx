@@ -1,0 +1,35 @@
+[1m[92m    Updating[0m crates.io index
+[1m[92m Downloading[0m crates ...
+[1m[92m  Downloaded[0m proc-macro2 v1.0.107
+[1m[92m  Downloaded[0m windows-interface v0.59.3
+[1m[92m  Downloaded[0m windows-result v0.4.1
+[1m[92m  Downloaded[0m windows-threading v0.2.1
+[1m[92m  Downloaded[0m windows-core v0.62.2
+[1m[92m  Downloaded[0m windows-collections v0.3.2
+[1m[92m  Downloaded[0m windows-strings v0.5.1
+[1m[92m  Downloaded[0m windows-future v0.3.2
+[1m[92m  Downloaded[0m windows-implement v0.60.2
+[1m[92m  Downloaded[0m windows-link v0.2.1
+[1m[92m  Downloaded[0m windows-numerics v0.3.1
+[1m[92m  Downloaded[0m quote v1.0.47
+[1m[92m  Downloaded[0m unicode-ident v1.0.24
+[1m[92m  Downloaded[0m syn v2.0.119
+[1m[92m  Downloaded[0m windows v0.62.2
+[1m[92m   Compiling[0m proc-macro2 v1.0.107
+[1m[92m   Compiling[0m quote v1.0.47
+[1m[92m   Compiling[0m unicode-ident v1.0.24
+[1m[92m   Compiling[0m windows-link v0.2.1
+[1m[92m   Compiling[0m windows-strings v0.5.1
+[1m[92m   Compiling[0m windows-result v0.4.1
+[1m[92m   Compiling[0m syn v2.0.119
+[1m[92m   Compiling[0m windows-threading v0.2.1
+[1m[92m   Compiling[0m windows-implement v0.60.2
+[1m[92m   Compiling[0m windows-interface v0.59.3
+[1m[92m   Compiling[0m windows-core v0.62.2
+[1m[92m   Compiling[0m windows-numerics v0.3.1
+[1m[92m   Compiling[0m windows-future v0.3.2
+[1m[92m   Compiling[0m windows-collections v0.3.2
+[1m[92m   Compiling[0m windows v0.62.2
+[1m[92m   Compiling[0m folia-wallpaper-helper v0.1.0 (D:\a\folia-lx\folia-lx\packaging\windows\wallpaper-helper)
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 34.96s
+[wallpaper-helper] built D:\a\folia-lx\folia-lx\build\folia-wallpaper-helper.exe

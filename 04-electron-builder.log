@@ -1,0 +1,508 @@
+  • electron-builder  version=26.15.3 os=10.0.26100
+  • loaded configuration  file=package.json ("build" field)
+-- Building for: Visual Studio 18 2026
+-- The CXX compiler identification is MSVC 19.51.36260.0
+-- The C compiler identification is MSVC 19.51.36260.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+CMake Warning (deprecated) at D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+
+-- The ASM compiler identification is MSVC
+CMake Warning (policy) at C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineASMCompiler.cmake:237 (cmake_policy):
+  Policy CMP0194 is not set: MSVC is not an assembler for language ASM.  Run
+  "cmake --help-policy CMP0194" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+Call Stack (most recent call first):
+  D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt:20 (project)
+This warning is for project developers.  Use -Wno-author or -Wno-policy to
+suppress it.
+
+-- Found assembler: C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe
+-- Use Threadpool, forbid openmp
+-- >>>>>>>>>>>>>
+-- MNN BUILD INFO:
+-- 	System: Windows
+-- 	Processor: AMD64
+-- 	Version: 3.6.1
+-- 	Metal: OFF
+-- 	OpenCL: OFF
+-- 	OpenGL: OFF
+-- 	Vulkan: OFF
+-- 	ARM82: ON
+-- 	KleidiAI: ON
+-- 	oneDNN: OFF
+-- 	TensorRT: OFF
+-- 	CoreML: OFF
+-- 	NNAPI: OFF
+-- 	QNN: OFF
+-- 	CUDA: OFF
+-- 	MUSA: OFF
+-- 	OpenMP: OFF
+-- 	BF16: OFF
+-- 	ThreadPool: ON
+-- 	Hidden: TRUE
+-- 	Build Path: D:/a/folia-lx/folia-lx/build/.mnn-build/win-x64/mnn
+-- 	CUDA PROFILE: OFF
+-- WIN_USE_ASM: 
+-- AMD64: Open SSE
+-- MNN_AVX512:OFF
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed
+-- Looking for pthread_create in pthreads
+-- Looking for pthread_create in pthreads - not found
+-- Looking for pthread_create in pthread
+-- Looking for pthread_create in pthread - not found
+-- Found Threads: TRUE
+-- Configuring done (14.8s)
+-- Generating done (0.2s)
+-- Build files have been written to: D:/a/folia-lx/folia-lx/build/.mnn-build/win-x64
+MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  GemmAVX2.cpp
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  CPUArgMax.cpp
+  GemmAVX2FMA.cpp
+  GemmCommon.cpp
+  GemmAVX2FMABF16.cpp
+  GemmSparseFMA.cpp
+  CPUAttention.cpp
+  CPUBackend.cpp
+  GemmCommonBF16.cpp
+  MathFunctions.cpp
+  GemmInt8.cpp
+  PackedFunction.cpp
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\backend\cpu\CPUBackend.cpp(581,9): warning C4477: 'printf' : format string '%lu' requires an argument of type 'unsigned long', but variadic argument 1 has type 'size_t' [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCPU.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\backend\cpu\CPUBackend.cpp(581,9):
+      consider using '%zu' in the format string
+  
+  CPUBinary.cpp
+  GemmSparse.cpp
+  Generating Code...
+  MNNAVXFMA.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNAVXFMA.dir\Release\MNNAVXFMA.lib
+  MathFunctions.cpp
+  CPUBinaryInt8.cpp
+  PackedFunction.cpp
+  CPUCast.cpp
+  ReorderFunctions.cpp
+  CPUConvolution.cpp
+  WinogradFunctions.cpp
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  ImageProcess.cpp
+  CPUConvolutionDepthwise.cpp
+  Generating Code...
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\backend\cpu\x86_x64\avx\GemmInt8.cpp(1445,1): warning C4700: uninitialized local variable 'srcValue0' used [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNAVX.vcxproj]
+  ImageProcessUtils.cpp
+  CPUCropAndResize.cpp
+  MNNAVX.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNAVX.dir\Release\MNNAVX.lib
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  AutoTime.cpp
+  Backend.cpp
+  Matrix_CV.cpp
+  CPUDeconvolution.cpp
+  Generating Code...
+  MNNCV.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCV.dir\Release\MNNCV.lib
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  Matrix.cpp
+  BufferAllocator.cpp
+  CPUDeconvolutionDepthwise.cpp
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\BufferAllocator.cpp(120,21): warning C4477: 'printf' : format string '%lu' requires an argument of type 'unsigned long', but variadic argument 1 has type 'size_t' [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCore.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\BufferAllocator.cpp(120,21):
+      consider using '%zu' in the format string
+  
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\BufferAllocator.cpp(129,17): warning C4477: 'printf' : format string '%lu' requires an argument of type 'unsigned long', but variadic argument 1 has type 'size_t' [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCore.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\BufferAllocator.cpp(129,17):
+      consider using '%zu' in the format string
+  
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\BufferAllocator.cpp(137,13): warning C4477: 'printf' : format string '%lu' requires an argument of type 'unsigned long', but variadic argument 2 has type 'size_t' [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCore.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\BufferAllocator.cpp(137,13):
+      consider using '%zu' in the format string
+  
+  ConvolutionCommon.cpp
+  WingoradGenerater.cpp
+  Generating Code...
+  CPUDepthwiseConvInt8.cpp
+  MNNMath.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNMath.dir\Release\MNNMath.lib
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  GemmCommon.cpp
+  Execution.cpp
+  FileLoader.cpp
+  CPUDequantize.cpp
+  GemmInt8.cpp
+  Interpreter.cpp
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\backend\cpu\x86_x64\sse\GemmInt8.cpp(478,13): warning C4005: 'COMPUTE': macro redefinition [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNSSE.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\backend\cpu\x86_x64\sse\GemmInt8.cpp(126,13):
+      see previous definition of 'COMPUTE'
+  
+  GemmSSE.cpp
+  CPUDet.cpp
+  KVCacheManager.cpp
+  MNNFileUtils.cpp
+  ImageProcessFunction.cpp
+  MNNMemoryUtils.cpp
+  OpCommonUtils.cpp
+  CPUDetectionOutput.cpp
+  MathFunctions.cpp
+  Pipeline.cpp
+  CPUDetectionPostProcess.cpp
+  PackedFunction.cpp
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\Pipeline.cpp(947,5): warning C4477: 'printf' : format string '%d' requires an argument of type 'int', but variadic argument 1 has type 'size_t' [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCore.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\Pipeline.cpp(947,5):
+      consider using '%zu' in the format string
+  
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\Pipeline.cpp(947,5): warning C4477: 'printf' : format string '%d' requires an argument of type 'int', but variadic argument 2 has type 'size_t' [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCore.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\core\Pipeline.cpp(947,5):
+      consider using '%zu' in the format string
+  
+  ReorderFunctions.cpp
+  CPUDynamicQuant.cpp
+  RuntimeFactory.cpp
+  Generating Code...
+  Schedule.cpp
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\backend\cpu\x86_x64\sse\GemmInt8.cpp(786,1): warning C4700: uninitialized local variable 'srcValue1' used [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNSSE.vcxproj]
+  CPUEltwise.cpp
+  MNNSSE.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNSSE.dir\Release\MNNSSE.lib
+  CPUEltwiseInt8.cpp
+  Session.cpp
+  CPUExternalConst.cpp
+  Tensor.cpp
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  ConvertUtils.cpp
+  TensorUtils.cpp
+  Generating Code...
+  WorkerThread.cpp
+  GeometryBatchMatMul.cpp
+  WrapExecution.cpp
+  GeometryBinary.cpp
+  Generating Code...
+  Compiling...
+  CPUFloatToInt8.cpp
+  GeometryBroadcastTo.cpp
+  CPUGridSample.cpp
+  GeometryComputer.cpp
+  CPUHistogram.cpp
+  GeometryComputerUtils.cpp
+  CPUImageProcess.cpp
+  GeometryConcat.cpp
+  CPUInstanceNorm.cpp
+  MNNCore.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCore.dir\Release\MNNCore.lib
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  InitNet.cpp
+  GeometryConv2D.cpp
+  CPUInt8ToFloat.cpp
+  JNIHelper.cpp
+  GeometryConv2DBackPropFilter.cpp
+  Generating Code...
+  CPUInterp.cpp
+  MNNUtils.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNUtils.dir\Release\MNNUtils.lib
+  GeometryConv3D.cpp
+  CPUInterp3D.cpp
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  AVX2Backend.cpp
+  GeometryConvUtils.cpp
+  CPUKVCacheManager.cpp
+  CPULayerNorm.cpp
+  AVX2Functions.cpp
+  GeometryConvert.cpp
+  CPULinSpace.cpp
+  FunctionDispatcher.cpp
+  GeometryCosineSimilarity.cpp
+  CPULinearAttention.cpp
+  CPUMatMul.cpp
+  cpu_id.cc
+  Generating Code...
+  MNNX8664.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNX8664.dir\Release\MNNX8664.lib
+  GeometryCrop.cpp
+  CPUMatrixBandPart.cpp
+  GeometryCumSum.cpp
+  CPUMoments.cpp
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/express/CMakeLists.txt
+  GeometryDepthToSpace.cpp
+  CPUNonMaxSuppressionV2.cpp
+  Executor.cpp
+  GeometryDet.cpp
+  CPUOPRegister.cpp
+  CPUOneHot.cpp
+  ExecutorScope.cpp
+  Expr.cpp
+  GeometryDilation2D.cpp
+  CPUPlugin.cpp
+  GeometryELU.cpp
+  MathOp.cpp
+  CPUPool.cpp
+  NeuralNetWorkOp.cpp
+  GeometryFill.cpp
+  Generating Code...
+  Optimizer.cpp
+  Generating Code...
+  Utils.cpp
+  Compiling...
+  CPUPoolInt8.cpp
+  CPUProposal.cpp
+  IfModule.cpp
+  CPUQuanConvolutionDepthwise.cpp
+  MoEModule.cpp
+  CPUQuantizedAdd.cpp
+  Compiling...
+  GeometryGather.cpp
+  Module.cpp
+  CPUQuantizedAvgPool.cpp
+  GeometryImageOp.cpp
+  NMSModule.cpp
+  CPUQuantizedLogistic.cpp
+  GeometryInnerProduct.cpp
+  PipelineModule.cpp
+  CPUQuantizedMaxPool.cpp
+  GeometryLRN.cpp
+  CPUQuantizedSoftmax.cpp
+  StaticModule.cpp
+  GeometryLSTM.cpp
+  CPURNNSequenceGRU.cpp
+  GeometryLayernorm.cpp
+  WhileModule.cpp
+  CPUROIAlign.cpp
+  GeometryOPRegister.cpp
+  Generating Code...
+  CPUROIPooling.cpp
+  GeometryPermute.cpp
+  CPURandomUniform.cpp
+  GeometryPoolGrad.cpp
+  CPURange.cpp
+  GeometryPooling3D.cpp
+  CPURaster.cpp
+  GeometryReduce.cpp
+  CPUReduction.cpp
+  GeometryReshape.cpp
+  CPURelu.cpp
+  GeometryReverseSequence.cpp
+  CPUResize.cpp
+  GeometryScatter.cpp
+  CPUResizeCache.cpp
+  GeometrySelect.cpp
+  CPURoPE.cpp
+  GeometryShape.cpp
+  CPURuntime.cpp
+  Generating Code...
+  GeometrySlice.cpp
+  MNN_Express.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\express\MNN_Express.dir\Release\MNN_Express.lib
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  GeometrySpaceToBatchND.cpp
+  PluginKernel.cpp
+  PluginShapeInference.cpp
+  Compiling...
+  CPUScale.cpp
+  Generating Code...
+  GeometrySpatialProduct.cpp
+  MNN_Plugin.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNN_Plugin.dir\Release\MNN_Plugin.lib
+  CPUScaleInt8.cpp
+  GeometryStridedSlice.cpp
+  CPUSegmentMean.cpp
+  Generating Code...
+  CPUSelect.cpp
+  CPUSetDiff1D.cpp
+  CPUSoftmax.cpp
+  CPUStft.cpp
+  CPUSvd.cpp
+  Compiling...
+  GeometryTensorArray.cpp
+  CPUTFQuantizedConv2D.cpp
+  GeometryThreshold.cpp
+  CPUTensorConvert.cpp
+  GeometryTile.cpp
+  CPUTopKV2.cpp
+  GeometryTopK.cpp
+  CPUUnary.cpp
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\geometry\GeometryTopK.cpp(19,13): warning C4477: 'printf' : format string '%lu' requires an argument of type 'unsigned long', but variadic argument 1 has type 'unsigned __int64' [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNTransform.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\geometry\GeometryTopK.cpp(19,13):
+      consider using '%zu' in the format string
+  
+D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\geometry\GeometryTopK.cpp(19,13): warning C4477: 'printf' : format string '%lu' requires an argument of type 'unsigned long', but variadic argument 2 has type 'unsigned __int64' [D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNTransform.vcxproj]
+      D:\a\folia-lx\folia-lx\build\.mnn-src\d407447ed56c4121a11ccbd266dc184ca1ead0c2\source\geometry\GeometryTopK.cpp(19,13):
+      consider using '%zu' in the format string
+  
+  GeometryUnary.cpp
+  CPUUnique.cpp
+  ShapeArgMax.cpp
+  CPUUnravelIndex.cpp
+  ShapeAttention.cpp
+  CPUWhere.cpp
+  ShapeBatchToSpaceND.cpp
+  OneDNNConvInt8.cpp
+  OneDNNConvolution.cpp
+  ThreadPool.cpp
+  CommonOptFunction.cpp
+  ShapeBinaryOp.cpp
+  ConvInt8TiledExecutor.cpp
+  ShapeBroadcastTo.cpp
+  ShapeCast.cpp
+  Generating Code...
+  ShapeConcat.cpp
+  Compiling...
+  ConvInt8Winograd.cpp
+  ShapeConvTranspose3D.cpp
+  ConvOpt.cpp
+  ShapeConvolution.cpp
+  Convolution1x1Strassen.cpp
+  ShapeConvolution3D.cpp
+  ConvolutionFloatFactory.cpp
+  ShapeCosineSimilarity.cpp
+  ConvolutionGroup.cpp
+  ShapeCrop.cpp
+  ConvolutionIntFactory.cpp
+  ShapeCropAndResize.cpp
+  ConvolutionPackFreeWinograd.cpp
+  ShapeDeconvolution.cpp
+  ConvolutionPackWinograd.cpp
+  ShapeDepthToSpace.cpp
+  ConvolutionTiledExecutor.cpp
+  Generating Code...
+  ConvolutionWinogradBridge.cpp
+  Compiling...
+  ShapeDequantize.cpp
+  ConvolutionWinogradImpl.cpp
+  ShapeDet.cpp
+  DenseConvolutionTiledExecutor.cpp
+  ShapeDetectionOutput.cpp
+  IdstConvolutionInt8.cpp
+  ShapeDetectionPostProcess.cpp
+  ImageProcessFunction.cpp
+  Int8FunctionsOpt.cpp
+  ShapeDynamicQuant.cpp
+  OptimizedComputer.cpp
+  ResizeFunction.cpp
+  SharedGather.cpp
+  ShapeExpandDims.cpp
+  SparseConvInt8TiledExecutor.cpp
+  ShapeFill.cpp
+  SparseConvolutionTiledExecutor.cpp
+  ShapeGatherND.cpp
+  ShapeGatherV2.cpp
+  Generating Code...
+  ShapeGridSample.cpp
+  ShapeHistogram.cpp
+  Compiling...
+  StrassenMatmulComputor.cpp
+  ShapeInnerProduct.cpp
+  WinogradOptFunction.cpp
+  Generating Code...
+  ShapeInterp.cpp
+  MNNCPU.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNCPU.dir\Release\MNNCPU.lib
+  ShapeLSTM.cpp
+  ShapeLinSpace.cpp
+  ShapeMatMul.cpp
+  ShapeMoments.cpp
+  ShapeNonMaxSuppressionV2.cpp
+  ShapeOneHot.cpp
+  ShapePack.cpp
+  Generating Code...
+  Compiling...
+  ShapePadding.cpp
+  ShapePermute.cpp
+  ShapePlugin.cpp
+  ShapePool.cpp
+  ShapePool3D.cpp
+  ShapePriorbox.cpp
+  ShapeProposal.cpp
+  ShapeQuantizedAvgPool.cpp
+  ShapeQuantizedMaxPool.cpp
+  ShapeRNNSequenceGRU.cpp
+  ShapeROIAlign.cpp
+  ShapeROIPooling.cpp
+  ShapeRandomUniform.cpp
+  ShapeRange.cpp
+  ShapeReduction.cpp
+  ShapeRegister.cpp
+  ShapeReshape.cpp
+  ShapeResize.cpp
+  ShapeScatterNd.cpp
+  ShapeSegmentMean.cpp
+  Generating Code...
+  Compiling...
+  ShapeSelect.cpp
+  ShapeSetDiff1D.cpp
+  ShapeShape.cpp
+  ShapeSize.cpp
+  ShapeSlice.cpp
+  ShapeSliceTf.cpp
+  ShapeSpaceToBatchND.cpp
+  ShapeSpaceToDepth.cpp
+  ShapeSplitGelu.cpp
+  ShapeSqueeze.cpp
+  ShapeStft.cpp
+  ShapeStridedSlice.cpp
+  ShapeSvd.cpp
+  ShapeTensorArray.cpp
+  ShapeTensorConvert.cpp
+  ShapeTile.cpp
+  ShapeTopKV2.cpp
+  ShapeTranspose.cpp
+  ShapeUnique.cpp
+  ShapeUnpack.cpp
+  Generating Code...
+  Compiling...
+  ShapeUnravelIndex.cpp
+  ShapeWhere.cpp
+  SizeComputer.cpp
+  ShapeRasterAndInterpolate.cpp
+  Generating Code...
+  MNNTransform.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\MNNTransform.dir\Release\MNNTransform.lib
+  Building Custom Rule D:/a/folia-lx/folia-lx/build/.mnn-src/d407447ed56c4121a11ccbd266dc184ca1ead0c2/CMakeLists.txt
+  dummy.cpp
+  MNN.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\mnn\Release\MNN.lib
+  Building Custom Rule D:/a/folia-lx/folia-lx/native/folia-mnn/CMakeLists.txt
+  folia_mnn.cpp
+  folia_beat_this.cpp
+  dconv_kernels_base.cpp
+  Generating Code...
+  folia_htdemucs.cpp
+  folia_dconv.cpp
+  Generating Code...
+  dconv_kernels_avx2.cpp
+     Creating library D:/a/folia-lx/folia-lx/build/.mnn-build/win-x64/Release/folia_mnn.lib and object D:/a/folia-lx/folia-lx/build/.mnn-build/win-x64/Release/folia_mnn.exp
+  folia_mnn.vcxproj -> D:\a\folia-lx\folia-lx\build\.mnn-build\win-x64\Release\folia_mnn.dll
+[mnn] win-x64: D:\a\folia-lx\folia-lx\build\mnn\win-x64\folia_mnn.dll
+[models] fetching beat_this-wgsl.bin (41MB)
+[models] beat_this-wgsl.bin verified and written, from github.com
+[models] fetching htdemucs-wgsl.bin (92MB)
+[models] htdemucs-wgsl.bin verified and written, from github.com
+  • executing @electron/rebuild  electronVersion=43.7.5 arch=x64 buildFromSource=false workspaceRoot=D:\a\folia-lx\folia-lx projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=43.7.5 appOutDir=release\win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=D:\a\folia-lx\folia-lx\release\win-unpacked
+  • searching for node modules  pm=npm searchDir=D:\a\folia-lx\folia-lx
+  • duplicate dependency references  dependencies=["@capacitor/core@8.5.3","debug@4.4.3","fetch-blob@3.2.0","gaxios@7.3.1","ecdsa-sig-formatter@1.0.11","string-width@4.2.3","ansi-styles@4.3.0","string-width@4.2.3","strip-ansi@6.0.1","strip-ansi@6.0.1","end-of-stream@1.4.5","readable-stream@3.6.2","once@1.4.0","once@1.4.0","axios@1.20.0","debug@2.6.9","http-errors@2.0.1","on-finished@2.4.1","qs@6.16.0","http-errors@2.0.1","iconv-lite@0.4.24","type-is@1.6.18","debug@2.6.9","on-finished@2.4.1","http-errors@2.0.1","on-finished@2.4.1","proxy-addr@2.0.8","qs@6.16.0","debug@2.6.9","http-errors@2.0.1","on-finished@2.4.1","send@0.19.2","mime-types@2.1.35","axios@1.20.0","busboy@1.6.0","mime-types@3.0.2","debug@4.4.3","http-errors@2.0.1","on-finished@2.4.1","qs@6.16.0","http-errors@2.0.1","iconv-lite@0.7.3","type-is@2.1.0","debug@4.4.3","debug@4.4.3","on-finished@2.4.1","call-bound@1.0.4","get-intrinsic@1.3.0","call-bound@1.0.4","get-intrinsic@1.3.0","side-channel-map@1.0.1","debug@4.4.3","debug@4.4.3","http-errors@2.0.1","mime-types@3.0.2","on-finished@2.4.1","send@1.2.1","mime-types@3.0.2","whatwg-url@14.2.0","form-data@4.0.6","whatwg-encoding@3.1.1","debug@4.4.3","debug@4.4.3","music-metadata@11.16.1","debug@4.4.3","debug@4.4.3","http-proxy-agent@7.0.2","debug@4.4.3","debug@4.4.3","string-width@4.2.3","ansi-styles@4.3.0","string-width@4.2.3","strip-ansi@6.0.1","strip-ansi@6.0.1","strip-ansi@7.2.0","strip-ansi@7.2.0","strip-ansi@7.2.0","strip-ansi@7.2.0","axios@1.20.0","qs@6.16.0","http-errors@2.0.1","debug@4.4.3","debug@4.4.3","get-intrinsic@1.3.0","call-bind-apply-helpers@1.0.2","call-bound@1.0.4","call-bound@1.0.4","has-tostringtag@1.0.2","hasown@2.0.4","on-finished@2.4.1","mime-types@2.1.35","call-bind-apply-helpers@1.0.2","es-object-atoms@1.1.2","get-proto@1.0.1","hasown@2.0.4","has-tostringtag@1.0.2","hasown@2.0.4","debug@4.4.3","debug@4.4.3","qrcode@1.5.4","ajv@8.20.0","type-fest@5.10.0","debug@4.4.3","debug@4.4.3","token-types@6.1.2","axios@1.20.0","debug@2.6.9","http-errors@2.0.1","on-finished@2.4.1","qs@6.16.0","http-errors@2.0.1","iconv-lite@0.4.24","type-is@1.6.18","debug@2.6.9","on-finished@2.4.1","http-errors@2.0.1","on-finished@2.4.1","proxy-addr@2.0.8","qs@6.16.0","debug@2.6.9","http-errors@2.0.1","on-finished@2.4.1","send@0.19.2","mime-types@2.1.35","qrcode@1.5.4","qs@6.16.0","file-type@21.3.4","strtok3@10.3.5","token-types@6.1.2"]
+  • updating asar integrity executable resource  executablePath=release\win-unpacked\Folia LX.exe
+  • signing with signtool.exe  path=release\win-unpacked\resources\ffmpeg-audio\ffmpeg.exe
+  • signing with signtool.exe  path=release\win-unpacked\resources\folia-wallpaper-helper.exe
+  • downloaded      label=icons-bundle.tar.gz progress=100%
+  • signing with signtool.exe  path=release\win-unpacked\Folia LX.exe
+  • signing with signtool.exe  path=release\win-unpacked\resources\app.asar.unpacked\node_modules\node-windows\bin\winsw\winsw.exe
+  • signing with signtool.exe  path=release\win-unpacked\resources\app.asar.unpacked\node_modules\node-windows\bin\sudowin\sudo.exe
+  • building        target=nsis file=release\Folia LX-Setup-0.2.17-win.exe archs=x64 oneClick=false perMachine=false
+  • downloaded      label=nsis-3.0.4.1.7z progress=100%
+  • downloaded      label=7zip-win-x64.tar.gz progress=100%
+  • signing with signtool.exe  path=release\win-unpacked\resources\elevate.exe
+  • downloaded      label=nsis-resources-3.4.1.7z progress=100%
+  • signing with signtool.exe  path=release\Folia LX-Setup-0.2.17-win.__uninstaller.exe
+  • signing with signtool.exe  path=release\Folia LX-Setup-0.2.17-win.exe
+  • building block map  blockMapFile=release\Folia LX-Setup-0.2.17-win.exe.blockmap
