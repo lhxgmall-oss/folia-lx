@@ -21,11 +21,16 @@ android {
     // See README.md, "安卓版". Anyone with this repository can sign as Folia LX.
     signingConfigs {
         foliaLx {
-            storeFile file('../../packaging/android/folia-lx.keystore')
+            // CI passes the key from the repo's Actions secrets (ANDROID_KEYSTORE_BASE64 decoded to a temp
+            // file, ANDROID_KEYSTORE_PASSWORD); the old in-repo key is only the fallback until those exist.
+            def envStore = System.getenv('FOLIA_KEYSTORE_FILE')
+            def envPassword = System.getenv('FOLIA_KEYSTORE_PASSWORD')
+            def envAlias = System.getenv('FOLIA_KEY_ALIAS')
+            storeFile envStore ? file(envStore) : file('../../packaging/android/folia-lx.keystore')
             storeType 'pkcs12'
-            storePassword 'REMOVED'
-            keyAlias 'folia-lx'
-            keyPassword 'REMOVED'
+            storePassword envPassword ?: 'REMOVED'
+            keyAlias envAlias ?: 'folia-lx'
+            keyPassword envPassword ?: 'REMOVED'
         }
     }
     buildTypes {

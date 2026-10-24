@@ -101,8 +101,19 @@ jobs:
       - name: Build signed APK
         id: gradle
         working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          FOLIA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FOLIA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -o pipefail
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/folia-lx.keystore"
+            export FOLIA_KEYSTORE_FILE="$RUNNER_TEMP/folia-lx.keystore"
+            echo "Signing with the key from Actions secrets"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 secret not set; signing with the in-repo fallback key"
+          fi
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace \
             -PfoliaVersionName=${{ steps.version.outputs.version }} \
