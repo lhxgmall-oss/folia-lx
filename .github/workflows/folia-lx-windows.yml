@@ -65,6 +65,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           VERSION="${TAG#v}"
+          VERSION="${VERSION%-win}"
           node -e "const fs=require('fs'); const pkg=require('./package.json'); pkg.version=process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$VERSION"
 
       - name: Build web app for Electron
@@ -93,6 +94,8 @@ jobs:
           exit $LASTEXITCODE
 
       - name: Upload installer
+        # The artifact storage quota can run out on a private repo; the release below is what matters.
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: folia-lx-windows
@@ -109,8 +112,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          REF: ${{ github.ref_name }}
         run: |
+          # v0.2.17-win attaches to the same release as the Android build (v0.2.17).
+          TAG="${REF%-win}"
           shopt -s nullglob
           files=(release/*.exe release/*.blockmap release/latest*.yml)
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
