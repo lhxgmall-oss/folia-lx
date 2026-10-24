@@ -10,6 +10,7 @@ import { ytmProvider } from './ytm/ytmProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
 import { lxProvider } from './lx/lxProvider';
 import { IS_ANDROID_BUILD } from '../../utils/androidApp';
+import { qishuiProvider } from './qishui/qishuiProvider';
 
 // src/services/onlineMusic/providerRegistry.ts
 
@@ -107,7 +108,7 @@ export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusic
 };
 
 // The Folia LX Android app has no desktop main process: Kugou, QQ, Bodian, YouTube Music and Spotify
-// only work through it, so they are left out there. NetEase stays only where the build was given an API
+// (and Qishui) only work through it, so they are left out there. NetEase stays only where the build was given an API
 // base (VITE_NETEASE_API_BASE); LX Music runs in the app itself (lx/android/).
 if (IS_ANDROID_BUILD) {
     if (import.meta.env.VITE_NETEASE_API_BASE) registerOnlineMusicProvider(neteaseProvider);
@@ -119,5 +120,6 @@ if (IS_ANDROID_BUILD) {
     registerOnlineMusicProvider(bodianProvider);
     registerOnlineMusicProvider(ytmProvider);
     registerOnlineMusicProvider(spotifyProvider);
+    registerOnlineMusicProvider(qishuiProvider);
     registerOnlineMusicProvider(lxProvider);
 }

@@ -32,6 +32,7 @@ export const PLATFORM_NAMES = {
     bodian: /bodian|波点/i,
     ytm: /ytm|youtube/i,
     spotify: /spotify/i,
+    qishui: /qishui|汽水音乐/i,
     // LX Music (Folia-LX). The id quoted or as a path part, the heads of its names (lxRequest,
     // LxSourceRows, LX_MUSIC) and its own names: the bare letters stand for other things (lx, LX lyrics).
     lx: /['"`]lx['"`]|\/lx\/|\blx(?:Request|Provider|Desktop|Transport|Scripts|Normalize|Catalog|Failure|-api)|\bLx[A-Z]|\bLX_MUSIC|LX Music|洛雪/,
