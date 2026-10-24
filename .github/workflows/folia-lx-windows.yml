@@ -4,10 +4,12 @@
 # app id / product name differ from upstream so the installer never replaces an official Folia install.
 name: Folia-LX Windows installer
 
+# Windows runners cost 2x Actions minutes on a private repo, so this only runs when started by hand
+# (Actions → Folia-LX Windows installer → Run workflow) or on a tag ending in -win (e.g. v0.2.17-win).
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*-win'
   workflow_dispatch:
 
 permissions:
