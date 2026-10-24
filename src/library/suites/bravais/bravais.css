@@ -445,6 +445,15 @@
     box-sizing: border-box;
 }
 
+/* 书脊上的竖排标题只排一列：手机横屏时高度不够，原来会折成两列、比书脊还宽，被裁得只剩半个字。放不下就截断加「…」。 */
+.bravais-seam-spine .bravais-seam-vtitle {
+    min-height: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ---------- 边缘标签：出屏收起时点它就地重开，折叠时点它恢复 ---------- */
 
 .bravais-seam-tab {

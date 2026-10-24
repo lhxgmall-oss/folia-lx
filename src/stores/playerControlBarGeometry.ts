@@ -34,7 +34,7 @@ export const resolveNowPlayingCardBottomPx = (
 };
 
 /** Narrowest the now-playing card may shrink to so it can stay beside the bar instead of moving up. */
-export const NOW_PLAYING_CARD_MIN_SQUEEZED_WIDTH_PX = 200;
+export const NOW_PLAYING_CARD_MIN_SQUEEZED_WIDTH_PX = 160;
 
 /**
  * Widest the now-playing card may be so it ends left of the bar (landscape phone: the card only

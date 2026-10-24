@@ -133,7 +133,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
             bottom, CARD_LEFT_PX + safeLeft, width, barLeft, barHeight,
         ) : bottom),
     );
-    // 横屏手机上卡片只伸进胶囊一点点：先把卡片收窄（歌名截断）留在原来的基线上，收到 200px 还不够才抬上去。
+    // 横屏手机上卡片只伸进胶囊一点点：先把卡片收窄（歌名截断）留在原来的基线上，收到 160px 还不够才抬上去（播放时胶囊展开更宽，横屏剩 ~200px）。
     const cardMaxWidth = useTransform(
         [playerControlBarLeft, playerControlBarHeight, safeAreaInsets.left, liftAllowed],
         ([barLeft, barHeight, safeLeft, allowed]: number[]) => {
@@ -220,7 +220,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                         whileTap={onActivate ? { opacity: 0.85 } : undefined}
                         transition={{ duration: 0.35, ease: 'easeOut' }}
                         style={IS_ANDROID_BUILD ? { maxWidth: cardMaxWidth } : undefined}
-                        className={`relative flex ${IS_ANDROID_BUILD ? 'min-w-[200px]' : 'min-w-[240px]'} items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
+                        className={`relative flex ${IS_ANDROID_BUILD ? 'min-w-[160px]' : 'min-w-[240px]'} items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
                             isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
                         } ${onActivate
                             ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
