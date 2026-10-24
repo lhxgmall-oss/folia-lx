@@ -32,3 +32,22 @@ export const resolveNowPlayingCardBottomPx = (
     const overlaps = cardLeftPx + cardWidthPx + NOW_PLAYING_CARD_BAR_GAP_PX / 2 > barLeftPx;
     return overlaps ? baseBottomPx + barHeightPx + NOW_PLAYING_CARD_BAR_GAP_PX : baseBottomPx;
 };
+
+/** Narrowest the now-playing card may shrink to so it can stay beside the bar instead of moving up. */
+export const NOW_PLAYING_CARD_MIN_SQUEEZED_WIDTH_PX = 200;
+
+/**
+ * Widest the now-playing card may be so it ends left of the bar (landscape phone: the card only
+ * reaches a little into the bar, so shrinking it a bit keeps it on the baseline). +Infinity when
+ * there is no bar or the room left would be narrower than NOW_PLAYING_CARD_MIN_SQUEEZED_WIDTH_PX -
+ * then the card keeps its width and moves above the bar (portrait phone).
+ */
+export const resolveNowPlayingCardMaxWidthPx = (
+    cardLeftPx: number,
+    barLeftPx: number,
+    barHeightPx: number,
+): number => {
+    if (!(barHeightPx > 0) || !Number.isFinite(barLeftPx)) return Number.POSITIVE_INFINITY;
+    const room = barLeftPx - cardLeftPx - NOW_PLAYING_CARD_BAR_GAP_PX;
+    return room >= NOW_PLAYING_CARD_MIN_SQUEEZED_WIDTH_PX ? room : Number.POSITIVE_INFINITY;
+};

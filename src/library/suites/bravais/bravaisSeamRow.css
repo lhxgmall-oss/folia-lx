@@ -29,7 +29,8 @@
 }
 
 /* 横条不贴底，不给播放条留安全区（竖的缝把它绑在内边距上，内联写的，所以要 !important）。 */
-.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-body { padding-bottom: 0 !important; }
+/* 状态栏安全区也不要：横条在屏幕中间，竖的缝顶着状态栏才需要（安卓竖屏时这一下把图标挤到横条底下、被下面一排块盖掉）。 */
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-body { padding-top: 0; padding-bottom: 0 !important; }
 
 /* 菜单往哪边弹：横条在视口上半时往下（竖的缝里一律往上）。 */
 .bravais-seam[data-bravais-seam-axis='y'][data-bravais-seam-half='top'] .bravais-seam-more-anchor > .bravais-seam-menu {

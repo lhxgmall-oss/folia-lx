@@ -6,7 +6,7 @@ import type { Theme } from '../../../types';
 import { useTransitionBorderCue } from './now-playing-toast/useTransitionBorderCue';
 import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBottomPx';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
-import { playerControlBarHeight, playerControlBarLeft, resolveNowPlayingCardBottomPx } from '../../../stores/playerControlBarGeometry';
+import { playerControlBarHeight, playerControlBarLeft, resolveNowPlayingCardBottomPx, resolveNowPlayingCardMaxWidthPx } from '../../../stores/playerControlBarGeometry';
 import { safeAreaInsets } from '../../../stores/safeAreaInsets';
 import { IS_ANDROID_BUILD } from '../../../utils/androidApp';
 
@@ -133,6 +133,14 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
             bottom, CARD_LEFT_PX + safeLeft, width, barLeft, barHeight,
         ) : bottom),
     );
+    // 横屏手机上卡片只伸进胶囊一点点：先把卡片收窄（歌名截断）留在原来的基线上，收到 200px 还不够才抬上去。
+    const cardMaxWidth = useTransform(
+        [playerControlBarLeft, playerControlBarHeight, safeAreaInsets.left, liftAllowed],
+        ([barLeft, barHeight, safeLeft, allowed]: number[]) => {
+            const max = allowed ? resolveNowPlayingCardMaxWidthPx(CARD_LEFT_PX + safeLeft, barLeft, barHeight) : Number.POSITIVE_INFINITY;
+            return Number.isFinite(max) ? `${max}px` : 'none';
+        },
+    );
     useEffect(() => {
         const frame = frameRef.current;
         if (!frame || typeof ResizeObserver === 'undefined') return;
@@ -211,7 +219,8 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                         animate={{ opacity: 1, x: 0 }}
                         whileTap={onActivate ? { opacity: 0.85 } : undefined}
                         transition={{ duration: 0.35, ease: 'easeOut' }}
-                        className={`relative flex min-w-[240px] items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
+                        style={IS_ANDROID_BUILD ? { maxWidth: cardMaxWidth } : undefined}
+                        className={`relative flex ${IS_ANDROID_BUILD ? 'min-w-[200px]' : 'min-w-[240px]'} items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
                             isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
                         } ${onActivate
                             ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
