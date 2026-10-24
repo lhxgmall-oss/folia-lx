@@ -1,6 +1,6 @@
 # Folia-LX: builds the Android APK (Capacitor shell under android/, LX core in the WebView) when a version
 # tag is pushed, and attaches it to the same draft GitHub release folia-lx-windows.yml creates.
-# Signed with the fixed key in packaging/android/folia-lx.keystore (see README.md, "安卓版"), so every
+# Signed with the fixed key from the Actions secrets ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD (see README.md, "安卓版"), so every
 # release installs over the previous one.
 name: Folia-LX Android APK
 
@@ -112,7 +112,7 @@ jobs:
             export FOLIA_KEYSTORE_FILE="$RUNNER_TEMP/folia-lx.keystore"
             echo "Signing with the key from Actions secrets"
           else
-            echo "::warning::ANDROID_KEYSTORE_BASE64 secret not set; signing with the in-repo fallback key"
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set (Settings → Secrets and variables → Actions)"; exit 1
           fi
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace \

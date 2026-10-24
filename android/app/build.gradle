@@ -17,20 +17,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // One fixed key, kept in this (private, hobby) repository so every build can update the last one.
-    // See README.md, "安卓版". Anyone with this repository can sign as Folia LX.
+    // One fixed key (from Actions secrets) so every build can update the last one. See README.md, "安卓版".
     signingConfigs {
         foliaLx {
-            // CI passes the key from the repo's Actions secrets (ANDROID_KEYSTORE_BASE64 decoded to a temp
-            // file, ANDROID_KEYSTORE_PASSWORD); the old in-repo key is only the fallback until those exist.
+            // The key comes from the repo's Actions secrets (ANDROID_KEYSTORE_BASE64 decoded by CI to a temp
+            // file, ANDROID_KEYSTORE_PASSWORD); it is no longer kept in the repo. Local builds set the same env.
             def envStore = System.getenv('FOLIA_KEYSTORE_FILE')
             def envPassword = System.getenv('FOLIA_KEYSTORE_PASSWORD')
-            def envAlias = System.getenv('FOLIA_KEY_ALIAS')
-            storeFile envStore ? file(envStore) : file('../../packaging/android/folia-lx.keystore')
-            storeType 'pkcs12'
-            storePassword envPassword ?: 'REMOVED'
-            keyAlias envAlias ?: 'folia-lx'
-            keyPassword envPassword ?: 'REMOVED'
+            if (envStore) {
+                storeFile file(envStore)
+                storeType 'pkcs12'
+                storePassword envPassword
+                keyAlias System.getenv('FOLIA_KEY_ALIAS') ?: 'folia-lx'
+                keyPassword envPassword
+            }
         }
     }
     buildTypes {

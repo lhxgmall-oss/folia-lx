@@ -89,7 +89,7 @@ Folia-LX 也有安卓 APK（`Folia-LX-<版本>-android.apk`，和 Windows 安装
 
 ### 签名
 
-APK 用仓库里的固定密钥 `packaging/android/folia-lx.keystore` 签名（PKCS12，别名 `folia-lx`，密码 `REMOVED`，写在 `android/app/build.gradle`），这样新版本可以直接覆盖安装旧版本。这是个人私有仓库的做法：任何能读这个仓库的人都能用这把钥匙签出“Folia LX”，不要把仓库公开。应用 ID 为 `top.izuna.foliamajor.lx`。
+APK 用固定密钥签名（PKCS12，别名 `folia-lx`），密钥放在 GitHub 仓库的 Actions secrets：`ANDROID_KEYSTORE_BASE64`（keystore 的 base64）和 `ANDROID_KEYSTORE_PASSWORD`，这样新版本可以直接覆盖安装旧版本。旧提交历史里仍有这把密钥，仓库公开前需要换新密钥并清理历史。应用 ID 为 `top.izuna.foliamajor.lx`。
 
 ### 代码
 
