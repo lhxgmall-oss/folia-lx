@@ -112,7 +112,7 @@ npm run build:android           # VITE_FOLIA_TARGET=android vite build && cap sy
 cd android && ./gradlew assembleRelease   # 产物：android/app/build/outputs/apk/release/app-release.apk
 ```
 
-推送 `v*` 标签时，`.github/workflows/REMOVED.yml` 在 Ubuntu 上构建 APK，附到同名的草稿 Release（与 Windows 工作流共用）；失败时把日志推到 `ci-logs` 分支的 `android/` 目录。
+推送 `v*` 标签时，`.github/workflows/folia-lx-android.yml` 在 Ubuntu 上构建 APK，附到同名的草稿 Release（与 Windows 工作流共用）；失败时把日志推到 `ci-logs` 分支的 `android/` 目录。
 
 ## 构建
 
@@ -143,7 +143,7 @@ npm run build:lx-sdk     # 生成 electron/lx/musicSdk/lxMusicSdk.cjs
 
 ### GitHub Actions
 
-推送 `v*` 标签（例如 `git tag v0.1.0 && git push origin v0.1.0`）会触发 `.github/workflows/folia-lx-windows.yml` 和 `REMOVED.yml`（见上文“安卓版”）。Windows 工作流：在 Windows 上构建 NSIS 安装包，上传为构建产物，并附到同名的**草稿** Release。安装包的应用 ID 和产品名（`Folia LX`）与官方 Folia 不同，不会覆盖已安装的官方版本。上游原有的工作流保持不变，在分支仓库里可能因为缺少密钥而跳过或失败，可以按需在仓库设置里停用。
+推送 `v*` 标签（例如 `git tag v0.1.0 && git push origin v0.1.0`）会触发 `.github/workflows/folia-lx-windows.yml` 和 `folia-lx-android.yml`（见上文“安卓版”；Windows 现在只在手动运行或推 `v*-win` 标签时构建）。Windows 工作流：在 Windows 上构建 NSIS 安装包，上传为构建产物，并附到同名的**草稿** Release。安装包的应用 ID 和产品名（`Folia LX`）与官方 Folia 不同，不会覆盖已安装的官方版本。上游原有的工作流已从本仓库删除，以节省 Actions 分钟数。
 
 ## 代码在哪
 
