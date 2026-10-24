@@ -1,5 +1,6 @@
 import { connectAudioEqualizerGraph } from './audioEqualizerGraph';
 import { createAudioEffectChain, type AudioEffectChain } from './audioEffects/effectChain';
+import { createPitchShiftStage } from './audioEffects/pitchShiftNode';
 import type { AudioEqualizerSettings } from '../utils/audioEqualizer';
 
 // src/services/playbackGraph.ts
@@ -47,11 +48,16 @@ export const buildPlaybackGraph = ({
     const mixNode = context.createGain();
     const decksConnected = connectDecks(context, mixNode);
 
+    // 升降调 (services/playbackTempo.ts): a plain wire until a pitch shift is set. Before the
+    // equaliser, so the tone controls shape the shifted sound rather than the original.
+    const pitchStage = createPitchShiftStage(context);
+    mixNode.connect(pitchStage.input);
+
     // Keeps a stable seam between the equalizer bands and the effect chain.
     const equalizerOutput = context.createGain();
     connectAudioEqualizerGraph({
         context,
-        input: mixNode,
+        input: pitchStage.output,
         output: equalizerOutput,
         nodesRef: equalizerNodesRef,
         settings,
@@ -100,7 +106,7 @@ export const buildPlaybackGraph = ({
     // ever reads "volume" before "effects" again, the vinyl noise has stopped answering the
     // volume control and the bit crush has gone back to tracking it.
     console.log(
-        '[AudioContext] graph: decks -> mix -> equaliser -> effects -> volume -> fade -> analyser -> out'
+        '[AudioContext] graph: decks -> mix -> pitch -> equaliser -> effects -> volume -> fade -> analyser -> out'
         + ` (equaliser ${settings.enabled ? 'on' : 'flat'},`
         + ` noise ${settings.effects.noise}, crush ${settings.effects.crush}, punch ${settings.effects.punch})`,
     );

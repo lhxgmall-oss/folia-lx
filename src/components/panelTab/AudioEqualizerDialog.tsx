@@ -15,6 +15,7 @@ import { createNeutralAudioEffects, type AudioEffectId, type AudioEffectSettings
 import { resolveHeardAudioEqualizerSettings } from '../../utils/audioEqualizerModCurve';
 import Sheet from '../shared/Sheet';
 import { Toggle } from '../modal/settings/kit';
+import PlaybackTempoSection from './equalizer/PlaybackTempoSection';
 import AudioEffectGrid from './equalizer/AudioEffectGrid';
 import EqualizerBandGrid from './equalizer/EqualizerBandGrid';
 import PresetChips from './equalizer/PresetChips';
@@ -201,6 +202,8 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
                     <EqualizerBandGrid gains={draft.gains} onBandChange={updateBandDraft} onCommit={commitDraft} readOnly={curveHeard} />
                     <AudioEffectGrid effects={draft.effects} onEffectChange={updateEffectDraft} onCommit={commitDraft} readOnly={curveHeard} />
                 </div>
+                {/* 变速 / 升降调: not part of the presets or the processing switch, so outside the dimmed block. */}
+                <PlaybackTempoSection />
             </div>
         </Sheet>
     );

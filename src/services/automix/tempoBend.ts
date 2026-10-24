@@ -14,6 +14,11 @@
  * applied while it is false is an audible detune, not a tempo match. Its default is already true, so
  * this only makes the dependency explicit rather than assumed.
  */
+import { applyPlaybackTempoToElement, setElementTempoBend } from '../playbackTempo';
+
+// The listener's own speed (services/playbackTempo.ts) is the base: a bend multiplies on top of it,
+// and settling puts the deck back on that speed rather than on 1x.
+
 export const applyTempoBend = (
     element: HTMLAudioElement,
     rate: number,
@@ -22,12 +27,14 @@ export const applyTempoBend = (
         resetTempoBend(element);
         return 1;
     }
-    element.preservesPitch = true;
-    element.playbackRate = rate;
+    setElementTempoBend(element, rate);
+    applyPlaybackTempoToElement(element, rate);
     return rate;
 };
 
 /** Puts a deck back at its own tempo. Part of every settle, like the gains and the tone are. */
 export const resetTempoBend = (element: HTMLAudioElement | null) => {
-    if (element && element.playbackRate !== 1) element.playbackRate = 1;
+    if (!element) return;
+    setElementTempoBend(element, null);
+    applyPlaybackTempoToElement(element);
 };
