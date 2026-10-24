@@ -15,6 +15,8 @@ final class LxMediaPolicy {
 
     private static final String[] COVER_HOST_SUFFIXES = {
         ".kuwo.cn", ".kwcdn.kuwo.cn", ".kugou.com", ".kgimg.com", ".gtimg.cn", ".music.126.net", ".126.net", ".migu.cn",
+        // Qishui (capacitor/qishui): its public image CDNs, as electron/qishui/mediaCors.cjs.
+        ".byteimg.com", ".douyinpic.com", ".douyinstatic.com", ".pstatp.com",
     };
     private static final long TTL_MS = 2L * 60L * 60L * 1000L;
     private static final int MAX_ENTRIES = 2048;

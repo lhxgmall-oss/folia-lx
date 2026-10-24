@@ -1,6 +1,7 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { ProviderErrorCode } from '../../../types/onlineMusic';
 import type { QishuiOperation, QishuiParams, QishuiBridgeResult } from 'qishui-music-api';
+import { isAndroidApp } from '../../../utils/androidApp';
 
 // Typed renderer boundary for the car bridge; credentials and player models stay in the main process.
 export type { QishuiOperation, QishuiParams, QishuiBridgeResult } from 'qishui-music-api';
@@ -21,14 +22,19 @@ export class QishuiRequestError extends OnlineProviderError {
     }
 }
 export const getQishuiAvailability = () => (
-    typeof window !== 'undefined' && typeof window.electron?.qishuiRequest === 'function'
+    typeof window !== 'undefined' && (typeof window.electron?.qishuiRequest === 'function' || isAndroidApp())
         ? { configured: true } as const : { configured: false, reason: 'runtime-unavailable' } as const
 );
 export async function requestQishui<T = unknown>(operation: QishuiOperation, params: QishuiParams = {}): Promise<T> {
     if (operation === 'login_qr_key') lastFailure = null;
     if (!getQishuiAvailability().configured) throw new OnlineProviderError('unavailable', QISHUI_NEEDS_DESKTOP, 'qishui');
     let result: QishuiBridgeResult;
-    try { result = await window.electron!.qishuiRequest(operation, params); }
+    // Folia LX Android: the same bridge running in this WebView (android/qishuiAndroidBridge.ts).
+    try {
+        result = typeof window.electron?.qishuiRequest === 'function'
+            ? await window.electron.qishuiRequest(operation, params)
+            : await (await import('./android/qishuiAndroidBridge')).requestAndroidQishui(operation, params);
+    }
     catch (error) { throw new OnlineProviderError('network', QISHUI_BRIDGE_FAILED, 'qishui', error); }
     if (!result.ok) {
         const stage = STAGES.find(stage => stage === result.error.stage) ?? null;
