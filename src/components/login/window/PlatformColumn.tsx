@@ -66,11 +66,35 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
     );
 
     // 高亮那一块的位置和大小，每次画完从它所在的行量一遍（行的宽度跟着名字、头像和语言变）；数没变就不动。
+    // Folia LX：Windows 上点汽水时这里和版面来回量出两个不同的数，一帧里反复 setBox，React 报 #185（更新太深）整页黑屏。
+    // 现在数没变就不 setState；同一帧里变了超过 3 次就不再同步追，留到下一帧再量一次。
+    const boxRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+    const changesThisFrame = useRef(0);
+    const frameRef = useRef(0);
     useLayoutEffect(() => {
         const row = rowOf(lit?.providerId);
         const next = row ? { x: row.offsetLeft, y: row.offsetTop, w: row.offsetWidth, h: row.offsetHeight } : null;
-        setBox(current => (current?.x === next?.x && current?.y === next?.y && current?.w === next?.w && current?.h === next?.h ? current : next));
+        const current = boxRef.current;
+        if (current?.x === next?.x && current?.y === next?.y && current?.w === next?.w && current?.h === next?.h) return;
+        changesThisFrame.current += 1;
+        if (!frameRef.current) {
+            frameRef.current = requestAnimationFrame(() => {
+                frameRef.current = 0;
+                const settled = changesThisFrame.current > 3;
+                changesThisFrame.current = 0;
+                if (settled) {
+                    const again = rowOf(lit?.providerId);
+                    const box = again ? { x: again.offsetLeft, y: again.offsetTop, w: again.offsetWidth, h: again.offsetHeight } : null;
+                    boxRef.current = box;
+                    setBox(box);
+                }
+            });
+        }
+        if (changesThisFrame.current > 3) return;
+        boxRef.current = next;
+        setBox(next);
     });
+    useEffect(() => () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); }, []);
 
     // 选中的行换了，把它滚进来。指针指着的行不滚：列表不在指针底下自己动，指针移开也不跳回去。
     useLayoutEffect(() => {

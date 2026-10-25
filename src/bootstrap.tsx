@@ -1,4 +1,5 @@
 import React from 'react';
+import { RootErrorBoundary } from './components/RootErrorBoundary';
 import ReactDOM from 'react-dom/client';
 import './i18n/config';
 import './index.css';
@@ -79,7 +80,7 @@ const renderApp = () => root.render(
               ? <ObsBrowserSourceApp />
               : isRemoteControl
                 ? <RemoteControlApp />
-                : <FirstScreenMounted><App /></FirstScreenMounted>}
+                : <RootErrorBoundary><FirstScreenMounted><App /></FirstScreenMounted></RootErrorBoundary>}
       </AppSplashGate>
     </React.StrictMode>
   );
