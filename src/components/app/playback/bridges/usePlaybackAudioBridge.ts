@@ -21,6 +21,7 @@ import { setPlayerState, setReplayGainAppliedDb, setReplayGainEstimated } from '
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { resolveHeardAudioEqualizerSettings } from '../../../../utils/audioEqualizerModCurve';
+import { IS_ANDROID_BUILD } from '../../../../utils/androidApp';
 
 // src/components/app/playback/bridges/usePlaybackAudioBridge.ts
 
@@ -178,7 +179,9 @@ export function usePlaybackAudioBridge({
         if (!audioRef.current || audioContextRef.current) return;
         try {
             const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-            const ctx = new AudioContextClass();
+            // Folia LX Android: a larger output buffer, so the AudioWorklet thread (升降调) has room to
+            // be descheduled under the visualizer's load without the music breaking up. Also fewer wakeups.
+            const ctx = IS_ANDROID_BUILD ? new AudioContextClass({ latencyHint: 'playback' }) : new AudioContextClass();
             audioContextRef.current = ctx;
 
             const analyser = ctx.createAnalyser();

@@ -3,8 +3,16 @@
 // using SoundTouch (soundtouchjs, LGPL-2.1) - WSOLA time stretch plus resampling, the same algorithm
 // many players use for this. Loaded by pitchShiftNode.ts only once a pitch shift is set.
 //
-// SoundTouch works on blocks larger than the 128 frames a render quantum carries, so the output runs
-// a cushion behind the input (about 60 ms at 44.1 kHz) and is silent until the cushion is filled.
+// SoundTouch works on blocks larger than the 128 frames a render quantum carries (one WSOLA sequence
+// is ~5000 frames), so the output runs a cushion behind the input (about 130 ms) and is silent until the
+// cushion is filled.
+//
+// Folia LX 0.2.22 (播放断断续续): the old cushion (2048 frames) was smaller than one sequence, a starved
+// quantum threw the whole cushion away and went silent until it refilled (~100 ms gap), and anything
+// past 8192 frames was cut out of the music. Now: a cushion bigger than a sequence (6144 frames), a starved quantum
+// plays what it has and keeps going, and only a backlog over ~1 s (after a real stall) is trimmed.
+// soundtouchjs' FIFO also reallocated a new array every time it grew by a few frames - garbage on the
+// audio thread - so it now grows with headroom.
 import { SoundTouch } from 'soundtouchjs';
 
 declare const sampleRate: number;
@@ -13,7 +21,28 @@ declare class AudioWorkletProcessor {
     readonly port: MessagePort;
 }
 
-const CUSHION_FRAMES = 2048;
+const CUSHION_FRAMES = 6144;
+const MAX_BACKLOG_SECONDS = 1;
+
+type FifoLike = {
+    _vector: Float32Array; _position: number; _frameCount: number;
+    startIndex: number; endIndex: number; rewind: () => void;
+};
+// Same contract as soundtouchjs' FifoSampleBuffer.ensureCapacity, but grows by doubling (min 16k frames).
+const fifoPrototype = Object.getPrototypeOf(new SoundTouch().inputBuffer) as { ensureCapacity: (frames?: number) => void };
+fifoPrototype.ensureCapacity = function ensureCapacity(this: FifoLike, numFrames = 0) {
+    const minLength = Math.ceil(numFrames) * 2;
+    if (this._vector.length < minLength) {
+        let length = Math.max(this._vector.length, 32768);
+        while (length < minLength * 2) length *= 2;
+        const vector = new Float32Array(length);
+        vector.set(this._vector.subarray(this.startIndex, this.endIndex));
+        this._vector = vector;
+        this._position = 0;
+    } else {
+        this.rewind();
+    }
+};
 
 class FoliaPitchShiftProcessor extends AudioWorkletProcessor {
     private ratio = 1;
@@ -78,19 +107,20 @@ class FoliaPitchShiftProcessor extends AudioWorkletProcessor {
         if (!this.primed && ready >= CUSHION_FRAMES) this.primed = true;
         const outLeft = output[0];
         const outRight = output[1] ?? output[0];
-        if (!this.primed || ready < frames) {
-            // Starved (a tab in the background, a stall): start the cushion over rather than click.
-            if (this.primed && ready < frames) this.primed = false;
+        if (!this.primed) {
             output.forEach(channel => channel.fill(0));
             return true;
         }
-        this.touch.outputBuffer.receiveSamples(this.interleavedOut, frames);
+        // Play what is there; a short starve pads with silence instead of dropping the cushion.
+        const take = Math.min(frames, ready);
+        if (take > 0) this.touch.outputBuffer.receiveSamples(this.interleavedOut, take);
         for (let index = 0; index < frames; index += 1) {
-            outLeft[index] = this.interleavedOut[index * 2];
-            outRight[index] = this.interleavedOut[index * 2 + 1];
+            outLeft[index] = index < take ? this.interleavedOut[index * 2] : 0;
+            outRight[index] = index < take ? this.interleavedOut[index * 2 + 1] : 0;
         }
-        // Keep the cushion from growing without bound if the stretcher ever runs ahead.
-        if (this.touch.outputBuffer.frameCount > CUSHION_FRAMES * 4) this.touch.outputBuffer.receive(this.touch.outputBuffer.frameCount - CUSHION_FRAMES);
+        // Only after a real stall (tab frozen, thread descheduled) can the backlog grow this far.
+        const backlog = this.touch.outputBuffer.frameCount;
+        if (backlog > sampleRate * MAX_BACKLOG_SECONDS) this.touch.outputBuffer.receive(backlog - CUSHION_FRAMES * 2);
         return true;
     }
 }
