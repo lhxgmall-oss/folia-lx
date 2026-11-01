@@ -10,6 +10,7 @@ import { type AudioEffectChain } from '../../../../services/audioEffects/effectC
 import { buildPlaybackGraph } from '../../../../services/playbackGraph';
 import { cachePlayedTrackAssets } from '../../../../services/playedTrackCache';
 import { registerPlaybackFadeGraph } from '../../../../services/playbackFade';
+import { applySavedAudioOutputToContext } from '../../../../services/audioOutputSink';
 import { rampGain, type AutomixDeckChain } from '../../../../services/automix/crossfadeGraph';
 import { onTrackProfile } from '../../../../services/automix/profileService';
 import { onPlayWrapped } from '../../../../services/volumeBalance/balanceMeter';
@@ -183,6 +184,7 @@ export function usePlaybackAudioBridge({
             // be descheduled under the visualizer's load without the music breaking up. Also fewer wakeups.
             const ctx = IS_ANDROID_BUILD ? new AudioContextClass({ latencyHint: 'playback' }) : new AudioContextClass();
             audioContextRef.current = ctx;
+            void applySavedAudioOutputToContext(ctx, useAudioSettingsStore.getState().audioOutputDeviceId);
 
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 2048;

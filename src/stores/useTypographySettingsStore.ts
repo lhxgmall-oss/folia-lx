@@ -8,10 +8,11 @@
 import { create } from 'zustand';
 import i18n from '../i18n/config';
 import { clearUploadedLyricsFont, uploadAndRegisterLyricsFont } from '../services/customLyricsFont';
-import { type StatusMessage, type StoredCustomLyricsFont, type SubtitleContentMode, type Theme } from '../types';
+import { type StatusMessage, type StoredCustomLyricsFont, type SubtitleContentMode, type SubtitleOverlayLayout, type Theme } from '../types';
 import { normalizeFontFamilyStack, normalizeFontWeight } from '../utils/fontStacks';
-import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
 import { clampLyricsFontScale, LYRICS_FONT_SCALE_DEFAULT } from '../utils/lyricsFontScaleLimits';
+import { parseSubtitleOverlayLayout, subtitleOverlayLayoutFromContentMode } from '../utils/lyrics/subtitleOverlayLayout';
+import { getStoredBoolean, setStoredBoolean, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
 
 export const SUBTITLE_OVERLAY_OPACITY_STORAGE_KEY = 'subtitle_overlay_opacity';
@@ -27,6 +28,8 @@ export const HARMONY_SUBTITLE_BACKGROUND_STORAGE_KEY = 'harmony_subtitle_backgro
 export const SHOW_SUBTITLE_TRANSLATION_STORAGE_KEY = 'show_subtitle_translation';
 
 export const SUBTITLE_CONTENT_MODE_STORAGE_KEY = 'subtitle_content_mode';
+
+export const SUBTITLE_OVERLAY_LAYOUT_STORAGE_KEY = 'subtitle_overlay_layout';
 
 const LYRICS_FONT_FALLBACK_FAMILIES_STORAGE_KEY = 'lyrics_font_fallback_families';
 
@@ -53,6 +56,23 @@ export const readStoredSubtitleContentMode = (): SubtitleContentMode => {
         return saved;
     }
     return getStoredBoolean(SHOW_SUBTITLE_TRANSLATION_STORAGE_KEY, true) ? 'translation' : 'none';
+};
+
+/**
+ * The bottom subtitle's rows. Before it had its own, it followed 副字幕内容: the first read derives the
+ * layout from that and keeps it, so changing 副字幕内容 afterwards (for Monet and the rest) leaves it be.
+ */
+export const readStoredSubtitleOverlayLayout = (): SubtitleOverlayLayout => {
+    if (typeof window === 'undefined') {
+        return 'translation';
+    }
+    const saved = parseSubtitleOverlayLayout(localStorage.getItem(SUBTITLE_OVERLAY_LAYOUT_STORAGE_KEY));
+    if (saved) {
+        return saved;
+    }
+    const migrated = subtitleOverlayLayoutFromContentMode(readStoredSubtitleContentMode());
+    setStoredString(SUBTITLE_OVERLAY_LAYOUT_STORAGE_KEY, migrated);
+    return migrated;
 };
 
 const readStoredSubtitleOverlayOpacity = () => {
@@ -196,6 +216,7 @@ export type TypographySettingsState = {
     hidePlayerTranslationSubtitle: boolean;
     showSubtitleTranslation: boolean;
     subtitleContentMode: SubtitleContentMode;
+    subtitleOverlayLayout: SubtitleOverlayLayout;
     subtitleOverlayOpacity: number;
     subtitleOverlayBackground: boolean;
     subtitleUpcomingLyricsBlur: boolean;
@@ -216,6 +237,7 @@ export type TypographySettingsState = {
     handleToggleHidePlayerTranslationSubtitle: (enable: boolean) => void;
     handleToggleShowSubtitleTranslation: (enable: boolean) => void;
     handleSetSubtitleContentMode: (mode: SubtitleContentMode) => void;
+    handleSetSubtitleOverlayLayout: (layout: SubtitleOverlayLayout) => void;
     handleSetSubtitleOverlayOpacity: (opacity: number) => void;
     handleToggleSubtitleOverlayBackground: (enabled: boolean) => void;
     handleToggleSubtitleUpcomingLyricsBlur: (enabled: boolean) => void;
@@ -239,6 +261,7 @@ export const useTypographySettingsStore = create<TypographySettingsState>((set, 
     hidePlayerTranslationSubtitle: getStoredBoolean('hide_player_translation_subtitle', false),
     showSubtitleTranslation: readStoredSubtitleContentMode() !== 'none',
     subtitleContentMode: readStoredSubtitleContentMode(),
+    subtitleOverlayLayout: readStoredSubtitleOverlayLayout(),
     subtitleOverlayOpacity: readStoredSubtitleOverlayOpacity(),
     subtitleOverlayBackground: getStoredBoolean(SUBTITLE_OVERLAY_BACKGROUND_STORAGE_KEY, true),
     subtitleUpcomingLyricsBlur: getStoredBoolean(SUBTITLE_UPCOMING_LYRICS_BLUR_STORAGE_KEY, true),
@@ -293,6 +316,14 @@ export const useTypographySettingsStore = create<TypographySettingsState>((set, 
             type: 'info',
             text: i18n.t(`notifications.subtitleMode.${subtitleContentMode}`),
         });
+    },
+    handleSetSubtitleOverlayLayout: (layout) => {
+        const next = parseSubtitleOverlayLayout(layout);
+        if (!next) {
+            return;
+        }
+        setStoredString(SUBTITLE_OVERLAY_LAYOUT_STORAGE_KEY, next);
+        set({ subtitleOverlayLayout: next });
     },
     handleSetSubtitleOverlayOpacity: (opacity) => {
         const next = Math.min(1, Math.max(0.2, opacity));
@@ -444,6 +475,7 @@ export const selectTypographySettingsSnapshot = (state: TypographySettingsState)
     hidePlayerTranslationSubtitle: state.hidePlayerTranslationSubtitle,
     showSubtitleTranslation: state.showSubtitleTranslation,
     subtitleContentMode: state.subtitleContentMode,
+    subtitleOverlayLayout: state.subtitleOverlayLayout,
     subtitleOverlayOpacity: state.subtitleOverlayOpacity,
     subtitleOverlayBackground: state.subtitleOverlayBackground,
     subtitleUpcomingLyricsBlur: state.subtitleUpcomingLyricsBlur,
@@ -463,6 +495,7 @@ export const selectTypographySettingsSnapshot = (state: TypographySettingsState)
     handleToggleHidePlayerTranslationSubtitle: state.handleToggleHidePlayerTranslationSubtitle,
     handleToggleShowSubtitleTranslation: state.handleToggleShowSubtitleTranslation,
     handleSetSubtitleContentMode: state.handleSetSubtitleContentMode,
+    handleSetSubtitleOverlayLayout: state.handleSetSubtitleOverlayLayout,
     handleSetSubtitleOverlayOpacity: state.handleSetSubtitleOverlayOpacity,
     handleToggleSubtitleOverlayBackground: state.handleToggleSubtitleOverlayBackground,
     handleToggleSubtitleUpcomingLyricsBlur: state.handleToggleSubtitleUpcomingLyricsBlur,

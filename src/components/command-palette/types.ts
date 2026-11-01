@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
+import type { SearchKind, SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
 import type { HomeViewTab, LatentBackgroundTuning, LocalSong, LyricData, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning, SmartBeatMode } from '../../types';
 import type { LyricSegmentationRecord, LyricSegmentationSource } from '../../types/lyricSegmentation';
@@ -137,6 +137,7 @@ export type CommandPaletteSearchContext = {
     submitSearch: (args: {
         query?: string;
         sourceTab: SearchSource;
+        kind?: SearchKind;
         deps: {
             localSongs: LocalSong[];
             localLibraryCatalog?: LocalLibraryDisplayCatalog;
@@ -297,7 +298,7 @@ export type CommandPaletteSettingsContext = {
     /** Lyrics / blur on the visualizer that shows through the bravais wall: flip the stored values. */
     toggleLibraryWallBackdropLyrics: () => void;
     toggleLibraryWallBackdropBlur: () => void;
-    /** Which way the bravais info strip opens (useLibraryWallLookStore.seamDirection: auto / vertical / horizontal); read live. */
+    /** Which way the bravais info strip opens (useLibraryWallLookStore.seamDirection: auto / auto-reverse / vertical / horizontal); read live. */
     libraryWallSeamDirection: () => LibraryWallSeamDirection;
     setLibraryWallSeamDirection: (direction: LibraryWallSeamDirection) => void;
     ponderHintVisibility: PonderHintVisibility;
