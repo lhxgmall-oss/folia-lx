@@ -12,6 +12,7 @@ import { IS_ANDROID_BUILD } from '../../../utils/androidApp';
 import { useNowPlayingCardLayoutStore } from './now-playing-toast/nowPlayingCardLayoutStore';
 import { useNowPlayingCardPosition } from './now-playing-toast/useNowPlayingCardPosition';
 import { NowPlayingCardPositioner } from './now-playing-toast/NowPlayingCardPositioner';
+import type { NowPlayingCardPosition } from '../../../utils/nowPlayingCardPosition';
 
 // src/components/app/overlays/NowPlayingToast.tsx
 // 播放器与 Lattice 上的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入），默认在左下角，
@@ -61,6 +62,8 @@ type NowPlayingToastProps = {
     onActivate?: () => void;
     /** onActivate 的无障碍名字，说清楚点下去会发生什么 */
     activateLabel?: string;
+    /** 卡片位置；不给就读设置里存的那个（OBS 浏览器源读不到主窗口的设置，由它传进来） */
+    position?: NowPlayingCardPosition | null;
 };
 
 const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
@@ -74,6 +77,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
     theme,
     onActivate,
     activateLabel,
+    position: positionOverride,
 }) => {
     const { t } = useTranslation();
 
@@ -164,7 +168,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
         return () => observer.disconnect();
     }, [visible, cardWidth]);
 
-    const position = useNowPlayingCardPosition(frameRef, cardSize, cardBottomPx, visible, invalidateLayout);
+    const position = useNowPlayingCardPosition(frameRef, cardSize, cardBottomPx, visible, invalidateLayout, positionOverride);
 
     return (
         <>

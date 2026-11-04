@@ -27,3 +27,5 @@ installGlobalVisualizerFrameRateLimiter();
 if (IS_ANDROID_BUILD) installAndroidMediaSession();
 
 void import('./bootstrap');
+// window.__foliaDev and the ?skipStartup / ?mockSong launch flags (src/dev/devLaunchFlags.ts).
+if (import.meta.env.DEV) void import('./dev/devTools');

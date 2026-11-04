@@ -181,7 +181,7 @@ import { useVisualizerRendererModel } from './components/visualizer/useVisualize
 import { useVisualizerTunings } from './components/visualizer/useVisualizerTunings';
 import { usePlaybackRuntimeRefs } from './components/app/playback/usePlaybackRuntimeRefs';
 import { useElectronWindowChrome } from './hooks/useElectronWindowChrome';
-import { useTransportCommandRefs } from './components/app/playback/bridges/useTransportCommandRefs';
+import { runTransportButtonAction, useTransportCommandRefs } from './components/app/playback/bridges/useTransportCommandRefs';
 import { useAccountReads } from './hooks/useAccountReads';
 import { useAudioOutputDevice } from './hooks/useAudioOutputDevice';
 import { useThemeQuickEditorContext } from './hooks/useThemeQuickEditorContext';
@@ -1454,6 +1454,7 @@ export default function App() {
         activeDeck: automix.activeDeck,
     });
 
+    const transportCommandRefs = useTransportCommandRefs({ resumePlayback, pausePlayback, handlePrevTrack, handleNextTrack });
     const {
         mediaSessionPlayRef,
         mediaSessionPauseRef,
@@ -1461,7 +1462,7 @@ export default function App() {
         mediaSessionNextRef,
         taskbarHasTrackRef,
         taskbarPlayerStateRef,
-    } = useTransportCommandRefs({ resumePlayback, pausePlayback, handlePrevTrack, handleNextTrack });
+    } = transportCommandRefs;
 
     const mediaSessionOptions = {
         audioRef,
@@ -2782,6 +2783,7 @@ export default function App() {
                     void window.electron?.setMainWindowClickThroughUnlockHover?.(false);
                 }
             }}
+            onClickThroughTransportAction={(action) => runTransportButtonAction({ ...transportCommandRefs, isNowPlayingControlDisabledRef, audioRef }, action)}
             audioElement={<>
                 {renderAudioDeck('A', automix.registerDeckA)}
                 {renderAudioDeck('B', automix.registerDeckB)}

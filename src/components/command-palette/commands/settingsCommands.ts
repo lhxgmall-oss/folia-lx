@@ -7,8 +7,9 @@ import type { GpuPreference } from '../../../stores/useDesktopSettingsStore';
 import { createToggleCommand, createAppLanguageCommand, createSettingsCommand, createSettingsAnchorCommand, defineCommand } from '../commandFactories';
 import { nowPlayingCardPositionCommand } from './nowPlayingCardPositionCommand';
 import { sleepTimerCommand } from './sleepTimerCommand';
+import { subtitleSettingsCommand } from './subtitleSettingsCommand';
 import { lyricExportCommands } from './lyricExportCommands';
-import { Gauge, Images, Layers3, Library } from 'lucide-react';
+import { Gauge, Images, Languages, Layers3, Library } from 'lucide-react';
 import { latticePosterTintSurface } from '../surfaces/latticePosterTintSurface';
 import { gridViewCardsSurface } from '../surfaces/gridViewCardsSurface';
 import { reduceMotionSurface } from '../surfaces/reduceMotionSurface';
@@ -235,6 +236,15 @@ export const settingsCommands: CommandPaletteCommand[] = [
         ['obs keep animation', 'obs main window', 'browser source animation', 'obs 保持动画', 'obs 主窗口动画', '浏览器源主窗口动画', 'obs bcdh', 'obszckdh'],
         context => context.settings.toggleObsKeepMainWindowAnimation(),
         { platform: ['electron'] },
+    ),
+    // Both browser sources draw the card (the local one and the web link), so no platform filter.
+    createToggleCommand(
+        'obs-toggle-track-card',
+        'settings',
+        'OBS: show the now playing card',
+        'Toggle whether the now playing card is drawn in the OBS browser source',
+        ['obs card', 'now playing card', 'browser source card', 'track card', 'obs 卡片', '歌曲信息卡片', '浏览器源卡片', '直播卡片'],
+        context => context.settings.toggleTrackCardInObs(),
     ),
     {
         id: 'desktop-toggle-lyric-api',
@@ -731,7 +741,9 @@ export const settingsCommands: CommandPaletteCommand[] = [
             '罗马字',
             '双行字幕',
             '副字幕',
-        ], context => context.settings.cycleSubtitleContentMode()),
+        ], context => context.settings.cycleSubtitleContentMode(), { icon: Languages }),
+    // 字幕的完整调节（行数、每行内容、背景、副字幕）；浮在进度条上方的字幕按钮也是它。
+    subtitleSettingsCommand,
     createToggleCommand('settings-toggle-subtitle-background', 'settings', 'Toggle subtitle background', 'Show or hide the readability background behind visualizer subtitles', [
             'subtitle background',
             'subtitle readability background',
