@@ -36,6 +36,8 @@ export const PLATFORM_NAMES = {
     // LX Music (Folia-LX). The id quoted or as a path part, the heads of its names (lxRequest,
     // LxSourceRows, LX_MUSIC) and its own names: the bare letters stand for other things (lx, LX lyrics).
     lx: /['"`]lx['"`]|\/lx\/|\blx(?:Request|Provider|Desktop|Transport|Scripts|Normalize|Catalog|Failure|-api)|\bLx[A-Z]|\bLX_MUSIC|LX Music|洛雪/,
+    appleMusic: /applemusic|apple music|苹果音乐/i,
+    fnmusic: /fnmusic|飞牛/i,
 } as const;
 
 export type CountedPlatform = keyof typeof PLATFORM_NAMES;
