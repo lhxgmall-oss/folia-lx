@@ -8,7 +8,6 @@ export default {
     "hint": "Songs to hear or sort out later. The queue stays as it is.",
     "history": "Play history",
     "historyTab": "History",
-    "historyHint": "Played on this device in the last 7 days, newest first.",
     "historyEmpty": "Nothing played in the last 7 days.",
     "today": "Today",
     "yesterday": "Yesterday",
@@ -16,6 +15,7 @@ export default {
     "empty": "Nothing here yet. Choose \"Add to scratchpad\" on a song card, track row or search result, or jot down the playing song from the command palette.",
     "open": "Open the scratchpad",
     "close": "Close the scratchpad",
+    "openQueueCanvas": "Open the queue in the scratchpad",
     "play": "Play it in the queue",
     "enqueue": "Add to queue",
     "addToPlaylist": "Add to a playlist…",
@@ -60,20 +60,113 @@ export default {
     "removeFromQueue": "Remove from queue",
     "cannotRemoveCurrent": "The song that is playing cannot be removed",
     "originQueue": "Queue",
-    "queueCanvasHint": "Arrows show the play order; the part already played is faded. Drag a box or {{mod}}-click to select several, Shift-click for a run; drag the selection to move it, and the queue is updated once you pause. Double-click to play.",
-    "queueCanvasHintReadOnly": "Arrows show the play order. Drag a box or {{mod}}-click to select several, Shift-click for a run, double-click to play. This queue cannot be edited now.",
+    "queueCanvasHint": "Songs play in arrow order. Double-click to play, drag to reorder; drag a box or {{mod}}/Shift-click to select several.",
+    "queueCanvasHintReadOnly": "Songs play in arrow order. Double-click to play; drag a box or {{mod}}/Shift-click to select several. This queue can't be changed right now.",
     "historyCanvasHint": "The timeline runs through each day, newest first. Drag a box or {{mod}}-click to select several, Shift-click for a run, double-click to play; press Delete to remove the selection from the history.",
     "deleteFromHistory": "Delete from history",
     "historyDeleted_one": "Deleted {{count}} song from the play history",
     "historyDeleted_other": "Deleted {{count}} songs from the play history",
     "greeting": {
-      "lateNight": "Still up? The music is still on.",
-      "dawn": "Good morning. The day has only just begun.",
-      "morning": "Good morning. What should today start with?",
-      "noon": "Midday already. Take a short break.",
-      "afternoon": "Good afternoon. Tea and a song?",
-      "evening": "Good evening. Long day?",
-      "night": "Winding down? Something slower, maybe."
+      "lateNight": {
+        "v1": "Still up? The music is still on.",
+        "v2": "This late? One more, then sleep.",
+        "v3": "The night is quiet; every note carries.",
+        "v4": "Night owls always have their own playlists.",
+        "v5": "The moon is still on shift. So are you.",
+        "v6": "Late-night radio, on air just for you."
+      },
+      "dawn": {
+        "v1": "Good morning. The day has only just begun.",
+        "v2": "Up early. The birds are still tuning up.",
+        "v3": "The sky is turning pale. Something gentle?",
+        "v4": "Fresh morning air, fresh song.",
+        "v5": "Early riser, first listen.",
+        "v6": "The sun just woke up, and you are already listening."
+      },
+      "morning": {
+        "v1": "Good morning. What should today start with?",
+        "v2": "Good morning. Set the tone for the day.",
+        "v3": "One song, one coffee, let us begin.",
+        "v4": "Let the beat carry the morning.",
+        "v5": "Morning! Another good day for music.",
+        "v6": "New day. Try something different?"
+      },
+      "noon": {
+        "v1": "Midday already. Take a short break.",
+        "v2": "Had lunch yet? Eat and listen.",
+        "v3": "Lunch break: close your eyes for one song.",
+        "v4": "Bright noon, bright music.",
+        "v5": "Half the day done. Play one you love.",
+        "v6": "A song after lunch keeps the slump away."
+      },
+      "afternoon": {
+        "v1": "Good afternoon. Tea and a song?",
+        "v2": "Afternoon slump? Try something brighter.",
+        "v3": "Good afternoon. The day is winding toward its end.",
+        "v4": "Slanting light, slower songs.",
+        "v5": "Teatime. What is today’s soundtrack?",
+        "v6": "Hang in there. A few more songs till evening."
+      },
+      "evening": {
+        "v1": "Good evening. Long day?",
+        "v2": "Good evening. The headphones are yours now.",
+        "v3": "The day is done. Play what you like.",
+        "v4": "After dinner belongs to music.",
+        "v5": "Good evening. How was today?",
+        "v6": "The lights are on. Time for a new song."
+      },
+      "night": {
+        "v1": "Winding down? Something slower, maybe.",
+        "v2": "Heading to bed? Something quiet.",
+        "v3": "A good night for one song on repeat.",
+        "v4": "That is it for today, after this one.",
+        "v5": "One more before the lights go out.",
+        "v6": "Before goodnight, save one for tomorrow."
+      }
+    },
+    "greetingShort": {
+      "lateNight": {
+        "v1": "Still up?",
+        "v2": "Late night",
+        "v3": "Hi, night owl",
+        "v4": "Up late"
+      },
+      "dawn": {
+        "v1": "Good morning",
+        "v2": "Up early",
+        "v3": "First light",
+        "v4": "Rise and shine"
+      },
+      "morning": {
+        "v1": "Good morning",
+        "v2": "Morning!",
+        "v3": "New day",
+        "v4": "Let's begin"
+      },
+      "noon": {
+        "v1": "Midday",
+        "v2": "Lunchtime",
+        "v3": "Take a break",
+        "v4": "Noon break"
+      },
+      "afternoon": {
+        "v1": "Good afternoon",
+        "v2": "Teatime",
+        "v3": "Afternoon",
+        "v4": "Hang in there"
+      },
+      "evening": {
+        "v1": "Good evening",
+        "v2": "Long day?",
+        "v3": "Day's done",
+        "v4": "Evening"
+      },
+      "night": {
+        "v1": "Good night",
+        "v2": "Bedtime?",
+        "v3": "Winding down",
+        "v4": "Quiet hours"
+      }
     }
   },
   "libraryBravais": {
@@ -191,7 +284,7 @@ export default {
       "localTitle": "No local music imported yet",
       "localBody": "Choose “{{action}}” under “⋯” in the info strip, and your folders, albums and artists will fill this wall."
     },
-    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
+    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "fm-station": "Radio", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
   },
   "libraryTui": {
     "back": "Back",
@@ -303,6 +396,8 @@ export default {
     "homeBgEnabled": "Home dynamic background enabled",
     "autoBestLyricOn": "Auto-use best lyrics enabled",
     "autoBestLyricOff": "Auto-use best lyrics disabled",
+    "autoAiLyricSegmentationOn": "Automatic AI segmentation on",
+    "autoAiLyricSegmentationOff": "Automatic AI segmentation off",
     "lyricSourceChanged": "Preferred lyric source switched to {{source}}",
     "progressBarHidden": "Player bottom control bar hidden",
     "progressBarShown": "Player bottom control bar shown",
@@ -646,8 +741,10 @@ export default {
     "sleepTimerUnexpectedMinutes": "--off does not accept a duration",
     "sleepTimerDurationRequired": "Enter minutes before turning the timer on",
     "fmModeTitle": "Personal FM mode",
+    "fmModeTitleOf": "{{name}} mode",
     "fmModeHint": "Pick a scene to switch straight into scene mode",
     "fmModeFilterPlaceholder": "Type to filter modes and scenes",
+    "recommendationPreferencesPlaceholder": "Adjust your preferences below",
     "sourceCurrent": "current source",
     "sourceLocal": "local library",
     "sourceNavidrome": "Navidrome",
@@ -694,6 +791,8 @@ export default {
       "queue": { "title": "Queue", "description": "Search the queue; use @ for metadata and -- for batch actions" },
       "playback-volume": { "title": "Volume", "description": "Adjust playback volume" },
       "playback-fm-mode": { "title": "Personal FM mode", "description": "Switch the Personal FM mode or scene" },
+      "playback-station-mode": { "title": "Radio mode", "description": "Switch the mode or scene of the radio on air" },
+      "playback-recommendation-preferences": { "title": "Preferences", "description": "Adjust the preferences kept on your account that steer what is recommended" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
       "settings-options": { "title": "Open Options", "description": "Open the options center" },
@@ -827,6 +926,7 @@ export default {
       "artist-reload": { "title": "Reload artist", "description": "Load the artist page again from the source" },
       "artist-retry-albums": { "title": "Resume loading albums", "description": "Retry the album page that failed and keep loading the rest" },
       "artist-edit-entity": { "title": "Edit artist info", "description": "Open the local library editor for this artist" },
+      "artist-open-all-songs": { "title": "Open all songs", "description": "List every song by this artist on one page, including singles outside any album" },
       "settings-interaction": { "title": "Interaction settings", "description": "Open keyboard, shortcut and grid interaction settings" },
       "settings-global-shortcuts": { "title": "Global shortcuts", "description": "Jump to the system-wide shortcuts for playback and mod commands" },
       "settings-custom-shortcut": { "title": "Custom shortcuts", "description": "Jump to the custom keyboard shortcut bindings" },
@@ -856,6 +956,7 @@ export default {
       "settings-queue-behavior": { "title": "Queue behavior", "description": "Jump to how the play queue is built and kept" },
       "settings-netease-scrobble": { "title": "NetEase listening report", "description": "Jump to whether finished plays are reported to NetEase Cloud Music" },
       "netease-scrobble-toggle": { "title": "NetEase listening report", "description": "Turn reporting of finished NetEase plays on or off" },
+      "auto-ai-lyric-segmentation-toggle": { "title": "Automatic AI lyric segmentation", "description": "Turn on or off segmenting each new song’s lyrics into words with AI by itself" },
       "settings-audio-output": { "title": "Audio output", "description": "Jump to the audio output device and format settings" },
       "hifi-toggle": { "title": "mpv playback engine", "description": "Switch local and Navidrome songs between Web Audio and mpv, which sends them straight to the output device" },
       "hifi-settings": { "title": "Playback engine settings", "description": "Open the playback engine settings: Web Audio or mpv, and mpv's output device, exclusive mode and DSD" },
@@ -890,6 +991,8 @@ export default {
       "playback-add-to-playlist": { "title": "Add to a playlist", "description": "Put the current song in one of your playlists" },
       "scratchpad-toggle": { "title": "Open or close the scratchpad", "description": "Slide out the scratchpad: songs to hear or sort out later" },
       "scratchpad-collect-current": { "title": "Jot the current song into the scratchpad", "description": "Keep this song for later without touching the queue" },
+      "scratchpad-handle-toggle": { "title": "Show or hide the scratchpad side tab", "description": "The tab on the left edge that opens the scratchpad" },
+      "settings-scratchpad": { "title": "Scratchpad settings", "description": "Whether the side tab shows, and how high it sits" },
       "playback-mute": { "title": "Mute", "description": "Silence playback, or bring the sound back" },
       "playback-volume-up": { "title": "Volume up", "description": "Raise the volume by 5%" },
       "playback-volume-down": { "title": "Volume down", "description": "Lower the volume by 5%" },
@@ -1195,6 +1298,8 @@ export default {
     "noLyrics": "No lyrics to segment",
     "saved": "Word segmentation saved",
     "restored": "Default word segmentation restored",
+    "autoSaved": "Lyrics segmented with AI automatically",
+    "autoFailed": "Automatic AI segmentation failed; check the AI model settings",
     "promptCopied": "Prompt and lyrics copied",
     "currentCopied": "Current segmentation copied",
     "partialFailure": "{{count}} batches failed; those lines kept the default split",
@@ -1435,6 +1540,7 @@ export default {
   },
   "personalFmMode": {
     "openPicker": "Switch the Personal FM mode",
+    "openPickerOf": "Switch the {{name}} mode",
     "category": {
       "mode": "Mode",
       "mood": "Mood",
@@ -1496,7 +1602,27 @@ export default {
     "statusPending": "Personal FM mode",
     "statusApplied": "Personal FM switched to",
     "statusEmpty": "This Personal FM mode returned nothing",
-    "statusFailed": "Failed to switch the Personal FM mode"
+    "statusFailed": "Failed to switch the Personal FM mode",
+    "statusAppliedOf": "{{name}} switched to",
+    "statusEmptyOf": "This {{name}} mode returned nothing",
+    "statusFailedOf": "Failed to switch the {{name}} mode"
+  },
+  "recommendationPreferences": {
+    "open": "Preferences",
+    "noteDefault": "Kept on your account",
+    "less": "Recommend less",
+    "default": "Default",
+    "more": "Recommend more",
+    "reset": "Reset",
+    "save": "Save",
+    "saving": "Saving…",
+    "loading": "Reading your preferences…",
+    "loadFailed": "Couldn't read your preferences",
+    "retry": "Retry",
+    "empty": "Nothing to adjust",
+    "saved": "Saved",
+    "unconfirmed": "Sent, but not confirmed yet. Open this again later to check.",
+    "saveFailed": "Couldn't save. Your choices are still here, so you can try again."
   },
   "login": {
     "title": "Log in",
@@ -1626,7 +1752,6 @@ export default {
     "loginTitleAppleMusic": "Sign in to Apple Music",
     "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
     "appleMusicLinuxUnsupported": "Not supported on Linux yet",
-    "appleMusicWindowsPending": "Windows support is awaiting validation",
     "loginNoteYtmBrowser": "A separate browser window opens. Sign in to Google there, and close that window once YouTube Music shows your account.",
     "loginNoteYtmBrowserMac": "A separate browser window opens. Sign in to Google there, and quit that browser (⌘Q) once YouTube Music shows your account.",
     "loginNoBrowserYtm": "Signing in to YouTube Music needs Chrome (Beta, Dev or Canary also work), Edge, Chromium, Brave or Helium installed.",
@@ -1774,6 +1899,7 @@ export default {
     "allAlbums": "All",
     "popular": "Popular",
     "radio": "Radio",
+    "radioTab": "Radio",
     "explore": "Explore",
     "exploreRefresh": "Refresh",
     "exploreMore": "More",
@@ -1802,6 +1928,12 @@ export default {
     "qqNewSongs": "New songs",
     "qqNewAlbums": "New albums",
     "qqCharts": "Charts",
+    "qqFeedForYou": "For you",
+    "qqRecommendedPlaylists": "Recommended playlists",
+    "qqGuessYouLike": "Guess You Like",
+    "qqGuessYouLikeDescription": "QQ Music's Guess You Like radio; switch its listening mode while it plays",
+    "qqGuessYouLikeSuggested": "Suggested",
+    "qqGuessYouLikeOther": "Other",
     "personalFm": "Personal FM",
     "dailyRecommendations": "Daily Recommendations",
     "dailyRecommendationsDescription": "A daily mix made for you",
@@ -1881,11 +2013,33 @@ export default {
   },
   "qishui": { "recentPlayed": "Recently played on Qishui", "recommended": "Recommended for you" },
   "listeningRank": {
+    "qqWeek": "Listening rank · This week",
+    "qqYear": "Listening rank · Year",
+    "qqWeekDescription": "QQ Music's ranking for this week, counted from Monday; a week not over yet counts up to today",
+    "qqYearDescription": "QQ Music's yearly ranking, counted over all of last year (1 January to 31 December)",
     "week": "Listening ranking · Last week",
     "all": "Listening ranking · All time",
     "description": "Songs ranked by this account's listening on the platform",
     "listenCount_one": "Played {{count}} time",
     "listenCount_other": "Played {{count}} times"
+  },
+  "qqPreferences": {
+    "note": "Saved on your account; affects every song recommended to you",
+    "familiarity": "Song familiarity",
+    "familiarityExplore": "More new",
+    "keep": "Keep as is",
+    "familiarityFamiliar": "More familiar",
+    "mood": "Music mood",
+    "moodSad": "Sadder",
+    "moodHappy": "Happier",
+    "coverLive": "Covers & live",
+    "instrumental": "Instrumental",
+    "mandarin": "Mandarin",
+    "english": "English",
+    "japanese": "Japanese",
+    "korean": "Korean",
+    "cantonese": "Cantonese",
+    "ai": "AI songs"
   },
   "lyricProvider": {
     "qishui": "Qishui Music",
@@ -2074,6 +2228,7 @@ export default {
     "aiEndpoint_hongkong": "Hong Kong",
     "aiTemperatureRangeDesc": "Range: {{min}}–{{max}}. Defaults to 0.7 when left blank.",
     "aiTemperaturePerModelDesc": "Range: {{min}}–{{max}}; some models ignore it. Defaults to 0.7 when left blank.",
+    "aiTemperatureNote": "Temperature controls how random the output is: lower is steadier, higher is more varied. Keep the default unless you have a reason to change it, or adjust it as your provider's documentation recommends.",
     "randomVisualizerModes": "Styles to randomize",
     "randomVisualizerSelectAll": "Select all",
     "randomVisualizerCurrentStyle": "Current style",
@@ -2107,7 +2262,7 @@ export default {
     "settingsPageIntegration": "Connections",
     "settingsPageStorage": "Storage & backup",
     "settingsPageDesktop": "Desktop",
-    "settingsPageGraphics": "Performance & motion",
+    "settingsPageGraphics": "Motion & performance",
     "settingsPageMods": "Mods",
     "settingsPageDeveloper": "Developer",
     "settingsHeadingTheme": "Theme",
@@ -2292,6 +2447,11 @@ export default {
     "rememberHomeCardPosition": "Remember home card position",
     "rememberHomeCardPositionDesc": "Return to the last card in each section when switching tabs or leaving the player. Positions are kept until you close or reload the app.",
     "homeTabsVisibilityDesc": "Customize the capsule entries shown at the top of the home page",
+    "scratchpadSettings": "Scratchpad",
+    "scratchpadShowHandle": "Show the side tab",
+    "scratchpadShowHandleDesc": "The tab on the left edge of the window. With it hidden, Ctrl / ⌘ + J or the command palette still opens the scratchpad.",
+    "scratchpadHandlePosition": "Side tab height",
+    "scratchpadHandlePositionDesc": "Where the tab sits on the left edge: 0% at the top, 100% near the bottom of the window. Around the middle it overlaps the folded Bravais seam tab.",
     "showHomeTabPlaylist": "Show Playlists",
     "showHomeTabRadio": "Show Radio",
     "showHomeTabExplore": "Show Explore",
@@ -3112,6 +3272,9 @@ export default {
     "machiSceneKonbini": "Konbini",
     "machiSceneStation": "Gas station",
     "machiSceneKowloon": "Walled City bar",
+    "machiLightsSection": "Lights",
+    "machiSimulatedBeat": "Simulated beat",
+    "machiSimulatedBeatHint": "When smart beat mode is set to Off, a steady simulated beat drives Neon Pulse and Screen Flash: the neon groups light up in turn and the lyric screen lights up a spot every two beats. Set to On or Analysed only, the real beats and drum hits drive them instead and this switch has no effect.",
     "machiSkySection": "Time and weather",
     "machiTimeOfDay": "Time of day",
     "machiTimeOfDayHint": "Auto follows your local clock: day, dusk or night.",
@@ -3643,6 +3806,9 @@ export default {
     "globalLyricTimelineOffsetDesc": "Shifts all lyrics in time to make up for Bluetooth or other output delay.",
     "lyricFilterRegex": "Lyric Filtering",
     "lyricFilterRegexDesc": "Line-by-line filter rules, and what happens to the credits at the start.",
+    "settingsHeadingLyricSegmentation": "Word segmentation",
+    "autoAiLyricSegmentation": "Automatic AI segmentation",
+    "autoAiLyricSegmentationDesc": "When a song with Chinese or Japanese lyrics starts and has no saved segmentation, split its lyrics into words with AI by itself. Only affects lyric styles that lay text out by words. Runs once per song and uses AI requests.",
     "visualizerMode": "Mode",
     "noDescription": "No description available",
   },
@@ -3833,6 +3999,37 @@ export default {
       "qqPrivatePlaylists": {
         "title": "Private QQ Music Playlists",
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
+      }
+    },
+    "v0_7_26": {
+      "intro": "Welcome to 0.7.26, the Fawkes Update—a major update. This version adds the Scratchpad, a drawer that slides out from the left to hold songs on the fly; Nebbia gets new views and glass, with an aquarium, dew and snow; Apple Music and fnOS Music join as new platforms; songs from different platforms can share one queue, and search now finds albums and playlists too; the progress capsule offers your common commands, and its right-hand buttons can be swapped in place; and recommendations grow, with style recommendations in NetEase Daily and the Guess You Like radio and music preferences for QQ Music.",
+      "scratchpad": {
+        "title": "Scratchpad",
+        "description": "The new Scratchpad is a song drawer that slides out from the left; press Ctrl+J to open it. Hover a song card, a search result, the Explore page or the Lattice cover wall to add a song to the Scratchpad or save it to a playlist. Saved songs are grouped by source, and a group can open into a canvas where you arrange and box-select cards and add the whole group to a playlist—dragging works on touch screens too. The drawer also has History and Queue pages: History lists what you played from local files, Navidrome and every platform, and the queue can open into a canvas of cards. The side tab’s visibility and height are in Settings."
+      },
+      "nebbiaScenes": {
+        "title": "Nebbia: new views and glass",
+        "description": "Nebbia now lets you choose the view outside and the glass in front separately. Besides the rainy street, the view can be the shared background or the aquarium “Dream Sea Glow”, and the street’s rain can fall slanted, straight, or not at all. The glass adds Dew—tiny droplets with drifting fireflies—and Snow, where snow drifts onto the glass from afar, glows like ice against the light, and droplets left alone slowly freeze. With a transparent player page, the fog follows the theme’s day and night and the droplets refract the view behind them. The command palette adds Switch window scene and Switch front glass."
+      },
+      "newPlatforms": {
+        "title": "Apple Music and fnOS Music",
+        "description": "Two new platforms. Apple Music works on macOS 14 or later and on Windows (which needs the WebView2 runtime, built into Windows 11), with an Apple Music subscription: sign in through Apple’s own page, then search and play full songs, browse your library’s playlists and albums as well as artist and album catalog pages, listen to personal and live radio stations, and get lyrics. It isn’t supported on Linux yet. fnOS Music connects to the music library on an fnOS device—enter its address and your account in the sign-in window to browse and play."
+      },
+      "crossPlatform": {
+        "title": "Cross-platform queue and new search",
+        "description": "Songs from different platforms can now share one play queue: switching platforms no longer clears the player or the queue, and signing out of a platform only removes that platform’s songs. The search page has a new flat composition and finds albums and playlists as well as songs (NetEase, Kugou, QQ Music and YouTube Music; Qishui searches playlists only). You can search the current platform, any signed-in platform, local files or Navidrome, and switching platforms keeps your results."
+      },
+      "playerCapsule": {
+        "title": "Commands on the progress capsule",
+        "description": "Rest the pointer on the progress capsule and a row of common commands rises above it: shuffle, like, add to playlist, volume, lyric animation style and subtitles; on phones it appears when you tap the capsule or pause. The command palette now grows out of the capsule. Right-click or long-press a button on the capsule’s right to swap in another action, and commands you use often are suggested for those spots. A new Subtitles panel adjusts the secondary subtitle, opacity, scale and next-line blur, and tapping the volume panel’s icon mutes."
+      },
+      "recommendations": {
+        "title": "More ways to discover",
+        "description": "NetEase Daily adds recommendations By style—another 30 songs picked by the genres, moods and scenes you choose—switchable on the daily wall. QQ Music adds the Guess You Like radio with Explore, Familiar and scene modes, account music preferences, past days of Daily 30 and “Not interested” for songs; a self-hosted backend needs qq-music-api 3.3.6 or later. Account playlists on NetEase, Kugou and QQ Music now include Listening ranking, listing the songs you play most over a chosen period."
+      },
+      "moreDetails": {
+        "title": "More improvements",
+        "description": "Machi supports a transparent player page, no longer stalls when switching, and lowers its quality automatically by refresh rate to stay smooth; without smart motion its neon and big screen flash to a steady beat, which you can turn off with Simulated beat. The lyric canvas has resolution and antialiasing settings. Global shortcuts let you pick your own modifier keys and keys. With click-through on the desktop, previous, play/pause and next sit beside the lock. Artist pages add All Songs, and an album’s artist can be opened from its page. Right-to-left lyrics are laid out in the right direction. A new Automatic AI segmentation option is available. NetEase requests being cut off on some IPv6 networks are fixed."
       }
     },
     "v0_7_25": {
@@ -4777,6 +4974,8 @@ export default {
     "stageLocalInputDescription": "Stage is in local single-input mode. External devices can push lyrics or media, but playback and display are controlled by Folia itself.",
   },
   "libraryBravaisArtist": {
+    "allSongsCountUnit_one": "song",
+    "allSongsCountUnit_other": "songs",
     "playTopSongs": "Play top songs",
     "songCount_one": "{{count}} song",
     "songCount_other": "{{count}} songs",
@@ -4794,7 +4993,8 @@ export default {
     "posterTopSongs": "Top songs"
   },
   "libraryBravaisAlbum": {
-    "posterLabel": "Album poster"
+    "posterLabel": "Album poster",
+    "openArtist": "Open artist {{name}}"
   },
   "artistGrid": {
     "localArtist": "Local Artist: {{artistName}}",
@@ -4806,6 +5006,8 @@ export default {
     "topSongsAddedToQueue_one": "Added {{count}} top song to the play queue",
     "topSongsAddedToQueue_other": "Added {{count}} top songs to the play queue",
     "noTopSongsToQueue": "No top songs available to queue",
+    "allSongs": "All songs",
+    "allSongsCollectionName": "All songs by {{artistName}}",
   },
   "obs": {
     "connecting": "Connecting to Folia",

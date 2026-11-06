@@ -8,7 +8,6 @@ export default {
     "hint": "Bài để nghe hoặc sắp xếp sau. Hàng đợi không thay đổi.",
     "history": "Lịch sử phát",
     "historyTab": "Lịch sử",
-    "historyHint": "Đã phát trên thiết bị này trong 7 ngày qua, mới nhất ở trên.",
     "historyEmpty": "Chưa phát bài nào trong 7 ngày qua.",
     "today": "Hôm nay",
     "yesterday": "Hôm qua",
@@ -16,6 +15,7 @@ export default {
     "empty": "Chưa có gì. Chọn \"Thêm vào sổ ghi nhanh\" trên thẻ bài hát, dòng danh sách bài hoặc kết quả tìm kiếm, hoặc ghi bài đang phát từ bảng lệnh.",
     "open": "Mở sổ ghi nhanh",
     "close": "Đóng sổ ghi nhanh",
+    "openQueueCanvas": "Mở hàng đợi trong sổ ghi nhanh",
     "play": "Phát trong hàng đợi",
     "enqueue": "Thêm vào hàng đợi",
     "addToPlaylist": "Thêm vào danh sách phát…",
@@ -60,20 +60,113 @@ export default {
     "removeFromQueue": "Xóa khỏi hàng đợi",
     "cannotRemoveCurrent": "Không thể xóa bài đang phát",
     "originQueue": "Hàng đợi",
-    "queueCanvasHint": "Mũi tên cho biết thứ tự phát; đoạn đã phát được làm mờ. Kéo khung hoặc {{mod}}+bấm để chọn nhiều, Shift+bấm để chọn một dải; kéo phần đã chọn để di chuyển, hàng đợi được cập nhật khi bạn dừng tay. Bấm đúp để phát.",
-    "queueCanvasHintReadOnly": "Mũi tên cho biết thứ tự phát. Kéo khung hoặc {{mod}}+bấm để chọn nhiều, Shift+bấm để chọn một dải, bấm đúp để phát. Hàng đợi này hiện không thể chỉnh sửa.",
+    "queueCanvasHint": "Bài hát phát theo thứ tự mũi tên. Bấm đúp để phát, kéo để đổi thứ tự; kéo khung hoặc {{mod}}/Shift+bấm để chọn nhiều.",
+    "queueCanvasHintReadOnly": "Bài hát phát theo thứ tự mũi tên. Bấm đúp để phát; kéo khung hoặc {{mod}}/Shift+bấm để chọn nhiều. Hàng đợi này hiện không thể chỉnh sửa.",
     "historyCanvasHint": "Dòng thời gian chạy qua từng ngày, mới nhất trước. Kéo khung hoặc {{mod}}+bấm để chọn nhiều, Shift+bấm để chọn một dải, bấm đúp để phát; nhấn Delete để xóa phần đã chọn khỏi lịch sử.",
     "deleteFromHistory": "Xóa khỏi lịch sử",
     "historyDeleted_one": "Đã xóa {{count}} bài khỏi lịch sử phát",
     "historyDeleted_other": "Đã xóa {{count}} bài khỏi lịch sử phát",
     "greeting": {
-      "lateNight": "Vẫn còn thức à? Nhạc vẫn đang phát.",
-      "dawn": "Chào buổi sáng. Ngày mới vừa bắt đầu.",
-      "morning": "Chào buổi sáng. Hôm nay bắt đầu bằng bài nào?",
-      "noon": "Chào buổi trưa. Nghỉ ngơi một chút nhé.",
-      "afternoon": "Chào buổi chiều. Một tách trà và một bài hát?",
-      "evening": "Chào buổi tối. Một ngày dài nhỉ?",
-      "night": "Sắp nghỉ rồi à? Một bài chậm hơn nhé."
+      "lateNight": {
+        "v1": "Vẫn còn thức à? Nhạc vẫn đang phát.",
+        "v2": "Muộn thế này rồi. Thêm một bài rồi ngủ nhé.",
+        "v3": "Đêm yên tĩnh, từng nốt nhạc nghe rõ hơn.",
+        "v4": "Người thức khuya nào cũng có danh sách phát riêng.",
+        "v5": "Mặt trăng vẫn chưa tan ca. Bạn cũng vậy.",
+        "v6": "Đài phát thanh đêm khuya, chỉ phát cho riêng bạn."
+      },
+      "dawn": {
+        "v1": "Chào buổi sáng. Ngày mới vừa bắt đầu.",
+        "v2": "Dậy sớm thật. Chim ngoài cửa sổ vẫn đang thử giọng.",
+        "v3": "Trời đang hửng sáng. Nghe gì nhẹ nhàng nhé?",
+        "v4": "Không khí sáng sớm, hợp với một bài hát mới.",
+        "v5": "Người dậy sớm được nghe trước.",
+        "v6": "Mặt trời vừa thức dậy, bạn đã nghe nhạc rồi."
+      },
+      "morning": {
+        "v1": "Chào buổi sáng. Hôm nay bắt đầu bằng bài nào?",
+        "v2": "Chào buổi sáng. Chọn giai điệu cho ngày hôm nay.",
+        "v3": "Một bài hát, một ly cà phê, bắt đầu thôi.",
+        "v4": "Để nhịp điệu dẫn dắt buổi sáng.",
+        "v5": "Chào buổi sáng! Lại một ngày đẹp để nghe nhạc.",
+        "v6": "Ngày mới. Thử một chút khác lạ?"
+      },
+      "noon": {
+        "v1": "Chào buổi trưa. Nghỉ ngơi một chút nhé.",
+        "v2": "Ăn trưa chưa? Vừa ăn vừa nghe nhé.",
+        "v3": "Giờ nghỉ trưa: nhắm mắt nghe một bài.",
+        "v4": "Trưa nắng đẹp, nhạc cũng đẹp.",
+        "v5": "Nửa ngày đã qua. Bật một bài bạn thích.",
+        "v6": "Một bài sau bữa trưa cho đỡ buồn ngủ."
+      },
+      "afternoon": {
+        "v1": "Chào buổi chiều. Một tách trà và một bài hát?",
+        "v2": "Chiều buồn ngủ? Đổi bài tỉnh táo hơn.",
+        "v3": "Chào buổi chiều. Sắp hết ngày rồi.",
+        "v4": "Nắng chiều xiên, nhạc cũng chậm lại.",
+        "v5": "Giờ trà chiều. Hôm nay nghe gì?",
+        "v6": "Cố lên. Vài bài nữa là đến chiều tối."
+      },
+      "evening": {
+        "v1": "Chào buổi tối. Một ngày dài nhỉ?",
+        "v2": "Chào buổi tối. Tai nghe giờ là của bạn.",
+        "v3": "Một ngày đã xong. Nghe gì bạn thích nhé.",
+        "v4": "Thời gian sau bữa tối dành cho âm nhạc.",
+        "v5": "Chào buổi tối. Hôm nay thế nào?",
+        "v6": "Đèn đã sáng. Đến lúc đổi bài rồi."
+      },
+      "night": {
+        "v1": "Sắp nghỉ rồi à? Một bài chậm hơn nhé.",
+        "v2": "Chuẩn bị ngủ? Một bài yên tĩnh nhé.",
+        "v3": "Đêm nay hợp để nghe lặp một bài.",
+        "v4": "Hôm nay đến đây thôi, nghe xong bài này đã.",
+        "v5": "Thêm một bài trước khi tắt đèn.",
+        "v6": "Trước khi chúc ngủ ngon, để dành một bài cho ngày mai."
+      }
+    },
+    "greetingShort": {
+      "lateNight": {
+        "v1": "Còn thức à?",
+        "v2": "Khuya rồi",
+        "v3": "Chào cú đêm",
+        "v4": "Thức khuya"
+      },
+      "dawn": {
+        "v1": "Chào buổi sáng",
+        "v2": "Dậy sớm thế",
+        "v3": "Bình minh",
+        "v4": "Sáng rồi"
+      },
+      "morning": {
+        "v1": "Chào buổi sáng",
+        "v2": "Ngày mới",
+        "v3": "Bắt đầu thôi",
+        "v4": "Sáng nay"
+      },
+      "noon": {
+        "v1": "Chào buổi trưa",
+        "v2": "Giờ ăn trưa",
+        "v3": "Nghỉ chút đi",
+        "v4": "Trưa rồi"
+      },
+      "afternoon": {
+        "v1": "Chào buổi chiều",
+        "v2": "Giờ trà chiều",
+        "v3": "Chiều rồi",
+        "v4": "Cố lên"
+      },
+      "evening": {
+        "v1": "Chào buổi tối",
+        "v2": "Ngày dài nhỉ?",
+        "v3": "Xong một ngày",
+        "v4": "Buổi tối"
+      },
+      "night": {
+        "v1": "Khuya rồi",
+        "v2": "Đi ngủ chưa?",
+        "v3": "Thư giãn",
+        "v4": "Giờ yên tĩnh"
+      }
     }
   },
   "libraryBravais": {
@@ -191,7 +284,7 @@ export default {
       "localTitle": "Chưa nhập nhạc cục bộ",
       "localBody": "Chọn “{{action}}” dưới mục “⋯” trên thanh thông tin; thư mục, album và nghệ sĩ của bạn sẽ lấp đầy bức tường này."
     },
-    "special": {"liked": "Bài hát yêu thích", "cloud": "Ổ đám mây", "personal-fm": "FM cá nhân", "daily": "Gợi ý hàng ngày", "all-songs": "Tất cả bài hát", "local-favorites": "Yêu thích", "navidrome-random": "Ngẫu nhiên", "navidrome-favorites": "Đã gắn sao"}
+    "special": {"liked": "Bài hát yêu thích", "cloud": "Ổ đám mây", "personal-fm": "FM cá nhân", "fm-station": "Radio", "daily": "Gợi ý hàng ngày", "all-songs": "Tất cả bài hát", "local-favorites": "Yêu thích", "navidrome-random": "Ngẫu nhiên", "navidrome-favorites": "Đã gắn sao"}
   },
   "libraryTui": {
     "back": "Quay lại",
@@ -303,6 +396,8 @@ export default {
     "homeBgEnabled": "Đã bật nền động trang chủ",
     "autoBestLyricOn": "Đã bật tự dùng lời tối ưu",
     "autoBestLyricOff": "Đã tắt tự dùng lời tối ưu",
+    "autoAiLyricSegmentationOn": "Đã bật tự tách từ bằng AI",
+    "autoAiLyricSegmentationOff": "Đã tắt tự tách từ bằng AI",
     "lyricSourceChanged": "Đã chuyển nguồn lời ưu tiên sang {{source}}",
     "progressBarHidden": "Đã ẩn thanh điều khiển dưới",
     "progressBarShown": "Đã hiện thanh điều khiển dưới",
@@ -646,8 +741,10 @@ export default {
     "sleepTimerUnexpectedMinutes": "--off không nhận giá trị thời lượng",
     "sleepTimerDurationRequired": "Nhập số phút trước khi bật hẹn giờ",
     "fmModeTitle": "Chế độ FM cá nhân",
+    "fmModeTitleOf": "Chế độ {{name}}",
     "fmModeHint": "Chọn ngữ cảnh để chuyển thẳng sang chế độ ngữ cảnh",
     "fmModeFilterPlaceholder": "Nhập để lọc chế độ và ngữ cảnh",
+    "recommendationPreferencesPlaceholder": "Điều chỉnh sở thích bên dưới",
     "sourceCurrent": "nguồn hiện tại",
     "sourceLocal": "thư viện nội bộ",
     "sourceNavidrome": "Navidrome",
@@ -694,6 +791,8 @@ export default {
       "queue": { "title": "Hàng đợi", "description": "Tìm trong hàng đợi; dùng @ cho siêu dữ liệu và -- cho thao tác hàng loạt" },
       "playback-volume": { "title": "Âm lượng", "description": "Điều chỉnh âm lượng phát" },
       "playback-fm-mode": { "title": "Chế độ FM cá nhân", "description": "Chuyển chế độ hoặc ngữ cảnh FM cá nhân" },
+      "playback-station-mode": { "title": "Chế độ đài", "description": "Chuyển chế độ hoặc ngữ cảnh của đài đang phát" },
+      "playback-recommendation-preferences": { "title": "Sở thích", "description": "Điều chỉnh sở thích lưu trong tài khoản, ảnh hưởng đến những gì được gợi ý" },
       "settings-help": { "title": "Mở Trợ giúp", "description": "Mở trợ giúp và phím tắt" },
       "ponder-current-page": { "title": "Khám phá trang này", "description": "Mở hướng dẫn tương tác cho trang hiện tại" },
       "settings-options": { "title": "Mở Tùy chọn", "description": "Mở trung tâm tùy chọn" },
@@ -827,6 +926,7 @@ export default {
       "artist-reload": { "title": "Tải lại nghệ sĩ", "description": "Tải lại trang nghệ sĩ từ nguồn" },
       "artist-retry-albums": { "title": "Tiếp tục tải album", "description": "Thử lại trang album bị lỗi và tiếp tục tải phần còn lại" },
       "artist-edit-entity": { "title": "Sửa thông tin nghệ sĩ", "description": "Mở trình chỉnh sửa thư viện nội bộ cho nghệ sĩ này" },
+      "artist-open-all-songs": { "title": "Mở tất cả bài hát", "description": "Liệt kê mọi bài hát của nghệ sĩ này trên một trang, kể cả đĩa đơn không thuộc album nào" },
       "settings-interaction": { "title": "Cài đặt tương tác", "description": "Mở cài đặt bàn phím, phím tắt và tương tác lưới" },
       "settings-global-shortcuts": { "title": "Phím tắt toàn cục", "description": "Đi đến phần gán phím tắt điều khiển phát nhạc toàn hệ thống" },
       "settings-custom-shortcut": { "title": "Phím tắt tùy chỉnh", "description": "Đi đến phần gán phím tắt bàn phím tùy chỉnh" },
@@ -856,6 +956,7 @@ export default {
       "settings-queue-behavior": { "title": "Hành vi hàng đợi", "description": "Đi tới cách tạo và lưu giữ hàng đợi phát" },
       "settings-netease-scrobble": { "title": "Báo cáo nghe nhạc NetEase", "description": "Đi tới cài đặt gửi lịch sử nghe tới NetEase Cloud Music" },
       "netease-scrobble-toggle": { "title": "Báo cáo nghe nhạc NetEase", "description": "Bật hoặc tắt gửi lịch sử nghe tới NetEase" },
+      "auto-ai-lyric-segmentation-toggle": { "title": "Tự tách từ lời bài hát bằng AI", "description": "Bật hoặc tắt tự động dùng AI tách lời bài mới thành từ" },
       "settings-audio-output": { "title": "Đầu ra âm thanh", "description": "Đi tới cài đặt thiết bị và định dạng đầu ra âm thanh" },
       "hifi-toggle": { "title": "Công cụ phát mpv", "description": "Chuyển bài hát cục bộ và Navidrome giữa Web Audio và mpv, công cụ gửi âm thanh thẳng đến thiết bị đầu ra" },
       "hifi-settings": { "title": "Cài đặt công cụ phát", "description": "Mở cài đặt công cụ phát: Web Audio hoặc mpv, cùng thiết bị đầu ra, chế độ độc quyền và DSD của mpv" },
@@ -890,6 +991,8 @@ export default {
       "playback-add-to-playlist": { "title": "Thêm vào danh sách phát", "description": "Thêm bài hát hiện tại vào danh sách phát" },
       "scratchpad-toggle": { "title": "Mở hoặc đóng sổ ghi nhanh", "description": "Kéo sổ ghi nhanh ra: những bài để nghe hoặc sắp xếp sau" },
       "scratchpad-collect-current": { "title": "Ghi bài hiện tại vào sổ ghi nhanh", "description": "Giữ bài này cho lúc khác mà không đụng đến hàng đợi" },
+      "scratchpad-handle-toggle": { "title": "Hiện hoặc ẩn thẻ bên của sổ ghi nhanh", "description": "Thẻ ở mép trái dùng để mở sổ ghi nhanh" },
+      "settings-scratchpad": { "title": "Cài đặt sổ ghi nhanh", "description": "Có hiện thẻ bên cạnh không, và đặt ở độ cao nào" },
       "playback-mute": { "title": "Tắt tiếng", "description": "Tắt tiếng hoặc bật lại âm thanh" },
       "playback-volume-up": { "title": "Tăng âm lượng", "description": "Tăng âm lượng thêm 5%" },
       "playback-volume-down": { "title": "Giảm âm lượng", "description": "Giảm âm lượng đi 5%" },
@@ -1189,6 +1292,8 @@ export default {
     "noLyrics": "Không có lời bài hát để tách từ",
     "saved": "Đã lưu kết quả tách từ",
     "restored": "Đã khôi phục tách từ mặc định",
+    "autoSaved": "Đã tự động tách từ lời bài hát bằng AI",
+    "autoFailed": "Tự tách từ bằng AI thất bại; hãy kiểm tra cài đặt mô hình AI",
     "promptCopied": "Đã sao chép prompt và lời bài hát",
     "currentCopied": "Đã sao chép tách từ hiện tại",
     "partialFailure": "{{count}} đợt xử lý thất bại; giữ nguyên phân tách mặc định cho các dòng đó",
@@ -1429,6 +1534,7 @@ export default {
   },
   "personalFmMode": {
     "openPicker": "Chuyển chế độ FM cá nhân",
+    "openPickerOf": "Chuyển chế độ {{name}}",
     "category": {
       "mode": "Chế độ",
       "mood": "Tâm trạng",
@@ -1490,7 +1596,27 @@ export default {
     "statusPending": "Chế độ FM cá nhân",
     "statusApplied": "FM cá nhân đã chuyển sang",
     "statusEmpty": "Chế độ FM cá nhân này không có bài hát",
-    "statusFailed": "Chuyển chế độ FM cá nhân thất bại"
+    "statusFailed": "Chuyển chế độ FM cá nhân thất bại",
+    "statusAppliedOf": "{{name}} đã chuyển sang",
+    "statusEmptyOf": "Chế độ {{name}} này không có bài hát",
+    "statusFailedOf": "Chuyển chế độ {{name}} thất bại"
+  },
+  "recommendationPreferences": {
+    "open": "Sở thích",
+    "noteDefault": "Lưu trong tài khoản",
+    "less": "Đề xuất ít hơn",
+    "default": "Mặc định",
+    "more": "Đề xuất nhiều hơn",
+    "reset": "Đặt lại",
+    "save": "Lưu",
+    "saving": "Đang lưu…",
+    "loading": "Đang đọc sở thích…",
+    "loadFailed": "Không đọc được sở thích",
+    "retry": "Thử lại",
+    "empty": "Không có gì để điều chỉnh",
+    "saved": "Đã lưu",
+    "unconfirmed": "Đã gửi nhưng chưa được xác nhận. Hãy mở lại sau để kiểm tra.",
+    "saveFailed": "Không lưu được. Lựa chọn của bạn vẫn còn, có thể thử lại."
   },
   "login": {
     "title": "Đăng nhập",
@@ -1620,7 +1746,6 @@ export default {
     "loginTitleAppleMusic": "Đăng nhập Apple Music",
     "loginNoteAppleMusic": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple.",
     "appleMusicLinuxUnsupported": "Chưa hỗ trợ Linux",
-    "appleMusicWindowsPending": "Phiên bản Windows đang chờ xác minh",
     "loginNoteYtmBrowser": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy đóng cửa sổ đó.",
     "loginNoteYtmBrowserMac": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy thoát trình duyệt (⌘Q).",
     "loginNoBrowserYtm": "Đăng nhập YouTube Music yêu cầu đã cài đặt Chrome, Edge, Chromium hoặc Brave.",
@@ -1768,6 +1893,7 @@ export default {
     "allAlbums": "Tất cả",
     "popular": "Thịnh hành",
     "radio": "Radio",
+    "radioTab": "Radio",
     "explore": "Khám phá",
     "exploreRefresh": "Đổi danh sách khác",
     "exploreMore": "Xem thêm",
@@ -1796,6 +1922,12 @@ export default {
     "qqNewSongs": "Bài hát mới",
     "qqNewAlbums": "Album mới",
     "qqCharts": "Bảng xếp hạng",
+    "qqFeedForYou": "Dành cho bạn",
+    "qqRecommendedPlaylists": "Playlist đề xuất",
+    "qqGuessYouLike": "Có thể bạn thích",
+    "qqGuessYouLikeDescription": "Đài Có thể bạn thích của QQ Music; đổi chế độ nghe khi đang phát",
+    "qqGuessYouLikeSuggested": "Gợi ý",
+    "qqGuessYouLikeOther": "Khác",
     "personalFm": "FM cá nhân",
     "dailyRecommendations": "Gợi ý hàng ngày",
     "dailyRecommendationsDescription": "Bản phối hàng ngày dành riêng cho bạn",
@@ -1875,11 +2007,33 @@ export default {
   },
   "qishui": { "recentPlayed": "Gần đây đã phát trên Qishui", "recommended": "Được đề xuất cho bạn" },
   "listeningRank": {
+    "qqWeek": "Bảng xếp hạng nghe · Tuần này",
+    "qqYear": "Bảng xếp hạng nghe · Năm",
+    "qqWeekDescription": "Bảng xếp hạng tuần này của QQ Music, tính từ thứ Hai; tuần chưa hết thì tính đến hôm nay",
+    "qqYearDescription": "Bảng xếp hạng năm của QQ Music, tính trọn năm ngoái (1/1 đến 31/12)",
     "week": "Xếp hạng nghe · Tuần qua",
     "all": "Xếp hạng nghe · Mọi lúc",
     "description": "Bài hát xếp theo lịch sử nghe của tài khoản này trên nền tảng",
     "listenCount_one": "Đã nghe {{count}} lần",
     "listenCount_other": "Đã nghe {{count}} lần"
+  },
+  "qqPreferences": {
+    "note": "Lưu trên tài khoản; ảnh hưởng đến mọi bài hát được đề xuất",
+    "familiarity": "Độ quen thuộc của bài hát",
+    "familiarityExplore": "Khám phá thêm",
+    "keep": "Giữ nguyên",
+    "familiarityFamiliar": "Quen thuộc hơn",
+    "mood": "Cảm xúc âm nhạc",
+    "moodSad": "Buồn hơn",
+    "moodHappy": "Vui hơn",
+    "coverLive": "Cover & live",
+    "instrumental": "Nhạc không lời",
+    "mandarin": "Tiếng Quan Thoại",
+    "english": "Tiếng Anh",
+    "japanese": "Tiếng Nhật",
+    "korean": "Tiếng Hàn",
+    "cantonese": "Tiếng Quảng Đông",
+    "ai": "Bài hát AI"
   },
   "lyricProvider": {
     "qishui": "Qishui Music",
@@ -2068,6 +2222,7 @@ export default {
     "aiEndpoint_hongkong": "Hồng Kông",
     "aiTemperatureRangeDesc": "Phạm vi: {{min}}–{{max}}. Mặc định là 0.7 khi để trống.",
     "aiTemperaturePerModelDesc": "Phạm vi: {{min}}–{{max}}; một số mô hình có thể bỏ qua tùy chọn này. Mặc định là 0.7 khi để trống.",
+    "aiTemperatureNote": "Temperature quyết định mức độ ngẫu nhiên của kết quả: càng thấp càng ổn định, càng cao càng đa dạng. Nên giữ giá trị mặc định, hoặc điều chỉnh theo khuyến nghị trong tài liệu của nhà cung cấp.",
     "randomVisualizerModes": "Phong cách tham gia ngẫu nhiên",
     "randomVisualizerSelectAll": "Chọn tất cả",
     "randomVisualizerCurrentStyle": "Phong cách hiện tại",
@@ -2101,7 +2256,7 @@ export default {
     "settingsPageIntegration": "Kết nối & Tích hợp",
     "settingsPageStorage": "Lưu trữ & Sao lưu",
     "settingsPageDesktop": "Ứng dụng máy tính",
-    "settingsPageGraphics": "Hiệu năng & Hoạt họa",
+    "settingsPageGraphics": "Hoạt họa & Hiệu năng",
     "settingsPageMods": "Quản lý Mod",
     "settingsPageDeveloper": "Dành cho nhà phát triển",
     "settingsHeadingTheme": "Chủ đề",
@@ -2286,6 +2441,11 @@ export default {
     "rememberHomeCardPosition": "Nhớ vị trí thẻ trang chủ",
     "rememberHomeCardPositionDesc": "Quay lại thẻ cuối cùng trong từng phần khi chuyển tab hoặc rời trình phát. Vị trí được lưu cho đến khi đóng hoặc tải lại ứng dụng.",
     "homeTabsVisibilityDesc": "Tùy chỉnh các mục trên thanh điều hướng bo tròn (Capsule) ở đầu trang chủ",
+    "scratchpadSettings": "Sổ ghi nhanh",
+    "scratchpadShowHandle": "Hiện thẻ bên cạnh",
+    "scratchpadShowHandleDesc": "Thẻ ở mép trái cửa sổ. Khi ẩn, Ctrl / ⌘ + J hoặc bảng lệnh vẫn mở được sổ ghi nhanh.",
+    "scratchpadHandlePosition": "Độ cao thẻ bên cạnh",
+    "scratchpadHandlePositionDesc": "Vị trí của thẻ trên mép trái: 0% ở trên cùng, 100% gần đáy cửa sổ. Ở khoảng giữa, thẻ sẽ chồng lên thẻ seam Bravais khi thu gọn.",
     "showHomeTabPlaylist": "Hiện danh sách phát",
     "showHomeTabRadio": "Hiện Radio",
     "showHomeTabExplore": "Hiển thị Khám phá",
@@ -3106,6 +3266,9 @@ export default {
     "machiSceneKonbini": "Konbini",
     "machiSceneStation": "Trạm xăng",
     "machiSceneKowloon": "Quán bar Cửu Long Trại Thành",
+    "machiLightsSection": "Ánh đèn",
+    "machiSimulatedBeat": "Nhịp mô phỏng",
+    "machiSimulatedBeatHint": "Khi chế độ nhịp thông minh đặt là Tắt, một nhịp mô phỏng đều đặn sẽ điều khiển Neon theo nhịp và Màn hình chớp theo nhịp: các nhóm neon lần lượt sáng lên, màn hình lời bài hát sáng một chỗ sau mỗi hai phách. Khi đặt là Bật hoặc Chỉ bài đã phân tích, nhịp và tiếng trống thật sẽ điều khiển thay, và công tắc này không có tác dụng.",
     "machiSkySection": "Thời gian và thời tiết",
     "machiTimeOfDay": "Thời gian",
     "machiTimeOfDayHint": "Tự động theo đồng hồ của bạn: ban ngày, hoàng hôn hoặc ban đêm.",
@@ -3637,6 +3800,9 @@ export default {
     "globalLyricTimelineOffsetDesc": "Dịch chuyển dòng thời gian lời bài hát cho mọi bài trên thiết bị để bù độ trễ Bluetooth hoặc cổng ra khác. Mở bản xem trước trực tiếp để tinh chỉnh.",
     "lyricFilterRegex": "Bộ lọc lời bài hát",
     "lyricFilterRegexDesc": "Quy tắc lọc từng dòng và cách xử lý phần thông tin tác giả ở đầu lời bài hát.",
+    "settingsHeadingLyricSegmentation": "Tách từ",
+    "autoAiLyricSegmentation": "Tự tách từ bằng AI",
+    "autoAiLyricSegmentationDesc": "Khi phát bài có lời tiếng Trung hoặc tiếng Nhật chưa lưu cách tách từ, tự động dùng AI tách lời thành từ. Chỉ ảnh hưởng các kiểu lời sắp chữ theo từ. Chạy một lần cho mỗi bài và tốn yêu cầu AI.",
     "visualizerMode": "Chế độ",
     "noDescription": "Chưa có mô tả",
   },
@@ -3827,6 +3993,37 @@ export default {
       "qqPrivatePlaylists": {
         "title": "Danh sách phát QQ Music riêng tư",
         "description": "Sau khi đăng nhập, danh sách phát riêng tư của bạn nay có thể tải bài hát với phân trang thực tế. Máy chủ tự lưu trữ cần chạy qq-music-api 3.1.2 trở lên; phiên bản cũ hơn sẽ tự động quay về cơ chế dự phòng, và danh sách phát không đọc được sẽ báo rõ là danh sách không công khai thay vì hiển thị trống."
+      }
+    },
+    "v0_7_26": {
+      "intro": "Chào mừng bạn đến với 0.7.26, Fawkes Update—một bản cập nhật lớn. Phiên bản này thêm Sổ ghi nhanh, ngăn kéo trượt ra từ bên trái để giữ bài hát tạm thời; Nebbia có khung cảnh và lớp kính mới, gồm bể cá, sương đọng và tuyết; Apple Music và fnOS Music là hai nền tảng mới; bài hát từ các nền tảng khác nhau có thể nằm chung một hàng đợi, và trang tìm kiếm giờ tìm được cả album lẫn danh sách phát; viên thanh tiến trình hiện các lệnh thường dùng, và các nút bên phải có thể đổi ngay tại chỗ; gợi ý cũng phong phú hơn, với gợi ý theo phong cách cho Hằng ngày của NetEase cùng radio Có thể bạn thích và tùy chọn âm nhạc cho QQ Music.",
+      "scratchpad": {
+        "title": "Sổ ghi nhanh",
+        "description": "Sổ ghi nhanh mới là ngăn kéo bài hát trượt ra từ bên trái; nhấn Ctrl+J để mở. Di chuột lên thẻ bài hát, kết quả tìm kiếm, trang Khám phá hoặc bức tường bìa Lattice để thêm bài vào Sổ ghi nhanh hoặc lưu vào danh sách phát. Bài hát được nhóm theo nguồn, và mỗi nhóm có thể mở thành một khung vẽ để sắp xếp, chọn vùng các thẻ rồi thêm cả nhóm vào danh sách phát—trên màn hình cảm ứng cũng kéo được. Ngăn kéo còn có trang Lịch sử và Hàng đợi: Lịch sử liệt kê những bài đã phát từ tệp cục bộ, Navidrome và mọi nền tảng, còn hàng đợi có thể mở thành khung vẽ gồm các thẻ. Việc hiện tab bên và chiều cao của nó chỉnh trong Cài đặt."
+      },
+      "nebbiaScenes": {
+        "title": "Nebbia: khung cảnh và lớp kính mới",
+        "description": "Nebbia giờ cho chọn riêng khung cảnh bên ngoài và lớp kính phía trước. Ngoài con phố đêm mưa, khung cảnh có thể là nền dùng chung hoặc bể cá “Biển mơ đom đóm”, và mưa ngoài phố có thể rơi xiên, rơi thẳng hoặc không rơi. Lớp kính thêm Sương đọng—những giọt nước nhỏ cùng đom đóm bay lượn—và Tuyết, nơi tuyết từ xa bay đến bám lên kính, sáng trong như băng khi ngược sáng, và những giọt nước đọng lâu sẽ dần đóng băng. Khi trang phát trong suốt, màu sương theo ngày đêm của chủ đề và các giọt nước khúc xạ khung cảnh phía sau. Bảng lệnh thêm Đổi cảnh ngoài cửa sổ và Đổi kính phía trước."
+      },
+      "newPlatforms": {
+        "title": "Apple Music và fnOS Music",
+        "description": "Thêm hai nền tảng mới. Apple Music dùng được trên macOS 14 trở lên và trên Windows (cần WebView2 runtime, Windows 11 đã có sẵn), với gói đăng ký Apple Music: đăng nhập qua trang chính thức của Apple, rồi tìm kiếm và phát trọn bài, duyệt danh sách phát và album trong thư viện cùng trang danh mục nghệ sĩ và album, nghe radio cá nhân và radio trực tiếp, và lấy lời bài hát. Trên Linux chưa hỗ trợ. fnOS Music kết nối tới thư viện nhạc trên thiết bị fnOS—nhập địa chỉ và tài khoản trong cửa sổ đăng nhập để duyệt và phát."
+      },
+      "crossPlatform": {
+        "title": "Hàng đợi đa nền tảng và trang tìm kiếm mới",
+        "description": "Bài hát từ các nền tảng khác nhau giờ có thể nằm chung một hàng đợi phát: đổi nền tảng không còn xóa trình phát và hàng đợi, và đăng xuất khỏi một nền tảng chỉ gỡ các bài của nền tảng đó. Trang tìm kiếm có bố cục phẳng mới và tìm được album, danh sách phát bên cạnh bài hát (NetEase, Kugou, QQ Music và YouTube Music; Qishui chỉ tìm danh sách phát). Bạn có thể tìm trên nền tảng hiện tại, các nền tảng đã đăng nhập, tệp cục bộ hoặc Navidrome, và đổi nền tảng không làm mất kết quả tìm kiếm."
+      },
+      "playerCapsule": {
+        "title": "Lệnh trên viên thanh tiến trình",
+        "description": "Để con trỏ dừng trên viên thanh tiến trình một lúc, một hàng lệnh thường dùng sẽ hiện lên phía trên: trộn bài, yêu thích, thêm vào danh sách phát, âm lượng, kiểu hoạt ảnh lời bài hát và phụ đề; trên điện thoại hàng này hiện khi chạm vào viên hoặc khi tạm dừng. Bảng lệnh giờ mọc ra từ chính viên này. Nhấp chuột phải hoặc nhấn giữ nút ở bên phải viên để đổi sang hành động khác, và các lệnh hay dùng sẽ được gợi ý đặt vào đó. Bảng Phụ đề mới chỉnh phụ đề phụ, độ mờ đục, tỷ lệ và làm mờ câu tiếp theo, còn chạm vào biểu tượng của bảng âm lượng sẽ tắt tiếng."
+      },
+      "recommendations": {
+        "title": "Thêm cách khám phá nhạc",
+        "description": "Hằng ngày của NetEase thêm gợi ý Theo phong cách—thêm 30 bài theo thể loại, tâm trạng và bối cảnh bạn chọn—có thể chuyển đổi ngay trên bức tường hằng ngày. QQ Music thêm radio Có thể bạn thích với chế độ Khám phá, Quen thuộc và các bối cảnh, tùy chọn âm nhạc của tài khoản, các ngày trước của Hằng ngày 30 và “Không quan tâm” cho bài hát; backend tự dựng cần qq-music-api 3.3.6 trở lên. Danh sách phát tài khoản trên NetEase, Kugou và QQ Music giờ có Bảng xếp hạng nghe, liệt kê những bài bạn nghe nhiều nhất trong một khoảng thời gian."
+      },
+      "moreDetails": {
+        "title": "Cải tiến khác",
+        "description": "Machi hỗ trợ trang phát trong suốt, không còn khựng khi chuyển, và tự hạ chất lượng theo tần số quét để giữ mượt; khi không bật chuyển động thông minh, đèn neon và màn hình lớn nháy theo nhịp cố định, có thể tắt bằng Nhịp mô phỏng. Khung vẽ lời bài hát có cài đặt độ phân giải và khử răng cưa. Phím tắt toàn cục cho tự chọn phím bổ trợ và phím. Khi bật nhấp xuyên trên máy tính, bên cạnh ổ khóa có thêm bài trước, phát/tạm dừng và bài sau. Trang nghệ sĩ thêm Tất cả bài hát, và có thể mở nghệ sĩ của album từ trang album. Lời bài hát viết từ phải sang trái được xếp đúng chiều. Có thêm tùy chọn Tự tách từ bằng AI. Đã sửa lỗi yêu cầu NetEase bị ngắt trên một số mạng IPv6."
       }
     },
     "v0_7_25": {
@@ -4771,6 +4968,8 @@ export default {
     "stageLocalInputDescription": "Stage đang ở chế độ nhập nội bộ đơn luồng. Thiết bị ngoài có thể đẩy lời hoặc phương tiện, nhưng Folia sẽ tự kiểm soát phát và hiển thị.",
   },
   "libraryBravaisArtist": {
+    "allSongsCountUnit_one": "bài hát",
+    "allSongsCountUnit_other": "bài hát",
     "playTopSongs": "Phát bài nổi bật",
     "songCount_one": "{{count}} bài hát",
     "songCount_other": "{{count}} bài hát",
@@ -4788,7 +4987,8 @@ export default {
     "posterTopSongs": "Bài hát nổi bật"
   },
   "libraryBravaisAlbum": {
-    "posterLabel": "Áp phích album"
+    "posterLabel": "Áp phích album",
+    "openArtist": "Mở nghệ sĩ {{name}}"
   },
   "artistGrid": {
     "localArtist": "Nghệ sĩ nội bộ: {{artistName}}",
@@ -4800,6 +5000,8 @@ export default {
     "topSongsAddedToQueue_one": "Đã thêm {{count}} bài nổi bật vào hàng đợi phát",
     "topSongsAddedToQueue_other": "Đã thêm {{count}} bài nổi bật vào hàng đợi phát",
     "noTopSongsToQueue": "Không có bài hát nổi bật để thêm vào hàng đợi",
+    "allSongs": "Tất cả bài hát",
+    "allSongsCollectionName": "Tất cả bài hát của {{artistName}}",
   },
   "obs": {
     "connecting": "Đang kết nối Folia",

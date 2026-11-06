@@ -1,4 +1,4 @@
-import type { PersonalFmCatalog, PersonalFmSelection } from './personalFm';
+import type { PersonalFmCatalog, PersonalFmLaunch } from './personalFm';
 import type { LyricData, ReplayGainInfo, SongResult, UnifiedSong } from '../types';
 
 // src/types/onlineMusic.ts
@@ -72,6 +72,12 @@ export interface ProviderCapabilities {
     historyRecommendations?: boolean;
     /** Daily recommendations can be narrowed to styles the account picks (`recommendations.getDailyStyle*`). */
     dailyStyleRecommendations?: boolean;
+    /**
+     * The account keeps preferences that steer what the provider recommends, read and saved through
+     * `recommendations.getRecommendationPreferences` / `saveRecommendationPreferences`; where the app
+     * offers them is `recommendations.preferenceEntries`.
+     */
+    recommendationPreferences?: boolean;
     playlistSubscription?: boolean;
     playlistTrackMutations?: boolean;
     likes?: boolean;
@@ -222,13 +228,17 @@ export type ListeningRankRange = 'week' | 'all';
 
 export interface ProviderCollection {
     /** A provider's named radio stream: selecting the card starts FM with this mode. */
-    personalFm?: PersonalFmSelection;
+    personalFm?: PersonalFmLaunch;
     /** The account's listening ranking over this span (type `listening_rank`): read-only, made by the platform. */
     listeningRank?: ListeningRankRange;
     providerId: OnlineProviderId;
     id: MediaId;
     name: string;
-    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | 'listening_rank' | string;
+    /**
+     * `artist_songs` is every song of the artist whose id this is (the artist page's "all songs", #918):
+     * a read-only list the app makes, read through `catalog.getArtistSongs`.
+     */
+    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | 'listening_rank' | 'artist_songs' | string;
     coverUrl?: string;
     description?: string;
     trackCount?: number;
@@ -808,6 +818,8 @@ export interface OnlineCatalogProvider {
 export interface PersonalFmRequestOptions {
     mode?: string;
     submode?: string | null;
+    /** One of the provider's extra radios; absent for its Personal FM. A provider without stations ignores it. */
+    station?: string | null;
 }
 
 /**
@@ -832,20 +844,91 @@ export interface DailyStyleSongs {
     selection: DailyStyleSelection | null;
 }
 
+/**
+ * Words a provider shows with its recommendation preferences: `labelKey` is an i18n key for the
+ * user's language, `labelFallback` the provider's own words, shown when the key has no text.
+ */
+export interface RecommendationPreferenceLabel {
+    labelKey?: string;
+    labelFallback: string;
+}
+
+/** A preference picked from a few options (any number of them), each with the provider's own value. */
+export interface RecommendationPreferenceChoice {
+    kind: 'choice';
+    key: string;
+    label: RecommendationPreferenceLabel;
+    options: { value: string; label: RecommendationPreferenceLabel }[];
+    value: string;
+    defaultValue: string;
+}
+
+/**
+ * A preference on a scale from less to more, the default somewhere between. The numbers are the
+ * provider's; the app shows "less … default … more" and no number. `snapWithin`: a value this
+ * close to the default is taken for the default.
+ */
+export interface RecommendationPreferenceRatio {
+    kind: 'ratio';
+    key: string;
+    label: RecommendationPreferenceLabel;
+    min: number;
+    max: number;
+    defaultValue: number;
+    snapWithin?: number;
+    value: number;
+}
+
+/**
+ * One recommendation preference. Further kinds may come; the app passes over a kind it does not
+ * know, neither showing it nor sending it back.
+ */
+export type RecommendationPreferenceItem = RecommendationPreferenceChoice | RecommendationPreferenceRatio;
+
+/** The account's recommendation preferences, and a line on what they reach (the provider's words). */
+export interface RecommendationPreferences {
+    items: RecommendationPreferenceItem[];
+    note?: RecommendationPreferenceLabel;
+}
+
+/** What changed, by preference key: the option's value for a choice, the number for a ratio. */
+export type RecommendationPreferenceChanges = Record<string, string | number>;
+
+/** `confirmed` is false when the provider saved but read back something else, or could not read back. */
+export interface RecommendationPreferencesSaveResult {
+    confirmed: boolean;
+}
+
+/** Where the app offers the account's recommendation preferences. */
+export type RecommendationPreferenceEntry = 'explore' | 'personal-fm' | 'daily';
+
 export interface OnlineRecommendationProvider {
-    getPersonalFmCatalog?(): Promise<PersonalFmCatalog>;
+    /** The mode choices of the Personal FM, or of the extra radio `station` when one is asked for. */
+    getPersonalFmCatalog?(station?: string): Promise<PersonalFmCatalog>;
     getDailySongs?(refresh?: boolean): Promise<UnifiedSong[]>;
     getPersonalFm?(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]>;
     getRecommendedCollections?(limit: number): Promise<ProviderCollection[]>;
     getHistoryEntries?(): Promise<ProviderHistoryEntry[]>;
     getHistoryDates?(): Promise<string[]>;
     getHistorySongs?(entry: ProviderHistoryEntry | string): Promise<UnifiedSong[]>;
-    dislikeSong?(id: MediaId): Promise<{ replacement?: UnifiedSong; limitReached?: boolean }>;
+    /** `removed`: the song was blacklisted with no replacement; the daily view drops the row. */
+    dislikeSong?(id: MediaId): Promise<{ replacement?: UnifiedSong; limitReached?: boolean; removed?: boolean }>;
     /** The style groups to pick from (capability `dailyStyleRecommendations`). */
     getDailyStyleGroups?(): Promise<DailyStyleGroup[]>;
     getDailyStyleSongs?(): Promise<DailyStyleSongs>;
     /** Saves the pick on the account; the next `getDailyStyleSongs` answers for it. */
     setDailyStyle?(selection: DailyStyleSelection): Promise<void>;
+    /**
+     * Where the app offers the account's recommendation preferences (capability
+     * `recommendationPreferences`); the command palette offers them wherever they are supported.
+     */
+    preferenceEntries?: readonly RecommendationPreferenceEntry[];
+    getRecommendationPreferences?(): Promise<RecommendationPreferences>;
+    /**
+     * Saves what changed and nothing else; the provider writes it the way its platform takes it
+     * (the whole set, or the changed fields alone).
+     */
+    saveRecommendationPreferences?(changes: RecommendationPreferenceChanges): Promise<RecommendationPreferencesSaveResult>;
 }
 
 /**

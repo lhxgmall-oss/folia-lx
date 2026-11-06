@@ -1,4 +1,5 @@
 import { DEFAULT_PERSONAL_FM_CATALOG } from './fmModes';
+import type { PersonalFmCatalog } from '../../types/personalFm';
 import type { SongResult, UnifiedSong } from '../../types';
 import type {
     AudioQualityPreference,
@@ -46,6 +47,10 @@ import type {
     ProviderMark,
     JsonValue,
     ProviderRawEndpoint,
+    RecommendationPreferenceChanges,
+    RecommendationPreferenceEntry,
+    RecommendationPreferences,
+    RecommendationPreferencesSaveResult,
 } from '../../types/onlineMusic';
 import { resolveProviderLyricsChorus } from '../../utils/lyrics/chorusResolver';
 import { DEFAULT_ONLINE_PROVIDER_ID, OnlineProviderError } from '../../types/onlineMusic';
@@ -64,6 +69,11 @@ import {
     subscribeOnlineMusicProviderRegistry,
 } from './providerRegistry';
 import { saveProviderAccountSnapshot } from './providerAccountCache';
+import {
+    checkRecommendationPreferenceChanges,
+    normalizeRecommendationPreferences,
+    readRecommendationPreferenceEntries,
+} from './recommendationPreferences';
 import { applyOmniAudioHook, applyOmniLyricsHook } from '../hostExtensionHooks';
 import { createLikePresses } from '../../utils/likePresses';
 import type { LikePress, LikePresses } from '../../utils/likePresses';
@@ -80,6 +90,7 @@ import type { AccountMoment } from './account/readMoments';
 import { createAccountReads } from './account/accountRead';
 import { withoutCredentials } from './rawResponse';
 import { resolveSongCatalogRefSet } from './catalogRefs';
+import { ARTIST_SONGS_CAP, readAlignedPages } from './alignedPages';
 import type { AccountReadOutcome, AccountReadReason } from './account/accountRead';
 
 // src/services/onlineMusic/omni.ts
@@ -146,6 +157,30 @@ const activeProviderId = (): OmniProviderId => {
 
 const activeProvider = () => requireOnlineMusicProvider(activeProviderId());
 
+/** A provider has recommendation preferences when it declares the capability and can both read and save them. */
+const hasRecommendationPreferences = (provider: OnlineMusicProvider | null | undefined): provider is OnlineMusicProvider => (
+    providerSupports(provider, 'recommendationPreferences')
+    && typeof provider?.recommendations?.getRecommendationPreferences === 'function'
+    && typeof provider.recommendations.saveRecommendationPreferences === 'function'
+);
+
+const unsupportedPreferences = (provider: OnlineMusicProvider): OnlineProviderError => (
+    new OnlineProviderError('unsupported', `Recommendation preferences are not supported by ${provider.id}`, provider.id)
+);
+
+/** Told which provider's account preferences were written, confirmed or not: what it recommends may differ now. */
+const preferenceSaveListeners = new Set<(providerId: OmniProviderId) => void>();
+
+const tellPreferencesSaved = (providerId: OmniProviderId) => {
+    for (const listener of preferenceSaveListeners) {
+        try {
+            listener(providerId);
+        } catch (error) {
+            console.warn('[Omni] recommendation preference save listener failed', error);
+        }
+    }
+};
+
 const providerForSong = (song: SongResult) => {
     const provider = getOnlineMusicProviderForSong(song);
     if (!provider) throw new OnlineProviderError('unsupported', 'Song is not owned by an online provider');
@@ -199,6 +234,11 @@ const runRequest = async <T>(provider: OnlineMusicProvider, operation: OnlineFai
 };
 
 const emptyPage = <T>(offset: number): OmniPage<T> => ({ items: [], hasMore: false, nextOffset: offset });
+
+// Lists the app makes from a provider's reads, that are nobody's playlist: the listening ranking
+// (the platform's count of plays) and an artist's every song (`artist_songs`, #918). Nobody edits
+// or saves them; their id is not a playlist's.
+const isReadOnlyListType = (type: string): boolean => type === 'listening_rank' || type === 'artist_songs';
 
 // A search with the caller's context (`ProviderSearchContext`) where it gave one, handed on as it
 // is; a search without one reaches the provider as the host's own searches always have.
@@ -788,8 +828,8 @@ export const omni = {
 
     canEditCollectionTracks(collection: OmniCollection): boolean {
         const provider = getOnlineMusicProvider(collection.providerId);
-        // The listening ranking is the platform's count of plays: nobody edits it.
-        if (collection.type === 'listening_rank' || !providerSupports(provider, 'mutations')) return false;
+        // The listening ranking is the platform's count of plays: nobody edits it; nor an artist's songs.
+        if (isReadOnlyListType(collection.type) || !providerSupports(provider, 'mutations')) return false;
         if (collection.isLiked === true) {
             return providerSupports(provider, 'likes') && Boolean(provider?.mutations?.likeSong);
         }
@@ -816,7 +856,7 @@ export const omni = {
     canSubscribeCollection(collection: OmniCollection): boolean {
         const provider = getOnlineMusicProvider(collection.providerId);
         if (
-            collection.type === 'listening_rank'
+            isReadOnlyListType(collection.type)
             || !providerSupports(provider, 'mutations')
             || !providerSupports(provider, 'playlistSubscription')
             || provider?.mutations?.canSubscribe?.(collection) === false
@@ -886,6 +926,11 @@ export const omni = {
         return requireOnlineMusicProvider(providerId).recommendations?.getPersonalFmCatalog?.() ?? DEFAULT_PERSONAL_FM_CATALOG;
     },
 
+    /** The mode choices of one of the provider's extra radios; null where the provider has no such radio. */
+    async getPersonalFmStationCatalog(providerId: OmniProviderId, station: string): Promise<PersonalFmCatalog | null> {
+        return (await requireOnlineMusicProvider(providerId).recommendations?.getPersonalFmCatalog?.(station)) ?? null;
+    },
+
     async getPersonalFm(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]> {
         return withActiveProvider(async provider => provider.recommendations?.getPersonalFm?.(options) ?? []);
     },
@@ -924,6 +969,50 @@ export const omni = {
             if (!setStyle) throw new OnlineProviderError('unsupported', `Daily styles are not supported by ${provider.id}`, provider.id);
             await setStyle.call(provider.recommendations, selection);
         });
+    },
+
+    // Recommendation preferences (capability `recommendationPreferences`): whether the active provider
+    // has them, where it offers them, reading them and saving what changed. A provider counts only when
+    // it declares the capability and has both members.
+    supportsRecommendationPreferences(): boolean {
+        return hasRecommendationPreferences(getOnlineMusicProvider(activeProviderId()));
+    },
+
+    getRecommendationPreferenceEntries(): RecommendationPreferenceEntry[] {
+        const provider = getOnlineMusicProvider(activeProviderId());
+        return hasRecommendationPreferences(provider)
+            ? readRecommendationPreferenceEntries(provider?.recommendations?.preferenceEntries)
+            : [];
+    },
+
+    async getRecommendationPreferences(): Promise<RecommendationPreferences> {
+        return withActiveProvider(async provider => {
+            if (!hasRecommendationPreferences(provider)) throw unsupportedPreferences(provider);
+            const recommendations = provider.recommendations!;
+            return normalizeRecommendationPreferences(await recommendations.getRecommendationPreferences!.call(recommendations));
+        });
+    },
+
+    async saveRecommendationPreferences(changes: RecommendationPreferenceChanges): Promise<RecommendationPreferencesSaveResult> {
+        const checked = checkRecommendationPreferenceChanges(changes);
+        return withActiveProvider(async provider => {
+            if (!hasRecommendationPreferences(provider)) throw unsupportedPreferences(provider);
+            // Nothing changed: nothing to write, and what the account has is what it had.
+            if (!Object.keys(checked).length) return { confirmed: true };
+            const recommendations = provider.recommendations!;
+            const result = await recommendations.saveRecommendationPreferences!.call(recommendations, checked);
+            // The write reached that account whatever is active by now, so the listeners hear of it first.
+            tellPreferencesSaved(provider.id);
+            return { confirmed: result?.confirmed === true };
+        });
+    },
+
+    /** Hears which provider's account preferences were written; a provider that fails to save is not told of. */
+    subscribeRecommendationPreferenceSaves(listener: (providerId: OmniProviderId) => void): () => void {
+        preferenceSaveListeners.add(listener);
+        return () => {
+            preferenceSaveListeners.delete(listener);
+        };
     },
 
     supportsExplore(providerId: OmniProviderId): boolean {
@@ -1211,6 +1300,22 @@ export const omni = {
                 if (!collection.listeningRank) return emptyPage(page.offset);
                 return await (provider.catalog?.getListeningRankTracks?.(collection.listeningRank, page.limit, page.offset, collection) ?? emptyPage(page.offset));
             }
+            if (collection.type === 'artist_songs') {
+                // The artist page's "all songs": the id is the artist's. Read in small pages on whole
+                // multiples of their size, so a provider that pages by number reads each stretch once.
+                // Stops at ARTIST_SONGS_CAP songs: an artist of tens of thousands is read that far and no further.
+                const getArtistSongs = provider.catalog?.getArtistSongs?.bind(provider.catalog);
+                if (!getArtistSongs || page.offset >= ARTIST_SONGS_CAP) return emptyPage(page.offset);
+                const read = await readAlignedPages((limit, offset) => getArtistSongs(collection.id, limit, offset), {
+                    limit: Math.min(page.limit, ARTIST_SONGS_CAP - page.offset),
+                    offset: page.offset,
+                });
+                return {
+                    ...read,
+                    ...(read.total !== undefined ? { total: Math.min(read.total, ARTIST_SONGS_CAP) } : {}),
+                    hasMore: read.hasMore && read.nextOffset < ARTIST_SONGS_CAP,
+                };
+            }
             return await (provider.catalog?.getPlaylistTracks?.(collection.id, page.limit, page.offset, collection) ?? emptyPage(page.offset));
         });
     },
@@ -1239,6 +1344,7 @@ export const omni = {
     },
 
     async getSubscriptionStatus(collection: OmniCollection): Promise<boolean> {
+        if (isReadOnlyListType(collection.type)) return false;
         const type = collection.type === 'album' ? 'album' : 'playlist';
         return providerForCollection(collection).catalog?.getSubscriptionStatus?.(type, collection.id, collection) ?? false;
     },
@@ -1260,7 +1366,8 @@ export const omni = {
         const provider = providerForCollection(collection);
         const mutations = provider.mutations;
         if (
-            !providerSupports(provider, 'mutations')
+            isReadOnlyListType(collection.type)
+            || !providerSupports(provider, 'mutations')
             || !providerSupports(provider, 'playlistTrackMutations')
             || !mutations?.updatePlaylistTracks
         ) {
@@ -1440,7 +1547,7 @@ export const omni = {
         likedChecks.songsInPlay(inPlay);
     },
 
-    async dislikeSong(song: SongResult): Promise<{ replacement?: UnifiedSong; limitReached?: boolean }> {
+    async dislikeSong(song: SongResult): Promise<{ replacement?: UnifiedSong; limitReached?: boolean; removed?: boolean }> {
         const provider = providerForSong(song);
         if (!this.canDislikeSong(song) || !provider.recommendations?.dislikeSong) {
             return unsupported(provider.id, 'recommendation-dislike');
